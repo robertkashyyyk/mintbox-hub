@@ -21,9 +21,14 @@ interface MintsoftProduct {
 
 async function fetchMintsoftInventory(apiKey: string): Promise<MintsoftProduct[]> {
   console.log("Fetching inventory from Mintsoft...");
+  console.log("API Key length:", apiKey?.length);
+  console.log("API Key first 10 chars:", apiKey?.substring(0, 10));
   
-  // Use the correct StockLevels endpoint with breakdown parameter
-  const response = await fetch("https://api.mintsoft.co.uk/api/Product/StockLevels?breakdown=true", {
+  // Try without breakdown parameter first
+  const url = "https://api.mintsoft.co.uk/api/Product/StockLevels";
+  console.log("Calling URL:", url);
+  
+  const response = await fetch(url, {
     method: "GET",
     headers: {
       "ms-apikey": apiKey,
@@ -31,6 +36,8 @@ async function fetchMintsoftInventory(apiKey: string): Promise<MintsoftProduct[]
     },
   });
 
+  console.log("Response status:", response.status);
+  
   if (!response.ok) {
     const errorText = await response.text();
     console.error("Mintsoft inventory fetch failed:", response.status, errorText);
