@@ -3,17 +3,12 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const MINTSOFT_USERNAME = Deno.env.get("MINTSOFT_USERNAME");
-const MINTSOFT_PASSWORD = Deno.env.get("MINTSOFT_PASSWORD");
+const MINTSOFT_API_KEY = Deno.env.get("MINTSOFT_API_KEY");
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
-
-interface MintsoftAuthResponse {
-  APIKey: string;
-}
 
 interface MintsoftProduct {
   SKU: string;
@@ -24,36 +19,11 @@ interface MintsoftProduct {
   [key: string]: any;
 }
 
-async function getMintsoftAPIKey(): Promise<string> {
-  console.log("Authenticating with Mintsoft API...");
-  
-  const response = await fetch("https://api.mintsoft.co.uk/api/Auth", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      Username: MINTSOFT_USERNAME,
-      Password: MINTSOFT_PASSWORD,
-    }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error("Mintsoft auth failed:", response.status, errorText);
-    throw new Error(`Mintsoft authentication failed: ${response.status}`);
-  }
-
-  const data: MintsoftAuthResponse = await response.json();
-  console.log("Successfully authenticated with Mintsoft");
-  return data.APIKey;
-}
-
 async function fetchMintsoftInventory(apiKey: string): Promise<MintsoftProduct[]> {
   console.log("Fetching inventory from Mintsoft...");
   
-  // Use StockOnHand endpoint to get warehouse stock levels
-  const response = await fetch("https://api.mintsoft.co.uk/api/StockOnHand", {
+  // Try WarehouseStock endpoint
+  const response = await fetch("https://api.mintsoft.co.uk/api/WarehouseStock", {
     method: "POST",
     headers: {
       "APIKey": apiKey,
@@ -61,7 +31,7 @@ async function fetchMintsoftInventory(apiKey: string): Promise<MintsoftProduct[]
     },
     body: JSON.stringify({
       PageNo: 1,
-      Limit: 10000  // Adjust based on your needs
+      Limit: 10000
     }),
   });
 
@@ -200,19 +170,16 @@ serve(async (req) => {
   }
 
   try {
-    if (!MINTSOFT_USERNAME || !MINTSOFT_PASSWORD) {
-      throw new Error("Mintsoft credentials not configured");
+    if (!MINTSOFT_API_KEY) {
+      throw new Error("Mintsoft API key not configured");
     }
 
     console.log("Starting Mintsoft inventory sync...");
 
-    // Step 1: Authenticate
-    const apiKey = await getMintsoftAPIKey();
+    // Fetch inventory using static API key
+    const products = await fetchMintsoftInventory(MINTSOFT_API_KEY);
 
-    // Step 2: Fetch inventory
-    const products = await fetchMintsoftInventory(apiKey);
-
-    // Step 3: Sync to database
+    // Sync to database
     const result = await syncInventoryToDatabase(products);
 
     return new Response(
