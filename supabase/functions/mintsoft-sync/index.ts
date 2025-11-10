@@ -1,0 +1,227 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const MINTSOFT_USERNAME = Deno.env.get("MINTSOFT_USERNAME");
+const MINTSOFT_PASSWORD = Deno.env.get("MINTSOFT_PASSWORD");
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+interface MintsoftAuthResponse {
+  APIKey: string;
+}
+
+interface MintsoftProduct {
+  SKU: string;
+  Name?: string;
+  AvailableQuantity?: number;
+  WarehouseCode?: string;
+  StockOnHand?: number;
+  [key: string]: any;
+}
+
+async function getMintsoftAPIKey(): Promise<string> {
+  console.log("Authenticating with Mintsoft API...");
+  
+  const response = await fetch("https://api.mintsoft.co.uk/api/Auth", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      Username: MINTSOFT_USERNAME,
+      Password: MINTSOFT_PASSWORD,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error("Mintsoft auth failed:", response.status, errorText);
+    throw new Error(`Mintsoft authentication failed: ${response.status}`);
+  }
+
+  const data: MintsoftAuthResponse = await response.json();
+  console.log("Successfully authenticated with Mintsoft");
+  return data.APIKey;
+}
+
+async function fetchMintsoftInventory(apiKey: string): Promise<MintsoftProduct[]> {
+  console.log("Fetching inventory from Mintsoft...");
+  
+  // Fetch products/stock from Mintsoft
+  const response = await fetch("https://api.mintsoft.co.uk/api/Product", {
+    method: "GET",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error("Mintsoft inventory fetch failed:", response.status, errorText);
+    throw new Error(`Failed to fetch inventory: ${response.status}`);
+  }
+
+  const products: MintsoftProduct[] = await response.json();
+  console.log(`Fetched ${products.length} products from Mintsoft`);
+  return products;
+}
+
+function extractBrandFromSKU(sku: string): string | null {
+  const match = sku.match(/^([A-Z]{2,4})-/);
+  return match ? match[1] : null;
+}
+
+async function syncInventoryToDatabase(products: MintsoftProduct[]) {
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+  
+  // Get brand prefix mappings
+  const { data: brandPrefixes, error: brandError } = await supabase
+    .from("brand_prefixes")
+    .select("prefix, brand_name");
+  
+  if (brandError) {
+    console.error("Error fetching brand prefixes:", brandError);
+    throw brandError;
+  }
+
+  const prefixMap = new Map(
+    brandPrefixes?.map(bp => [bp.prefix, bp.brand_name]) || []
+  );
+
+  // Create a synthetic email record for this sync
+  const emailData = {
+    message_id: `mintsoft-api-sync-${Date.now()}`,
+    thread_id: `mintsoft-api-sync-${Date.now()}`,
+    subject: "Mintsoft API Inventory Sync",
+    sender: "api@mintsoft.co.uk",
+    received_at: new Date().toISOString(),
+    body: "Automated inventory sync from Mintsoft API",
+    labels: ["api-sync", "inventory"],
+  };
+
+  const { data: email, error: emailError } = await supabase
+    .from("emails")
+    .upsert(emailData, { onConflict: "message_id" })
+    .select()
+    .single();
+
+  if (emailError) {
+    console.error("Error creating email record:", emailError);
+    throw emailError;
+  }
+
+  console.log(`Created email record: ${email.id}`);
+
+  // Parse and insert inventory items
+  const items = products.map(product => {
+    const sku = product.SKU || "";
+    const prefix = extractBrandFromSKU(sku);
+    const brandName = prefix ? prefixMap.get(prefix) : null;
+    const skuCore = prefix ? sku.replace(`${prefix}-`, "") : sku;
+    
+    return {
+      email_id: email.id,
+      report_type: "Inventory",
+      sku: sku,
+      sku_core: skuCore,
+      brand_name: brandName,
+      qty: product.AvailableQuantity || product.StockOnHand || 0,
+      warehouse: product.WarehouseCode || "Main",
+      occurred_at: email.received_at,
+      raw: product,
+    };
+  });
+
+  // Insert in batches to avoid memory issues
+  const batchSize = 1000;
+  let insertedCount = 0;
+
+  for (let i = 0; i < items.length; i += batchSize) {
+    const batch = items.slice(i, i + batchSize);
+    
+    const { error: insertError } = await supabase
+      .from("parsed_items")
+      .insert(batch);
+
+    if (insertError) {
+      console.error(`Error inserting batch ${i / batchSize + 1}:`, insertError);
+      throw insertError;
+    }
+
+    insertedCount += batch.length;
+    console.log(`Inserted ${insertedCount} / ${items.length} items`);
+  }
+
+  // Log the sync
+  await supabase.from("ingest_logs").insert({
+    source: "mintsoft-api",
+    status: "success",
+    detail: `Synced ${items.length} products from Mintsoft API`,
+  });
+
+  console.log(`Successfully synced ${items.length} inventory items`);
+  
+  return { itemsCount: items.length, emailId: email.id };
+}
+
+serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    if (!MINTSOFT_USERNAME || !MINTSOFT_PASSWORD) {
+      throw new Error("Mintsoft credentials not configured");
+    }
+
+    console.log("Starting Mintsoft inventory sync...");
+
+    // Step 1: Authenticate
+    const apiKey = await getMintsoftAPIKey();
+
+    // Step 2: Fetch inventory
+    const products = await fetchMintsoftInventory(apiKey);
+
+    // Step 3: Sync to database
+    const result = await syncInventoryToDatabase(products);
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: "Inventory synced successfully",
+        ...result,
+      }),
+      {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      }
+    );
+  } catch (error) {
+    console.error("Mintsoft sync error:", error);
+    
+    // Log the failure
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    await supabase.from("ingest_logs").insert({
+      source: "mintsoft-api",
+      status: "error",
+      detail: error instanceof Error ? error.message : "Unknown error",
+    });
+
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      }),
+      {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 500,
+      }
+    );
+  }
+});

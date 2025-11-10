@@ -2,3 +2,6 @@ project_id = "zadsuqxcchpnegcynflb"
 
 [functions.email-intake]
 verify_jwt = false
+
+[functions.mintsoft-sync]
+verify_jwt = false
