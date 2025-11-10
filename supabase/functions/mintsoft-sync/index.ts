@@ -52,14 +52,17 @@ async function getMintsoftAPIKey(): Promise<string> {
 async function fetchMintsoftInventory(apiKey: string): Promise<MintsoftProduct[]> {
   console.log("Fetching inventory from Mintsoft...");
   
-  // Mintsoft requires POST for Product queries
-  const response = await fetch("https://api.mintsoft.co.uk/api/Product?WarehouseId=0", {
+  // Use StockOnHand endpoint to get warehouse stock levels
+  const response = await fetch("https://api.mintsoft.co.uk/api/StockOnHand", {
     method: "POST",
     headers: {
       "APIKey": apiKey,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({}),
+    body: JSON.stringify({
+      PageNo: 1,
+      Limit: 10000  // Adjust based on your needs
+    }),
   });
 
   if (!response.ok) {
