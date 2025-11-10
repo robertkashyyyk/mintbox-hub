@@ -26,7 +26,7 @@ async function fetchMintsoftInventory(apiKey: string): Promise<MintsoftProduct[]
   const response = await fetch("https://api.mintsoft.co.uk/api/Product/StockLevels?breakdown=true", {
     method: "GET",
     headers: {
-      "Authorization": apiKey,  // Try Authorization header
+      "ms-apikey": apiKey,
       "Content-Type": "application/json",
     },
   });
