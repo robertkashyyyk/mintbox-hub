@@ -56,42 +56,27 @@ export type Database = {
           },
         ]
       }
-      brand_prefixes: {
-        Row: {
-          brand_name: string
-          created_at: string | null
-          id: string
-          prefix: string
-        }
-        Insert: {
-          brand_name: string
-          created_at?: string | null
-          id?: string
-          prefix: string
-        }
-        Update: {
-          brand_name?: string
-          created_at?: string | null
-          id?: string
-          prefix?: string
-        }
-        Relationships: []
-      }
       brands: {
         Row: {
           created_at: string | null
           id: string
           name: string
+          prefix: string | null
+          prefix_style: Database["public"]["Enums"]["prefix_style"] | null
         }
         Insert: {
           created_at?: string | null
           id?: string
           name: string
+          prefix?: string | null
+          prefix_style?: Database["public"]["Enums"]["prefix_style"] | null
         }
         Update: {
           created_at?: string | null
           id?: string
           name?: string
+          prefix?: string | null
+          prefix_style?: Database["public"]["Enums"]["prefix_style"] | null
         }
         Relationships: []
       }
@@ -395,6 +380,7 @@ export type Database = {
     }
     Enums: {
       alert_type: "LowStock" | "RemoteStock" | "BackOrders" | "Inventory"
+      prefix_style: "hyphen" | "slash"
       severity_type: "info" | "warning" | "critical"
     }
     CompositeTypes: {
@@ -524,6 +510,7 @@ export const Constants = {
   public: {
     Enums: {
       alert_type: ["LowStock", "RemoteStock", "BackOrders", "Inventory"],
+      prefix_style: ["hyphen", "slash"],
       severity_type: ["info", "warning", "critical"],
     },
   },

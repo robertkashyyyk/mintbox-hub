@@ -80,18 +80,24 @@ function extractBrandFromSKU(sku: string): string | null {
 async function syncInventoryToDatabase(products: MintsoftProduct[]) {
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
   
-  // Get brand prefix mappings
-  const { data: brandPrefixes, error: brandError } = await supabase
-    .from("brand_prefixes")
-    .select("prefix, brand_name");
+  // Get brand configurations
+  const { data: brands, error: brandError } = await supabase
+    .from("brands")
+    .select("name, prefix, prefix_style")
+    .not("prefix", "is", null);
   
   if (brandError) {
-    console.error("Error fetching brand prefixes:", brandError);
+    console.error("Error fetching brands:", brandError);
     throw brandError;
   }
 
+  // Create prefix map with full prefix (including separator)
   const prefixMap = new Map(
-    brandPrefixes?.map(bp => [bp.prefix, bp.brand_name]) || []
+    brands?.map(b => {
+      const separator = b.prefix_style === 'slash' ? '/' : '-';
+      const fullPrefix = `${b.prefix}${separator}`;
+      return [fullPrefix, b.name];
+    }) || []
   );
 
   // Create a synthetic email record for this sync
@@ -118,25 +124,39 @@ async function syncInventoryToDatabase(products: MintsoftProduct[]) {
 
   console.log(`Created email record: ${email.id}`);
 
-  // Parse and insert inventory items
-  const items = products.map(product => {
-    const sku = product.SKU || "";
-    const prefix = extractBrandFromSKU(sku);
-    const brandName = prefix ? prefixMap.get(prefix) : null;
-    const skuCore = prefix ? sku.replace(`${prefix}-`, "") : sku;
-    
-    return {
-      email_id: email.id,
-      report_type: "Inventory",
-      sku: sku,
-      sku_core: skuCore,
-      brand_name: brandName,
-      qty: product.AvailableQuantity || product.StockOnHand || 0,
-      warehouse: product.WarehouseCode || "Main",
-      occurred_at: email.received_at,
-      raw: product,
-    };
-  });
+  // Parse and insert inventory items - only for brands we track
+  const items = products
+    .map(product => {
+      const sku = product.SKU || "";
+      
+      // Check if SKU starts with any of our tracked prefixes
+      let brandName = null;
+      let skuCore = sku;
+      
+      for (const [fullPrefix, name] of prefixMap.entries()) {
+        if (sku.startsWith(fullPrefix)) {
+          brandName = name;
+          skuCore = sku.substring(fullPrefix.length);
+          break;
+        }
+      }
+      
+      // Only include items that match our tracked brands
+      if (!brandName) return null;
+      
+      return {
+        email_id: email.id,
+        report_type: "Inventory",
+        sku: sku,
+        sku_core: skuCore,
+        brand_name: brandName,
+        qty: product.AvailableQuantity || product.StockOnHand || 0,
+        warehouse: product.WarehouseCode || "Main",
+        occurred_at: email.received_at,
+        raw: product,
+      };
+    })
+    .filter((item): item is NonNullable<typeof item> => item !== null);
 
   // Insert in batches to avoid memory issues
   const batchSize = 1000;
