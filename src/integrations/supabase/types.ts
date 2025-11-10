@@ -14,6 +14,41 @@ export type Database = {
   }
   public: {
     Tables: {
+      alerts: {
+        Row: {
+          alert_type: Database["public"]["Enums"]["alert_type"]
+          created_at: string
+          email_id: string
+          id: string
+          occurred_at: string
+          severity: Database["public"]["Enums"]["severity_type"]
+        }
+        Insert: {
+          alert_type: Database["public"]["Enums"]["alert_type"]
+          created_at?: string
+          email_id: string
+          id?: string
+          occurred_at: string
+          severity?: Database["public"]["Enums"]["severity_type"]
+        }
+        Update: {
+          alert_type?: Database["public"]["Enums"]["alert_type"]
+          created_at?: string
+          email_id?: string
+          id?: string
+          occurred_at?: string
+          severity?: Database["public"]["Enums"]["severity_type"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alerts_email_id_fkey"
+            columns: ["email_id"]
+            isOneToOne: false
+            referencedRelation: "emails"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       brands: {
         Row: {
           created_at: string | null
@@ -70,6 +105,69 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      emails: {
+        Row: {
+          body: string | null
+          created_at: string
+          id: string
+          labels: string[] | null
+          message_id: string
+          received_at: string
+          sender: string
+          subject: string
+          thread_id: string
+          updated_at: string
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string
+          id?: string
+          labels?: string[] | null
+          message_id: string
+          received_at: string
+          sender: string
+          subject: string
+          thread_id: string
+          updated_at?: string
+        }
+        Update: {
+          body?: string | null
+          created_at?: string
+          id?: string
+          labels?: string[] | null
+          message_id?: string
+          received_at?: string
+          sender?: string
+          subject?: string
+          thread_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      ingest_logs: {
+        Row: {
+          created_at: string
+          detail: string | null
+          id: string
+          source: string
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          detail?: string | null
+          id?: string
+          source: string
+          status: string
+        }
+        Update: {
+          created_at?: string
+          detail?: string | null
+          id?: string
+          source?: string
+          status?: string
+        }
+        Relationships: []
       }
       order_tracking: {
         Row: {
@@ -142,7 +240,8 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      alert_type: "LowStock" | "RemoteStock" | "BackOrders"
+      severity_type: "info" | "warning" | "critical"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -269,6 +368,9 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      alert_type: ["LowStock", "RemoteStock", "BackOrders"],
+      severity_type: ["info", "warning", "critical"],
+    },
   },
 } as const
