@@ -52,19 +52,20 @@ async function getMintsoftAPIKey(): Promise<string> {
 async function fetchMintsoftInventory(apiKey: string): Promise<MintsoftProduct[]> {
   console.log("Fetching inventory from Mintsoft...");
   
-  // Fetch products/stock from Mintsoft
-  const response = await fetch("https://api.mintsoft.co.uk/api/Product", {
-    method: "GET",
+  // Mintsoft requires POST for Product queries
+  const response = await fetch("https://api.mintsoft.co.uk/api/Product?WarehouseId=0", {
+    method: "POST",
     headers: {
-      "Authorization": `Bearer ${apiKey}`,
+      "APIKey": apiKey,
       "Content-Type": "application/json",
     },
+    body: JSON.stringify({}),
   });
 
   if (!response.ok) {
     const errorText = await response.text();
     console.error("Mintsoft inventory fetch failed:", response.status, errorText);
-    throw new Error(`Failed to fetch inventory: ${response.status}`);
+    throw new Error(`Failed to fetch inventory: ${response.status} - ${errorText}`);
   }
 
   const products: MintsoftProduct[] = await response.json();
