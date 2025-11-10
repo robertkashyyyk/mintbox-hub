@@ -47,7 +47,35 @@ export type Database = {
             referencedRelation: "emails"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "alerts_email_id_fkey"
+            columns: ["email_id"]
+            isOneToOne: false
+            referencedRelation: "latest_email_per_type"
+            referencedColumns: ["email_id"]
+          },
         ]
+      }
+      brand_prefixes: {
+        Row: {
+          brand_name: string
+          created_at: string | null
+          id: string
+          prefix: string
+        }
+        Insert: {
+          brand_name: string
+          created_at?: string | null
+          id?: string
+          prefix: string
+        }
+        Update: {
+          brand_name?: string
+          created_at?: string | null
+          id?: string
+          prefix?: string
+        }
+        Relationships: []
       }
       brands: {
         Row: {
@@ -214,6 +242,63 @@ export type Database = {
           },
         ]
       }
+      parsed_items: {
+        Row: {
+          brand_name: string | null
+          created_at: string | null
+          email_id: string
+          id: string
+          occurred_at: string
+          qty: number | null
+          raw: Json | null
+          report_type: string
+          sku: string
+          sku_core: string | null
+          warehouse: string | null
+        }
+        Insert: {
+          brand_name?: string | null
+          created_at?: string | null
+          email_id: string
+          id?: string
+          occurred_at: string
+          qty?: number | null
+          raw?: Json | null
+          report_type: string
+          sku: string
+          sku_core?: string | null
+          warehouse?: string | null
+        }
+        Update: {
+          brand_name?: string | null
+          created_at?: string | null
+          email_id?: string
+          id?: string
+          occurred_at?: string
+          qty?: number | null
+          raw?: Json | null
+          report_type?: string
+          sku?: string
+          sku_core?: string | null
+          warehouse?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "parsed_items_email_id_fkey"
+            columns: ["email_id"]
+            isOneToOne: false
+            referencedRelation: "emails"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "parsed_items_email_id_fkey"
+            columns: ["email_id"]
+            isOneToOne: false
+            referencedRelation: "latest_email_per_type"
+            referencedColumns: ["email_id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string | null
@@ -234,7 +319,76 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      latest_email_per_type: {
+        Row: {
+          alert_type: Database["public"]["Enums"]["alert_type"] | null
+          email_id: string | null
+          occurred_at: string | null
+        }
+        Relationships: []
+      }
+      latest_items_by_brand: {
+        Row: {
+          brand_name: string | null
+          created_at: string | null
+          email_id: string | null
+          id: string | null
+          occurred_at: string | null
+          qty: number | null
+          raw: Json | null
+          report_type: string | null
+          sku: string | null
+          sku_core: string | null
+          warehouse: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "parsed_items_email_id_fkey"
+            columns: ["email_id"]
+            isOneToOne: false
+            referencedRelation: "emails"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "parsed_items_email_id_fkey"
+            columns: ["email_id"]
+            isOneToOne: false
+            referencedRelation: "latest_email_per_type"
+            referencedColumns: ["email_id"]
+          },
+        ]
+      }
+      latest_items_per_type: {
+        Row: {
+          brand_name: string | null
+          created_at: string | null
+          email_id: string | null
+          id: string | null
+          occurred_at: string | null
+          qty: number | null
+          raw: Json | null
+          report_type: string | null
+          sku: string | null
+          sku_core: string | null
+          warehouse: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "parsed_items_email_id_fkey"
+            columns: ["email_id"]
+            isOneToOne: false
+            referencedRelation: "emails"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "parsed_items_email_id_fkey"
+            columns: ["email_id"]
+            isOneToOne: false
+            referencedRelation: "latest_email_per_type"
+            referencedColumns: ["email_id"]
+          },
+        ]
+      }
     }
     Functions: {
       [_ in never]: never
