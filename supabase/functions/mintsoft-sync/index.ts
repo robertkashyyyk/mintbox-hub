@@ -123,12 +123,10 @@ async function syncInventoryToDatabase(products: MintsoftProduct[]) {
     
     // Find matching brand
     let brandName = null;
-    let skuCore = sku;
     
     for (const [fullPrefix, name] of prefixMap.entries()) {
       if (sku.startsWith(fullPrefix)) {
         brandName = name;
-        skuCore = sku.substring(fullPrefix.length);
         break;
       }
     }
@@ -137,7 +135,7 @@ async function syncInventoryToDatabase(products: MintsoftProduct[]) {
       email_id: email.id,
       report_type: "Inventory",
       sku: sku,
-      sku_core: skuCore,
+      // Don't include sku_core - it's a generated column
       brand_name: brandName,
       qty: product.Level || product.TotalStockLevel || 0,
       warehouse: "Coleraine Live",
