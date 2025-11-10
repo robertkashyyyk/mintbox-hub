@@ -24,8 +24,8 @@ async function fetchMintsoftInventory(apiKey: string): Promise<MintsoftProduct[]
   console.log("API Key length:", apiKey?.length);
   console.log("API Key first 10 chars:", apiKey?.substring(0, 10));
   
-  // Try without breakdown parameter first
-  const url = "https://api.mintsoft.co.uk/api/Product/StockLevels";
+  // Use WarehouseId=5 for Coleraine Live, breakdown=true for detailed info
+  const url = "https://api.mintsoft.co.uk/api/Product/StockLevels?WarehouseId=5&breakdown=true";
   console.log("Calling URL:", url);
   
   const response = await fetch(url, {
