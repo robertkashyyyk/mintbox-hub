@@ -22,17 +22,13 @@ interface MintsoftProduct {
 async function fetchMintsoftInventory(apiKey: string): Promise<MintsoftProduct[]> {
   console.log("Fetching inventory from Mintsoft...");
   
-  // Try WarehouseStock endpoint
-  const response = await fetch("https://api.mintsoft.co.uk/api/WarehouseStock", {
-    method: "POST",
+  // Use the correct StockLevels endpoint with breakdown parameter
+  const response = await fetch("https://api.mintsoft.co.uk/api/Product/StockLevels?breakdown=true", {
+    method: "GET",
     headers: {
-      "APIKey": apiKey,
+      "Authorization": apiKey,  // Try Authorization header
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      PageNo: 1,
-      Limit: 10000
-    }),
   });
 
   if (!response.ok) {
