@@ -36,12 +36,10 @@ interface Brand {
 }
 
 async function fetchMintsoftInventoryByBrands(apiKey: string, brands: Brand[]): Promise<MintsoftProduct[]> {
-  console.log(`Fetching inventory for ${brands.length} brands from Mintsoft...`);
+  console.log(`Testing with single SKU: NGK-02412`);
   
-  const allProducts: MintsoftProduct[] = [];
-  
-  // Fetch stock levels for all products first
-  const url = "https://api.mintsoft.co.uk/api/Product/StockLevels?WarehouseId=5&breakdown=true";
+  // Test with single SKU first
+  const url = "https://api.mintsoft.co.uk/api/Product/StockLevels?WarehouseId=5&breakdown=true&SKU=NGK-02412";
   console.log("Calling URL:", url);
   
   const response = await fetch(url, {
@@ -60,24 +58,11 @@ async function fetchMintsoftInventoryByBrands(apiKey: string, brands: Brand[]): 
     throw new Error(`Failed to fetch inventory: ${response.status} - ${errorText}`);
   }
 
-  const allMintsoftProducts: MintsoftProduct[] = await response.json();
-  console.log(`Fetched ${allMintsoftProducts.length} total products from Mintsoft`);
+  const products: MintsoftProduct[] = await response.json();
+  console.log(`Response:`, JSON.stringify(products, null, 2));
+  console.log(`Fetched ${products.length} products`);
   
-  // Filter to only include products matching our tracked brand prefixes
-  const brandPrefixes = new Set(
-    brands.map(b => {
-      const separator = b.prefix_style === 'slash' ? '/' : '-';
-      return `${b.prefix}${separator}`;
-    })
-  );
-  
-  const filteredProducts = allMintsoftProducts.filter(p => {
-    if (!p.SKU) return false;
-    return Array.from(brandPrefixes).some(prefix => p.SKU.startsWith(prefix));
-  });
-  
-  console.log(`Filtered to ${filteredProducts.length} products from tracked brands`);
-  return filteredProducts;
+  return products;
 }
 
 function extractBrandFromSKU(sku: string): string | null {
