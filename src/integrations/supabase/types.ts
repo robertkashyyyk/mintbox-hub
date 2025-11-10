@@ -59,6 +59,7 @@ export type Database = {
       brands: {
         Row: {
           created_at: string | null
+          family: string | null
           id: string
           name: string
           prefix: string | null
@@ -66,6 +67,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string | null
+          family?: string | null
           id?: string
           name: string
           prefix?: string | null
@@ -73,6 +75,7 @@ export type Database = {
         }
         Update: {
           created_at?: string | null
+          family?: string | null
           id?: string
           name?: string
           prefix?: string | null
