@@ -240,7 +240,7 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      alert_type: "LowStock" | "RemoteStock" | "BackOrders"
+      alert_type: "LowStock" | "RemoteStock" | "BackOrders" | "Inventory"
       severity_type: "info" | "warning" | "critical"
     }
     CompositeTypes: {
@@ -369,7 +369,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      alert_type: ["LowStock", "RemoteStock", "BackOrders"],
+      alert_type: ["LowStock", "RemoteStock", "BackOrders", "Inventory"],
       severity_type: ["info", "warning", "critical"],
     },
   },
