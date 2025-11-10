@@ -12,19 +12,35 @@ const corsHeaders = {
 
 interface MintsoftProduct {
   SKU: string;
+  ProductId?: number;
+  WarehouseId?: number;
   Name?: string;
-  AvailableQuantity?: number;
-  WarehouseCode?: string;
-  StockOnHand?: number;
+  Level?: number;
+  TotalStockLevel?: number;
+  LowStockLevel?: number;
+  LastUpdated?: string;
+  Breakdown?: Array<{
+    Quantity: number;
+    BatchNo?: string;
+    SerialNo?: string;
+    BestBefore?: string;
+    Type?: string;
+  }>;
   [key: string]: any;
 }
 
-async function fetchMintsoftInventory(apiKey: string): Promise<MintsoftProduct[]> {
-  console.log("Fetching inventory from Mintsoft...");
-  console.log("API Key length:", apiKey?.length);
-  console.log("API Key first 10 chars:", apiKey?.substring(0, 10));
+interface Brand {
+  name: string;
+  prefix: string;
+  prefix_style: string;
+}
+
+async function fetchMintsoftInventoryByBrands(apiKey: string, brands: Brand[]): Promise<MintsoftProduct[]> {
+  console.log(`Fetching inventory for ${brands.length} brands from Mintsoft...`);
   
-  // Use WarehouseId=5 for Coleraine Live, breakdown=true for detailed info
+  const allProducts: MintsoftProduct[] = [];
+  
+  // Fetch stock levels for all products first
   const url = "https://api.mintsoft.co.uk/api/Product/StockLevels?WarehouseId=5&breakdown=true";
   console.log("Calling URL:", url);
   
@@ -44,9 +60,24 @@ async function fetchMintsoftInventory(apiKey: string): Promise<MintsoftProduct[]
     throw new Error(`Failed to fetch inventory: ${response.status} - ${errorText}`);
   }
 
-  const products: MintsoftProduct[] = await response.json();
-  console.log(`Fetched ${products.length} products from Mintsoft`);
-  return products;
+  const allMintsoftProducts: MintsoftProduct[] = await response.json();
+  console.log(`Fetched ${allMintsoftProducts.length} total products from Mintsoft`);
+  
+  // Filter to only include products matching our tracked brand prefixes
+  const brandPrefixes = new Set(
+    brands.map(b => {
+      const separator = b.prefix_style === 'slash' ? '/' : '-';
+      return `${b.prefix}${separator}`;
+    })
+  );
+  
+  const filteredProducts = allMintsoftProducts.filter(p => {
+    if (!p.SKU) return false;
+    return Array.from(brandPrefixes).some(prefix => p.SKU.startsWith(prefix));
+  });
+  
+  console.log(`Filtered to ${filteredProducts.length} products from tracked brands`);
+  return filteredProducts;
 }
 
 function extractBrandFromSKU(sku: string): string | null {
@@ -101,39 +132,34 @@ async function syncInventoryToDatabase(products: MintsoftProduct[]) {
 
   console.log(`Created email record: ${email.id}`);
 
-  // Parse and insert inventory items - only for brands we track
-  const items = products
-    .map(product => {
-      const sku = product.SKU || "";
-      
-      // Check if SKU starts with any of our tracked prefixes
-      let brandName = null;
-      let skuCore = sku;
-      
-      for (const [fullPrefix, name] of prefixMap.entries()) {
-        if (sku.startsWith(fullPrefix)) {
-          brandName = name;
-          skuCore = sku.substring(fullPrefix.length);
-          break;
-        }
+  // Parse and insert inventory items
+  const items = products.map(product => {
+    const sku = product.SKU || "";
+    
+    // Find matching brand
+    let brandName = null;
+    let skuCore = sku;
+    
+    for (const [fullPrefix, name] of prefixMap.entries()) {
+      if (sku.startsWith(fullPrefix)) {
+        brandName = name;
+        skuCore = sku.substring(fullPrefix.length);
+        break;
       }
-      
-      // Only include items that match our tracked brands
-      if (!brandName) return null;
-      
-      return {
-        email_id: email.id,
-        report_type: "Inventory",
-        sku: sku,
-        sku_core: skuCore,
-        brand_name: brandName,
-        qty: product.AvailableQuantity || product.StockOnHand || 0,
-        warehouse: product.WarehouseCode || "Main",
-        occurred_at: email.received_at,
-        raw: product,
-      };
-    })
-    .filter((item): item is NonNullable<typeof item> => item !== null);
+    }
+    
+    return {
+      email_id: email.id,
+      report_type: "Inventory",
+      sku: sku,
+      sku_core: skuCore,
+      brand_name: brandName,
+      qty: product.Level || product.TotalStockLevel || 0,
+      warehouse: "Coleraine Live",
+      occurred_at: email.received_at,
+      raw: product,
+    };
+  });
 
   // Insert in batches to avoid memory issues
   const batchSize = 1000;
@@ -179,8 +205,19 @@ serve(async (req) => {
 
     console.log("Starting Mintsoft inventory sync...");
 
-    // Fetch inventory using static API key
-    const products = await fetchMintsoftInventory(MINTSOFT_API_KEY);
+    // Get brands first
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const { data: brands } = await supabase
+      .from("brands")
+      .select("name, prefix, prefix_style")
+      .not("prefix", "is", null);
+
+    if (!brands || brands.length === 0) {
+      throw new Error("No brands configured");
+    }
+
+    // Fetch inventory (filtered by brands on client side to reduce data)
+    const products = await fetchMintsoftInventoryByBrands(MINTSOFT_API_KEY, brands);
 
     // Sync to database
     const result = await syncInventoryToDatabase(products);
