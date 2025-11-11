@@ -185,6 +185,51 @@ export type Database = {
         }
         Relationships: []
       }
+      ingest_run_state: {
+        Row: {
+          id: string
+          last_ok_at: string | null
+          last_run_at: string | null
+          last_status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id: string
+          last_ok_at?: string | null
+          last_run_at?: string | null
+          last_status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          last_ok_at?: string | null
+          last_run_at?: string | null
+          last_status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      mintsoft_settings: {
+        Row: {
+          api_key: string
+          base_url: string
+          id: boolean
+          updated_at: string | null
+        }
+        Insert: {
+          api_key: string
+          base_url: string
+          id?: boolean
+          updated_at?: string | null
+        }
+        Update: {
+          api_key?: string
+          base_url?: string
+          id?: boolean
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       order_tracking: {
         Row: {
           brand_id: string
