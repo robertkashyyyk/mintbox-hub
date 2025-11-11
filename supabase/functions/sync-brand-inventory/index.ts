@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { Resend } from "https://esm.sh/resend@4.0.0";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -33,8 +34,10 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const mintsoftApiKey = Deno.env.get('MINTSOFT_API_KEY')!;
+    const resendApiKey = Deno.env.get('RESEND_API_KEY')!;
     
     const supabase = createClient(supabaseUrl, supabaseKey);
+    const resend = new Resend(resendApiKey);
     
     // Get job details
     const { data: job, error: jobError } = await supabase
@@ -162,6 +165,36 @@ serve(async (req) => {
         type: 'success',
         link: '/dashboard'
       });
+    
+    // Send email notification
+    const userEmail = job.profiles.email;
+    const completedTime = new Date().toLocaleString('en-GB', { 
+      dateStyle: 'medium', 
+      timeStyle: 'short' 
+    });
+    
+    try {
+      await resend.emails.send({
+        from: 'Inventory Sync <onboarding@resend.dev>',
+        to: [userEmail],
+        subject: `✅ Inventory Sync Complete - ${job.brands.name}`,
+        html: `
+          <h1>Inventory Sync Completed</h1>
+          <p>Your inventory sync for <strong>${job.brands.name}</strong> has finished successfully.</p>
+          <p><strong>Details:</strong></p>
+          <ul>
+            <li>Brand: ${job.brands.name}</li>
+            <li>Items Processed: ${items.length}</li>
+            <li>Completed: ${completedTime}</li>
+          </ul>
+          <p>You can view the updated inventory in your <a href="${supabaseUrl.replace('https://zadsuqxcchpnegcynflb.supabase.co', 'your-app-url')}/dashboard">dashboard</a>.</p>
+        `,
+      });
+      console.log(`Email notification sent to ${userEmail}`);
+    } catch (emailError) {
+      console.error('Failed to send email notification:', emailError);
+      // Don't fail the whole job if email fails
+    }
     
     console.log(`Successfully completed sync job ${job_id}`);
     
