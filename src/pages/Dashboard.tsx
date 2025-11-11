@@ -3,14 +3,12 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Session } from "@supabase/supabase-js";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { BrandFilter } from "@/components/dashboard/BrandFilter";
-import { DownloadSection } from "@/components/dashboard/DownloadSection";
 import { DownloadHistory } from "@/components/dashboard/DownloadHistory";
 import { OrderTracking } from "@/components/dashboard/OrderTracking";
 import { NotificationBell } from "@/components/dashboard/NotificationBell";
 import { SyncControl } from "@/components/dashboard/SyncControl";
+import { SyncHistory } from "@/components/dashboard/SyncHistory";
 import { LogOut } from "lucide-react";
 
 const Dashboard = () => {
@@ -73,20 +71,8 @@ const Dashboard = () => {
       <main className="container mx-auto px-4 py-8 space-y-8">
         <SyncControl />
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Download Reports</CardTitle>
-            <CardDescription>
-              Select a brand and download reports in your preferred format
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <BrandFilter selectedBrand={selectedBrand} onBrandChange={setSelectedBrand} />
-            <DownloadSection selectedBrand={selectedBrand} userId={session.user.id} />
-          </CardContent>
-        </Card>
-
-        <div className="grid gap-8 md:grid-cols-2">
+        <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
+          <SyncHistory />
           <DownloadHistory />
           <OrderTracking selectedBrand={selectedBrand} userId={session.user.id} />
         </div>
