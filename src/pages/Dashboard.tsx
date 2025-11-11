@@ -9,6 +9,8 @@ import { BrandFilter } from "@/components/dashboard/BrandFilter";
 import { DownloadSection } from "@/components/dashboard/DownloadSection";
 import { DownloadHistory } from "@/components/dashboard/DownloadHistory";
 import { OrderTracking } from "@/components/dashboard/OrderTracking";
+import { NotificationBell } from "@/components/dashboard/NotificationBell";
+import { SyncControl } from "@/components/dashboard/SyncControl";
 import { LogOut } from "lucide-react";
 
 const Dashboard = () => {
@@ -58,14 +60,19 @@ const Dashboard = () => {
             <h1 className="text-2xl font-bold">Mintsoft Dashboard</h1>
             <p className="text-sm text-muted-foreground">{session.user.email}</p>
           </div>
-          <Button variant="outline" onClick={handleSignOut}>
-            <LogOut className="mr-2 h-4 w-4" />
-            Sign Out
-          </Button>
+          <div className="flex items-center gap-2">
+            <NotificationBell />
+            <Button variant="outline" onClick={handleSignOut}>
+              <LogOut className="mr-2 h-4 w-4" />
+              Sign Out
+            </Button>
+          </div>
         </div>
       </header>
 
       <main className="container mx-auto px-4 py-8 space-y-8">
+        <SyncControl />
+
         <Card>
           <CardHeader>
             <CardTitle>Download Reports</CardTitle>
