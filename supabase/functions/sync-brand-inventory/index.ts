@@ -146,8 +146,19 @@ serve(async (req) => {
               
               const stockData: MintsoftStockItem[] = await stockResponse.json();
               
+              // Debug: Log the API response for first SKU
+              if (i === 0 && batch.indexOf(product) === 0) {
+                console.log(`Sample Mintsoft response for ${product.sku}:`, JSON.stringify(stockData));
+              }
+              
               // Find the stock info for this SKU
               const stockInfo = stockData.find(item => item.SKU === product.sku);
+              
+              if (stockInfo) {
+                console.log(`Updating ${product.sku}: Available=${stockInfo.AvailableQuantity}, BackOrder=${stockInfo.BackOrderQuantity}, OnOrder=${stockInfo.OnOrderQuantity}`);
+              } else {
+                console.log(`No stock info found in Mintsoft response for ${product.sku}`);
+              }
               
               if (stockInfo) {
                 const { error: updateError } = await supabase
