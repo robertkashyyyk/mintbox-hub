@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Table,
@@ -10,13 +10,8 @@ import {
 } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Button } from "@/components/ui/button";
-import { RefreshCw } from "lucide-react";
-import { toast } from "sonner";
 
 const SkuDatabase = () => {
-  const queryClient = useQueryClient();
-
   const { data: products, isLoading } = useQuery({
     queryKey: ["products-cache"],
     queryFn: async () => {
@@ -54,22 +49,6 @@ const SkuDatabase = () => {
     },
   });
 
-  // Mutation to sync stock from Mintsoft
-  const syncStockMutation = useMutation({
-    mutationFn: async () => {
-      const { data, error } = await supabase.functions.invoke("sync-mintsoft-stock");
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: (data) => {
-      toast.success(data.message || "Stock synced successfully");
-      queryClient.invalidateQueries({ queryKey: ["products-cache"] });
-    },
-    onError: (error: Error) => {
-      toast.error(`Failed to sync stock: ${error.message}`);
-    },
-  });
-
   const calculateQuantityToOrder = (product: any) => {
     const backOrder = Number(product.back_order_qty) || 0;
     const currentStock = Number(product.current_stock) || 0;
@@ -92,17 +71,8 @@ const SkuDatabase = () => {
       </div>
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+        <CardHeader>
           <CardTitle>Products ({products?.length || 0})</CardTitle>
-          <Button
-            onClick={() => syncStockMutation.mutate()}
-            disabled={syncStockMutation.isPending}
-            variant="outline"
-            size="sm"
-          >
-            <RefreshCw className={`mr-2 h-4 w-4 ${syncStockMutation.isPending ? 'animate-spin' : ''}`} />
-            {syncStockMutation.isPending ? "Syncing..." : "Sync Stock"}
-          </Button>
         </CardHeader>
         <CardContent>
           {isLoading ? (
