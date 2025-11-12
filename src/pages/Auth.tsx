@@ -69,6 +69,28 @@ const Auth = () => {
             onlyThirdPartyProviders={false}
             showLinks={true}
             magicLink={false}
+            view="sign_in"
+            localization={{
+              variables: {
+                sign_up: {
+                  email_label: "Email address",
+                  password_label: "Create a password",
+                  button_label: "Sign up",
+                  link_text: "Don't have an account? Sign up",
+                },
+                sign_in: {
+                  email_label: "Email address",
+                  password_label: "Password",
+                  button_label: "Sign in",
+                  link_text: "Already have an account? Sign in",
+                },
+                forgotten_password: {
+                  link_text: "Forgot your password?",
+                  button_label: "Send reset instructions",
+                  confirmation_text: "Check your email for the password reset link",
+                },
+              },
+            }}
           />
         </CardContent>
       </Card>
