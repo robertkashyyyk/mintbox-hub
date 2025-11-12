@@ -27,11 +27,11 @@ serve(async (req) => {
 
     const resend = new Resend(resendApiKey);
     
-    // Get the app URL - use the Supabase project URL to construct the app URL
-    const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
-    const projectId = supabaseUrl.match(/https:\/\/([^.]+)\.supabase\.co/)?.[1] || "";
+    // Get the app URL - use the Lovable project URL
     const appUrl = `https://7ef3a60a-b2c3-489a-b7d0-36983268fca0.lovableproject.com`;
     const signupUrl = `${appUrl}/auth`;
+    
+    console.log(`Sending invitation to ${email} with signup URL: ${signupUrl}`);
 
     const roleLabels = {
       super_user: "Super User",
