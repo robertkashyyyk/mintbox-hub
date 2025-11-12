@@ -27,8 +27,10 @@ serve(async (req) => {
 
     const resend = new Resend(resendApiKey);
     
-    // Get the app URL from environment or construct it
-    const appUrl = Deno.env.get("VITE_SUPABASE_URL")?.replace("https://zadsuqxcchpnegcynflb.supabase.co", "your-app-url") || "your-app-url";
+    // Get the app URL - use the Supabase project URL to construct the app URL
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
+    const projectId = supabaseUrl.match(/https:\/\/([^.]+)\.supabase\.co/)?.[1] || "";
+    const appUrl = `https://7ef3a60a-b2c3-489a-b7d0-36983268fca0.lovableproject.com`;
     const signupUrl = `${appUrl}/auth`;
 
     const roleLabels = {
