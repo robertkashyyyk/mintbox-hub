@@ -56,6 +56,27 @@ export type Database = {
           },
         ]
       }
+      barcode_types: {
+        Row: {
+          created_at: string | null
+          digit_count: number | null
+          id: string
+          type_name: string
+        }
+        Insert: {
+          created_at?: string | null
+          digit_count?: number | null
+          id?: string
+          type_name: string
+        }
+        Update: {
+          created_at?: string | null
+          digit_count?: number | null
+          id?: string
+          type_name?: string
+        }
+        Relationships: []
+      }
       brands: {
         Row: {
           created_at: string | null
@@ -157,6 +178,36 @@ export type Database = {
           sender?: string
           subject?: string
           thread_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      import_rules: {
+        Row: {
+          created_at: string
+          description: string
+          enabled: boolean
+          id: string
+          pattern: string
+          rule_type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          enabled?: boolean
+          id?: string
+          pattern: string
+          rule_type?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          enabled?: boolean
+          id?: string
+          pattern?: string
+          rule_type?: string
           updated_at?: string
         }
         Relationships: []
@@ -362,6 +413,125 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "latest_email_per_type"
             referencedColumns: ["email_id"]
+          },
+        ]
+      }
+      product_categories: {
+        Row: {
+          created_at: string | null
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
+      product_category_links: {
+        Row: {
+          category_id: string
+          created_at: string | null
+          id: string
+          product_id: string
+        }
+        Insert: {
+          category_id: string
+          created_at?: string | null
+          id?: string
+          product_id: string
+        }
+        Update: {
+          category_id?: string
+          created_at?: string | null
+          id?: string
+          product_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_category_links_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "product_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_category_links_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products_cache"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      products_cache: {
+        Row: {
+          barcode: string | null
+          barcode_type_id: string | null
+          cost_price: number | null
+          created_at: string | null
+          depth: number | null
+          discontinued: boolean | null
+          handling_time: number | null
+          height: number | null
+          id: string
+          length: number | null
+          low_stock_alert_level: number | null
+          name: string
+          sku: string
+          suppliers: string | null
+          updated_at: string | null
+          weight: number | null
+        }
+        Insert: {
+          barcode?: string | null
+          barcode_type_id?: string | null
+          cost_price?: number | null
+          created_at?: string | null
+          depth?: number | null
+          discontinued?: boolean | null
+          handling_time?: number | null
+          height?: number | null
+          id?: string
+          length?: number | null
+          low_stock_alert_level?: number | null
+          name: string
+          sku: string
+          suppliers?: string | null
+          updated_at?: string | null
+          weight?: number | null
+        }
+        Update: {
+          barcode?: string | null
+          barcode_type_id?: string | null
+          cost_price?: number | null
+          created_at?: string | null
+          depth?: number | null
+          discontinued?: boolean | null
+          handling_time?: number | null
+          height?: number | null
+          id?: string
+          length?: number | null
+          low_stock_alert_level?: number | null
+          name?: string
+          sku?: string
+          suppliers?: string | null
+          updated_at?: string | null
+          weight?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "products_cache_barcode_type_id_fkey"
+            columns: ["barcode_type_id"]
+            isOneToOne: false
+            referencedRelation: "barcode_types"
+            referencedColumns: ["id"]
           },
         ]
       }
