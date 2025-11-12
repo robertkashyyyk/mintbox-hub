@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, PlayCircle, Clock, CheckCircle2, XCircle } from "lucide-react";
+import { Loader2, PlayCircle, Clock, CheckCircle2, XCircle, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
@@ -106,6 +106,32 @@ export const SyncControl = () => {
     onError: (error: Error) => {
       toast({
         title: "Sync failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Delete sync job mutation
+  const deleteSyncMutation = useMutation({
+    mutationFn: async (jobId: string) => {
+      const { error } = await supabase
+        .from("sync_jobs")
+        .delete()
+        .eq("id", jobId);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["sync-jobs"] });
+      toast({
+        title: "Job deleted",
+        description: "Sync job removed successfully.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Delete failed",
         description: error.message,
         variant: "destructive",
       });
@@ -220,12 +246,25 @@ export const SyncControl = () => {
             ) : (
               <div className="divide-y">
                 {syncJobs.map((job) => (
-                  <div key={job.id} className="p-4 space-y-2">
-                    <div className="flex items-center justify-between">
+                  <div key={job.id} className="p-4 space-y-2 relative group">
+                    {/* Delete button - only show for failed jobs */}
+                    {job.status === 'error' && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="absolute top-2 left-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={() => deleteSyncMutation.mutate(job.id)}
+                        disabled={deleteSyncMutation.isPending}
+                      >
+                        <X className="h-4 w-4 text-destructive" />
+                      </Button>
+                    )}
+                    
+                    <div className="flex items-center justify-between pl-8">
                       <span className="font-medium">{job.brands.name}</span>
                       {getStatusBadge(job.status)}
                     </div>
-                    <div className="text-sm text-muted-foreground">
+                    <div className="text-sm text-muted-foreground pl-8">
                       {job.status === 'complete' && (
                         <span>✓ {job.items_count} items synced</span>
                       )}
@@ -236,7 +275,7 @@ export const SyncControl = () => {
                         <span>In progress...</span>
                       )}
                     </div>
-                    <div className="text-xs text-muted-foreground">
+                    <div className="text-xs text-muted-foreground pl-8">
                       Started: {new Date(job.created_at).toLocaleString()}
                       {job.completed_at && (
                         <> • Completed: {new Date(job.completed_at).toLocaleString()}</>
