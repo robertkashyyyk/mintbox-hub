@@ -23,10 +23,14 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
 
-    const { csvContent } = await req.json();
+    const { csvContent, uploadName, userId } = await req.json();
 
     if (!csvContent) {
       throw new Error("CSV content is required");
+    }
+
+    if (!uploadName || !userId) {
+      throw new Error("Upload name and user ID are required");
     }
 
     console.log("Processing CSV upload...");
@@ -59,7 +63,7 @@ Deno.serve(async (req) => {
 
       const values = parseCSVLine(line);
       const row: Record<string, string> = {};
-      headers.forEach((header, index) => {
+      headers.forEach((header: string, index: number) => {
         row[header] = values[index] || "";
       });
 
@@ -157,6 +161,20 @@ Deno.serve(async (req) => {
 
     console.log(`Import complete: ${imported} products processed`);
 
+    // Save upload history
+    const { error: historyError } = await supabase
+      .from("upload_history")
+      .insert({
+        user_id: userId,
+        upload_name: uploadName,
+        items_imported: imported,
+        status: "success",
+      });
+
+    if (historyError) {
+      console.error("Error saving upload history:", historyError);
+    }
+
     return new Response(
       JSON.stringify({ imported, updated, categories: categorySet.size }),
       {
@@ -166,7 +184,7 @@ Deno.serve(async (req) => {
   } catch (error) {
     console.error("Error processing CSV:", error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

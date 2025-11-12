@@ -603,6 +603,39 @@ export type Database = {
           },
         ]
       }
+      upload_history: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          id: string
+          items_imported: number
+          status: string
+          upload_name: string
+          uploaded_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          items_imported?: number
+          status?: string
+          upload_name: string
+          uploaded_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          items_imported?: number
+          status?: string
+          upload_name?: string
+          uploaded_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       latest_email_per_type: {

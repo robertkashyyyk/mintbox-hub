@@ -1,5 +1,6 @@
 import { ImportRulesManager } from "@/components/importing/ImportRulesManager";
 import { ProductCacheUpload } from "@/components/importing/ProductCacheUpload";
+import { ProductUploadHistory } from "@/components/importing/ProductUploadHistory";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const Importing = () => {
@@ -20,6 +21,7 @@ const Importing = () => {
 
         <TabsContent value="upload" className="space-y-6">
           <ProductCacheUpload />
+          <ProductUploadHistory />
         </TabsContent>
 
         <TabsContent value="rules" className="space-y-6">

@@ -6,48 +6,55 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useToast } from "@/hooks/use-toast";
 import { Upload, FileText, Loader2 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
+import { cn } from "@/lib/utils";
 
 export function ProductCacheUpload() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [file, setFile] = useState<File | null>(null);
+  const [uploadName, setUploadName] = useState("");
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
 
   const uploadMutation = useMutation({
-    mutationFn: async (csvFile: File) => {
+    mutationFn: async ({ file, name }: { file: File; name: string }) => {
       setIsProcessing(true);
-      setUploadProgress(10);
-
-      // Read file content
-      const text = await csvFile.text();
       setUploadProgress(30);
 
-      // Call edge function to process CSV
-      const { data, error } = await supabase.functions.invoke("process-product-csv", {
-        body: { csvContent: text },
-      });
+      const csvContent = await file.text();
+      setUploadProgress(50);
 
-      setUploadProgress(90);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("User not authenticated");
+
+      const { data, error } = await supabase.functions.invoke(
+        "process-product-csv",
+        {
+          body: { csvContent, uploadName: name, userId: user.id },
+        }
+      );
+
+      setUploadProgress(100);
 
       if (error) throw error;
       return data;
     },
     onSuccess: (data) => {
-      setUploadProgress(100);
-      queryClient.invalidateQueries({ queryKey: ["products-cache"] });
       toast({
-        title: "Products imported",
-        description: `Successfully imported ${data.imported} products, ${data.updated} updated.`,
+        title: "Upload successful",
+        description: `Imported ${data.imported} products across ${data.categories} categories`,
       });
       setFile(null);
+      setUploadName("");
       setUploadProgress(0);
       setIsProcessing(false);
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["upload-history"] });
     },
     onError: (error: any) => {
       toast({
-        title: "Import failed",
-        description: error.message || "Failed to import products from CSV.",
+        title: "Upload failed",
+        description: error.message || "Failed to process CSV",
         variant: "destructive",
       });
       setUploadProgress(0);
@@ -57,22 +64,28 @@ export function ProductCacheUpload() {
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
-    if (selectedFile) {
-      if (!selectedFile.name.endsWith(".csv")) {
-        toast({
-          title: "Invalid file type",
-          description: "Please select a CSV file.",
-          variant: "destructive",
-        });
-        return;
-      }
+    if (selectedFile && selectedFile.name.endsWith(".csv")) {
       setFile(selectedFile);
+    } else {
+      toast({
+        title: "Invalid file",
+        description: "Please select a CSV file",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    const droppedFile = e.dataTransfer.files[0];
+    if (droppedFile && droppedFile.name.endsWith(".csv")) {
+      setFile(droppedFile);
     }
   };
 
   const handleUpload = () => {
-    if (file) {
-      uploadMutation.mutate(file);
+    if (file && uploadName.trim()) {
+      uploadMutation.mutate({ file, name: uploadName.trim() });
     }
   };
 
@@ -82,48 +95,58 @@ export function ProductCacheUpload() {
         <CardTitle>Upload Product CSV</CardTitle>
         <CardDescription>
           Upload a Mintsoft product export CSV to populate the local product cache.
-          The system will automatically detect barcode types and process categories.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="flex items-center gap-4">
-          <div className="flex-1">
-            <label
-              htmlFor="csv-upload"
-              className="flex items-center justify-center w-full h-32 border-2 border-dashed border-border rounded-lg cursor-pointer hover:bg-accent/50 transition-colors"
-            >
-              <div className="text-center">
-                {file ? (
-                  <div className="flex items-center gap-2">
-                    <FileText className="h-6 w-6 text-primary" />
-                    <span className="text-sm font-medium">{file.name}</span>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    <Upload className="h-8 w-8 mx-auto text-muted-foreground" />
-                    <p className="text-sm text-muted-foreground">
-                      Click to select CSV file or drag and drop
-                    </p>
-                  </div>
-                )}
-              </div>
-              <input
-                id="csv-upload"
-                type="file"
-                accept=".csv"
-                onChange={handleFileSelect}
-                className="hidden"
-                disabled={isProcessing}
-              />
-            </label>
-          </div>
+        <div className="space-y-2">
+          <label htmlFor="upload-name" className="text-sm font-medium">
+            Upload Name
+          </label>
+          <input
+            id="upload-name"
+            type="text"
+            value={uploadName}
+            onChange={(e) => setUploadName(e.target.value)}
+            placeholder="e.g., Berryman Products Jan 2025"
+            className="w-full px-3 py-2 border rounded-md"
+            disabled={isProcessing}
+          />
+        </div>
+
+        <div
+          className={cn(
+            "border-2 border-dashed rounded-lg p-8 text-center transition-colors",
+            file
+              ? "border-primary bg-primary/5"
+              : "border-muted-foreground/25 hover:border-muted-foreground/50"
+          )}
+          onDrop={handleDrop}
+          onDragOver={(e) => e.preventDefault()}
+        >
+          <input
+            type="file"
+            accept=".csv"
+            onChange={handleFileSelect}
+            className="hidden"
+            id="csv-upload"
+            disabled={isProcessing}
+          />
+          <label htmlFor="csv-upload" className="cursor-pointer">
+            <Upload className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+            <p className="text-sm font-medium mb-2">
+              {file ? file.name : "Click to upload or drag and drop"}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              CSV files only
+            </p>
+          </label>
         </div>
 
         {isProcessing && (
           <div className="space-y-2">
             <Progress value={uploadProgress} />
             <p className="text-sm text-muted-foreground text-center">
-              Processing products... {uploadProgress}%
+              Processing... {uploadProgress}%
             </p>
           </div>
         )}
@@ -131,7 +154,7 @@ export function ProductCacheUpload() {
         <div className="flex gap-2">
           <Button
             onClick={handleUpload}
-            disabled={!file || isProcessing}
+            disabled={!file || !uploadName.trim() || isProcessing}
             className="flex-1"
           >
             {isProcessing ? (
@@ -140,16 +163,18 @@ export function ProductCacheUpload() {
                 Processing...
               </>
             ) : (
-              <>
-                <Upload className="mr-2 h-4 w-4" />
-                Upload & Process
-              </>
+              "Upload & Process"
             )}
           </Button>
-          {file && !isProcessing && (
+          {file && (
             <Button
               variant="outline"
-              onClick={() => setFile(null)}
+              onClick={() => {
+                setFile(null);
+                setUploadName("");
+                setUploadProgress(0);
+              }}
+              disabled={isProcessing}
             >
               Clear
             </Button>
