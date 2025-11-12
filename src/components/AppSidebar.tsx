@@ -1,4 +1,4 @@
-import { ShoppingCart, FileText, Database, Users, LogOut, Tag, RefreshCw } from "lucide-react";
+import { ShoppingCart, FileText, Database, Users, LogOut, Tag, RefreshCw, UserCircle } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -133,6 +133,14 @@ export function AppSidebar() {
       
       <SidebarFooter>
         <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild isActive={isActive("/profile")}>
+              <NavLink to="/profile">
+                <UserCircle className="h-4 w-4" />
+                {open && <span>Profile</span>}
+              </NavLink>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton onClick={handleSignOut}>
               <LogOut className="h-4 w-4" />
