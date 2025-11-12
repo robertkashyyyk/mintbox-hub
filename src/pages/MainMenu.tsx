@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ShoppingCart, Database, Users, Package, RefreshCw } from "lucide-react";
+import { ShoppingCart, Database, Users, Package, RefreshCw, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
@@ -51,12 +51,28 @@ const MainMenu = () => {
       show: true,
     },
     {
+      title: "View SKU Database",
+      description: "Browse and manage your product database",
+      icon: Database,
+      color: "text-indigo-500",
+      onClick: () => navigate("/sku-database"),
+      show: true,
+    },
+    {
       title: "eBay Clone Creator",
       description: "Create and manage eBay listings",
       icon: Package,
       color: "text-purple-500",
       onClick: () => navigate("/ebay-clone"),
       show: true,
+    },
+    {
+      title: "Brands",
+      description: "Manage brands and product families",
+      icon: Tag,
+      color: "text-pink-500",
+      onClick: () => navigate("/brands"),
+      show: isSuperUser || isSeniorUser,
     },
     {
       title: "Remote Stock Updates",
