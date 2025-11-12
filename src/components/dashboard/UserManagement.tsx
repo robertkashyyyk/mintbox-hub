@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Mail, Trash2, UserPlus } from "lucide-react";
+import { Mail, Trash2, UserPlus, KeyRound } from "lucide-react";
 
 type AppRole = "super_user" | "senior_user" | "simple_user";
 
@@ -148,6 +148,23 @@ const UserManagement = () => {
     },
     onError: (error: Error) => {
       toast.error(`Failed to update role: ${error.message}`);
+    },
+  });
+
+  // Send password reset mutation
+  const sendPasswordResetMutation = useMutation({
+    mutationFn: async (email: string) => {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/auth?mode=reset`,
+      });
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Password reset email sent successfully");
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to send password reset: ${error.message}`);
     },
   });
 
@@ -292,6 +309,7 @@ const UserManagement = () => {
                     <TableHead>Name</TableHead>
                     <TableHead>Role</TableHead>
                     <TableHead>Change Role</TableHead>
+                    <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -327,6 +345,17 @@ const UserManagement = () => {
                               <SelectItem value="super_user">Super User</SelectItem>
                             </SelectContent>
                           </Select>
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => sendPasswordResetMutation.mutate(user.email)}
+                            disabled={sendPasswordResetMutation.isPending}
+                          >
+                            <KeyRound className="h-4 w-4 mr-2" />
+                            Reset Password
+                          </Button>
                         </TableCell>
                       </TableRow>
                     );

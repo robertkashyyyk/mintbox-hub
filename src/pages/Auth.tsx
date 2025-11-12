@@ -67,8 +67,8 @@ const Auth = () => {
             providers={[]}
             redirectTo={`${window.location.origin}/menu`}
             onlyThirdPartyProviders={false}
-            view="sign_in"
             showLinks={true}
+            magicLink={false}
           />
         </CardContent>
       </Card>
