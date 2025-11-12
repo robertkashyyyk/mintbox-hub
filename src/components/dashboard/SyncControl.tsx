@@ -247,18 +247,17 @@ export const SyncControl = () => {
               <div className="divide-y">
                 {syncJobs.map((job) => (
                   <div key={job.id} className="p-4 space-y-2 relative group">
-                    {/* Delete button - only show for failed jobs */}
-                    {job.status === 'error' && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="absolute top-2 left-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={() => deleteSyncMutation.mutate(job.id)}
-                        disabled={deleteSyncMutation.isPending}
-                      >
-                        <X className="h-4 w-4 text-destructive" />
-                      </Button>
-                    )}
+                    {/* Delete button - shows on hover for all jobs */}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="absolute top-2 left-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={() => deleteSyncMutation.mutate(job.id)}
+                      disabled={deleteSyncMutation.isPending}
+                      title="Delete this sync job"
+                    >
+                      <X className="h-4 w-4 text-destructive" />
+                    </Button>
                     
                     <div className="flex items-center justify-between pl-8">
                       <span className="font-medium">{job.brands.name}</span>
