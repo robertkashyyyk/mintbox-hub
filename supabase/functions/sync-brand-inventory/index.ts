@@ -123,7 +123,7 @@ serve(async (req) => {
         }
         
         // Fetch stock levels from Mintsoft (WarehouseId=5 is 'Coleraine Live')
-        const stockUrl = `${settings.base_url}/api/Product/StockLevels?WarehouseId=5`;
+        const stockUrl = `${settings.base_url}/api/Product/StockLevels?WarehouseId=5&breakdown=true`;
         console.log(`Fetching stock from Mintsoft...`);
 
         let stockResponse: Response;
