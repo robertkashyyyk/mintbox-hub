@@ -1,4 +1,4 @@
-import { ShoppingCart, FileText, Database, Users, LogOut, Tag } from "lucide-react";
+import { ShoppingCart, FileText, Database, Users, LogOut, Tag, RefreshCw } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -96,6 +96,14 @@ export function AppSidebar() {
                     <NavLink to="/brands">
                       <Tag className="h-4 w-4" />
                       {open && <span>Brands</span>}
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={isActive("/remote-stock-updates")}>
+                    <NavLink to="/remote-stock-updates">
+                      <RefreshCw className="h-4 w-4" />
+                      {open && <span>Remote Stock Updates</span>}
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

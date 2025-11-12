@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ShoppingCart, Database, Users, Package } from "lucide-react";
+import { ShoppingCart, Database, Users, Package, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
@@ -57,6 +57,14 @@ const MainMenu = () => {
       color: "text-purple-500",
       onClick: () => navigate("/ebay-clone"),
       show: true,
+    },
+    {
+      title: "Remote Stock Updates",
+      description: "Manage remote stock updates and synchronization",
+      icon: RefreshCw,
+      color: "text-cyan-500",
+      onClick: () => navigate("/remote-stock-updates"),
+      show: isSuperUser || isSeniorUser,
     },
     {
       title: "Users",

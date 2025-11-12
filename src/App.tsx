@@ -12,6 +12,7 @@ import Importing from "./pages/Importing";
 import SkuDatabase from "./pages/SkuDatabase";
 import UserManagementPage from "./pages/UserManagement";
 import EbayClone from "./pages/EbayClone";
+import RemoteStockUpdates from "./pages/RemoteStockUpdates";
 import Brands from "./pages/Brands";
 import NotFound from "./pages/NotFound";
 
@@ -34,6 +35,7 @@ const App = () => (
             <Route path="/brands" element={<Brands />} />
             <Route path="/user-management" element={<UserManagementPage />} />
             <Route path="/ebay-clone" element={<EbayClone />} />
+            <Route path="/remote-stock-updates" element={<RemoteStockUpdates />} />
           </Route>
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
