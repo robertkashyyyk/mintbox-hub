@@ -9,6 +9,7 @@ import Dashboard from "./pages/Dashboard";
 import DashboardLayout from "./pages/DashboardLayout";
 import Importing from "./pages/Importing";
 import SkuDatabase from "./pages/SkuDatabase";
+import UserManagementPage from "./pages/UserManagement";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -26,6 +27,7 @@ const App = () => (
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/importing" element={<Importing />} />
             <Route path="/sku-database" element={<SkuDatabase />} />
+            <Route path="/user-management" element={<UserManagementPage />} />
           </Route>
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
