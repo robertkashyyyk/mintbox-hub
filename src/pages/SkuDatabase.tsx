@@ -22,10 +22,21 @@ const SkuDatabase = () => {
           sku,
           name,
           barcode,
+          barcode_type_id,
+          barcode_types (type_name),
           discontinued,
           suppliers,
+          low_stock_alert_level,
+          weight,
+          height,
+          length,
+          depth,
           cost_price,
-          created_at
+          handling_time,
+          created_at,
+          product_category_links (
+            product_categories (name)
+          )
         `)
         .order("created_at", { ascending: false });
 
@@ -62,38 +73,77 @@ const SkuDatabase = () => {
                     <TableHead>SKU</TableHead>
                     <TableHead>Name</TableHead>
                     <TableHead>Barcode</TableHead>
+                    <TableHead>Barcode Type</TableHead>
+                    <TableHead>Discontinued</TableHead>
+                    <TableHead>Categories</TableHead>
                     <TableHead>Suppliers</TableHead>
+                    <TableHead>Low Stock Alert</TableHead>
+                    <TableHead>Weight</TableHead>
+                    <TableHead>Height</TableHead>
+                    <TableHead>Length</TableHead>
+                    <TableHead>Depth</TableHead>
                     <TableHead>Cost Price</TableHead>
-                    <TableHead>Status</TableHead>
+                    <TableHead>Handling Time</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {products.map((product) => (
-                    <TableRow key={product.id}>
-                      <TableCell className="font-medium">
-                        {product.sku}
-                      </TableCell>
-                      <TableCell>{product.name}</TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {product.barcode || "—"}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {product.suppliers || "—"}
-                      </TableCell>
-                      <TableCell>
-                        {product.cost_price
-                          ? `£${Number(product.cost_price).toFixed(2)}`
-                          : "—"}
-                      </TableCell>
-                      <TableCell>
-                        {product.discontinued ? (
-                          <span className="text-destructive">Discontinued</span>
-                        ) : (
-                          <span className="text-muted-foreground">Active</span>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {products.map((product) => {
+                    const categories = product.product_category_links
+                      ?.map((link: any) => link.product_categories?.name)
+                      .filter(Boolean)
+                      .join(", ") || "—";
+                    
+                    return (
+                      <TableRow key={product.id}>
+                        <TableCell className="font-medium">
+                          {product.sku}
+                        </TableCell>
+                        <TableCell>{product.name}</TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {product.barcode || "—"}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {product.barcode_types?.type_name || "—"}
+                        </TableCell>
+                        <TableCell>
+                          {product.discontinued ? (
+                            <span className="text-destructive">Yes</span>
+                          ) : (
+                            <span className="text-muted-foreground">No</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {categories}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {product.suppliers || "—"}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {product.low_stock_alert_level || "—"}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {product.weight || "—"}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {product.height || "—"}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {product.length || "—"}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {product.depth || "—"}
+                        </TableCell>
+                        <TableCell>
+                          {product.cost_price
+                            ? `£${Number(product.cost_price).toFixed(2)}`
+                            : "—"}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {product.handling_time || "—"}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
