@@ -197,7 +197,7 @@ serve(async (req) => {
         
         try {
           await resend.emails.send({
-            from: 'Stock Sync <onboarding@resend.dev>',
+            from: 'Stock Sync <noreply@updates.kashyyyk.co.uk>',
             to: [userEmail],
             subject: `✅ Stock Sync Complete - ${job.brands.name}`,
             html: `
