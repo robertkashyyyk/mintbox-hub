@@ -1,4 +1,4 @@
-import { ShoppingCart, FileText, Database, Users, LogOut, Tag, RefreshCw, UserCircle } from "lucide-react";
+import { ShoppingCart, FileText, Database, Users, LogOut, Tag, RefreshCw, UserCircle, Store } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -96,6 +96,14 @@ export function AppSidebar() {
                     <NavLink to="/brands">
                       <Tag className="h-4 w-4" />
                       {open && <span>Brands</span>}
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={isActive("/ebay-admin")}>
+                    <NavLink to="/ebay-admin">
+                      <Store className="h-4 w-4" />
+                      {open && <span>eBay Admin</span>}
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
