@@ -42,11 +42,12 @@ serve(async (req) => {
     // Get job details
     const { data: job, error: jobError } = await supabase
       .from('sync_jobs')
-      .select('*, brands(*), profiles(email)')
+      .select('*, brands(*)')
       .eq('id', job_id)
       .single();
     
     if (jobError || !job) {
+      console.error('Job fetch error:', jobError);
       throw new Error(`Job not found: ${job_id}`);
     }
     
@@ -166,8 +167,19 @@ serve(async (req) => {
         link: '/dashboard'
       });
     
-    // Send email notification
-    const userEmail = job.profiles.email;
+    // Get user email
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('email')
+      .eq('id', job.user_id)
+      .single();
+    
+    if (!profile) {
+      console.error('Profile not found for user:', job.user_id);
+      throw new Error('User profile not found');
+    }
+    
+    const userEmail = profile.email;
     const completedTime = new Date().toLocaleString('en-GB', { 
       dateStyle: 'medium', 
       timeStyle: 'short' 
