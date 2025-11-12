@@ -50,6 +50,7 @@ const SkuDatabase = () => {
           back_order_qty,
           on_order,
           last_stock_sync,
+          mintsoft_product_id,
           created_at,
           product_category_links (
             product_categories (name)
@@ -115,6 +116,7 @@ const SkuDatabase = () => {
                 <TableHeader>
                   <TableRow>
                     <TableHead>SKU</TableHead>
+                    <TableHead>Mintsoft ID</TableHead>
                     <TableHead>Brand</TableHead>
                     <TableHead>Name</TableHead>
                     <TableHead>Current Stock</TableHead>
@@ -145,6 +147,9 @@ const SkuDatabase = () => {
                       <TableRow key={product.id} className={needsOrdering ? "bg-yellow-50 dark:bg-yellow-950/20" : ""}>
                         <TableCell className="font-medium">
                           {product.sku}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground text-sm">
+                          {product.mintsoft_product_id || "—"}
                         </TableCell>
                         <TableCell>
                           {brandName ? (
