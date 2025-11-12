@@ -1,4 +1,4 @@
-import { ShoppingCart, FileText } from "lucide-react";
+import { ShoppingCart, FileText, Database } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
 
@@ -17,6 +17,7 @@ import {
 const menuItems = [
   { title: "Purchase Order Building", url: "/dashboard", icon: ShoppingCart },
   { title: "Importing SKUs", url: "/importing", icon: FileText },
+  { title: "View SKU Database", url: "/sku-database", icon: Database },
 ];
 
 export function AppSidebar() {
