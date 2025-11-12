@@ -27,8 +27,8 @@ serve(async (req) => {
 
     const resend = new Resend(resendApiKey);
     
-    // Get the app URL - use the Lovable project URL
-    const appUrl = `https://7ef3a60a-b2c3-489a-b7d0-36983268fca0.lovableproject.com`;
+    // Get the app URL from the request origin or use production URL
+    const appUrl = Deno.env.get("APP_URL") || "https://mintbox-hub.lovable.app";
     const signupUrl = `${appUrl}/auth`;
     
     console.log(`Sending invitation to ${email} with signup URL: ${signupUrl}`);
