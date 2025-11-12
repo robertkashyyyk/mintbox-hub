@@ -98,8 +98,9 @@ serve(async (req) => {
         // Get all products from products_cache that match this brand
         const { data: brandProducts, error: productsError } = await supabase
           .from('products_cache')
-          .select('sku')
-          .ilike('sku', prefixPattern);
+          .select('sku, mintsoft_product_id')
+          .ilike('sku', prefixPattern)
+          .not('mintsoft_product_id', 'is', null);
         
         if (productsError) {
           throw productsError;
@@ -131,42 +132,47 @@ serve(async (req) => {
         for (let i = 0; i < brandProducts.length; i += batchSize) {
           const batch = brandProducts.slice(i, i + batchSize);
           
-          // Fetch stock for each SKU in the batch
+          // Fetch stock for each product in the batch using ProductId
           const stockPromises = batch.map(async (product) => {
             try {
-              // Query Mintsoft for this specific SKU with breakdown
-              const stockUrl = `${settings.base_url}/api/Product/StockLevels?WarehouseId=5&SKU=${encodeURIComponent(product.sku)}&breakdown=true`;
+              if (!product.mintsoft_product_id) {
+                console.log(`Skipping ${product.sku}: No Mintsoft ProductId stored`);
+                return { success: false, sku: product.sku };
+              }
+
+              // Query Mintsoft Inventory endpoint by ProductId
+              const inventoryUrl = `${settings.base_url}/api/Product/${product.mintsoft_product_id}/Inventory?breakdown=true`;
               
-              const stockResponse = await fetchWithRetry(stockUrl, {
+              const inventoryResponse = await fetchWithRetry(inventoryUrl, {
                 headers: {
                   'ms-apikey': mintsoftApiKey,
                   'Content-Type': 'application/json',
                 },
-              }, 2, 500); // 2 retries, 500ms base delay
+              }, 2, 500);
               
-              const stockData: MintsoftStockItem[] = await stockResponse.json();
+              const inventoryData = await inventoryResponse.json();
               
-              // Debug: Log the API response for first SKU
+              // Debug: Log the API response for first product
               if (i === 0 && batch.indexOf(product) === 0) {
-                console.log(`Sample Mintsoft response for ${product.sku}:`, JSON.stringify(stockData));
+                console.log(`Sample Mintsoft inventory response for ${product.sku} (ProductId: ${product.mintsoft_product_id}):`, JSON.stringify(inventoryData));
               }
               
-              // Find the stock info for this SKU
-              const stockInfo = stockData.find(item => item.SKU === product.sku);
+              // Find the inventory record for Warehouse 5 (Coleraine Live)
+              const warehouseInventory = inventoryData.find((inv: any) => inv.WarehouseId === 5);
               
-              if (stockInfo) {
-                console.log(`Updating ${product.sku}: Available=${stockInfo.AvailableQuantity}, BackOrder=${stockInfo.BackOrderQuantity}, OnOrder=${stockInfo.OnOrderQuantity}`);
+              if (warehouseInventory) {
+                console.log(`Updating ${product.sku}: StockLevel=${warehouseInventory.StockLevel}, OnOrder=${warehouseInventory.OnOrder}, BackOrder=${warehouseInventory.RequiredByBackOrder}`);
               } else {
-                console.log(`No stock info found in Mintsoft response for ${product.sku}`);
+                console.log(`No inventory found for ${product.sku} at Warehouse 5`);
               }
               
-              if (stockInfo) {
+              if (warehouseInventory) {
                 const { error: updateError } = await supabase
                   .from('products_cache')
                   .update({
-                    current_stock: stockInfo.AvailableQuantity || 0,
-                    back_order_qty: stockInfo.BackOrderQuantity || 0,
-                    on_order: stockInfo.OnOrderQuantity || 0,
+                    current_stock: warehouseInventory.StockLevel || 0,
+                    back_order_qty: warehouseInventory.RequiredByBackOrder || 0,
+                    on_order: warehouseInventory.OnOrder || 0,
                     last_stock_sync: new Date().toISOString(),
                   })
                   .eq('sku', product.sku);
