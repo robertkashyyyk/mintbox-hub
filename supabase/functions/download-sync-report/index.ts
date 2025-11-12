@@ -28,10 +28,10 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
     
-    // Get job details
+    // Get job details with brand info
     const { data: job, error: jobError } = await supabase
       .from('sync_jobs')
-      .select('*, brands(name)')
+      .select('*, brands(*)')
       .eq('id', job_id)
       .single();
     
@@ -43,60 +43,80 @@ serve(async (req) => {
       throw new Error('Can only download reports for completed syncs');
     }
     
-    // Get the email_id that was created for this sync
-    const messageId = `inventory-${job_id}`;
-    const { data: email, error: emailError } = await supabase
-      .from('emails')
-      .select('id')
-      .eq('message_id', messageId)
-      .single();
-    
-    if (emailError || !email) {
-      throw new Error('Email record not found for this sync');
+    // Get brand prefix details
+    const brandPrefix = job.brands.prefix;
+    const prefixStyle = job.brands.prefix_style || 'hyphen';
+    const separator = prefixStyle === 'slash' ? '/' : '-';
+    const prefixPattern = `${brandPrefix}${separator}%`;
+
+    // Get all products for this brand with stock info
+    const { data: products, error: productsError } = await supabase
+      .from('products_cache')
+      .select('sku, current_stock, back_order_qty, on_order, low_stock_alert_level, cost_price')
+      .ilike('sku', prefixPattern);
+
+    if (productsError) throw productsError;
+
+    if (!products || products.length === 0) {
+      throw new Error('No products found for this brand');
+    }
+
+    // Calculate quantity to order for each product
+    const productsWithQty = products.map(product => {
+      const backOrder = Number(product.back_order_qty) || 0;
+      const currentStock = Number(product.current_stock) || 0;
+      const lowStockLevel = Number(product.low_stock_alert_level) || 0;
+      const onOrder = Number(product.on_order) || 0;
+
+      const needed = Math.max(lowStockLevel - currentStock, 0);
+      const qtyToOrder = Math.max(backOrder + needed - onOrder, 0);
+
+      return {
+        ...product,
+        qtyToOrder
+      };
+    }).filter(p => p.qtyToOrder > 0); // Only include products that need ordering
+
+    if (productsWithQty.length === 0) {
+      throw new Error('No products need ordering for this brand');
     }
     
-    // Get parsed items for this sync
-    const { data: items, error: itemsError } = await supabase
-      .from('parsed_items')
-      .select('*')
-      .eq('email_id', email.id)
-      .order('sku');
-    
-    if (itemsError) throw itemsError;
-    
-    if (!items || items.length === 0) {
-      throw new Error('No items found for this sync');
-    }
-    
-    console.log(`Found ${items.length} items for job ${job_id}`);
+    console.log(`Found ${productsWithQty.length} products that need ordering for ${job.brands.name}`);
     
     // Generate CSV based on format
     let csvContent: string;
     let filename: string;
     
     if (format === 'mintsoft') {
-      // Mintsoft format (placeholder - you'll provide actual format later)
-      csvContent = 'SKU,Quantity,Warehouse\n';
-      items.forEach(item => {
-        csvContent += `${item.sku},${item.qty || 0},${item.warehouse || 'N/A'}\n`;
+      // Mintsoft format: SKU, Quantity, Price, Comments
+      csvContent = 'SKU\tQuantity\tPrice\tComments\n';
+      
+      productsWithQty.forEach(product => {
+        const price = product.cost_price ? Number(product.cost_price).toFixed(2) : '0.00';
+        csvContent += `${product.sku}\t${product.qtyToOrder}\t${price}\t\n`;
       });
-      filename = `${job.brands.name}_Mintsoft_${new Date().toISOString().split('T')[0]}.csv`;
+      
+      filename = `mintsoft_order_${job.brands.name}_${new Date().toISOString().split('T')[0]}.csv`;
     } else {
-      // External format (placeholder - you'll provide actual format later)
-      csvContent = 'SKU,Brand,Quantity,Warehouse,Occurred At\n';
-      items.forEach(item => {
-        csvContent += `${item.sku},${item.brand_name || 'N/A'},${item.qty || 0},${item.warehouse || 'N/A'},${item.occurred_at}\n`;
+      // External format: SKU (with prefix stripped), Quantity
+      csvContent = 'SKU\tQuantity\n';
+      
+      productsWithQty.forEach(product => {
+        // Strip the brand prefix and separator from SKU
+        const skuWithoutPrefix = product.sku.replace(`${brandPrefix}${separator}`, '');
+        csvContent += `${skuWithoutPrefix}\t${product.qtyToOrder}\n`;
       });
-      filename = `${job.brands.name}_External_${new Date().toISOString().split('T')[0]}.csv`;
+      
+      filename = `external_order_${job.brands.name}_${new Date().toISOString().split('T')[0]}.csv`;
     }
     
-    console.log(`Generated ${format} report with ${items.length} items`);
+    console.log(`Generated ${format} report with ${productsWithQty.length} items`);
     
     return new Response(
       JSON.stringify({ 
         content: csvContent,
         filename: filename,
-        items_count: items.length
+        items_count: productsWithQty.length
       }),
       { 
         headers: { 
