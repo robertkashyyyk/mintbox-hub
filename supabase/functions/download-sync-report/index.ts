@@ -103,8 +103,9 @@ serve(async (req) => {
       
       productsWithQty.forEach(product => {
         // Strip the brand prefix and separator from SKU
+        // Prefix with ' to preserve leading/trailing zeros in Excel
         const skuWithoutPrefix = product.sku.replace(`${brandPrefix}${separator}`, '');
-        csvContent += `${skuWithoutPrefix}\t${product.qtyToOrder}\n`;
+        csvContent += `'${skuWithoutPrefix}\t${product.qtyToOrder}\n`;
       });
       
       filename = `external_order_${job.brands.name}_${new Date().toISOString().split('T')[0]}.csv`;
