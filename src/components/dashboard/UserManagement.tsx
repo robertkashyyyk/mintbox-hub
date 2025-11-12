@@ -69,22 +69,44 @@ const UserManagement = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
-      const { error } = await supabase.from("user_invites").insert({
-        email: inviteEmail,
-        role: inviteRole,
-        invited_by: user.id,
+      // Create the invite in the database
+      const { data: invite, error: inviteError } = await supabase
+        .from("user_invites")
+        .insert({
+          email: inviteEmail,
+          role: inviteRole,
+          invited_by: user.id,
+        })
+        .select()
+        .single();
+
+      if (inviteError) throw inviteError;
+
+      // Send the invitation email
+      const { error: emailError } = await supabase.functions.invoke("send-invite-email", {
+        body: {
+          email: inviteEmail,
+          role: inviteRole,
+          inviteId: invite.id,
+        },
       });
 
-      if (error) throw error;
+      if (emailError) {
+        console.error("Failed to send email:", emailError);
+        // Don't throw - the invite is created, just log the email error
+        throw new Error("Invite created but email failed to send. Please contact the user manually.");
+      }
+
+      return invite;
     },
     onSuccess: () => {
-      toast.success("Invitation sent successfully");
+      toast.success("Invitation sent successfully! The user will receive an email.");
       setInviteEmail("");
       setInviteRole("simple_user");
       queryClient.invalidateQueries({ queryKey: ["user-invites"] });
     },
     onError: (error: Error) => {
-      toast.error(`Failed to send invite: ${error.message}`);
+      toast.error(error.message);
     },
   });
 
