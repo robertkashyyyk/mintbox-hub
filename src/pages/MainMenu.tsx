@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ShoppingCart, Database, Users, Package, RefreshCw, Tag } from "lucide-react";
+import { ShoppingCart, Database, Users, Package, RefreshCw, Tag, UserCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
@@ -100,9 +100,15 @@ const MainMenu = () => {
             <h1 className="text-2xl font-bold">Main Menu</h1>
             <p className="text-sm text-muted-foreground">Select a module to get started</p>
           </div>
-          <Button variant="outline" onClick={handleSignOut}>
-            Sign Out
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => navigate("/profile")}>
+              <UserCircle className="h-4 w-4 mr-2" />
+              Profile
+            </Button>
+            <Button variant="outline" onClick={handleSignOut}>
+              Sign Out
+            </Button>
+          </div>
         </div>
       </header>
 
