@@ -468,58 +468,77 @@ export type Database = {
             referencedRelation: "products_cache"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "product_category_links_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products_need_ordering"
+            referencedColumns: ["id"]
+          },
         ]
       }
       products_cache: {
         Row: {
+          back_order_qty: number | null
           barcode: string | null
           barcode_type_id: string | null
           cost_price: number | null
           created_at: string | null
+          current_stock: number | null
           depth: number | null
           discontinued: boolean | null
           handling_time: number | null
           height: number | null
           id: string
+          last_stock_sync: string | null
           length: number | null
           low_stock_alert_level: number | null
           name: string
+          on_order: number | null
           sku: string
           suppliers: string | null
           updated_at: string | null
           weight: number | null
         }
         Insert: {
+          back_order_qty?: number | null
           barcode?: string | null
           barcode_type_id?: string | null
           cost_price?: number | null
           created_at?: string | null
+          current_stock?: number | null
           depth?: number | null
           discontinued?: boolean | null
           handling_time?: number | null
           height?: number | null
           id?: string
+          last_stock_sync?: string | null
           length?: number | null
           low_stock_alert_level?: number | null
           name: string
+          on_order?: number | null
           sku: string
           suppliers?: string | null
           updated_at?: string | null
           weight?: number | null
         }
         Update: {
+          back_order_qty?: number | null
           barcode?: string | null
           barcode_type_id?: string | null
           cost_price?: number | null
           created_at?: string | null
+          current_stock?: number | null
           depth?: number | null
           discontinued?: boolean | null
           handling_time?: number | null
           height?: number | null
           id?: string
+          last_stock_sync?: string | null
           length?: number | null
           low_stock_alert_level?: number | null
           name?: string
+          on_order?: number | null
           sku?: string
           suppliers?: string | null
           updated_at?: string | null
@@ -767,6 +786,42 @@ export type Database = {
             referencedColumns: ["email_id"]
           },
         ]
+      }
+      products_need_ordering: {
+        Row: {
+          back_order_qty: number | null
+          current_stock: number | null
+          id: string | null
+          last_stock_sync: string | null
+          low_stock_alert_level: number | null
+          name: string | null
+          on_order: number | null
+          quantity_to_order: number | null
+          sku: string | null
+        }
+        Insert: {
+          back_order_qty?: number | null
+          current_stock?: number | null
+          id?: string | null
+          last_stock_sync?: string | null
+          low_stock_alert_level?: number | null
+          name?: string | null
+          on_order?: number | null
+          quantity_to_order?: never
+          sku?: string | null
+        }
+        Update: {
+          back_order_qty?: number | null
+          current_stock?: number | null
+          id?: string | null
+          last_stock_sync?: string | null
+          low_stock_alert_level?: number | null
+          name?: string | null
+          on_order?: number | null
+          quantity_to_order?: never
+          sku?: string | null
+        }
+        Relationships: []
       }
     }
     Functions: {
