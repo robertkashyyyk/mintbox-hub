@@ -14,6 +14,7 @@ import UserManagementPage from "./pages/UserManagement";
 import EbayClone from "./pages/EbayClone";
 import RemoteStockUpdates from "./pages/RemoteStockUpdates";
 import Brands from "./pages/Brands";
+import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -36,6 +37,7 @@ const App = () => (
             <Route path="/user-management" element={<UserManagementPage />} />
             <Route path="/ebay-clone" element={<EbayClone />} />
             <Route path="/remote-stock-updates" element={<RemoteStockUpdates />} />
+            <Route path="/profile" element={<Profile />} />
           </Route>
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
