@@ -143,6 +143,90 @@ export type Database = {
           },
         ]
       }
+      ebay_search_cache: {
+        Row: {
+          brand: string
+          cheapest_overall_item_id: string | null
+          cheapest_overall_price: number | null
+          cheapest_overall_url: string | null
+          cheapest_own_item_id: string | null
+          cheapest_own_price: number | null
+          cheapest_own_url: string | null
+          compatibility_data: Json | null
+          compatibility_item_id: string | null
+          created_at: string
+          expires_at: string
+          id: string
+          model_part_number: string
+          search_key: string
+          searched_at: string
+          seo_titles: string[] | null
+        }
+        Insert: {
+          brand: string
+          cheapest_overall_item_id?: string | null
+          cheapest_overall_price?: number | null
+          cheapest_overall_url?: string | null
+          cheapest_own_item_id?: string | null
+          cheapest_own_price?: number | null
+          cheapest_own_url?: string | null
+          compatibility_data?: Json | null
+          compatibility_item_id?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          model_part_number: string
+          search_key: string
+          searched_at?: string
+          seo_titles?: string[] | null
+        }
+        Update: {
+          brand?: string
+          cheapest_overall_item_id?: string | null
+          cheapest_overall_price?: number | null
+          cheapest_overall_url?: string | null
+          cheapest_own_item_id?: string | null
+          cheapest_own_price?: number | null
+          cheapest_own_url?: string | null
+          compatibility_data?: Json | null
+          compatibility_item_id?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          model_part_number?: string
+          search_key?: string
+          searched_at?: string
+          seo_titles?: string[] | null
+        }
+        Relationships: []
+      }
+      ebay_seller_usernames: {
+        Row: {
+          active: boolean
+          created_at: string
+          id: string
+          notes: string | null
+          updated_at: string
+          username: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          notes?: string | null
+          updated_at?: string
+          username: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          notes?: string | null
+          updated_at?: string
+          username?: string
+        }
+        Relationships: []
+      }
       emails: {
         Row: {
           body: string | null
@@ -262,19 +346,16 @@ export type Database = {
       }
       mintsoft_settings: {
         Row: {
-          api_key: string
           base_url: string
           id: boolean
           updated_at: string | null
         }
         Insert: {
-          api_key: string
           base_url: string
           id?: boolean
           updated_at?: string | null
         }
         Update: {
-          api_key?: string
           base_url?: string
           id?: boolean
           updated_at?: string | null
@@ -493,6 +574,7 @@ export type Database = {
           last_stock_sync: string | null
           length: number | null
           low_stock_alert_level: number | null
+          mintsoft_product_id: number | null
           name: string
           on_order: number | null
           sku: string
@@ -515,6 +597,7 @@ export type Database = {
           last_stock_sync?: string | null
           length?: number | null
           low_stock_alert_level?: number | null
+          mintsoft_product_id?: number | null
           name: string
           on_order?: number | null
           sku: string
@@ -537,6 +620,7 @@ export type Database = {
           last_stock_sync?: string | null
           length?: number | null
           low_stock_alert_level?: number | null
+          mintsoft_product_id?: number | null
           name?: string
           on_order?: number | null
           sku?: string
