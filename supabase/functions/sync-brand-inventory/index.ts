@@ -134,8 +134,8 @@ serve(async (req) => {
           // Fetch stock for each SKU in the batch
           const stockPromises = batch.map(async (product) => {
             try {
-              // Query Mintsoft for this specific SKU
-              const stockUrl = `${settings.base_url}/api/Product/StockLevels?WarehouseId=5&SKU=${encodeURIComponent(product.sku)}`;
+              // Query Mintsoft for this specific SKU with breakdown
+              const stockUrl = `${settings.base_url}/api/Product/StockLevels?WarehouseId=5&SKU=${encodeURIComponent(product.sku)}&breakdown=true`;
               
               const stockResponse = await fetchWithRetry(stockUrl, {
                 headers: {
