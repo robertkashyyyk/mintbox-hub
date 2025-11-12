@@ -1,4 +1,4 @@
-import { ShoppingCart, FileText, Database, Users, LogOut } from "lucide-react";
+import { ShoppingCart, FileText, Database, Users, LogOut, Tag } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -23,6 +23,7 @@ const baseMenuItems = [
   { title: "Purchase Order Building", url: "/dashboard", icon: ShoppingCart },
   { title: "Importing SKUs", url: "/importing", icon: FileText },
   { title: "View SKU Database", url: "/sku-database", icon: Database },
+  { title: "Brands", url: "/brands", icon: Tag },
   { title: "eBay Clone Creator", url: "/ebay-clone", icon: ShoppingCart },
 ];
 

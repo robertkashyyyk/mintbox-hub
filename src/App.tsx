@@ -12,6 +12,7 @@ import Importing from "./pages/Importing";
 import SkuDatabase from "./pages/SkuDatabase";
 import UserManagementPage from "./pages/UserManagement";
 import EbayClone from "./pages/EbayClone";
+import Brands from "./pages/Brands";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -30,6 +31,7 @@ const App = () => (
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/importing" element={<Importing />} />
             <Route path="/sku-database" element={<SkuDatabase />} />
+            <Route path="/brands" element={<Brands />} />
             <Route path="/user-management" element={<UserManagementPage />} />
             <Route path="/ebay-clone" element={<EbayClone />} />
           </Route>

@@ -12,6 +12,19 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const SkuDatabase = () => {
+  const { data: brands } = useQuery({
+    queryKey: ["brands"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("brands")
+        .select("*")
+        .order("name");
+
+      if (error) throw error;
+      return data;
+    },
+  });
+
   const { data: products, isLoading } = useQuery({
     queryKey: ["products-cache"],
     queryFn: async () => {
@@ -48,6 +61,21 @@ const SkuDatabase = () => {
       return data;
     },
   });
+
+  const getBrandFromSku = (sku: string) => {
+    if (!brands) return null;
+    
+    for (const brand of brands) {
+      const separator = brand.prefix_style === "slash" ? "/" : "-";
+      const prefix = `${brand.prefix}${separator}`;
+      
+      if (sku.startsWith(prefix)) {
+        return brand.name;
+      }
+    }
+    
+    return null;
+  };
 
   const calculateQuantityToOrder = (product: any) => {
     const backOrder = Number(product.back_order_qty) || 0;
@@ -87,6 +115,7 @@ const SkuDatabase = () => {
                 <TableHeader>
                   <TableRow>
                     <TableHead>SKU</TableHead>
+                    <TableHead>Brand</TableHead>
                     <TableHead>Name</TableHead>
                     <TableHead>Current Stock</TableHead>
                     <TableHead>Back Orders</TableHead>
@@ -110,11 +139,21 @@ const SkuDatabase = () => {
                     
                     const qtyToOrder = calculateQuantityToOrder(product);
                     const needsOrdering = qtyToOrder > 0;
+                    const brandName = getBrandFromSku(product.sku);
                     
                     return (
                       <TableRow key={product.id} className={needsOrdering ? "bg-yellow-50 dark:bg-yellow-950/20" : ""}>
                         <TableCell className="font-medium">
                           {product.sku}
+                        </TableCell>
+                        <TableCell>
+                          {brandName ? (
+                            <span className="inline-flex items-center px-2 py-1 rounded-md bg-primary/10 text-primary text-xs font-medium">
+                              {brandName}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground italic">—</span>
+                          )}
                         </TableCell>
                         <TableCell>{product.name}</TableCell>
                         <TableCell className="text-center">
