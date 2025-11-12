@@ -122,64 +122,66 @@ serve(async (req) => {
           throw new Error('Mintsoft settings not found');
         }
         
-        // Fetch stock levels from Mintsoft (WarehouseId=5 is 'Coleraine Live')
-        const stockUrl = `${settings.base_url}/api/Product/StockLevels?WarehouseId=5&breakdown=true`;
-        console.log(`Fetching stock from Mintsoft...`);
-
-        let stockResponse: Response;
-        try {
-          stockResponse = await fetchWithRetry(stockUrl, {
-            headers: {
-              'ms-apikey': mintsoftApiKey,
-              'Content-Type': 'application/json',
-            },
-          }, 3, 800);
-        } catch (e: any) {
-          console.error('Mintsoft fetch failed:', e?.message || e);
-          throw new Error(e?.message || 'Mintsoft API request failed');
-        }
-
-        const allStockData: MintsoftStockItem[] = await stockResponse.json();
-        console.log(`Received ${allStockData.length} stock items from Mintsoft`);
+        console.log(`Fetching stock from Mintsoft for ${brandProducts.length} SKUs...`);
         
-        // Create a map of SKU to stock data for faster lookup
-        const stockMap = new Map(
-          allStockData.map((item) => [item.SKU, item])
-        );
-        
-        // Update products_cache with stock data
+        // Fetch stock for each SKU individually to avoid timeout
         let updated = 0;
-        const batchSize = 50;
+        const batchSize = 10; // Process 10 SKUs at a time
         
         for (let i = 0; i < brandProducts.length; i += batchSize) {
           const batch = brandProducts.slice(i, i + batchSize);
           
-          for (const product of batch) {
-            const stockInfo = stockMap.get(product.sku);
-            
-            if (stockInfo) {
-              const { error: updateError } = await supabase
-                .from('products_cache')
-                .update({
-                  current_stock: stockInfo.AvailableQuantity || 0,
-                  back_order_qty: stockInfo.BackOrderQuantity || 0,
-                  on_order: stockInfo.OnOrderQuantity || 0,
-                  last_stock_sync: new Date().toISOString(),
-                })
-                .eq('sku', product.sku);
+          // Fetch stock for each SKU in the batch
+          const stockPromises = batch.map(async (product) => {
+            try {
+              // Query Mintsoft for this specific SKU
+              const stockUrl = `${settings.base_url}/api/Product/StockLevels?WarehouseId=5&SKU=${encodeURIComponent(product.sku)}`;
               
-              if (updateError) {
-                console.error(`Error updating SKU ${product.sku}:`, updateError);
-              } else {
-                updated++;
+              const stockResponse = await fetchWithRetry(stockUrl, {
+                headers: {
+                  'ms-apikey': mintsoftApiKey,
+                  'Content-Type': 'application/json',
+                },
+              }, 2, 500); // 2 retries, 500ms base delay
+              
+              const stockData: MintsoftStockItem[] = await stockResponse.json();
+              
+              // Find the stock info for this SKU
+              const stockInfo = stockData.find(item => item.SKU === product.sku);
+              
+              if (stockInfo) {
+                const { error: updateError } = await supabase
+                  .from('products_cache')
+                  .update({
+                    current_stock: stockInfo.AvailableQuantity || 0,
+                    back_order_qty: stockInfo.BackOrderQuantity || 0,
+                    on_order: stockInfo.OnOrderQuantity || 0,
+                    last_stock_sync: new Date().toISOString(),
+                  })
+                  .eq('sku', product.sku);
+                
+                if (!updateError) {
+                  return { success: true, sku: product.sku };
+                } else {
+                  console.error(`Error updating SKU ${product.sku}:`, updateError);
+                  return { success: false, sku: product.sku };
+                }
               }
+              return { success: false, sku: product.sku };
+            } catch (error: any) {
+              console.error(`Error fetching stock for SKU ${product.sku}:`, error.message);
+              return { success: false, sku: product.sku };
             }
-          }
+          });
           
-          console.log(`Processed batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(brandProducts.length / batchSize)}`);
+          const results = await Promise.all(stockPromises);
+          updated += results.filter(r => r.success).length;
+          
+          console.log(`Processed batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(brandProducts.length / batchSize)} - Updated ${updated} products so far`);
         }
         
-        console.log(`Updated ${updated} products in products_cache`);
+        
+        console.log(`Successfully updated ${updated} out of ${brandProducts.length} products`);
         
         // Update job status to complete
         await supabase
