@@ -21,8 +21,9 @@ const Dashboard = () => {
     <div className="space-y-8">
       <SyncControl />
 
-      <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
-        <SyncHistory />
+      <SyncHistory />
+
+      <div className="grid gap-8 md:grid-cols-2">
         <DownloadHistory />
         <OrderTracking selectedBrand={selectedBrand} userId={session?.user.id || ""} />
       </div>
