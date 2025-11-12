@@ -5,11 +5,13 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
+import MainMenu from "./pages/MainMenu";
 import Dashboard from "./pages/Dashboard";
 import DashboardLayout from "./pages/DashboardLayout";
 import Importing from "./pages/Importing";
 import SkuDatabase from "./pages/SkuDatabase";
 import UserManagementPage from "./pages/UserManagement";
+import EbayClone from "./pages/EbayClone";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -23,11 +25,13 @@ const App = () => (
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/auth" element={<Auth />} />
+          <Route path="/menu" element={<MainMenu />} />
           <Route element={<DashboardLayout />}>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/importing" element={<Importing />} />
             <Route path="/sku-database" element={<SkuDatabase />} />
             <Route path="/user-management" element={<UserManagementPage />} />
+            <Route path="/ebay-clone" element={<EbayClone />} />
           </Route>
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />

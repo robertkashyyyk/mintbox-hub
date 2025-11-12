@@ -19,9 +19,11 @@ import {
 import { Button } from "./ui/button";
 
 const baseMenuItems = [
+  { title: "Main Menu", url: "/menu", icon: ShoppingCart },
   { title: "Purchase Order Building", url: "/dashboard", icon: ShoppingCart },
   { title: "Importing SKUs", url: "/importing", icon: FileText },
   { title: "View SKU Database", url: "/sku-database", icon: Database },
+  { title: "eBay Clone Creator", url: "/ebay-clone", icon: ShoppingCart },
 ];
 
 export function AppSidebar() {

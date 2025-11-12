@@ -17,7 +17,7 @@ const Auth = () => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session) {
-        navigate("/dashboard");
+        navigate("/menu");
       }
     });
 
@@ -27,7 +27,7 @@ const Auth = () => {
     } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
       if (session) {
-        navigate("/dashboard");
+        navigate("/menu");
       }
     });
 
@@ -65,7 +65,7 @@ const Auth = () => {
               },
             }}
             providers={[]}
-            redirectTo={`${window.location.origin}/dashboard`}
+            redirectTo={`${window.location.origin}/menu`}
             onlyThirdPartyProviders={false}
             view="sign_in"
             showLinks={true}

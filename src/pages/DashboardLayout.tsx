@@ -58,7 +58,7 @@ const DashboardLayout = () => {
               <div className="flex items-center gap-4">
                 <SidebarTrigger />
                 <div>
-                  <h1 className="text-xl font-bold">Mintsoft Dashboard</h1>
+                  <h1 className="text-xl font-bold">Dashboard</h1>
                   <p className="text-xs text-muted-foreground">{session.user.email}</p>
                 </div>
               </div>
