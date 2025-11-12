@@ -7,13 +7,11 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-interface MintsoftInventoryProduct {
-  ProductId: number;
+interface MintsoftStockItem {
   SKU: string;
-  Level: number;
-  TotalStockLevel: number;
-  AvailableQty?: number;
-  OnHand?: number;
+  AvailableQuantity: number;
+  BackOrderQuantity: number;
+  OnOrderQuantity: number;
   WarehouseId: number;
 }
 
@@ -65,96 +63,104 @@ serve(async (req) => {
           })
           .eq('id', job_id);
         
-        console.log(`Fetching inventory for brand: ${job.brands.name}`);
+        console.log(`Fetching stock for brand: ${job.brands.name}`);
         
-        // Build brand prefix
-        const brandPrefix = job.brands.prefix + (job.brands.prefix_style === 'hyphen' ? '-' : '/');
+        // Build brand prefix pattern for database lookup
+        const brandPrefix = job.brands.prefix;
+        const prefixStyle = job.brands.prefix_style || 'hyphen';
+        const separator = prefixStyle === 'slash' ? '/' : '-';
+        const prefixPattern = `${brandPrefix}${separator}%`;
         
-        // Fetch inventory from Mintsoft
-        const url = `https://api.mintsoft.co.uk/api/Product/StockLevels?WarehouseId=5&breakdown=true`;
+        // Get all products from products_cache that match this brand
+        const { data: brandProducts, error: productsError } = await supabase
+          .from('products_cache')
+          .select('sku')
+          .ilike('sku', prefixPattern);
         
-        const response = await fetch(url, {
-          method: 'GET',
+        if (productsError) {
+          throw productsError;
+        }
+        
+        if (!brandProducts || brandProducts.length === 0) {
+          throw new Error(`No products found in database for brand ${job.brands.name}`);
+        }
+        
+        console.log(`Found ${brandProducts.length} products in database for ${job.brands.name}`);
+        
+        // Get Mintsoft settings
+        const { data: settings } = await supabase
+          .from('mintsoft_settings')
+          .select('*')
+          .limit(1)
+          .single();
+        
+        if (!settings) {
+          throw new Error('Mintsoft settings not found');
+        }
+        
+        // Fetch stock levels from Mintsoft (WarehouseId=5 is 'Coleraine Live')
+        const stockUrl = `${settings.base_url}/api/Product/StockLevels?WarehouseId=5`;
+        console.log(`Fetching stock from Mintsoft...`);
+        
+        const stockResponse = await fetch(stockUrl, {
           headers: {
             'ms-apikey': mintsoftApiKey,
             'Content-Type': 'application/json',
           },
         });
         
-        if (!response.ok) {
-          throw new Error(`Mintsoft API error: ${response.status} ${response.statusText}`);
+        if (!stockResponse.ok) {
+          throw new Error(`Mintsoft API error: ${stockResponse.status} ${stockResponse.statusText}`);
         }
         
-        const allProducts: MintsoftInventoryProduct[] = await response.json();
+        const allStockData: MintsoftStockItem[] = await stockResponse.json();
+        console.log(`Received ${allStockData.length} stock items from Mintsoft`);
         
-        // Filter to only products matching this brand prefix
-        const brandProducts = allProducts.filter(p => 
-          p.SKU.startsWith(brandPrefix.replace('-', '').replace('/', ''))
+        // Create a map of SKU to stock data for faster lookup
+        const stockMap = new Map(
+          allStockData.map((item) => [item.SKU, item])
         );
         
-        console.log(`Found ${brandProducts.length} products for ${job.brands.name}`);
+        // Update products_cache with stock data
+        let updated = 0;
+        const batchSize = 50;
         
-        // Create email record for this sync
-        const occurredAt = new Date().toISOString();
-        const { data: email, error: emailError } = await supabase
-          .from('emails')
-          .insert({
-            message_id: `inventory-${job_id}`,
-            thread_id: `inventory-${job_id}`,
-            subject: `Inventory Sync - ${job.brands.name}`,
-            sender: 'sync-job',
-            received_at: occurredAt,
-            labels: ['Inventory', job.brands.name]
-          })
-          .select()
-          .single();
-        
-        if (emailError) throw emailError;
-        
-        // Map products to parsed_items format
-        const items = brandProducts.map(product => {
-          const qty = product.AvailableQty ?? product.OnHand ?? product.Level ?? product.TotalStockLevel ?? 0;
+        for (let i = 0; i < brandProducts.length; i += batchSize) {
+          const batch = brandProducts.slice(i, i + batchSize);
           
-          return {
-            email_id: email.id,
-            report_type: job.report_type,
-            sku: product.SKU,
-            brand_name: job.brands.name,
-            qty: qty,
-            warehouse: "Coleraine Live",
-            occurred_at: occurredAt,
-            raw: product,
-          };
-        });
-        
-        // Insert in batches
-        const batchSize = 100;
-        let inserted = 0;
-        
-        for (let i = 0; i < items.length; i += batchSize) {
-          const batch = items.slice(i, i + batchSize);
-          
-          const { error: insertError } = await supabase
-            .from('parsed_items')
-            .upsert(batch, {
-              onConflict: 'report_type,occurred_at,sku,warehouse',
-              ignoreDuplicates: true
-            });
-          
-          if (insertError) {
-            console.error(`Error inserting batch:`, insertError);
-          } else {
-            inserted += batch.length;
-            console.log(`Inserted ${inserted} / ${items.length} items`);
+          for (const product of batch) {
+            const stockInfo = stockMap.get(product.sku);
+            
+            if (stockInfo) {
+              const { error: updateError } = await supabase
+                .from('products_cache')
+                .update({
+                  current_stock: stockInfo.AvailableQuantity || 0,
+                  back_order_qty: stockInfo.BackOrderQuantity || 0,
+                  on_order: stockInfo.OnOrderQuantity || 0,
+                  last_stock_sync: new Date().toISOString(),
+                })
+                .eq('sku', product.sku);
+              
+              if (updateError) {
+                console.error(`Error updating SKU ${product.sku}:`, updateError);
+              } else {
+                updated++;
+              }
+            }
           }
+          
+          console.log(`Processed batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(brandProducts.length / batchSize)}`);
         }
+        
+        console.log(`Updated ${updated} products in products_cache`);
         
         // Update job status to complete
         await supabase
           .from('sync_jobs')
           .update({ 
             status: 'complete',
-            items_count: items.length,
+            items_count: updated,
             completed_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
           })
@@ -165,8 +171,8 @@ serve(async (req) => {
           .from('notifications')
           .insert({
             user_id: job.user_id,
-            title: 'Sync Complete',
-            message: `Successfully synced ${items.length} items for ${job.brands.name}`,
+            title: 'Stock Sync Complete',
+            message: `Successfully synced stock for ${updated} ${job.brands.name} products`,
             type: 'success',
             link: '/dashboard'
           });
@@ -191,19 +197,19 @@ serve(async (req) => {
         
         try {
           await resend.emails.send({
-            from: 'Inventory Sync <onboarding@resend.dev>',
+            from: 'Stock Sync <onboarding@resend.dev>',
             to: [userEmail],
-            subject: `✅ Inventory Sync Complete - ${job.brands.name}`,
+            subject: `✅ Stock Sync Complete - ${job.brands.name}`,
             html: `
-              <h1>Inventory Sync Completed</h1>
-              <p>Your inventory sync for <strong>${job.brands.name}</strong> has finished successfully.</p>
+              <h1>Stock Sync Completed</h1>
+              <p>Your stock sync for <strong>${job.brands.name}</strong> has finished successfully.</p>
               <p><strong>Details:</strong></p>
               <ul>
                 <li>Brand: ${job.brands.name}</li>
-                <li>Items Processed: ${items.length}</li>
+                <li>Products Updated: ${updated}</li>
                 <li>Completed: ${completedTime}</li>
               </ul>
-              <p>You can view the updated inventory in your <a href="${supabaseUrl.replace('https://zadsuqxcchpnegcynflb.supabase.co', 'your-app-url')}/dashboard">dashboard</a>.</p>
+              <p>The stock levels in your SKU Database have been updated.</p>
             `,
           });
           console.log(`Email notification sent to ${userEmail}`);
