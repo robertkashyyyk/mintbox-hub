@@ -23,7 +23,6 @@ const baseMenuItems = [
   { title: "Purchase Order Building", url: "/dashboard", icon: ShoppingCart },
   { title: "Importing SKUs", url: "/importing", icon: FileText },
   { title: "View SKU Database", url: "/sku-database", icon: Database },
-  { title: "Brands", url: "/brands", icon: Tag },
   { title: "eBay Clone Creator", url: "/ebay-clone", icon: ShoppingCart },
 ];
 
@@ -51,6 +50,8 @@ export function AppSidebar() {
   });
 
   const isSuperUser = userRoles?.some((r: any) => r.role === "super_user");
+  const isSeniorUser = userRoles?.some((r: any) => r.role === "senior_user");
+  const canManageBrands = isSuperUser || isSeniorUser;
 
   const isActive = (path: string) => {
     if (path === "/dashboard") {
@@ -84,6 +85,24 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        {canManageBrands && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Management</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={isActive("/brands")}>
+                    <NavLink to="/brands">
+                      <Tag className="h-4 w-4" />
+                      {open && <span>Brands</span>}
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
 
         {isSuperUser && (
           <SidebarGroup>
