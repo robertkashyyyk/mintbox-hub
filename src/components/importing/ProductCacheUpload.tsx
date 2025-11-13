@@ -4,9 +4,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, FileText, Loader2 } from "lucide-react";
+import { Upload, FileText, Loader2, Download } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
+import { toast as sonnerToast } from "sonner";
 
 export function ProductCacheUpload() {
   const { toast } = useToast();
@@ -89,13 +90,82 @@ export function ProductCacheUpload() {
     }
   };
 
+  const downloadTemplate = () => {
+    const headers = [
+      "SKU",
+      "Name",
+      "EANBarcode",
+      "UPCBarcode",
+      "MintsoftProductID",
+      "Discontinued",
+      "Suppliers",
+      "LowStockAlertLevel",
+      "Weight",
+      "Height",
+      "Length",
+      "Depth",
+      "CostPrice",
+      "HandlingTime",
+      "CurrentStock",
+      "BackOrderQty",
+      "OnOrder",
+      "Categories",
+    ];
+
+    const exampleRow = [
+      "NGK-02412",
+      "NGK Spark Plug BKR6E",
+      "087295024126",
+      "",
+      "12345",
+      "false",
+      "NGK Distributors",
+      "10",
+      "0.05",
+      "8",
+      "2",
+      "2",
+      "2.50",
+      "1",
+      "50",
+      "0",
+      "20",
+      "Spark Plugs, Automotive",
+    ];
+
+    const csvContent = [
+      headers.join(","),
+      exampleRow.join(","),
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", "product-upload-template.csv");
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    sonnerToast.success("Template downloaded successfully");
+  };
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Upload Product CSV</CardTitle>
-        <CardDescription>
-          Upload a Mintsoft product export CSV to populate the local product cache.
-        </CardDescription>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle>Upload Product CSV</CardTitle>
+            <CardDescription>
+              Upload a Mintsoft product export CSV to populate the local product cache.
+            </CardDescription>
+          </div>
+          <Button variant="outline" size="sm" onClick={downloadTemplate}>
+            <Download className="h-4 w-4 mr-2" />
+            Download Template
+          </Button>
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-2">
@@ -137,7 +207,7 @@ export function ProductCacheUpload() {
               {file ? file.name : "Click to upload or drag and drop"}
             </p>
             <p className="text-xs text-muted-foreground">
-              CSV files only
+              CSV files only • Download template above for correct format
             </p>
           </label>
         </div>

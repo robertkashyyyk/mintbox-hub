@@ -108,6 +108,10 @@ Deno.serve(async (req) => {
         depth: parseFloat(row["Depth"]) || null,
         cost_price: parseFloat(row["CostPrice"]) || null,
         handling_time: parseInt(row["HandlingTime"]) || null,
+        mintsoft_product_id: parseInt(row["MintsoftProductID"]) || null,
+        current_stock: parseFloat(row["CurrentStock"]) || 0,
+        back_order_qty: parseFloat(row["BackOrderQty"]) || 0,
+        on_order: parseFloat(row["OnOrder"]) || 0,
       };
 
       // Upsert product
