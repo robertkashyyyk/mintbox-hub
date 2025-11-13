@@ -121,12 +121,12 @@ export const SkuFilters = ({
         {/* Brand Filter */}
         <div className="space-y-2">
           <Label htmlFor="brand">Brand</Label>
-          <Select value={filters.brand} onValueChange={(value) => updateFilter("brand", value)}>
+          <Select value={filters.brand || "all"} onValueChange={(value) => updateFilter("brand", value === "all" ? "" : value)}>
             <SelectTrigger id="brand">
               <SelectValue placeholder="All Brands" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All Brands</SelectItem>
+              <SelectItem value="all">All Brands</SelectItem>
               {brands.map((brand) => (
                 <SelectItem key={brand.id} value={brand.name}>
                   {brand.name}
@@ -139,12 +139,12 @@ export const SkuFilters = ({
         {/* Status Filter */}
         <div className="space-y-2">
           <Label htmlFor="status">Status</Label>
-          <Select value={filters.status} onValueChange={(value) => updateFilter("status", value)}>
+          <Select value={filters.status || "all"} onValueChange={(value) => updateFilter("status", value === "all" ? "" : value)}>
             <SelectTrigger id="status">
               <SelectValue placeholder="All Status" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All Status</SelectItem>
+              <SelectItem value="all">All Status</SelectItem>
               <SelectItem value="active">Active</SelectItem>
               <SelectItem value="discontinued">Discontinued</SelectItem>
             </SelectContent>
