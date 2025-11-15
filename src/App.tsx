@@ -16,6 +16,8 @@ import RemoteStockUpdates from "./pages/RemoteStockUpdates";
 import Brands from "./pages/Brands";
 import EbayAdmin from "./pages/EbayAdmin";
 import Profile from "./pages/Profile";
+import MissingCostPrices from "./pages/MissingCostPrices";
+import ProblematicOrders from "./pages/ProblematicOrders";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -39,6 +41,8 @@ const App = () => (
             <Route path="/user-management" element={<UserManagementPage />} />
             <Route path="/ebay-clone" element={<EbayClone />} />
             <Route path="/remote-stock-updates" element={<RemoteStockUpdates />} />
+            <Route path="/missing-cost-prices" element={<MissingCostPrices />} />
+            <Route path="/problematic-orders" element={<ProblematicOrders />} />
             <Route path="/profile" element={<Profile />} />
           </Route>
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
