@@ -19,6 +19,13 @@ import Profile from "./pages/Profile";
 import MissingCostPrices from "./pages/MissingCostPrices";
 import ProblematicOrders from "./pages/ProblematicOrders";
 import NotFound from "./pages/NotFound";
+import OrderingSection from "./pages/menu/OrderingSection";
+import SkuSection from "./pages/menu/SkuSection";
+import StockUpdatesSection from "./pages/menu/StockUpdatesSection";
+import ManagementSection from "./pages/menu/ManagementSection";
+import ToolsSection from "./pages/menu/ToolsSection";
+import ErrorHuntingSection from "./pages/menu/ErrorHuntingSection";
+import AdministrationSection from "./pages/menu/AdministrationSection";
 
 const queryClient = new QueryClient();
 
@@ -32,6 +39,13 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/menu" element={<MainMenu />} />
+          <Route path="/menu/ordering" element={<OrderingSection />} />
+          <Route path="/menu/sku-section" element={<SkuSection />} />
+          <Route path="/menu/stock-updates" element={<StockUpdatesSection />} />
+          <Route path="/menu/management" element={<ManagementSection />} />
+          <Route path="/menu/tools" element={<ToolsSection />} />
+          <Route path="/menu/error-hunting" element={<ErrorHuntingSection />} />
+          <Route path="/menu/administration" element={<AdministrationSection />} />
           <Route element={<DashboardLayout />}>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/importing" element={<Importing />} />
