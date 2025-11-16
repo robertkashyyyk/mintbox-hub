@@ -1,10 +1,8 @@
-import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -22,7 +20,6 @@ type FeedType = keyof typeof FEED_TYPES;
 const RemoteStockUpdates = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [editingBrand, setEditingBrand] = useState<string | null>(null);
 
   const { data: brands, isLoading } = useQuery({
     queryKey: ["brands-remote-stock"],
@@ -38,7 +35,7 @@ const RemoteStockUpdates = () => {
   });
 
   const updateFeedTypeMutation = useMutation({
-    mutationFn: async ({ brandId, feedType }: { brandId: string; feedType: FeedType | null }) => {
+    mutationFn: async ({ brandId, feedType }: { brandId: string; feedType: FeedType }) => {
       const { error } = await supabase
         .from("brands")
         .update({ remote_stock_feed_type: feedType })
@@ -52,7 +49,6 @@ const RemoteStockUpdates = () => {
         title: "Success",
         description: "Feed type updated successfully",
       });
-      setEditingBrand(null);
     },
     onError: (error) => {
       toast({
@@ -100,7 +96,6 @@ const RemoteStockUpdates = () => {
                 <TableRow>
                   <TableHead>Brand Name</TableHead>
                   <TableHead>Feed Type</TableHead>
-                  <TableHead className="w-[200px]">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -108,48 +103,29 @@ const RemoteStockUpdates = () => {
                   <TableRow key={brand.id}>
                     <TableCell className="font-medium">{brand.name}</TableCell>
                     <TableCell>
-                      {editingBrand === brand.id ? (
-                        <Select
-                          defaultValue={brand.remote_stock_feed_type || ""}
-                          onValueChange={(value) => handleFeedTypeChange(brand.id, value)}
-                        >
-                          <SelectTrigger className="w-[200px]">
-                            <SelectValue placeholder="Select feed type" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {Object.entries(FEED_TYPES).map(([key, label]) => (
-                              <SelectItem key={key} value={key}>
-                                {label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      ) : brand.remote_stock_feed_type ? (
-                        <Badge variant="secondary">
-                          {FEED_TYPES[brand.remote_stock_feed_type as FeedType]}
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline">No Feed Assigned</Badge>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {editingBrand === brand.id ? (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setEditingBrand(null)}
-                        >
-                          Cancel
-                        </Button>
-                      ) : (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setEditingBrand(brand.id)}
-                        >
-                          {brand.remote_stock_feed_type ? "Change" : "Assign"} Feed
-                        </Button>
-                      )}
+                      <Select
+                        value={brand.remote_stock_feed_type || ""}
+                        onValueChange={(value) => handleFeedTypeChange(brand.id, value)}
+                      >
+                        <SelectTrigger className="w-[200px]">
+                          <SelectValue>
+                            {brand.remote_stock_feed_type ? (
+                              <Badge variant="secondary">
+                                {FEED_TYPES[brand.remote_stock_feed_type as FeedType]}
+                              </Badge>
+                            ) : (
+                              <Badge variant="destructive">No Feed Assigned</Badge>
+                            )}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Object.entries(FEED_TYPES).map(([key, label]) => (
+                            <SelectItem key={key} value={key}>
+                              {label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </TableCell>
                   </TableRow>
                 ))}
