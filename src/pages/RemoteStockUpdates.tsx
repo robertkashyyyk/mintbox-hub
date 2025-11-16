@@ -1,18 +1,163 @@
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useToast } from "@/hooks/use-toast";
+import { Skeleton } from "@/components/ui/skeleton";
+
+const FEED_TYPES = {
+  email: "Email",
+  google_sheet: "Google Sheet",
+  direct_upload: "Direct Upload",
+  ftp_push: "FTP Push",
+  ftp_pull: "FTP Pull",
+} as const;
+
+type FeedType = keyof typeof FEED_TYPES;
+
 const RemoteStockUpdates = () => {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [editingBrand, setEditingBrand] = useState<string | null>(null);
+
+  const { data: brands, isLoading } = useQuery({
+    queryKey: ["brands-remote-stock"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("brands")
+        .select("id, name, remote_stock_feed_type")
+        .order("name");
+
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const updateFeedTypeMutation = useMutation({
+    mutationFn: async ({ brandId, feedType }: { brandId: string; feedType: FeedType | null }) => {
+      const { error } = await supabase
+        .from("brands")
+        .update({ remote_stock_feed_type: feedType })
+        .eq("id", brandId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["brands-remote-stock"] });
+      toast({
+        title: "Success",
+        description: "Feed type updated successfully",
+      });
+      setEditingBrand(null);
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: "Failed to update feed type",
+        variant: "destructive",
+      });
+      console.error("Error updating feed type:", error);
+    },
+  });
+
+  const handleFeedTypeChange = (brandId: string, feedType: string) => {
+    updateFeedTypeMutation.mutate({
+      brandId,
+      feedType: feedType as FeedType,
+    });
+  };
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold">Remote Stock Updates</h1>
         <p className="text-muted-foreground mt-2">
-          Manage remote stock updates and synchronization
+          Configure how each brand delivers stock updates to the system
         </p>
       </div>
 
-      <div className="flex items-center justify-center min-h-[400px] border-2 border-dashed rounded-lg">
-        <p className="text-muted-foreground text-lg">
-          Remote Stock Updates - Coming Soon
-        </p>
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>Brand Feed Configuration</CardTitle>
+          <CardDescription>
+            Assign a feed type to each brand to enable remote stock updates
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="space-y-2">
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Brand Name</TableHead>
+                  <TableHead>Feed Type</TableHead>
+                  <TableHead className="w-[200px]">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {brands?.map((brand) => (
+                  <TableRow key={brand.id}>
+                    <TableCell className="font-medium">{brand.name}</TableCell>
+                    <TableCell>
+                      {editingBrand === brand.id ? (
+                        <Select
+                          defaultValue={brand.remote_stock_feed_type || ""}
+                          onValueChange={(value) => handleFeedTypeChange(brand.id, value)}
+                        >
+                          <SelectTrigger className="w-[200px]">
+                            <SelectValue placeholder="Select feed type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {Object.entries(FEED_TYPES).map(([key, label]) => (
+                              <SelectItem key={key} value={key}>
+                                {label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : brand.remote_stock_feed_type ? (
+                        <Badge variant="secondary">
+                          {FEED_TYPES[brand.remote_stock_feed_type as FeedType]}
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline">No Feed Assigned</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {editingBrand === brand.id ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setEditingBrand(null)}
+                        >
+                          Cancel
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setEditingBrand(brand.id)}
+                        >
+                          {brand.remote_stock_feed_type ? "Change" : "Assign"} Feed
+                        </Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 };

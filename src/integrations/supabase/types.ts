@@ -85,6 +85,9 @@ export type Database = {
           name: string
           prefix: string | null
           prefix_style: Database["public"]["Enums"]["prefix_style"] | null
+          remote_stock_feed_type:
+            | Database["public"]["Enums"]["remote_stock_feed_type"]
+            | null
         }
         Insert: {
           created_at?: string | null
@@ -93,6 +96,9 @@ export type Database = {
           name: string
           prefix?: string | null
           prefix_style?: Database["public"]["Enums"]["prefix_style"] | null
+          remote_stock_feed_type?:
+            | Database["public"]["Enums"]["remote_stock_feed_type"]
+            | null
         }
         Update: {
           created_at?: string | null
@@ -101,6 +107,9 @@ export type Database = {
           name?: string
           prefix?: string | null
           prefix_style?: Database["public"]["Enums"]["prefix_style"] | null
+          remote_stock_feed_type?:
+            | Database["public"]["Enums"]["remote_stock_feed_type"]
+            | null
         }
         Relationships: []
       }
@@ -928,6 +937,12 @@ export type Database = {
       alert_type: "LowStock" | "RemoteStock" | "BackOrders" | "Inventory"
       app_role: "super_user" | "senior_user" | "simple_user"
       prefix_style: "hyphen" | "slash"
+      remote_stock_feed_type:
+        | "email"
+        | "google_sheet"
+        | "direct_upload"
+        | "ftp_push"
+        | "ftp_pull"
       severity_type: "info" | "warning" | "critical"
     }
     CompositeTypes: {
@@ -1059,6 +1074,13 @@ export const Constants = {
       alert_type: ["LowStock", "RemoteStock", "BackOrders", "Inventory"],
       app_role: ["super_user", "senior_user", "simple_user"],
       prefix_style: ["hyphen", "slash"],
+      remote_stock_feed_type: [
+        "email",
+        "google_sheet",
+        "direct_upload",
+        "ftp_push",
+        "ftp_pull",
+      ],
       severity_type: ["info", "warning", "critical"],
     },
   },
