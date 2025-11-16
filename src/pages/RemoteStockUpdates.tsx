@@ -2,12 +2,13 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
+import { AlertTriangle } from "lucide-react";
 
 const FEED_TYPES = {
+  no_feed: "No feed available",
   email: "Email",
   google_sheet: "Google Sheet",
   direct_upload: "Direct Upload",
@@ -95,7 +96,8 @@ const RemoteStockUpdates = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead>Brand Name</TableHead>
-                  <TableHead>Feed Type</TableHead>
+                  <TableHead>Current Feed Type</TableHead>
+                  <TableHead>Assign Feed Type</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -103,20 +105,24 @@ const RemoteStockUpdates = () => {
                   <TableRow key={brand.id}>
                     <TableCell className="font-medium">{brand.name}</TableCell>
                     <TableCell>
+                      {!brand.remote_stock_feed_type ? (
+                        <div className="flex items-center gap-2 text-destructive">
+                          <AlertTriangle className="h-4 w-4" />
+                          <span className="font-medium">No Feed Assigned</span>
+                        </div>
+                      ) : (
+                        <span className="font-medium">
+                          {FEED_TYPES[brand.remote_stock_feed_type as FeedType]}
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell>
                       <Select
                         value={brand.remote_stock_feed_type || ""}
                         onValueChange={(value) => handleFeedTypeChange(brand.id, value)}
                       >
                         <SelectTrigger className="w-[200px]">
-                          <SelectValue>
-                            {brand.remote_stock_feed_type ? (
-                              <Badge variant="secondary">
-                                {FEED_TYPES[brand.remote_stock_feed_type as FeedType]}
-                              </Badge>
-                            ) : (
-                              <Badge variant="destructive">No Feed Assigned</Badge>
-                            )}
-                          </SelectValue>
+                          <SelectValue placeholder="Select feed type" />
                         </SelectTrigger>
                         <SelectContent>
                           {Object.entries(FEED_TYPES).map(([key, label]) => (
