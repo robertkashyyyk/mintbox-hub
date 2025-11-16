@@ -943,6 +943,7 @@ export type Database = {
         | "direct_upload"
         | "ftp_push"
         | "ftp_pull"
+        | "no_feed"
       severity_type: "info" | "warning" | "critical"
     }
     CompositeTypes: {
@@ -1080,6 +1081,7 @@ export const Constants = {
         "direct_upload",
         "ftp_push",
         "ftp_pull",
+        "no_feed",
       ],
       severity_type: ["info", "warning", "critical"],
     },
