@@ -5,3 +5,9 @@ verify_jwt = false
 
 [functions.mintsoft-sync]
 verify_jwt = false
+
+[functions.fetch-queued-price-checks]
+verify_jwt = false
+
+[functions.update-price-check-results]
+verify_jwt = false
