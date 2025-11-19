@@ -15,6 +15,7 @@ import EbayClone from "./pages/EbayClone";
 import RemoteStockUpdates from "./pages/RemoteStockUpdates";
 import Brands from "./pages/Brands";
 import EbayAdmin from "./pages/EbayAdmin";
+import ApiAccess from "./pages/ApiAccess";
 import Profile from "./pages/Profile";
 import MissingCostPrices from "./pages/MissingCostPrices";
 import ProblematicOrders from "./pages/ProblematicOrders";
@@ -53,6 +54,7 @@ const App = () => (
             <Route path="/sku-database" element={<SkuDatabase />} />
             <Route path="/brands" element={<Brands />} />
             <Route path="/ebay-admin" element={<EbayAdmin />} />
+            <Route path="/api-access" element={<ApiAccess />} />
             <Route path="/user-management" element={<UserManagementPage />} />
             <Route path="/ebay-clone" element={<EbayClone />} />
             <Route path="/price-hunter" element={<PriceHunter />} />

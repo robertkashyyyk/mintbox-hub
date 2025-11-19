@@ -12,10 +12,47 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // Validate API key
+    const apiKey = req.headers.get('x-api-key');
+    if (!apiKey) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'API key required' }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 401,
+        }
+      );
+    }
+
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
+
+    // Verify API key
+    const { data: keyData, error: keyError } = await supabaseClient
+      .from('api_keys')
+      .select('id, active')
+      .eq('key', apiKey)
+      .eq('active', true)
+      .maybeSingle();
+
+    if (keyError || !keyData) {
+      console.error('Invalid API key:', keyError);
+      return new Response(
+        JSON.stringify({ success: false, error: 'Invalid API key' }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 401,
+        }
+      );
+    }
+
+    // Update last_used_at
+    await supabaseClient
+      .from('api_keys')
+      .update({ last_used_at: new Date().toISOString() })
+      .eq('id', keyData.id);
 
     console.log('Fetching queued price checks...');
 

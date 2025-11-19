@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tag, Store, ArrowLeft } from "lucide-react";
+import { Tag, Store, Key, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -46,6 +46,13 @@ const ManagementSection = () => {
       icon: Store,
       color: "text-yellow-500",
       onClick: () => navigate("/ebay-admin"),
+    },
+    {
+      title: "API Access",
+      description: "Manage API keys and integration endpoints",
+      icon: Key,
+      color: "text-blue-500",
+      onClick: () => navigate("/api-access"),
     },
   ];
 
