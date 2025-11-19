@@ -586,6 +586,17 @@ export type Database = {
           mintsoft_product_id: number | null
           name: string
           on_order: number | null
+          ph_brand: string | null
+          ph_brand_best_item_id: string | null
+          ph_brand_best_price: number | null
+          ph_brand_best_seller: string | null
+          ph_error_message: string | null
+          ph_last_checked_at: string | null
+          ph_plain_best_item_id: string | null
+          ph_plain_best_price: number | null
+          ph_plain_best_seller: string | null
+          ph_search_term: string | null
+          ph_status: string | null
           sku: string
           suppliers: string | null
           updated_at: string | null
@@ -609,6 +620,17 @@ export type Database = {
           mintsoft_product_id?: number | null
           name: string
           on_order?: number | null
+          ph_brand?: string | null
+          ph_brand_best_item_id?: string | null
+          ph_brand_best_price?: number | null
+          ph_brand_best_seller?: string | null
+          ph_error_message?: string | null
+          ph_last_checked_at?: string | null
+          ph_plain_best_item_id?: string | null
+          ph_plain_best_price?: number | null
+          ph_plain_best_seller?: string | null
+          ph_search_term?: string | null
+          ph_status?: string | null
           sku: string
           suppliers?: string | null
           updated_at?: string | null
@@ -632,6 +654,17 @@ export type Database = {
           mintsoft_product_id?: number | null
           name?: string
           on_order?: number | null
+          ph_brand?: string | null
+          ph_brand_best_item_id?: string | null
+          ph_brand_best_price?: number | null
+          ph_brand_best_seller?: string | null
+          ph_error_message?: string | null
+          ph_last_checked_at?: string | null
+          ph_plain_best_item_id?: string | null
+          ph_plain_best_price?: number | null
+          ph_plain_best_seller?: string | null
+          ph_search_term?: string | null
+          ph_status?: string | null
           sku?: string
           suppliers?: string | null
           updated_at?: string | null

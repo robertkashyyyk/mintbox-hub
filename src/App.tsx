@@ -26,6 +26,7 @@ import ManagementSection from "./pages/menu/ManagementSection";
 import ToolsSection from "./pages/menu/ToolsSection";
 import ErrorHuntingSection from "./pages/menu/ErrorHuntingSection";
 import AdministrationSection from "./pages/menu/AdministrationSection";
+import PriceHunter from "./pages/PriceHunter";
 
 const queryClient = new QueryClient();
 
@@ -54,6 +55,7 @@ const App = () => (
             <Route path="/ebay-admin" element={<EbayAdmin />} />
             <Route path="/user-management" element={<UserManagementPage />} />
             <Route path="/ebay-clone" element={<EbayClone />} />
+            <Route path="/price-hunter" element={<PriceHunter />} />
             <Route path="/remote-stock-updates" element={<RemoteStockUpdates />} />
             <Route path="/missing-cost-prices" element={<MissingCostPrices />} />
             <Route path="/problematic-orders" element={<ProblematicOrders />} />
