@@ -14,6 +14,13 @@ const ToolsSection = () => {
       color: "text-purple-500",
       onClick: () => navigate("/ebay-clone"),
     },
+    {
+      title: "Price Hunter",
+      description: "eBay price checks and queue management",
+      icon: Wrench,
+      color: "text-green-500",
+      onClick: () => navigate("/price-hunter"),
+    },
   ];
 
   return (
