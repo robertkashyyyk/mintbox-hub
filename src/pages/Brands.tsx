@@ -126,8 +126,9 @@ const Brands = () => {
       const { error } = await supabase.from("brands").delete().eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["brands-with-count"] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["brands-with-count"] });
+      await queryClient.refetchQueries({ queryKey: ["brands-with-count"] });
       toast({
         title: "Success",
         description: "Brand deleted successfully",
