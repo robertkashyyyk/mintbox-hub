@@ -56,6 +56,16 @@ Deno.serve(async (req) => {
 
     console.log('Fetching queued price checks...');
 
+    // Fetch brands for matching
+    const { data: brands, error: brandsError } = await supabaseClient
+      .from('brands')
+      .select('name, prefix, prefix_style');
+
+    if (brandsError) {
+      console.error('Error fetching brands:', brandsError);
+      throw brandsError;
+    }
+
     // Fetch all products with ph_status = 'queued'
     const { data: products, error } = await supabaseClient
       .from('products_cache')
@@ -70,12 +80,74 @@ Deno.serve(async (req) => {
 
     console.log(`Found ${products?.length || 0} queued products`);
 
-    // Return the queued products
+    // Helper function to derive ph_brand and ph_search_term
+    const deriveBrandAndSearchTerm = (sku: string) => {
+      const matchingBrand = brands?.find((brand) => {
+        if (!brand.prefix) return false;
+        const separator = brand.prefix_style === 'slash' ? '/' : '-';
+        const pattern = `${brand.prefix}${separator}`;
+        return sku.startsWith(pattern);
+      });
+
+      if (!matchingBrand) {
+        return { ph_brand: null, ph_search_term: sku };
+      }
+
+      const separator = matchingBrand.prefix_style === 'slash' ? '/' : '-';
+      const parts = sku.split(separator);
+      const searchTerm = parts.length > 1 ? parts.slice(1).join(separator) : sku;
+
+      return {
+        ph_brand: matchingBrand.name,
+        ph_search_term: searchTerm,
+      };
+    };
+
+    // Auto-backfill null ph_brand or ph_search_term
+    const processedProducts = products?.map((product) => {
+      let needsUpdate = false;
+      let ph_brand = product.ph_brand;
+      let ph_search_term = product.ph_search_term;
+
+      if (!ph_brand || !ph_search_term) {
+        const derived = deriveBrandAndSearchTerm(product.sku);
+        if (!ph_brand && derived.ph_brand) {
+          ph_brand = derived.ph_brand;
+          needsUpdate = true;
+        }
+        if (!ph_search_term && derived.ph_search_term) {
+          ph_search_term = derived.ph_search_term;
+          needsUpdate = true;
+        }
+
+        // Update the database if we backfilled
+        if (needsUpdate) {
+          supabaseClient
+            .from('products_cache')
+            .update({ ph_brand, ph_search_term })
+            .eq('id', product.id)
+            .then(({ error: updateError }) => {
+              if (updateError) {
+                console.error(`Error backfilling product ${product.id}:`, updateError);
+              }
+            });
+        }
+      }
+
+      return {
+        id: product.id,
+        sku: product.sku,
+        ph_brand,
+        ph_search_term,
+      };
+    }) || [];
+
+    // Return the queued products with backfilled data
     return new Response(
       JSON.stringify({
         success: true,
-        count: products?.length || 0,
-        products: products || [],
+        count: processedProducts.length,
+        products: processedProducts,
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
