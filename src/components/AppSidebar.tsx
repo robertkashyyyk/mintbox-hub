@@ -1,4 +1,4 @@
-import { ShoppingCart, FileText, Database, Users, LogOut, Tag, RefreshCw, UserCircle, Store, AlertCircle, AlertTriangle, Wrench } from "lucide-react";
+import { ShoppingCart, FileText, Database, Users, LogOut, Tag, RefreshCw, UserCircle, Store, AlertCircle, AlertTriangle, Wrench, Key, Search } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -160,6 +160,14 @@ export function AppSidebar() {
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={isActive("/api-access")}>
+                      <NavLink to="/api-access">
+                        <Key className="h-4 w-4" />
+                        {open && <span>API Access</span>}
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
                 </SidebarMenu>
               </SidebarGroupContent>
             </SidebarGroup>
@@ -168,6 +176,14 @@ export function AppSidebar() {
               <SidebarGroupLabel>Tools</SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={isActive("/price-hunter")}>
+                      <NavLink to="/price-hunter">
+                        <Search className="h-4 w-4" />
+                        {open && <span>Price Hunter</span>}
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
                   <SidebarMenuItem>
                     <SidebarMenuButton asChild isActive={isActive("/ebay-clone")}>
                       <NavLink to="/ebay-clone">
