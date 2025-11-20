@@ -313,6 +313,62 @@ export type Database = {
         }
         Relationships: []
       }
+      ignored_listings: {
+        Row: {
+          created_at: string
+          ebay_item_id: string
+          id: string
+          reason: string | null
+          sku: string | null
+        }
+        Insert: {
+          created_at?: string
+          ebay_item_id: string
+          id?: string
+          reason?: string | null
+          sku?: string | null
+        }
+        Update: {
+          created_at?: string
+          ebay_item_id?: string
+          id?: string
+          reason?: string | null
+          sku?: string | null
+        }
+        Relationships: []
+      }
+      ignored_sellers: {
+        Row: {
+          brand_id: string | null
+          created_at: string
+          id: string
+          reason: string | null
+          seller_username: string
+        }
+        Insert: {
+          brand_id?: string | null
+          created_at?: string
+          id?: string
+          reason?: string | null
+          seller_username: string
+        }
+        Update: {
+          brand_id?: string | null
+          created_at?: string
+          id?: string
+          reason?: string | null
+          seller_username?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ignored_sellers_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       import_rules: {
         Row: {
           created_at: string
@@ -630,6 +686,9 @@ export type Database = {
           ph_brand_best_seller: string | null
           ph_error_message: string | null
           ph_last_checked_at: string | null
+          ph_our_best_item_id: string | null
+          ph_our_best_price: number | null
+          ph_our_best_seller: string | null
           ph_plain_best_item_id: string | null
           ph_plain_best_price: number | null
           ph_plain_best_seller: string | null
@@ -664,6 +723,9 @@ export type Database = {
           ph_brand_best_seller?: string | null
           ph_error_message?: string | null
           ph_last_checked_at?: string | null
+          ph_our_best_item_id?: string | null
+          ph_our_best_price?: number | null
+          ph_our_best_seller?: string | null
           ph_plain_best_item_id?: string | null
           ph_plain_best_price?: number | null
           ph_plain_best_seller?: string | null
@@ -698,6 +760,9 @@ export type Database = {
           ph_brand_best_seller?: string | null
           ph_error_message?: string | null
           ph_last_checked_at?: string | null
+          ph_our_best_item_id?: string | null
+          ph_our_best_price?: number | null
+          ph_our_best_seller?: string | null
           ph_plain_best_item_id?: string | null
           ph_plain_best_price?: number | null
           ph_plain_best_seller?: string | null

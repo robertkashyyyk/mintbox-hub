@@ -1,0 +1,277 @@
+import { useParams, useNavigate } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { ArrowLeft, Loader2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { format } from "date-fns";
+
+export default function ProductDetail() {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const { data: product, isLoading } = useQuery({
+    queryKey: ["product", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("products_cache")
+        .select("*")
+        .eq("id", id)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: brands } = useQuery({
+    queryKey: ["brands"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("brands")
+        .select("id, name, prefix, prefix_style")
+        .order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const ignoreSeller = useMutation({
+    mutationFn: async ({ seller, brandId }: { seller: string; brandId: string | null }) => {
+      const { error } = await supabase.from("ignored_sellers").insert({
+        seller_username: seller,
+        brand_id: brandId,
+        reason: "Ignored from product detail page",
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast({ title: "Seller ignored successfully" });
+    },
+  });
+
+  const ignoreListing = useMutation({
+    mutationFn: async ({ itemId, sku }: { itemId: string; sku: string }) => {
+      const { error } = await supabase.from("ignored_listings").insert({
+        ebay_item_id: itemId,
+        sku,
+        reason: "Ignored from product detail page",
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast({ title: "Listing ignored successfully" });
+    },
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
+
+  if (!product) {
+    return <div>Product not found</div>;
+  }
+
+  const getBrandFromSku = (sku: string) => {
+    if (!brands) return null;
+    const brand = brands.find((b) => {
+      if (!b.prefix) return false;
+      const separator = b.prefix_style === "slash" ? "/" : "-";
+      const pattern = `${b.prefix}${separator}`;
+      return sku.startsWith(pattern);
+    });
+    return brand;
+  };
+
+  const brand = getBrandFromSku(product.sku);
+
+  const calculateGap = (ourPrice: number | null, compPrice: number | null) => {
+    if (!ourPrice || !compPrice) return null;
+    const gap = ourPrice - compPrice;
+    return {
+      amount: Math.abs(gap),
+      isAbove: gap > 0,
+    };
+  };
+
+  const PriceBlock = ({
+    title,
+    price,
+    seller,
+    itemId,
+    showIgnore,
+  }: {
+    title: string;
+    price: number | null;
+    seller: string | null;
+    itemId: string | null;
+    showIgnore?: boolean;
+  }) => {
+    const gap = title === "Our Listings" ? null : calculateGap(product.ph_our_best_price, price);
+
+    return (
+      <div className="space-y-2">
+        <h4 className="font-semibold text-sm">{title}</h4>
+        {price ? (
+          <>
+            <div className="text-2xl font-bold">£{price.toFixed(2)}</div>
+            {seller && (
+              <div className="flex items-center gap-2">
+                <div className="text-sm text-muted-foreground">{seller}</div>
+                {showIgnore && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() =>
+                      ignoreSeller.mutate({
+                        seller,
+                        brandId: brand?.id || null,
+                      })
+                    }
+                  >
+                    Ignore seller
+                  </Button>
+                )}
+              </div>
+            )}
+            {itemId && (
+              <div className="flex items-center gap-2">
+                <div className="text-xs text-muted-foreground font-mono">{itemId}</div>
+                {showIgnore && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() =>
+                      ignoreListing.mutate({
+                        itemId,
+                        sku: product.sku,
+                      })
+                    }
+                  >
+                    Ignore listing
+                  </Button>
+                )}
+              </div>
+            )}
+            {gap && (
+              <div
+                className={`text-sm font-medium ${
+                  gap.isAbove ? "text-destructive" : "text-green-600"
+                }`}
+              >
+                We are £{gap.amount.toFixed(2)} {gap.isAbove ? "above" : "below"}
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="text-muted-foreground">No data</div>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div className="container mx-auto p-6 space-y-6">
+      <div className="flex items-center gap-4">
+        <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Back
+        </Button>
+      </div>
+
+      <div className="space-y-2">
+        <h1 className="text-3xl font-bold">{product.name}</h1>
+        <div className="flex items-center gap-4">
+          <div className="font-mono text-lg">{product.sku}</div>
+          {brand && <Badge variant="secondary">{brand.name}</Badge>}
+        </div>
+      </div>
+
+      <div className="grid gap-6 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Product Details</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Current Stock:</span>
+              <span className="font-medium">{product.current_stock || 0}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Back Orders:</span>
+              <span className="font-medium">{product.back_order_qty || 0}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">On Order:</span>
+              <span className="font-medium">{product.on_order || 0}</span>
+            </div>
+            {product.cost_price && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Cost Price:</span>
+                <span className="font-medium">£{product.cost_price}</span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Price Hunter</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-sm text-muted-foreground">Status</div>
+                <Badge variant={product.ph_status === "done" ? "default" : "secondary"}>
+                  {product.ph_status || "idle"}
+                </Badge>
+              </div>
+              {product.ph_last_checked_at && (
+                <div className="text-right">
+                  <div className="text-sm text-muted-foreground">Last Checked</div>
+                  <div className="text-sm">
+                    {format(new Date(product.ph_last_checked_at), "MMM d, HH:mm")}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-3">
+              <PriceBlock
+                title="Plain Search"
+                price={product.ph_plain_best_price}
+                seller={product.ph_plain_best_seller}
+                itemId={product.ph_plain_best_item_id}
+                showIgnore
+              />
+              <PriceBlock
+                title="Brand Search"
+                price={product.ph_brand_best_price}
+                seller={product.ph_brand_best_seller}
+                itemId={product.ph_brand_best_item_id}
+                showIgnore
+              />
+              <PriceBlock
+                title="Our Listings"
+                price={product.ph_our_best_price}
+                seller={product.ph_our_best_seller}
+                itemId={product.ph_our_best_item_id}
+              />
+            </div>
+
+            {product.ph_error_message && (
+              <div className="text-sm text-destructive">{product.ph_error_message}</div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}

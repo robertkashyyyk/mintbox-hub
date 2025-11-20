@@ -28,6 +28,9 @@ import ToolsSection from "./pages/menu/ToolsSection";
 import ErrorHuntingSection from "./pages/menu/ErrorHuntingSection";
 import AdministrationSection from "./pages/menu/AdministrationSection";
 import PriceHunter from "./pages/PriceHunter";
+import ProductDetail from "./pages/ProductDetail";
+import IgnoredSellers from "./pages/IgnoredSellers";
+import IgnoredListings from "./pages/IgnoredListings";
 
 const queryClient = new QueryClient();
 
@@ -58,6 +61,9 @@ const App = () => (
             <Route path="/user-management" element={<UserManagementPage />} />
             <Route path="/ebay-clone" element={<EbayClone />} />
             <Route path="/price-hunter" element={<PriceHunter />} />
+            <Route path="/product/:id" element={<ProductDetail />} />
+            <Route path="/ignored-sellers" element={<IgnoredSellers />} />
+            <Route path="/ignored-listings" element={<IgnoredListings />} />
             <Route path="/remote-stock-updates" element={<RemoteStockUpdates />} />
             <Route path="/missing-cost-prices" element={<MissingCostPrices />} />
             <Route path="/problematic-orders" element={<ProblematicOrders />} />
