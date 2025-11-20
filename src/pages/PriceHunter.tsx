@@ -19,8 +19,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Play, RotateCcw, ArrowLeft } from "lucide-react";
+import { Loader2, Play, RotateCcw, ArrowLeft, Eye } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 
@@ -30,6 +32,7 @@ export default function PriceHunter() {
   const queryClient = useQueryClient();
   const [brandFilter, setBrandFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [onlyExpensive, setOnlyExpensive] = useState(false);
 
   // Fetch brands for filter and matching
   const { data: brands } = useQuery({
@@ -73,7 +76,7 @@ export default function PriceHunter() {
 
   // Fetch products with PH data
   const { data: products, isLoading } = useQuery({
-    queryKey: ["price-hunter-products", brandFilter, statusFilter],
+    queryKey: ["price-hunter-products", brandFilter, statusFilter, onlyExpensive],
     queryFn: async () => {
       let query = supabase
         .from("products_cache")
@@ -90,6 +93,23 @@ export default function PriceHunter() {
 
       const { data, error } = await query;
       if (error) throw error;
+      
+      // Client-side filter for "only expensive"
+      if (onlyExpensive) {
+        return data?.filter((p) => {
+          const ourPrice = p.ph_our_best_price;
+          const plainPrice = p.ph_plain_best_price;
+          const brandPrice = p.ph_brand_best_price;
+          
+          if (!ourPrice) return false;
+          
+          return (
+            (plainPrice && ourPrice > plainPrice) ||
+            (brandPrice && ourPrice > brandPrice)
+          );
+        });
+      }
+      
       return data;
     },
   });
@@ -216,8 +236,8 @@ export default function PriceHunter() {
 
       {/* Filters */}
       <Card className="p-4">
-        <div className="flex gap-4">
-          <div className="flex-1">
+        <div className="flex gap-4 flex-wrap">
+          <div className="flex-1 min-w-[200px]">
             <label className="text-sm font-medium mb-2 block">Brand</label>
             <Select value={brandFilter} onValueChange={setBrandFilter}>
               <SelectTrigger>
@@ -233,7 +253,7 @@ export default function PriceHunter() {
               </SelectContent>
             </Select>
           </div>
-          <div className="flex-1">
+          <div className="flex-1 min-w-[200px]">
             <label className="text-sm font-medium mb-2 block">Status</label>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger>
@@ -249,6 +269,16 @@ export default function PriceHunter() {
               </SelectContent>
             </Select>
           </div>
+          <div className="flex items-end">
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="expensive-filter"
+                checked={onlyExpensive}
+                onCheckedChange={setOnlyExpensive}
+              />
+              <Label htmlFor="expensive-filter">Only where we are more expensive</Label>
+            </div>
+          </div>
         </div>
       </Card>
 
@@ -258,13 +288,16 @@ export default function PriceHunter() {
           <TableHeader>
             <TableRow>
               <TableHead>SKU</TableHead>
+              <TableHead>Name</TableHead>
               <TableHead>Brand</TableHead>
-              <TableHead>Search Term</TableHead>
-              <TableHead>PH Brand</TableHead>
+              <TableHead>Stock</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Last Checked</TableHead>
               <TableHead>Plain Best</TableHead>
               <TableHead>Brand Best</TableHead>
+              <TableHead>Our Best</TableHead>
+              <TableHead>Gap vs Plain</TableHead>
+              <TableHead>Gap vs Brand</TableHead>
               <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -277,75 +310,131 @@ export default function PriceHunter() {
               </TableRow>
             ) : products?.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={12} className="text-center py-8 text-muted-foreground">
                   No products found
                 </TableCell>
               </TableRow>
             ) : (
-              products?.map((product) => (
-                <TableRow key={product.id}>
-                  <TableCell className="font-mono text-sm">{product.sku}</TableCell>
-                  <TableCell>{product.ph_brand || "-"}</TableCell>
-                  <TableCell className="font-mono text-sm">
-                    {product.ph_search_term || "-"}
-                  </TableCell>
-                  <TableCell>{product.ph_brand || "-"}</TableCell>
-                  <TableCell>{getStatusBadge(product.ph_status)}</TableCell>
-                  <TableCell className="text-sm">
-                    {product.ph_last_checked_at
-                      ? format(new Date(product.ph_last_checked_at), "MMM d, HH:mm")
-                      : "-"}
-                  </TableCell>
-                  <TableCell>
-                    {product.ph_plain_best_price ? (
-                      <div className="text-sm">
-                        <div className="font-semibold">
-                          £{product.ph_plain_best_price}
+              products?.map((product) => {
+                const getBrand = () => {
+                  if (!brands) return "-";
+                  const brand = brands.find((b) => {
+                    if (!b.prefix) return false;
+                    const separator = b.prefix_style === "slash" ? "/" : "-";
+                    const pattern = `${b.prefix}${separator}`;
+                    return product.sku.startsWith(pattern);
+                  });
+                  return brand?.name || "-";
+                };
+
+                const gapVsPlain =
+                  product.ph_our_best_price && product.ph_plain_best_price
+                    ? product.ph_our_best_price - product.ph_plain_best_price
+                    : null;
+
+                const gapVsBrand =
+                  product.ph_our_best_price && product.ph_brand_best_price
+                    ? product.ph_our_best_price - product.ph_brand_best_price
+                    : null;
+
+                return (
+                  <TableRow key={product.id}>
+                    <TableCell className="font-mono text-sm">{product.sku}</TableCell>
+                    <TableCell className="max-w-[200px] truncate">{product.name}</TableCell>
+                    <TableCell>{getBrand()}</TableCell>
+                    <TableCell>{product.current_stock || 0}</TableCell>
+                    <TableCell>{getStatusBadge(product.ph_status)}</TableCell>
+                    <TableCell className="text-sm">
+                      {product.ph_last_checked_at
+                        ? format(new Date(product.ph_last_checked_at), "MMM d, HH:mm")
+                        : "-"}
+                    </TableCell>
+                    <TableCell>
+                      {product.ph_plain_best_price ? (
+                        <div className="text-sm font-semibold">
+                          £{product.ph_plain_best_price.toFixed(2)}
                         </div>
-                        <div className="text-muted-foreground">
-                          {product.ph_plain_best_seller}
+                      ) : (
+                        "-"
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {product.ph_brand_best_price ? (
+                        <div className="text-sm font-semibold">
+                          £{product.ph_brand_best_price.toFixed(2)}
                         </div>
+                      ) : (
+                        "-"
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {product.ph_our_best_price ? (
+                        <div className="text-sm font-semibold">
+                          £{product.ph_our_best_price.toFixed(2)}
+                        </div>
+                      ) : (
+                        "-"
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {gapVsPlain !== null ? (
+                        <div
+                          className={`text-sm font-medium ${
+                            gapVsPlain > 0 ? "text-destructive" : "text-green-600"
+                          }`}
+                        >
+                          {gapVsPlain > 0 ? "+" : ""}£{gapVsPlain.toFixed(2)}
+                        </div>
+                      ) : (
+                        "-"
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {gapVsBrand !== null ? (
+                        <div
+                          className={`text-sm font-medium ${
+                            gapVsBrand > 0 ? "text-destructive" : "text-green-600"
+                          }`}
+                        >
+                          {gapVsBrand > 0 ? "+" : ""}£{gapVsBrand.toFixed(2)}
+                        </div>
+                      ) : (
+                        "-"
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => navigate(`/product/${product.id}`)}
+                          title="View product"
+                        >
+                          <Eye className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => queueMutation.mutate(product.id)}
+                          disabled={queueMutation.isPending}
+                          title="Re-queue price check"
+                        >
+                          <Play className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => resetMutation.mutate(product.id)}
+                          disabled={resetMutation.isPending}
+                          title="Reset result"
+                        >
+                          <RotateCcw className="h-3 w-3" />
+                        </Button>
                       </div>
-                    ) : (
-                      "-"
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {product.ph_brand_best_price ? (
-                      <div className="text-sm">
-                        <div className="font-semibold">
-                          £{product.ph_brand_best_price}
-                        </div>
-                        <div className="text-muted-foreground">
-                          {product.ph_brand_best_seller}
-                        </div>
-                      </div>
-                    ) : (
-                      "-"
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => queueMutation.mutate(product.id)}
-                        disabled={queueMutation.isPending}
-                      >
-                        <Play className="h-3 w-3" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => resetMutation.mutate(product.id)}
-                        disabled={resetMutation.isPending}
-                      >
-                        <RotateCcw className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>

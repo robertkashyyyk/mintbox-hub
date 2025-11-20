@@ -21,6 +21,20 @@ const ToolsSection = () => {
       color: "text-green-500",
       onClick: () => navigate("/price-hunter"),
     },
+    {
+      title: "Ignored Sellers",
+      description: "Manage ignored sellers in Price Hunter",
+      icon: Wrench,
+      color: "text-orange-500",
+      onClick: () => navigate("/ignored-sellers"),
+    },
+    {
+      title: "Ignored Listings",
+      description: "Manage ignored eBay listings",
+      icon: Wrench,
+      color: "text-red-500",
+      onClick: () => navigate("/ignored-listings"),
+    },
   ];
 
   return (
