@@ -31,18 +31,45 @@ export default function PriceHunter() {
   const [brandFilter, setBrandFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
 
-  // Fetch brands for filter
+  // Fetch brands for filter and matching
   const { data: brands } = useQuery({
     queryKey: ["brands"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("brands")
-        .select("id, name, prefix")
+        .select("id, name, prefix, prefix_style")
         .order("name");
       if (error) throw error;
       return data;
     },
   });
+
+  // Helper function to derive ph_brand and ph_search_term from SKU
+  const deriveBrandAndSearchTerm = (sku: string) => {
+    if (!brands) return { ph_brand: null, ph_search_term: sku };
+
+    // Find matching brand by prefix
+    const matchingBrand = brands.find((brand) => {
+      if (!brand.prefix) return false;
+      const separator = brand.prefix_style === "slash" ? "/" : "-";
+      const pattern = `${brand.prefix}${separator}`;
+      return sku.startsWith(pattern);
+    });
+
+    if (!matchingBrand) {
+      return { ph_brand: null, ph_search_term: sku };
+    }
+
+    // Strip the prefix based on prefix_style
+    const separator = matchingBrand.prefix_style === "slash" ? "/" : "-";
+    const parts = sku.split(separator);
+    const searchTerm = parts.length > 1 ? parts.slice(1).join(separator) : sku;
+
+    return {
+      ph_brand: matchingBrand.name,
+      ph_search_term: searchTerm,
+    };
+  };
 
   // Fetch products with PH data
   const { data: products, isLoading } = useQuery({
@@ -70,12 +97,34 @@ export default function PriceHunter() {
   // Queue for price check
   const queueMutation = useMutation({
     mutationFn: async (productId: string) => {
+      // First fetch the product to get its SKU and current ph fields
+      const { data: product, error: fetchError } = await supabase
+        .from("products_cache")
+        .select("sku, ph_brand, ph_search_term")
+        .eq("id", productId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      // Only auto-populate if fields are null (respect manual overrides)
+      const updates: any = {
+        ph_status: "queued",
+        ph_error_message: null,
+      };
+
+      if (!product.ph_brand || !product.ph_search_term) {
+        const derived = deriveBrandAndSearchTerm(product.sku);
+        if (!product.ph_brand && derived.ph_brand) {
+          updates.ph_brand = derived.ph_brand;
+        }
+        if (!product.ph_search_term && derived.ph_search_term) {
+          updates.ph_search_term = derived.ph_search_term;
+        }
+      }
+
       const { error } = await supabase
         .from("products_cache")
-        .update({
-          ph_status: "queued",
-          ph_error_message: null,
-        })
+        .update(updates)
         .eq("id", productId);
       if (error) throw error;
     },
