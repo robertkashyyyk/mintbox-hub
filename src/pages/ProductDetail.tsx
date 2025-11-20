@@ -146,8 +146,7 @@ export default function ProductDetail() {
                 {showIgnore && (
                   <Button
                     size="sm"
-                    variant="outline"
-                    className="h-8 text-xs"
+                    className="h-8 text-xs bg-red-600 hover:bg-red-700 text-white font-bold"
                     onClick={() =>
                       ignoreSeller.mutate({
                         seller,
@@ -176,8 +175,7 @@ export default function ProductDetail() {
                 {showIgnore && (
                   <Button
                     size="sm"
-                    variant="outline"
-                    className="h-8 text-xs"
+                    className="h-8 text-xs bg-orange-600 hover:bg-orange-700 text-black font-bold"
                     onClick={() =>
                       ignoreListing.mutate({
                         itemId,
