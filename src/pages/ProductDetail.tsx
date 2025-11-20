@@ -101,6 +101,13 @@ export default function ProductDetail() {
     };
   };
 
+  const parseEbayItemId = (rawItemId: string | null): string | null => {
+    if (!rawItemId) return null;
+    // Strip v1| prefix and |0 suffix to get actual eBay item number
+    const match = rawItemId.match(/^v1\|(\d+)\|/);
+    return match ? match[1] : rawItemId;
+  };
+
   const PriceBlock = ({
     title,
     price,
@@ -115,20 +122,32 @@ export default function ProductDetail() {
     showIgnore?: boolean;
   }) => {
     const gap = title === "Our Listings" ? null : calculateGap(product.ph_our_best_price, price);
+    const cleanItemId = parseEbayItemId(itemId);
 
     return (
-      <div className="space-y-2">
-        <h4 className="font-semibold text-sm">{title}</h4>
+      <div className="space-y-3 p-4 rounded-lg border bg-card">
+        <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">{title}</h4>
         {price ? (
           <>
-            <div className="text-2xl font-bold">£{price.toFixed(2)}</div>
+            <div className="text-3xl font-bold">£{price.toFixed(2)}</div>
             {seller && (
-              <div className="flex items-center gap-2">
-                <div className="text-sm text-muted-foreground">{seller}</div>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">Seller:</span>
+                  <a
+                    href={`https://www.ebay.co.uk/usr/${seller}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-primary hover:underline font-medium"
+                  >
+                    {seller}
+                  </a>
+                </div>
                 {showIgnore && (
                   <Button
                     size="sm"
-                    variant="ghost"
+                    variant="outline"
+                    className="h-8 text-xs"
                     onClick={() =>
                       ignoreSeller.mutate({
                         seller,
@@ -141,13 +160,24 @@ export default function ProductDetail() {
                 )}
               </div>
             )}
-            {itemId && (
-              <div className="flex items-center gap-2">
-                <div className="text-xs text-muted-foreground font-mono">{itemId}</div>
+            {cleanItemId && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">Item:</span>
+                  <a
+                    href={`https://www.ebay.co.uk/itm/${cleanItemId}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-primary hover:underline font-mono font-medium"
+                  >
+                    {cleanItemId}
+                  </a>
+                </div>
                 {showIgnore && (
                   <Button
                     size="sm"
-                    variant="ghost"
+                    variant="outline"
+                    className="h-8 text-xs"
                     onClick={() =>
                       ignoreListing.mutate({
                         itemId,
@@ -162,8 +192,8 @@ export default function ProductDetail() {
             )}
             {gap && (
               <div
-                className={`text-sm font-medium ${
-                  gap.isAbove ? "text-destructive" : "text-green-600"
+                className={`text-sm font-medium px-3 py-1.5 rounded-md inline-block ${
+                  gap.isAbove ? "bg-destructive/10 text-destructive" : "bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-400"
                 }`}
               >
                 We are £{gap.amount.toFixed(2)} {gap.isAbove ? "above" : "below"}
