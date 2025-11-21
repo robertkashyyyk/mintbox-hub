@@ -68,6 +68,9 @@ Deno.serve(async (req) => {
       ph_brand_best_price,
       ph_brand_best_seller,
       ph_brand_best_item_id,
+      ph_our_best_price,
+      ph_our_best_seller,
+      ph_our_best_item_id,
       ph_error_message,
     } = body;
 
@@ -95,6 +98,9 @@ Deno.serve(async (req) => {
     if (ph_brand_best_price !== undefined) updateData.ph_brand_best_price = ph_brand_best_price;
     if (ph_brand_best_seller !== undefined) updateData.ph_brand_best_seller = ph_brand_best_seller;
     if (ph_brand_best_item_id !== undefined) updateData.ph_brand_best_item_id = ph_brand_best_item_id;
+    if (ph_our_best_price !== undefined) updateData.ph_our_best_price = ph_our_best_price;
+    if (ph_our_best_seller !== undefined) updateData.ph_our_best_seller = ph_our_best_seller;
+    if (ph_our_best_item_id !== undefined) updateData.ph_our_best_item_id = ph_our_best_item_id;
     if (ph_error_message !== undefined) updateData.ph_error_message = ph_error_message;
 
     console.log('Updating product with data:', updateData);
