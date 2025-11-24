@@ -109,7 +109,7 @@ export default function ApiAccess() {
       {/* API Endpoints Documentation */}
       <Card>
         <CardHeader>
-          <CardTitle>Price Hunter API Endpoints</CardTitle>
+          <CardTitle>API Endpoints</CardTitle>
           <CardDescription>
             Use these endpoints to integrate with external systems like n8n
           </CardDescription>
@@ -130,17 +130,21 @@ export default function ApiAccess() {
               </div>
             </div>
 
-            <div>
-              <h3 className="font-semibold mb-2">1. Fetch Queued Price Checks</h3>
-              <div className="space-y-2">
-                <p className="text-sm text-muted-foreground">
-                  GET /fetch-queued-price-checks
-                </p>
-                <div className="p-3 bg-muted rounded space-y-2">
-                  <p className="text-sm font-medium">Request Headers:</p>
-                  <code className="text-xs block">x-api-key: YOUR_API_KEY</code>
-                  <p className="text-sm font-medium mt-2">Example Response:</p>
-                  <pre className="text-xs overflow-x-auto">{`{
+            <div className="border-t pt-4">
+              <h2 className="text-lg font-semibold mb-4">Price Hunter Endpoints</h2>
+              
+              <div className="space-y-6">
+                <div>
+                  <h3 className="font-semibold mb-2">1. Fetch Queued Price Checks</h3>
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">
+                      GET /fetch-queued-price-checks
+                    </p>
+                    <div className="p-3 bg-muted rounded space-y-2">
+                      <p className="text-sm font-medium">Request Headers:</p>
+                      <code className="text-xs block">x-api-key: YOUR_API_KEY</code>
+                      <p className="text-sm font-medium mt-2">Example Response:</p>
+                      <pre className="text-xs overflow-x-auto">{`{
   "success": true,
   "count": 1,
   "products": [
@@ -152,22 +156,22 @@ export default function ApiAccess() {
     }
   ]
 }`}</pre>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
 
-            <div>
-              <h3 className="font-semibold mb-2">2. Update Price Check Results</h3>
-              <div className="space-y-2">
-                <p className="text-sm text-muted-foreground">
-                  POST /update-price-check-results
-                </p>
-                <div className="p-3 bg-muted rounded space-y-2">
-                  <p className="text-sm font-medium">Request Headers:</p>
-                  <code className="text-xs block">x-api-key: YOUR_API_KEY</code>
-                  <code className="text-xs block">Content-Type: application/json</code>
-                  <p className="text-sm font-medium mt-2">Example Request Body:</p>
-                  <pre className="text-xs overflow-x-auto">{`{
+                <div>
+                  <h3 className="font-semibold mb-2">2. Update Price Check Results</h3>
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">
+                      POST /update-price-check-results
+                    </p>
+                    <div className="p-3 bg-muted rounded space-y-2">
+                      <p className="text-sm font-medium">Request Headers:</p>
+                      <code className="text-xs block">x-api-key: YOUR_API_KEY</code>
+                      <code className="text-xs block">Content-Type: application/json</code>
+                      <p className="text-sm font-medium mt-2">Example Request Body:</p>
+                      <pre className="text-xs overflow-x-auto">{`{
   "id": "uuid",
   "ph_status": "done",
   "ph_last_checked_at": "2025-11-16T10:15:00.000Z",
@@ -179,11 +183,121 @@ export default function ApiAccess() {
   "ph_brand_best_item_id": "v1|987654321|0",
   "ph_error_message": null
 }`}</pre>
-                  <p className="text-sm font-medium mt-2">Example Response:</p>
-                  <pre className="text-xs overflow-x-auto">{`{
+                      <p className="text-sm font-medium mt-2">Example Response:</p>
+                      <pre className="text-xs overflow-x-auto">{`{
   "success": true,
   "product": { ... }
 }`}</pre>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="font-semibold mb-2">3. Queue Selected SKUs</h3>
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">
+                      POST /price-hunter-queue-selected
+                    </p>
+                    <div className="p-3 bg-muted rounded space-y-2">
+                      <p className="text-sm font-medium">Request Headers:</p>
+                      <code className="text-xs block">x-api-key: YOUR_API_KEY</code>
+                      <code className="text-xs block">Content-Type: application/json</code>
+                      <p className="text-sm font-medium mt-2">Example Request Body:</p>
+                      <pre className="text-xs overflow-x-auto">{`{
+  "product_ids": ["uuid-1", "uuid-2"],
+  "source": "manual_queue"
+}`}</pre>
+                      <p className="text-sm font-medium mt-2">Example Response:</p>
+                      <pre className="text-xs overflow-x-auto">{`{
+  "success": true,
+  "queued_count": 2
+}`}</pre>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="font-semibold mb-2">4. Get Brand Automations</h3>
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">
+                      GET /price-hunter-automations
+                    </p>
+                    <div className="p-3 bg-muted rounded space-y-2">
+                      <p className="text-sm font-medium">Request Headers:</p>
+                      <code className="text-xs block">x-api-key: YOUR_API_KEY</code>
+                      <p className="text-sm font-medium mt-2">Example Response:</p>
+                      <pre className="text-xs overflow-x-auto">{`{
+  "success": true,
+  "automations": [
+    {
+      "id": "uuid",
+      "brand_id": "uuid",
+      "brand_name": "Sealey",
+      "enabled": true,
+      "interval_days": 14,
+      "include_only_in_stock": true,
+      "include_fire_sale_only": false,
+      "last_run_at": "2025-11-16T10:00:00.000Z",
+      "next_run_at": "2025-11-30T10:00:00.000Z",
+      "last_run_sku_count": 127
+    }
+  ]
+}`}</pre>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="font-semibold mb-2">5. Create/Update Brand Automation</h3>
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">
+                      POST /price-hunter-automations
+                    </p>
+                    <div className="p-3 bg-muted rounded space-y-2">
+                      <p className="text-sm font-medium">Request Headers:</p>
+                      <code className="text-xs block">x-api-key: YOUR_API_KEY</code>
+                      <code className="text-xs block">Content-Type: application/json</code>
+                      <p className="text-sm font-medium mt-2">Example Request Body:</p>
+                      <pre className="text-xs overflow-x-auto">{`{
+  "brand_id": "uuid",
+  "brand_name": "Sealey",
+  "interval_days": 14,
+  "enabled": true,
+  "include_only_in_stock": true,
+  "include_fire_sale_only": false
+}`}</pre>
+                      <p className="text-sm font-medium mt-2">Example Response:</p>
+                      <pre className="text-xs overflow-x-auto">{`{
+  "success": true,
+  "automation": { ... }
+}`}</pre>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="font-semibold mb-2">6. Run Brand Automation</h3>
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">
+                      POST /price-hunter-queue-brand-run
+                    </p>
+                    <div className="p-3 bg-muted rounded space-y-2">
+                      <p className="text-sm font-medium">Request Headers:</p>
+                      <code className="text-xs block">x-api-key: YOUR_API_KEY</code>
+                      <code className="text-xs block">Content-Type: application/json</code>
+                      <p className="text-sm font-medium mt-2">Example Request Body:</p>
+                      <pre className="text-xs overflow-x-auto">{`{
+  "automation_id": "uuid"
+}`}</pre>
+                      <p className="text-sm font-medium mt-2">Example Response:</p>
+                      <pre className="text-xs overflow-x-auto">{`{
+  "success": true,
+  "automation_id": "uuid",
+  "queued_count": 127,
+  "xasks_for_this_run": 127
+}`}</pre>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
