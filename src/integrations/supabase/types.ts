@@ -647,7 +647,7 @@ export type Database = {
           {
             foreignKeyName: "price_hunter_automations_brand_id_fkey"
             columns: ["brand_id"]
-            isOneToOne: false
+            isOneToOne: true
             referencedRelation: "brands"
             referencedColumns: ["id"]
           },
