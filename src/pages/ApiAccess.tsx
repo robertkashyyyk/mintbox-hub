@@ -299,6 +299,36 @@ export default function ApiAccess() {
                     </div>
                   </div>
                 </div>
+
+                <div>
+                  <h3 className="font-semibold mb-2">7. Log Xask Usage</h3>
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">
+                      POST /log-price-hunter-xask
+                    </p>
+                    <div className="p-3 bg-muted rounded space-y-2">
+                      <p className="text-sm font-medium">Request Headers:</p>
+                      <code className="text-xs block">x-api-key: YOUR_API_KEY</code>
+                      <code className="text-xs block">Content-Type: application/json</code>
+                      <p className="text-sm font-medium mt-2">Example Request Body:</p>
+                      <pre className="text-xs overflow-x-auto">{`{
+  "product_id": "uuid",
+  "sku": "NGK-BKR6E",
+  "brand_id": "uuid",
+  "source": "n8n_worker",
+  "flowline_name": "price_hunter_main",
+  "xasks_used": 1
+}`}</pre>
+                      <p className="text-sm font-medium mt-2">Note:</p>
+                      <p className="text-xs text-muted-foreground">brand_id is optional. source and flowline_name are required.</p>
+                      <p className="text-sm font-medium mt-2">Example Response:</p>
+                      <pre className="text-xs overflow-x-auto">{`{
+  "success": true,
+  "message": "Xask usage logged successfully"
+}`}</pre>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
