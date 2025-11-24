@@ -21,10 +21,12 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Play, RotateCcw, ArrowLeft, Eye } from "lucide-react";
+import { Loader2, Play, RotateCcw, ArrowLeft, Eye, CheckSquare } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
+import { BrandAutomationPanel } from "@/components/price-hunter/BrandAutomationPanel";
 
 export default function PriceHunter() {
   const navigate = useNavigate();
@@ -33,6 +35,10 @@ export default function PriceHunter() {
   const [brandFilter, setBrandFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [onlyExpensive, setOnlyExpensive] = useState(false);
+  const [onlyInStock, setOnlyInStock] = useState(false);
+  const [hideExcluded, setHideExcluded] = useState(true);
+  const [fireSaleOnly, setFireSaleOnly] = useState(false);
+  const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set());
 
   // Fetch brands for filter and matching
   const { data: brands } = useQuery({
@@ -76,7 +82,7 @@ export default function PriceHunter() {
 
   // Fetch products with PH data
   const { data: products, isLoading } = useQuery({
-    queryKey: ["price-hunter-products", brandFilter, statusFilter, onlyExpensive],
+    queryKey: ["price-hunter-products", brandFilter, statusFilter, onlyExpensive, onlyInStock, hideExcluded, fireSaleOnly],
     queryFn: async () => {
       let query = supabase
         .from("products_cache")
@@ -89,6 +95,18 @@ export default function PriceHunter() {
 
       if (statusFilter !== "all") {
         query = query.eq("ph_status", statusFilter);
+      }
+
+      if (onlyInStock) {
+        query = query.gt("current_stock", 0);
+      }
+
+      if (hideExcluded) {
+        query = query.eq("ph_excluded", false);
+      }
+
+      if (fireSaleOnly) {
+        query = query.eq("fire_sale", true);
       }
 
       const { data, error } = await query;
@@ -185,6 +203,63 @@ export default function PriceHunter() {
     },
   });
 
+  // Queue selected SKUs
+  const queueSelectedMutation = useMutation({
+    mutationFn: async (productIds: string[]) => {
+      const { error } = await supabase
+        .from("products_cache")
+        .update({
+          ph_status: "queued",
+          ph_error_message: null,
+        })
+        .in("id", productIds);
+      if (error) throw error;
+    },
+    onSuccess: (_, productIds) => {
+      queryClient.invalidateQueries({ queryKey: ["price-hunter-products"] });
+      setSelectedProducts(new Set());
+      toast({
+        title: "Queued",
+        description: `${productIds.length} products queued for price check`,
+      });
+    },
+  });
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked && products) {
+      setSelectedProducts(new Set(products.map(p => p.id)));
+    } else {
+      setSelectedProducts(new Set());
+    }
+  };
+
+  const handleSelectProduct = (productId: string, checked: boolean) => {
+    const newSelected = new Set(selectedProducts);
+    if (checked) {
+      newSelected.add(productId);
+    } else {
+      newSelected.delete(productId);
+    }
+    setSelectedProducts(newSelected);
+  };
+
+  const handleQueueSelected = () => {
+    if (selectedProducts.size > 0) {
+      queueSelectedMutation.mutate(Array.from(selectedProducts));
+    }
+  };
+
+  const handleQueueAll = () => {
+    if (products && products.length > 0) {
+      queueSelectedMutation.mutate(products.map(p => p.id));
+    }
+  };
+
+  // Get selected brand details
+  const selectedBrand = brands?.find(
+    (b) => brandFilter !== "all" && (b.prefix === brandFilter || b.name === brandFilter)
+  );
+
   const getStatusBadge = (status: string | null) => {
     const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
       idle: "outline",
@@ -202,6 +277,8 @@ export default function PriceHunter() {
 
   return (
     <div className="container mx-auto p-6 space-y-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Button
@@ -236,40 +313,42 @@ export default function PriceHunter() {
 
       {/* Filters */}
       <Card className="p-4">
-        <div className="flex gap-4 flex-wrap">
-          <div className="flex-1 min-w-[200px]">
-            <label className="text-sm font-medium mb-2 block">Brand</label>
-            <Select value={brandFilter} onValueChange={setBrandFilter}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Brands</SelectItem>
-                {brands?.map((brand) => (
-                  <SelectItem key={brand.id} value={brand.prefix || brand.name}>
-                    {brand.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+        <div className="space-y-4">
+          <div className="flex gap-4 flex-wrap">
+            <div className="flex-1 min-w-[200px]">
+              <label className="text-sm font-medium mb-2 block">Brand</label>
+              <Select value={brandFilter} onValueChange={setBrandFilter}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Brands</SelectItem>
+                  {brands?.map((brand) => (
+                    <SelectItem key={brand.id} value={brand.prefix || brand.name}>
+                      {brand.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex-1 min-w-[200px]">
+              <label className="text-sm font-medium mb-2 block">Status</label>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  <SelectItem value="idle">Idle</SelectItem>
+                  <SelectItem value="queued">Queued</SelectItem>
+                  <SelectItem value="running">Running</SelectItem>
+                  <SelectItem value="done">Done</SelectItem>
+                  <SelectItem value="error">Error</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-          <div className="flex-1 min-w-[200px]">
-            <label className="text-sm font-medium mb-2 block">Status</label>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="idle">Idle</SelectItem>
-                <SelectItem value="queued">Queued</SelectItem>
-                <SelectItem value="running">Running</SelectItem>
-                <SelectItem value="done">Done</SelectItem>
-                <SelectItem value="error">Error</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex items-end">
+          <div className="flex gap-4 flex-wrap">
             <div className="flex items-center space-x-2">
               <Switch
                 id="expensive-filter"
@@ -278,6 +357,66 @@ export default function PriceHunter() {
               />
               <Label htmlFor="expensive-filter">Only where we are more expensive</Label>
             </div>
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="in-stock-filter"
+                checked={onlyInStock}
+                onCheckedChange={setOnlyInStock}
+              />
+              <Label htmlFor="in-stock-filter">Only in stock</Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="hide-excluded-filter"
+                checked={hideExcluded}
+                onCheckedChange={setHideExcluded}
+              />
+              <Label htmlFor="hide-excluded-filter">Hide excluded</Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="fire-sale-filter"
+                checked={fireSaleOnly}
+                onCheckedChange={setFireSaleOnly}
+              />
+              <Label htmlFor="fire-sale-filter">Fire sale only</Label>
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      {/* Bulk Actions */}
+      <Card className="p-4">
+        <div className="flex items-center justify-between">
+          <div className="text-sm text-muted-foreground">
+            {selectedProducts.size > 0 ? (
+              <span>{selectedProducts.size} SKUs selected</span>
+            ) : (
+              <span>No SKUs selected</span>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleQueueSelected}
+              disabled={selectedProducts.size === 0 || queueSelectedMutation.isPending}
+            >
+              {queueSelectedMutation.isPending && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              Queue Selected SKUs
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleQueueAll}
+              disabled={!products || products.length === 0 || queueSelectedMutation.isPending}
+            >
+              {queueSelectedMutation.isPending && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              Queue All Filtered ({products?.length || 0})
+            </Button>
           </div>
         </div>
       </Card>
@@ -287,6 +426,12 @@ export default function PriceHunter() {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-12">
+                <Checkbox
+                  checked={products && products.length > 0 && selectedProducts.size === products.length}
+                  onCheckedChange={handleSelectAll}
+                />
+              </TableHead>
               <TableHead>SKU</TableHead>
               <TableHead>Name</TableHead>
               <TableHead>Brand</TableHead>
@@ -304,13 +449,13 @@ export default function PriceHunter() {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center py-8">
+                <TableCell colSpan={13} className="text-center py-8">
                   <Loader2 className="h-6 w-6 animate-spin mx-auto" />
                 </TableCell>
               </TableRow>
             ) : products?.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={12} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={13} className="text-center py-8 text-muted-foreground">
                   No products found
                 </TableCell>
               </TableRow>
@@ -339,7 +484,22 @@ export default function PriceHunter() {
 
                 return (
                   <TableRow key={product.id}>
-                    <TableCell className="font-mono text-sm">{product.sku}</TableCell>
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedProducts.has(product.id)}
+                        onCheckedChange={(checked) =>
+                          handleSelectProduct(product.id, checked as boolean)
+                        }
+                      />
+                    </TableCell>
+                    <TableCell className="font-mono text-sm">
+                      {product.sku}
+                      {product.fire_sale && (
+                        <Badge variant="destructive" className="ml-2 text-xs">
+                          Fire Sale
+                        </Badge>
+                      )}
+                    </TableCell>
                     <TableCell className="max-w-[200px] truncate">{product.name}</TableCell>
                     <TableCell>{getBrand()}</TableCell>
                     <TableCell>{product.current_stock || 0}</TableCell>
@@ -439,6 +599,19 @@ export default function PriceHunter() {
           </TableBody>
         </Table>
       </Card>
+        </div>
+
+        {/* Brand Automation Panel - shown when a single brand is selected */}
+        {selectedBrand && brandFilter !== "all" && (
+          <div className="lg:col-span-1">
+            <BrandAutomationPanel
+              brandId={selectedBrand.id}
+              brandName={selectedBrand.name}
+              currentFilteredCount={products?.length || 0}
+            />
+          </div>
+        )}
+      </div>
     </div>
   );
 }
