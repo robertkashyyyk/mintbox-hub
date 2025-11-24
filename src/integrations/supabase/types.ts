@@ -600,6 +600,114 @@ export type Database = {
           },
         ]
       }
+      price_hunter_automations: {
+        Row: {
+          brand_id: string
+          brand_name: string
+          created_at: string
+          enabled: boolean
+          id: string
+          include_fire_sale_only: boolean
+          include_only_in_stock: boolean
+          interval_days: number
+          last_run_at: string | null
+          last_run_sku_count: number | null
+          next_run_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          brand_id: string
+          brand_name: string
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          include_fire_sale_only?: boolean
+          include_only_in_stock?: boolean
+          interval_days: number
+          last_run_at?: string | null
+          last_run_sku_count?: number | null
+          next_run_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          brand_id?: string
+          brand_name?: string
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          include_fire_sale_only?: boolean
+          include_only_in_stock?: boolean
+          interval_days?: number
+          last_run_at?: string | null
+          last_run_sku_count?: number | null
+          next_run_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "price_hunter_automations_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      price_hunter_xask_usage: {
+        Row: {
+          brand_id: string | null
+          flowline_name: string
+          id: string
+          occurred_at: string
+          product_id: string | null
+          sku: string | null
+          source: string
+          xasks_used: number
+        }
+        Insert: {
+          brand_id?: string | null
+          flowline_name: string
+          id?: string
+          occurred_at?: string
+          product_id?: string | null
+          sku?: string | null
+          source: string
+          xasks_used?: number
+        }
+        Update: {
+          brand_id?: string | null
+          flowline_name?: string
+          id?: string
+          occurred_at?: string
+          product_id?: string | null
+          sku?: string | null
+          source?: string
+          xasks_used?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "price_hunter_xask_usage_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "price_hunter_xask_usage_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products_cache"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "price_hunter_xask_usage_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products_need_ordering"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       product_categories: {
         Row: {
           created_at: string | null
@@ -671,6 +779,7 @@ export type Database = {
           current_stock: number | null
           depth: number | null
           discontinued: boolean | null
+          fire_sale: boolean
           handling_time: number | null
           height: number | null
           id: string
@@ -685,6 +794,7 @@ export type Database = {
           ph_brand_best_price: number | null
           ph_brand_best_seller: string | null
           ph_error_message: string | null
+          ph_excluded: boolean
           ph_last_checked_at: string | null
           ph_our_best_item_id: string | null
           ph_our_best_price: number | null
@@ -708,6 +818,7 @@ export type Database = {
           current_stock?: number | null
           depth?: number | null
           discontinued?: boolean | null
+          fire_sale?: boolean
           handling_time?: number | null
           height?: number | null
           id?: string
@@ -722,6 +833,7 @@ export type Database = {
           ph_brand_best_price?: number | null
           ph_brand_best_seller?: string | null
           ph_error_message?: string | null
+          ph_excluded?: boolean
           ph_last_checked_at?: string | null
           ph_our_best_item_id?: string | null
           ph_our_best_price?: number | null
@@ -745,6 +857,7 @@ export type Database = {
           current_stock?: number | null
           depth?: number | null
           discontinued?: boolean | null
+          fire_sale?: boolean
           handling_time?: number | null
           height?: number | null
           id?: string
@@ -759,6 +872,7 @@ export type Database = {
           ph_brand_best_price?: number | null
           ph_brand_best_seller?: string | null
           ph_error_message?: string | null
+          ph_excluded?: boolean
           ph_last_checked_at?: string | null
           ph_our_best_item_id?: string | null
           ph_our_best_price?: number | null
