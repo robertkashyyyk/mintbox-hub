@@ -53,9 +53,13 @@ const SalesOrders = () => {
       return data;
     },
     onSuccess: (data) => {
+      const productsMessage = data.products_created > 0 
+        ? ` ${data.products_created} new products discovered and added.`
+        : '';
+      
       toast({
         title: "Sync Complete",
-        description: `Synced ${data.orders_fetched} orders with ${data.lines_inserted} lines. ${data.lines_skipped} lines skipped (no brand match).`,
+        description: `Synced ${data.orders_fetched} orders with ${data.lines_inserted} lines. ${data.lines_skipped} lines skipped (no brand match).${productsMessage}`,
       });
       queryClient.invalidateQueries({ queryKey: ["order-lines"] });
     },
