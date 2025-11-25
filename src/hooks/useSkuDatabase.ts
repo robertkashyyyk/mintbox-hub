@@ -105,6 +105,8 @@ export const useSkuDatabase = () => {
           on_order,
           last_stock_sync,
           mintsoft_product_id,
+          discovery_source,
+          discovered_at,
           created_at,
           product_category_links (
             product_categories (name)

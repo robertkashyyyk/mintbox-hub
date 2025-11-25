@@ -217,7 +217,14 @@ const SkuDatabase = () => {
                       return (
                         <TableRow key={product.id} className={needsOrdering ? "bg-accent/5" : ""}>
                           <TableCell className="font-medium">
-                            {product.sku}
+                            <div className="flex items-center gap-2">
+                              {product.sku}
+                              {product.discovery_source === 'order' && (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+                                  Order-discovered
+                                </span>
+                              )}
+                            </div>
                           </TableCell>
                           <TableCell className="text-muted-foreground text-sm">
                             {product.mintsoft_product_id || "—"}

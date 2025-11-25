@@ -804,6 +804,13 @@ export type Database = {
             referencedRelation: "products_need_ordering"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "price_hunter_xask_usage_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products_needs_enrichment"
+            referencedColumns: ["id"]
+          },
         ]
       }
       product_categories: {
@@ -865,6 +872,13 @@ export type Database = {
             referencedRelation: "products_need_ordering"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "product_category_links_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products_needs_enrichment"
+            referencedColumns: ["id"]
+          },
         ]
       }
       products_cache: {
@@ -877,6 +891,8 @@ export type Database = {
           current_stock: number | null
           depth: number | null
           discontinued: boolean | null
+          discovered_at: string | null
+          discovery_source: string | null
           fire_sale: boolean
           handling_time: number | null
           height: number | null
@@ -916,6 +932,8 @@ export type Database = {
           current_stock?: number | null
           depth?: number | null
           discontinued?: boolean | null
+          discovered_at?: string | null
+          discovery_source?: string | null
           fire_sale?: boolean
           handling_time?: number | null
           height?: number | null
@@ -955,6 +973,8 @@ export type Database = {
           current_stock?: number | null
           depth?: number | null
           discontinued?: boolean | null
+          discovered_at?: string | null
+          discovery_source?: string | null
           fire_sale?: boolean
           handling_time?: number | null
           height?: number | null
@@ -1309,6 +1329,140 @@ export type Database = {
           sku?: string | null
         }
         Relationships: []
+      }
+      products_needs_enrichment: {
+        Row: {
+          back_order_qty: number | null
+          barcode: string | null
+          barcode_type_id: string | null
+          cost_price: number | null
+          created_at: string | null
+          current_stock: number | null
+          depth: number | null
+          discontinued: boolean | null
+          discovered_at: string | null
+          discovery_source: string | null
+          fire_sale: boolean | null
+          handling_time: number | null
+          height: number | null
+          id: string | null
+          last_stock_sync: string | null
+          length: number | null
+          low_stock_alert_level: number | null
+          mintsoft_product_id: number | null
+          name: string | null
+          on_order: number | null
+          ph_brand: string | null
+          ph_brand_best_item_id: string | null
+          ph_brand_best_price: number | null
+          ph_brand_best_seller: string | null
+          ph_error_message: string | null
+          ph_excluded: boolean | null
+          ph_last_checked_at: string | null
+          ph_our_best_item_id: string | null
+          ph_our_best_price: number | null
+          ph_our_best_seller: string | null
+          ph_plain_best_item_id: string | null
+          ph_plain_best_price: number | null
+          ph_plain_best_seller: string | null
+          ph_search_term: string | null
+          ph_status: string | null
+          sku: string | null
+          suppliers: string | null
+          updated_at: string | null
+          weight: number | null
+        }
+        Insert: {
+          back_order_qty?: number | null
+          barcode?: string | null
+          barcode_type_id?: string | null
+          cost_price?: number | null
+          created_at?: string | null
+          current_stock?: number | null
+          depth?: number | null
+          discontinued?: boolean | null
+          discovered_at?: string | null
+          discovery_source?: string | null
+          fire_sale?: boolean | null
+          handling_time?: number | null
+          height?: number | null
+          id?: string | null
+          last_stock_sync?: string | null
+          length?: number | null
+          low_stock_alert_level?: number | null
+          mintsoft_product_id?: number | null
+          name?: string | null
+          on_order?: number | null
+          ph_brand?: string | null
+          ph_brand_best_item_id?: string | null
+          ph_brand_best_price?: number | null
+          ph_brand_best_seller?: string | null
+          ph_error_message?: string | null
+          ph_excluded?: boolean | null
+          ph_last_checked_at?: string | null
+          ph_our_best_item_id?: string | null
+          ph_our_best_price?: number | null
+          ph_our_best_seller?: string | null
+          ph_plain_best_item_id?: string | null
+          ph_plain_best_price?: number | null
+          ph_plain_best_seller?: string | null
+          ph_search_term?: string | null
+          ph_status?: string | null
+          sku?: string | null
+          suppliers?: string | null
+          updated_at?: string | null
+          weight?: number | null
+        }
+        Update: {
+          back_order_qty?: number | null
+          barcode?: string | null
+          barcode_type_id?: string | null
+          cost_price?: number | null
+          created_at?: string | null
+          current_stock?: number | null
+          depth?: number | null
+          discontinued?: boolean | null
+          discovered_at?: string | null
+          discovery_source?: string | null
+          fire_sale?: boolean | null
+          handling_time?: number | null
+          height?: number | null
+          id?: string | null
+          last_stock_sync?: string | null
+          length?: number | null
+          low_stock_alert_level?: number | null
+          mintsoft_product_id?: number | null
+          name?: string | null
+          on_order?: number | null
+          ph_brand?: string | null
+          ph_brand_best_item_id?: string | null
+          ph_brand_best_price?: number | null
+          ph_brand_best_seller?: string | null
+          ph_error_message?: string | null
+          ph_excluded?: boolean | null
+          ph_last_checked_at?: string | null
+          ph_our_best_item_id?: string | null
+          ph_our_best_price?: number | null
+          ph_our_best_seller?: string | null
+          ph_plain_best_item_id?: string | null
+          ph_plain_best_price?: number | null
+          ph_plain_best_seller?: string | null
+          ph_search_term?: string | null
+          ph_status?: string | null
+          sku?: string | null
+          suppliers?: string | null
+          updated_at?: string | null
+          weight?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "products_cache_barcode_type_id_fkey"
+            columns: ["barcode_type_id"]
+            isOneToOne: false
+            referencedRelation: "barcode_types"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Functions: {
