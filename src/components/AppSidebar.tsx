@@ -1,4 +1,10 @@
-import { ShoppingCart, FileText, Database, Users, LogOut, Tag, RefreshCw, UserCircle, Store, AlertCircle, AlertTriangle, Wrench, Key, Search } from "lucide-react";
+import { 
+  Search, Database, Tag, AlertCircle, Activity, FileText,
+  TrendingUp, DollarSign, Calendar,
+  ShoppingBag, Flame, TrendingDown, Package,
+  ShoppingCart, RefreshCw, Copy,
+  Users, Key, CreditCard, LogOut, UserCircle
+} from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -16,11 +22,6 @@ import {
   useSidebar,
   SidebarFooter,
 } from "@/components/ui/sidebar";
-import { Button } from "./ui/button";
-
-const baseMenuItems = [
-  { title: "Main Menu", url: "/menu", icon: ShoppingCart },
-];
 
 export function AppSidebar() {
   const { open } = useSidebar();
@@ -28,18 +29,15 @@ export function AppSidebar() {
   const navigate = useNavigate();
   const currentPath = location.pathname;
 
-  // Check if user is super user
   const { data: userRoles } = useQuery({
     queryKey: ["current-user-roles"],
     queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return [];
-
       const { data, error } = await supabase
         .from("user_roles")
         .select("role")
         .eq("user_id", user.id);
-
       if (error) throw error;
       return data;
     },
@@ -47,12 +45,8 @@ export function AppSidebar() {
 
   const isSuperUser = userRoles?.some((r: any) => r.role === "super_user");
   const isSeniorUser = userRoles?.some((r: any) => r.role === "senior_user");
-  const canManageBrands = isSuperUser || isSeniorUser;
 
   const isActive = (path: string) => {
-    if (path === "/dashboard") {
-      return currentPath === "/dashboard";
-    }
     return currentPath.startsWith(path);
   };
 
@@ -61,6 +55,69 @@ export function AppSidebar() {
     navigate("/auth");
   };
 
+  // Discovery Sidebar Items
+  const discoveryItems = [
+    { title: "Products", url: "/discovery/products", icon: Database },
+    { title: "Brands", url: "/discovery/brands", icon: Tag },
+    { title: "Discovery Queue", url: "/discovery/discovery-queue", icon: AlertCircle },
+    { title: "Order Telemetry", url: "/discovery/order-telemetry", icon: Activity, superOnly: true },
+    { title: "Feed Imports", url: "/discovery/feed-imports", icon: FileText },
+  ];
+
+  // Intelligence Sidebar Items
+  const intelligenceItems = [
+    { title: "Velocity & Coverage", url: "/intelligence/velocity", icon: TrendingUp },
+    { title: "Stock Health", url: "/intelligence/stock-health", icon: Activity },
+    { title: "Pricing Signals", url: "/intelligence/pricing", icon: DollarSign },
+    { title: "Seasonality", url: "/intelligence/seasonality", icon: Calendar },
+  ];
+
+  // Decisions Sidebar Items
+  const decisionsItems = [
+    { title: "Buy Recommendations", url: "/decisions/buy", icon: ShoppingBag },
+    { title: "Liquidation Candidates", url: "/decisions/liquidation", icon: Flame },
+    { title: "Price Moves", url: "/decisions/price-moves", icon: TrendingDown },
+    { title: "Bundle Suggestions", url: "/decisions/bundles", icon: Package },
+  ];
+
+  // Execution Sidebar Items
+  const executionItems = [
+    { title: "Purchase Order Builder", url: "/execution/purchase-orders", icon: ShoppingCart },
+    { title: "Price Push", url: "/execution/price-push", icon: DollarSign },
+    { title: "Remote Stock Updates", url: "/execution/remote-stock-updates", icon: RefreshCw },
+    { title: "Listing Cloner", url: "/execution/listing-cloner", icon: Copy },
+  ];
+
+  // Admin Sidebar Items
+  const adminItems = [
+    { title: "User Management", url: "/admin/users", icon: Users },
+    { title: "API Access", url: "/admin/api-keys", icon: Key },
+    { title: "Billing & Usage", url: "/admin/billing", icon: CreditCard },
+    { title: "Logs / Diagnostics", url: "/admin/logs", icon: FileText },
+  ];
+
+  // Determine which sidebar to show based on current path
+  const getModuleSidebar = () => {
+    if (currentPath.startsWith('/discovery')) {
+      return { label: "Discovery", items: discoveryItems };
+    }
+    if (currentPath.startsWith('/intelligence')) {
+      return { label: "Intelligence", items: intelligenceItems };
+    }
+    if (currentPath.startsWith('/decisions')) {
+      return { label: "Decisions", items: decisionsItems };
+    }
+    if (currentPath.startsWith('/execution')) {
+      return { label: "Execution", items: executionItems };
+    }
+    if (currentPath.startsWith('/admin')) {
+      return { label: "Administration", items: adminItems };
+    }
+    return null;
+  };
+
+  const moduleSidebar = getModuleSidebar();
+
   return (
     <Sidebar collapsible="icon">
       <SidebarContent>
@@ -68,173 +125,35 @@ export function AppSidebar() {
           <SidebarGroupLabel>Main Menu</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {baseMenuItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild isActive={isActive(item.url)}>
-                    <NavLink to={item.url} end={item.url === "/dashboard"}>
-                      <item.icon className="h-4 w-4" />
-                      {open && <span>{item.title}</span>}
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={currentPath === "/menu"}>
+                  <NavLink to="/menu" end>
+                    <Search className="h-4 w-4" />
+                    {open && <span>Main Menu</span>}
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {canManageBrands && (
-          <>
-            <SidebarGroup>
-              <SidebarGroupLabel>Ordering</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={isActive("/dashboard")}>
-                      <NavLink to="/dashboard" end>
-                        <ShoppingCart className="h-4 w-4" />
-                        {open && <span>Purchase Order Building</span>}
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-
-            <SidebarGroup>
-              <SidebarGroupLabel>SKU Section</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={isActive("/importing")}>
-                      <NavLink to="/importing">
-                        <FileText className="h-4 w-4" />
-                        {open && <span>Importing SKUs</span>}
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={isActive("/sku-database")}>
-                      <NavLink to="/sku-database">
-                        <Database className="h-4 w-4" />
-                        {open && <span>View SKU Database</span>}
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-
-            <SidebarGroup>
-              <SidebarGroupLabel>Stock Updates</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={isActive("/remote-stock-updates")}>
-                      <NavLink to="/remote-stock-updates">
-                        <RefreshCw className="h-4 w-4" />
-                        {open && <span>Remote Stock Updates</span>}
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-
-            <SidebarGroup>
-              <SidebarGroupLabel>Management</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={isActive("/brands")}>
-                      <NavLink to="/brands">
-                        <Tag className="h-4 w-4" />
-                        {open && <span>Brands</span>}
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={isActive("/ebay-admin")}>
-                      <NavLink to="/ebay-admin">
-                        <Store className="h-4 w-4" />
-                        {open && <span>eBay Admin</span>}
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={isActive("/api-access")}>
-                      <NavLink to="/api-access">
-                        <Key className="h-4 w-4" />
-                        {open && <span>API Access</span>}
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-
-            <SidebarGroup>
-              <SidebarGroupLabel>Tools</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={isActive("/price-hunter")}>
-                      <NavLink to="/price-hunter">
-                        <Search className="h-4 w-4" />
-                        {open && <span>Price Hunter</span>}
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={isActive("/ebay-clone")}>
-                      <NavLink to="/ebay-clone">
-                        <Wrench className="h-4 w-4" />
-                        {open && <span>eBay Clone Creator</span>}
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-
-            <SidebarGroup>
-              <SidebarGroupLabel>Error Hunting</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={isActive("/missing-cost-prices")}>
-                      <NavLink to="/missing-cost-prices">
-                        <AlertCircle className="h-4 w-4" />
-                        {open && <span>Missing Cost Prices</span>}
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={isActive("/problematic-orders")}>
-                      <NavLink to="/problematic-orders">
-                        <AlertTriangle className="h-4 w-4" />
-                        {open && <span>Problematic Orders</span>}
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-          </>
-        )}
-
-        {(isSuperUser || isSeniorUser) && (
+        {moduleSidebar && (
           <SidebarGroup>
-            <SidebarGroupLabel>Administration</SidebarGroupLabel>
+            <SidebarGroupLabel>{moduleSidebar.label}</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={isActive("/user-management")}>
-                    <NavLink to="/user-management">
-                      <Users className="h-4 w-4" />
-                      {open && <span>User Management</span>}
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
+                {moduleSidebar.items
+                  .filter(item => !(item as any).superOnly || isSuperUser)
+                  .map((item) => (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton asChild isActive={isActive(item.url)}>
+                        <NavLink to={item.url}>
+                          <item.icon className="h-4 w-4" />
+                          {open && <span>{item.title}</span>}
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>

@@ -1,25 +1,39 @@
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Database, FileText, ArrowLeft } from "lucide-react";
+import { ShoppingCart, DollarSign, RefreshCw, Copy, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-const SkuSection = () => {
+const ExecutionIndex = () => {
   const navigate = useNavigate();
 
   const options = [
     {
-      title: "Importing SKUs",
-      description: "Import and manage product data",
-      icon: FileText,
-      color: "text-green-500",
-      onClick: () => navigate("/importing"),
+      title: "Purchase Order Builder",
+      description: "Create and manage purchase orders for suppliers",
+      icon: ShoppingCart,
+      color: "text-blue-500",
+      onClick: () => navigate("/execution/purchase-orders"),
     },
     {
-      title: "View SKU Database",
-      description: "Browse and manage your product database",
-      icon: Database,
-      color: "text-indigo-500",
-      onClick: () => navigate("/sku-database"),
+      title: "Price Push",
+      description: "eBay price checks and automated pricing updates",
+      icon: DollarSign,
+      color: "text-green-500",
+      onClick: () => navigate("/execution/price-push"),
+    },
+    {
+      title: "Remote Stock Updates",
+      description: "Configure and manage remote stock feed types",
+      icon: RefreshCw,
+      color: "text-cyan-500",
+      onClick: () => navigate("/execution/remote-stock-updates"),
+    },
+    {
+      title: "Listing Cloner",
+      description: "Create and manage eBay listings from templates",
+      icon: Copy,
+      color: "text-purple-500",
+      onClick: () => navigate("/execution/listing-cloner"),
     },
   ];
 
@@ -31,8 +45,8 @@ const SkuSection = () => {
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Main Menu
           </Button>
-          <h1 className="text-2xl font-bold">SKU Section</h1>
-          <p className="text-sm text-muted-foreground">Manage and view your product catalog</p>
+          <h1 className="text-2xl font-bold">Execution</h1>
+          <p className="text-sm text-muted-foreground">Execute purchase, pricing and listing actions.</p>
         </div>
       </header>
 
@@ -64,4 +78,4 @@ const SkuSection = () => {
   );
 };
 
-export default SkuSection;
+export default ExecutionIndex;

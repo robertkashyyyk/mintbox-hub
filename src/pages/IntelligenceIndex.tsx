@@ -1,25 +1,39 @@
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ShoppingCart, ArrowLeft, Receipt } from "lucide-react";
+import { TrendingUp, Activity, DollarSign, Calendar, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-const OrderingSection = () => {
+const IntelligenceIndex = () => {
   const navigate = useNavigate();
 
   const options = [
     {
-      title: "Purchase Order Building",
-      description: "Manage inventory, sync data, and track orders",
-      icon: ShoppingCart,
-      color: "text-blue-500",
-      onClick: () => navigate("/dashboard"),
+      title: "Velocity & Coverage",
+      description: "Sales velocity and inventory coverage analysis",
+      icon: TrendingUp,
+      color: "text-green-500",
+      onClick: () => navigate("/intelligence/velocity"),
     },
     {
-      title: "Sales Orders",
-      description: "View and sync order lines from Mintsoft",
-      icon: Receipt,
-      color: "text-green-500",
-      onClick: () => navigate("/sales-orders"),
+      title: "Stock Health",
+      description: "Stock levels, overstock, and shortage analysis",
+      icon: Activity,
+      color: "text-blue-500",
+      onClick: () => navigate("/intelligence/stock-health"),
+    },
+    {
+      title: "Pricing Signals",
+      description: "Market pricing trends and competitor intelligence",
+      icon: DollarSign,
+      color: "text-emerald-500",
+      onClick: () => navigate("/intelligence/pricing"),
+    },
+    {
+      title: "Seasonality",
+      description: "Seasonal demand patterns and forecasts",
+      icon: Calendar,
+      color: "text-purple-500",
+      onClick: () => navigate("/intelligence/seasonality"),
     },
   ];
 
@@ -31,8 +45,8 @@ const OrderingSection = () => {
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Main Menu
           </Button>
-          <h1 className="text-2xl font-bold">Ordering</h1>
-          <p className="text-sm text-muted-foreground">Order management and inventory tools</p>
+          <h1 className="text-2xl font-bold">Intelligence</h1>
+          <p className="text-sm text-muted-foreground">Velocity, stock health and coverage insights.</p>
         </div>
       </header>
 
@@ -64,4 +78,4 @@ const OrderingSection = () => {
   );
 };
 
-export default OrderingSection;
+export default IntelligenceIndex;

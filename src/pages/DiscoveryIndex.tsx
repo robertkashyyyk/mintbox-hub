@@ -1,11 +1,11 @@
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tag, Store, Key, ArrowLeft } from "lucide-react";
+import { Database, Tag, AlertCircle, Activity, FileText, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
-const ManagementSection = () => {
+const DiscoveryIndex = () => {
   const navigate = useNavigate();
 
   const { data: userRoles } = useQuery({
@@ -13,46 +13,57 @@ const ManagementSection = () => {
     queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return [];
-
       const { data, error } = await supabase
         .from("user_roles")
         .select("role")
         .eq("user_id", user.id);
-
       if (error) throw error;
       return data;
     },
   });
 
   const isSuperUser = userRoles?.some((r: any) => r.role === "super_user");
-  const isSeniorUser = userRoles?.some((r: any) => r.role === "senior_user");
-
-  if (!isSuperUser && !isSeniorUser) {
-    navigate("/menu");
-    return null;
-  }
 
   const options = [
     {
+      title: "Products",
+      description: "Browse and manage your product database",
+      icon: Database,
+      color: "text-indigo-500",
+      onClick: () => navigate("/discovery/products"),
+      show: true,
+    },
+    {
       title: "Brands",
-      description: "Manage brands and product families",
+      description: "Manage brand information and settings",
       icon: Tag,
       color: "text-pink-500",
-      onClick: () => navigate("/brands"),
+      onClick: () => navigate("/discovery/brands"),
+      show: true,
     },
     {
-      title: "eBay Admin",
-      description: "Manage eBay seller usernames and settings",
-      icon: Store,
-      color: "text-yellow-500",
-      onClick: () => navigate("/ebay-admin"),
+      title: "Product Discovery Queue",
+      description: "Products discovered from orders that need enrichment",
+      icon: AlertCircle,
+      color: "text-amber-500",
+      onClick: () => navigate("/discovery/discovery-queue"),
+      show: true,
     },
     {
-      title: "API Access",
-      description: "Manage API keys and integration endpoints",
-      icon: Key,
-      color: "text-blue-500",
-      onClick: () => navigate("/api-access"),
+      title: "Order Telemetry",
+      description: "Diagnostic view of order lines for troubleshooting",
+      icon: Activity,
+      color: "text-red-500",
+      onClick: () => navigate("/discovery/order-telemetry"),
+      show: isSuperUser,
+    },
+    {
+      title: "Feed Imports",
+      description: "Upload product data and configure import rules",
+      icon: FileText,
+      color: "text-green-500",
+      onClick: () => navigate("/discovery/feed-imports"),
+      show: true,
     },
   ];
 
@@ -64,14 +75,14 @@ const ManagementSection = () => {
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Main Menu
           </Button>
-          <h1 className="text-2xl font-bold">Management</h1>
-          <p className="text-sm text-muted-foreground">Manage brands and platform integrations</p>
+          <h1 className="text-2xl font-bold">Discovery</h1>
+          <p className="text-sm text-muted-foreground">See and manage products, brands, and ingested data.</p>
         </div>
       </header>
 
       <main className="container mx-auto px-4 py-8">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {options.map((option) => (
+          {options.filter(option => option.show).map((option) => (
             <Card
               key={option.title}
               className="cursor-pointer hover:shadow-lg transition-shadow"
@@ -97,4 +108,4 @@ const ManagementSection = () => {
   );
 };
 
-export default ManagementSection;
+export default DiscoveryIndex;
