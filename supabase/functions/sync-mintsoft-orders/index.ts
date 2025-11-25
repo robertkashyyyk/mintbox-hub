@@ -101,14 +101,16 @@ Deno.serve(async (req) => {
         "ms-apikey": mintsoftApiKey,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        fromDate: fromDate,
-        status: "Dispatched"
-      })
+    body: JSON.stringify({
+      FromDate: fromDate,
+      Status: 40
+    })
     });
 
     if (!ordersResponse.ok) {
-      throw new Error(`Mintsoft API error: ${ordersResponse.status} ${ordersResponse.statusText}`);
+      const errorBody = await ordersResponse.text();
+      console.error(`Mintsoft error response: ${errorBody}`);
+      throw new Error(`Mintsoft API error: ${ordersResponse.status} ${ordersResponse.statusText} - ${errorBody}`);
     }
 
     const orders: MintsoftOrder[] = await ordersResponse.json();
