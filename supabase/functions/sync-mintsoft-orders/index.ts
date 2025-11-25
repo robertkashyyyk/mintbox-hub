@@ -90,17 +90,21 @@ Deno.serve(async (req) => {
       throw new Error("No brands found for SKU resolution");
     }
 
-    // Fetch orders from Mintsoft
-    // Note: Using a date filter - adjust endpoint as needed based on actual Mintsoft API
-    const ordersUrl = `${settings.base_url}/api/Order?fromDate=${fromDate}&status=Dispatched`;
+    // Fetch orders from Mintsoft using POST method
+    const ordersUrl = `${settings.base_url}/api/Order`;
     
     console.log(`Fetching from Mintsoft: ${ordersUrl}`);
     
     const ordersResponse = await fetch(ordersUrl, {
+      method: "POST",
       headers: {
         "ms-apikey": mintsoftApiKey,
         "Content-Type": "application/json",
       },
+      body: JSON.stringify({
+        fromDate: fromDate,
+        status: "Dispatched"
+      })
     });
 
     if (!ordersResponse.ok) {
