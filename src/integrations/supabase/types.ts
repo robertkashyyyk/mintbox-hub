@@ -117,6 +117,7 @@ export type Database = {
       }
       brands: {
         Row: {
+          base_multiplier: number | null
           created_at: string | null
           family: string | null
           id: string
@@ -128,6 +129,7 @@ export type Database = {
             | null
         }
         Insert: {
+          base_multiplier?: number | null
           created_at?: string | null
           family?: string | null
           id?: string
@@ -139,6 +141,7 @@ export type Database = {
             | null
         }
         Update: {
+          base_multiplier?: number | null
           created_at?: string | null
           family?: string | null
           id?: string
@@ -179,6 +182,13 @@ export type Database = {
             columns: ["brand_id"]
             isOneToOne: false
             referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "download_history_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands_missing_base_multiplier"
             referencedColumns: ["id"]
           },
           {
@@ -367,6 +377,13 @@ export type Database = {
             referencedRelation: "brands"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "ignored_sellers_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands_missing_base_multiplier"
+            referencedColumns: ["id"]
+          },
         ]
       }
       import_rules: {
@@ -535,6 +552,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "order_tracking_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands_missing_base_multiplier"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "order_tracking_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
@@ -651,6 +675,13 @@ export type Database = {
             referencedRelation: "brands"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "price_hunter_automations_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: true
+            referencedRelation: "brands_missing_base_multiplier"
+            referencedColumns: ["id"]
+          },
         ]
       }
       price_hunter_xask_usage: {
@@ -690,6 +721,13 @@ export type Database = {
             columns: ["brand_id"]
             isOneToOne: false
             referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "price_hunter_xask_usage_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands_missing_base_multiplier"
             referencedColumns: ["id"]
           },
           {
@@ -972,6 +1010,13 @@ export type Database = {
             referencedRelation: "brands"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "sync_jobs_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands_missing_base_multiplier"
+            referencedColumns: ["id"]
+          },
         ]
       }
       upload_history: {
@@ -1060,6 +1105,45 @@ export type Database = {
       }
     }
     Views: {
+      brands_missing_base_multiplier: {
+        Row: {
+          base_multiplier: number | null
+          created_at: string | null
+          family: string | null
+          id: string | null
+          name: string | null
+          prefix: string | null
+          prefix_style: Database["public"]["Enums"]["prefix_style"] | null
+          remote_stock_feed_type:
+            | Database["public"]["Enums"]["remote_stock_feed_type"]
+            | null
+        }
+        Insert: {
+          base_multiplier?: number | null
+          created_at?: string | null
+          family?: string | null
+          id?: string | null
+          name?: string | null
+          prefix?: string | null
+          prefix_style?: Database["public"]["Enums"]["prefix_style"] | null
+          remote_stock_feed_type?:
+            | Database["public"]["Enums"]["remote_stock_feed_type"]
+            | null
+        }
+        Update: {
+          base_multiplier?: number | null
+          created_at?: string | null
+          family?: string | null
+          id?: string | null
+          name?: string | null
+          prefix?: string | null
+          prefix_style?: Database["public"]["Enums"]["prefix_style"] | null
+          remote_stock_feed_type?:
+            | Database["public"]["Enums"]["remote_stock_feed_type"]
+            | null
+        }
+        Relationships: []
+      }
       latest_email_per_type: {
         Row: {
           alert_type: Database["public"]["Enums"]["alert_type"] | null

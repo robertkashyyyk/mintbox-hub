@@ -59,6 +59,7 @@ const Brands = () => {
     prefix_style: "hyphen" as "hyphen" | "slash",
     family: "",
     remote_stock_feed_type: "" as any,
+    base_multiplier: "",
   });
 
   const { data: brands, isLoading } = useQuery({
@@ -152,14 +153,31 @@ const Brands = () => {
       prefix_style: brand.prefix_style || "hyphen",
       family: brand.family || "",
       remote_stock_feed_type: brand.remote_stock_feed_type || "",
+      base_multiplier: brand.base_multiplier?.toString() || "",
     });
   };
 
   const handleSaveEdit = () => {
     if (!editingBrand) return;
+    
+    // Validate base_multiplier
+    if (editFormData.base_multiplier && Number(editFormData.base_multiplier) <= 0) {
+      toast({
+        title: "Validation Error",
+        description: "Base multiplier must be greater than 0",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    const updates = {
+      ...editFormData,
+      base_multiplier: editFormData.base_multiplier ? Number(editFormData.base_multiplier) : null,
+    };
+    
     updateBrandMutation.mutate({
       id: editingBrand.id,
-      updates: editFormData,
+      updates,
     });
   };
 
@@ -196,6 +214,7 @@ const Brands = () => {
                   <TableHead>Prefix</TableHead>
                   <TableHead>Prefix Style</TableHead>
                   <TableHead>Family</TableHead>
+                  <TableHead>Base Multiplier</TableHead>
                   <TableHead className="text-right">Product Count</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -215,6 +234,13 @@ const Brands = () => {
                         <span className="text-muted-foreground">{brand.family}</span>
                       ) : (
                         <span className="text-muted-foreground italic">-</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {brand.base_multiplier !== null ? (
+                        <span className="font-medium">{brand.base_multiplier}</span>
+                      ) : (
+                        <span className="text-destructive font-medium">Missing</span>
                       )}
                     </TableCell>
                     <TableCell className="text-right font-medium">
@@ -338,6 +364,20 @@ const Brands = () => {
                   <SelectItem value="no_feed">No Feed</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="base_multiplier">Base Stock Multiplier</Label>
+              <Input
+                id="base_multiplier"
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder="Leave empty if not set"
+                value={editFormData.base_multiplier}
+                onChange={(e) =>
+                  setEditFormData({ ...editFormData, base_multiplier: e.target.value })
+                }
+              />
             </div>
           </div>
           <DialogFooter>
