@@ -467,16 +467,19 @@ export type Database = {
       mintsoft_settings: {
         Row: {
           base_url: string
+          dispatched_status_ids: number[]
           id: boolean
           updated_at: string | null
         }
         Insert: {
           base_url: string
+          dispatched_status_ids?: number[]
           id?: boolean
           updated_at?: string | null
         }
         Update: {
           base_url?: string
+          dispatched_status_ids?: number[]
           id?: boolean
           updated_at?: string | null
         }

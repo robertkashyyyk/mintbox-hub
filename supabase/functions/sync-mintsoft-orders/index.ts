@@ -52,16 +52,19 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
 
-    // Get Mintsoft credentials
+    // Get Mintsoft credentials and dispatched status IDs
     const { data: settings } = await supabase
       .from("mintsoft_settings")
-      .select("*")
+      .select("base_url, dispatched_status_ids")
       .limit(1)
       .single();
 
     if (!settings) {
       throw new Error("Mintsoft settings not found");
     }
+
+    const dispatchedStatusIds = settings.dispatched_status_ids || [40];
+    console.log(`Using dispatched status IDs: ${dispatchedStatusIds.join(', ')}`);
 
     const mintsoftApiKey = Deno.env.get("MINTSOFT_API_KEY");
     if (!mintsoftApiKey) {
@@ -92,27 +95,35 @@ Deno.serve(async (req) => {
       throw new Error("No brands found for SKU resolution");
     }
 
-    // Fetch orders from Mintsoft using GET /api/Order/List endpoint
-    const ordersUrl = `${settings.base_url}/api/Order/List?OrderStatusId=40&SinceDate=${fromDate}T00:00:00Z&IncludeOrderItems=true&Limit=100`;
+    // Fetch orders from Mintsoft for each dispatched status ID
+    let allOrders: MintsoftOrder[] = [];
     
-    console.log(`Fetching from Mintsoft: ${ordersUrl}`);
-    
-    const ordersResponse = await fetch(ordersUrl, {
-      method: "GET",
-      headers: {
-        "ms-apikey": mintsoftApiKey,
-        "Content-Type": "application/json",
-      },
-    });
+    for (const statusId of dispatchedStatusIds) {
+      const ordersUrl = `${settings.base_url}/api/Order/List?OrderStatusId=${statusId}&SinceDate=${fromDate}T00:00:00Z&IncludeOrderItems=true&Limit=100`;
+      
+      console.log(`Fetching orders with status ${statusId} from: ${ordersUrl}`);
+      
+      const ordersResponse = await fetch(ordersUrl, {
+        method: "GET",
+        headers: {
+          "ms-apikey": mintsoftApiKey,
+          "Content-Type": "application/json",
+        },
+      });
 
-    if (!ordersResponse.ok) {
-      const errorBody = await ordersResponse.text();
-      console.error(`Mintsoft error response: ${errorBody}`);
-      throw new Error(`Mintsoft API error: ${ordersResponse.status} ${ordersResponse.statusText} - ${errorBody}`);
+      if (!ordersResponse.ok) {
+        const errorBody = await ordersResponse.text();
+        console.error(`Mintsoft error for status ${statusId}: ${errorBody}`);
+        // Continue with other statuses instead of failing completely
+        continue;
+      }
+
+      const orders: MintsoftOrder[] = await ordersResponse.json();
+      console.log(`Received ${orders.length} orders with status ${statusId}`);
+      allOrders = allOrders.concat(orders);
     }
 
-    const orders: MintsoftOrder[] = await ordersResponse.json();
-    console.log(`Received ${orders.length} orders from Mintsoft`);
+    console.log(`Total orders fetched across all statuses: ${allOrders.length}`);
 
     let linesProcessed = 0;
     let linesInserted = 0;
@@ -120,7 +131,7 @@ Deno.serve(async (req) => {
     let productsCreated = 0;
 
     // Process each order
-    for (const order of orders) {
+    for (const order of allOrders) {
       let lineIndex = 1;
 
       for (const item of order.OrderItems || []) {
@@ -197,12 +208,13 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: true,
-        orders_fetched: orders.length,
+        orders_fetched: allOrders.length,
         lines_processed: linesProcessed,
         lines_inserted: linesInserted,
         lines_skipped: linesSkipped,
         products_created: productsCreated,
-        message: `Successfully synced ${orders.length} orders with ${linesInserted} lines`,
+        status_ids_used: dispatchedStatusIds,
+        message: `Successfully synced ${allOrders.length} orders with ${linesInserted} lines using status IDs: ${dispatchedStatusIds.join(', ')}`,
       }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
