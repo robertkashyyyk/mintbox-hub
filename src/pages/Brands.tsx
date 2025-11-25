@@ -160,7 +160,7 @@ const Brands = () => {
   const handleSaveEdit = () => {
     if (!editingBrand) return;
     
-    // Validate base_multiplier
+    // Validate base_multiplier if provided
     if (editFormData.base_multiplier && Number(editFormData.base_multiplier) <= 0) {
       toast({
         title: "Validation Error",
@@ -171,7 +171,11 @@ const Brands = () => {
     }
     
     const updates = {
-      ...editFormData,
+      name: editFormData.name,
+      prefix: editFormData.prefix,
+      prefix_style: editFormData.prefix_style,
+      family: editFormData.family || null,
+      remote_stock_feed_type: editFormData.remote_stock_feed_type || null,
       base_multiplier: editFormData.base_multiplier ? Number(editFormData.base_multiplier) : null,
     };
     
@@ -240,7 +244,7 @@ const Brands = () => {
                       {brand.base_multiplier !== null ? (
                         <span className="font-medium">{brand.base_multiplier}</span>
                       ) : (
-                        <span className="text-destructive font-medium">Missing</span>
+                        <span className="text-destructive font-bold bg-destructive/10 px-2 py-1 rounded">Missing</span>
                       )}
                     </TableCell>
                     <TableCell className="text-right font-medium">
