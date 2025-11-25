@@ -50,7 +50,7 @@ export const StockHealthFilters = ({ filters, onFiltersChange }: StockHealthFilt
   }, []);
 
   const clearAllFilters = () => {
-    onFiltersChange({ search: "", brandId: "", healthCategory: "", onlyProblems: false });
+    onFiltersChange({ search: "", brandId: "all", healthCategory: "all", onlyProblems: false });
   };
 
   const activeFilterCount = [
@@ -92,7 +92,7 @@ export const StockHealthFilters = ({ filters, onFiltersChange }: StockHealthFilt
               <SelectValue placeholder="All Brands" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All Brands</SelectItem>
+              <SelectItem value="all">All Brands</SelectItem>
               {brands.map((brand) => (
                 <SelectItem key={brand.id} value={brand.id}>
                   {brand.name}
@@ -112,7 +112,7 @@ export const StockHealthFilters = ({ filters, onFiltersChange }: StockHealthFilt
               <SelectValue placeholder="All Categories" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All Categories</SelectItem>
+              <SelectItem value="all">All Categories</SelectItem>
               {HEALTH_CATEGORIES.map((category) => (
                 <SelectItem key={category} value={category}>
                   {category}

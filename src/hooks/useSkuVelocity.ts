@@ -27,7 +27,7 @@ export const useSkuVelocity = () => {
 
   const [filters, setFilters] = useState<Filters>(() => {
     const saved = localStorage.getItem("velocity_filters");
-    return saved ? JSON.parse(saved) : { search: "", brandId: "", minAvgWeekly: "" };
+    return saved ? JSON.parse(saved) : { search: "", brandId: "all", minAvgWeekly: "" };
   });
 
   useEffect(() => {
@@ -62,7 +62,7 @@ export const useSkuVelocity = () => {
         query = query.ilike("sku", `%${filters.search}%`);
       }
 
-      if (filters.brandId) {
+      if (filters.brandId && filters.brandId !== "all") {
         query = query.eq("brand_id", filters.brandId);
       }
 

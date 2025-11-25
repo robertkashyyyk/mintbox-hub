@@ -19,7 +19,7 @@ interface VelocityFiltersProps {
 
 export const VelocityFilters = ({ filters, onFiltersChange, brands }: VelocityFiltersProps) => {
   const clearAllFilters = () => {
-    onFiltersChange({ search: "", brandId: "", minAvgWeekly: "" });
+    onFiltersChange({ search: "", brandId: "all", minAvgWeekly: "" });
   };
 
   const activeFilterCount = [
@@ -60,7 +60,7 @@ export const VelocityFilters = ({ filters, onFiltersChange, brands }: VelocityFi
               <SelectValue placeholder="All Brands" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All Brands</SelectItem>
+              <SelectItem value="all">All Brands</SelectItem>
               {brands.map((brand) => (
                 <SelectItem key={brand.id} value={brand.id}>
                   {brand.name}
