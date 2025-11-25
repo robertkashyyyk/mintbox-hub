@@ -91,7 +91,7 @@ Deno.serve(async (req) => {
     }
 
     // Fetch orders from Mintsoft using POST method
-    const ordersUrl = `${settings.base_url}/api/Order`;
+    const ordersUrl = `${settings.base_url}/api/Order/Search`;
     
     console.log(`Fetching from Mintsoft: ${ordersUrl}`);
     
