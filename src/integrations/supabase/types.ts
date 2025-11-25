@@ -1464,6 +1464,32 @@ export type Database = {
           },
         ]
       }
+      sku_velocity: {
+        Row: {
+          avg_weekly_units: number | null
+          brand_id: string | null
+          sku: string | null
+          units_30d: number | null
+          units_60d: number | null
+          units_90d: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_lines_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_lines_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands_missing_base_multiplier"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       has_any_role: {
