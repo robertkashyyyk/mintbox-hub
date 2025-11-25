@@ -4,7 +4,17 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { RefreshCw, Download } from "lucide-react";
+import { RefreshCw, Settings, Eye } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Table,
   TableBody,
@@ -16,10 +26,20 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import DiagnosticBanner from "@/components/DiagnosticBanner";
 
+interface MintsoftStatus {
+  ID: number;
+  Name: string;
+  ExternalName: string;
+  Active: boolean;
+}
+
 const SalesOrders = () => {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [isSyncing, setIsSyncing] = useState(false);
+  const [statusDialogOpen, setStatusDialogOpen] = useState(false);
+  const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
+  const [dispatchedStatusIds, setDispatchedStatusIds] = useState<string>("");
 
   // Fetch recent order lines with brand info
   const { data: orderLines, isLoading } = useQuery({
@@ -39,6 +59,31 @@ const SalesOrders = () => {
       if (error) throw error;
       return data;
     },
+  });
+
+  // Fetch Mintsoft settings
+  const { data: mintsoftSettings, refetch: refetchSettings } = useQuery({
+    queryKey: ["mintsoft-settings"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("mintsoft_settings")
+        .select("dispatched_status_ids")
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Fetch Mintsoft statuses
+  const { data: statusesData, isLoading: isLoadingStatuses, refetch: refetchStatuses } = useQuery({
+    queryKey: ["mintsoft-statuses"],
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke("mintsoft-statuses");
+      if (error) throw error;
+      return data as { statuses: MintsoftStatus[] };
+    },
+    enabled: false,
   });
 
   // Sync mutation
@@ -82,6 +127,48 @@ const SalesOrders = () => {
     }
   };
 
+  const handleViewStatuses = () => {
+    setStatusDialogOpen(true);
+    refetchStatuses();
+  };
+
+  const handleOpenSettings = () => {
+    if (mintsoftSettings?.dispatched_status_ids) {
+      setDispatchedStatusIds(mintsoftSettings.dispatched_status_ids.join(", "));
+    }
+    setSettingsDialogOpen(true);
+  };
+
+  const handleSaveSettings = async () => {
+    try {
+      const idsArray = dispatchedStatusIds
+        .split(",")
+        .map(id => parseInt(id.trim()))
+        .filter(id => !isNaN(id));
+
+      const { error } = await supabase
+        .from("mintsoft_settings")
+        .update({ dispatched_status_ids: idsArray })
+        .eq("id", true);
+
+      if (error) throw error;
+
+      toast({
+        title: "Settings Saved",
+        description: "Dispatched status IDs updated successfully",
+      });
+
+      refetchSettings();
+      setSettingsDialogOpen(false);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to save settings",
+        variant: "destructive",
+      });
+    }
+  };
+
   // Get statistics
   const stats = {
     totalLines: orderLines?.length || 0,
@@ -98,14 +185,32 @@ const SalesOrders = () => {
             Sync and view order lines from Mintsoft
           </p>
         </div>
-        <Button 
-          onClick={handleSync} 
-          disabled={isSyncing}
-          size="lg"
-        >
-          <RefreshCw className={`mr-2 h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
-          Sync Mintsoft Orders (Last 1 Day)
-        </Button>
+        <div className="flex gap-2">
+          <Button 
+            onClick={handleOpenSettings} 
+            variant="outline"
+            size="lg"
+          >
+            <Settings className="mr-2 h-4 w-4" />
+            Settings
+          </Button>
+          <Button 
+            onClick={handleViewStatuses} 
+            variant="outline"
+            size="lg"
+          >
+            <Eye className="mr-2 h-4 w-4" />
+            View Statuses
+          </Button>
+          <Button 
+            onClick={handleSync} 
+            disabled={isSyncing}
+            size="lg"
+          >
+            <RefreshCw className={`mr-2 h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
+            Sync Orders
+          </Button>
+        </div>
       </div>
 
       <DiagnosticBanner />
@@ -213,6 +318,94 @@ const SalesOrders = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Mintsoft Status Inspector Dialog */}
+      <Dialog open={statusDialogOpen} onOpenChange={setStatusDialogOpen}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Mintsoft Order Statuses</DialogTitle>
+            <DialogDescription>
+              These are the order status IDs and names from your Mintsoft instance
+            </DialogDescription>
+          </DialogHeader>
+          {isLoadingStatuses ? (
+            <div className="space-y-2">
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+            </div>
+          ) : statusesData?.statuses ? (
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>ID</TableHead>
+                    <TableHead>Name</TableHead>
+                    <TableHead>External Name</TableHead>
+                    <TableHead>Active</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {statusesData.statuses.map((status) => (
+                    <TableRow key={status.ID}>
+                      <TableCell className="font-medium">{status.ID}</TableCell>
+                      <TableCell>{status.Name}</TableCell>
+                      <TableCell>{status.ExternalName || "-"}</TableCell>
+                      <TableCell>
+                        <span className={status.Active ? "text-green-600" : "text-muted-foreground"}>
+                          {status.Active ? "Yes" : "No"}
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          ) : (
+            <p className="text-center py-4 text-muted-foreground">No statuses loaded</p>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Settings Dialog */}
+      <Dialog open={settingsDialogOpen} onOpenChange={setSettingsDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Mintsoft Sync Settings</DialogTitle>
+            <DialogDescription>
+              Configure which Mintsoft order statuses should be considered "dispatched" for order ingestion
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="dispatched-ids">Dispatched Status IDs</Label>
+              <Input
+                id="dispatched-ids"
+                value={dispatchedStatusIds}
+                onChange={(e) => setDispatchedStatusIds(e.target.value)}
+                placeholder="e.g., 40, 45, 50"
+              />
+              <p className="text-sm text-muted-foreground">
+                Enter comma-separated Mintsoft Order Status IDs that count as fully dispatched/shipped orders.
+                Use "View Statuses" to find the correct IDs for your Mintsoft instance.
+              </p>
+              {mintsoftSettings?.dispatched_status_ids && (
+                <p className="text-sm font-medium">
+                  Current: {mintsoftSettings.dispatched_status_ids.join(", ")}
+                </p>
+              )}
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setSettingsDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleSaveSettings}>
+                Save Settings
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
