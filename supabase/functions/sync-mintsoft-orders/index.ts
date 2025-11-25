@@ -139,19 +139,24 @@ Deno.serve(async (req) => {
           .maybeSingle();
 
         if (!existingProduct) {
-          // Auto-create minimal product record
+          // Auto-create minimal product record with discovery tracking
           const { error: productError } = await supabase
             .from("products_cache")
-            .insert({
+            .upsert({
               sku: item.SKU,
               name: item.SKU,
+              brand_id: brandId,
+              discovery_source: 'order',
+            }, {
+              onConflict: 'sku',
+              ignoreDuplicates: true
             });
           
           if (productError) {
             console.log(`Could not auto-create product for SKU ${item.SKU}:`, productError);
           } else {
             productsCreated++;
-            console.log(`Auto-created product for SKU: ${item.SKU}`);
+            console.log(`Auto-created product for SKU: ${item.SKU} (brand: ${brandId})`);
           }
         }
 
