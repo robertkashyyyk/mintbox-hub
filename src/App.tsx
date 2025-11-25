@@ -31,6 +31,7 @@ import PriceHunter from "./pages/PriceHunter";
 import ProductDetail from "./pages/ProductDetail";
 import IgnoredSellers from "./pages/IgnoredSellers";
 import IgnoredListings from "./pages/IgnoredListings";
+import SalesOrders from "./pages/SalesOrders";
 
 const queryClient = new QueryClient();
 
@@ -67,6 +68,7 @@ const App = () => (
             <Route path="/remote-stock-updates" element={<RemoteStockUpdates />} />
             <Route path="/missing-cost-prices" element={<MissingCostPrices />} />
             <Route path="/problematic-orders" element={<ProblematicOrders />} />
+            <Route path="/sales-orders" element={<SalesOrders />} />
             <Route path="/profile" element={<Profile />} />
           </Route>
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
