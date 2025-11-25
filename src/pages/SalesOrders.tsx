@@ -14,6 +14,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
+import DiagnosticBanner from "@/components/DiagnosticBanner";
 
 const SalesOrders = () => {
   const queryClient = useQueryClient();
@@ -106,6 +107,8 @@ const SalesOrders = () => {
           Sync Mintsoft Orders (Last 1 Day)
         </Button>
       </div>
+
+      <DiagnosticBanner />
 
       {/* Statistics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

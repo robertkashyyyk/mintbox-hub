@@ -1,25 +1,39 @@
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { AlertCircle, AlertTriangle, ArrowLeft } from "lucide-react";
+import { Users, Key, CreditCard, FileText, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-const ErrorHuntingSection = () => {
+const AdminIndex = () => {
   const navigate = useNavigate();
 
   const options = [
     {
-      title: "Missing Cost Prices",
-      description: "Products without cost prices configured",
-      icon: AlertCircle,
-      color: "text-orange-500",
-      onClick: () => navigate("/missing-cost-prices"),
+      title: "User Management",
+      description: "Manage users, roles, and invitations",
+      icon: Users,
+      color: "text-blue-500",
+      onClick: () => navigate("/admin/users"),
     },
     {
-      title: "Problematic Orders",
-      description: "Orders that have not been placed",
-      icon: AlertTriangle,
-      color: "text-red-500",
-      onClick: () => navigate("/problematic-orders"),
+      title: "API Access",
+      description: "Manage API keys and integrations",
+      icon: Key,
+      color: "text-green-500",
+      onClick: () => navigate("/admin/api-keys"),
+    },
+    {
+      title: "Billing & Usage",
+      description: "View Xask usage and billing information",
+      icon: CreditCard,
+      color: "text-purple-500",
+      onClick: () => navigate("/admin/billing"),
+    },
+    {
+      title: "Logs / Diagnostics",
+      description: "System logs and diagnostic information",
+      icon: FileText,
+      color: "text-slate-500",
+      onClick: () => navigate("/admin/logs"),
     },
   ];
 
@@ -31,8 +45,8 @@ const ErrorHuntingSection = () => {
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Main Menu
           </Button>
-          <h1 className="text-2xl font-bold">Error Hunting</h1>
-          <p className="text-sm text-muted-foreground">Find and resolve data issues</p>
+          <h1 className="text-2xl font-bold">Administration</h1>
+          <p className="text-sm text-muted-foreground">User management, API keys and billing.</p>
         </div>
       </header>
 
@@ -64,4 +78,4 @@ const ErrorHuntingSection = () => {
   );
 };
 
-export default ErrorHuntingSection;
+export default AdminIndex;

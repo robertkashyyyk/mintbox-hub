@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ShoppingCart, Database, RefreshCw, Tag, UserCircle, AlertCircle, Wrench, Users } from "lucide-react";
+import { Search, BarChart3, Sparkles, PlayCircle, Users, UserCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
@@ -35,60 +35,44 @@ const MainMenu = () => {
 
   const sections = [
     {
-      title: "Ordering",
-      description: "Order management and inventory tools",
-      icon: ShoppingCart,
+      title: "Discovery",
+      description: "See and manage products, brands, and ingested data.",
+      icon: Search,
       color: "text-blue-500",
-      path: "/menu/ordering",
+      path: "/discovery",
       show: true,
     },
     {
-      title: "SKU Section",
-      description: "Manage and view your product catalog",
-      icon: Database,
+      title: "Intelligence",
+      description: "Velocity, stock health and coverage insights.",
+      icon: BarChart3,
       color: "text-green-500",
-      path: "/menu/sku-section",
+      path: "/intelligence",
       show: true,
     },
     {
-      title: "Stock Updates",
-      description: "Manage stock synchronization and updates",
-      icon: RefreshCw,
-      color: "text-cyan-500",
-      path: "/menu/stock-updates",
-      show: isSuperUser || isSeniorUser,
-    },
-    {
-      title: "Management",
-      description: "Manage brands and platform integrations",
-      icon: Tag,
-      color: "text-pink-500",
-      path: "/menu/management",
-      show: isSuperUser || isSeniorUser,
-    },
-    {
-      title: "Tools",
-      description: "Utilities and workflow tools",
-      icon: Wrench,
+      title: "Decisions",
+      description: "AI-driven buying, pricing and liquidation recommendations.",
+      icon: Sparkles,
       color: "text-purple-500",
-      path: "/menu/tools",
-      show: true,
+      path: "/decisions",
+      show: isSeniorUser || isSuperUser,
     },
     {
-      title: "Error Hunting",
-      description: "Find and resolve data issues",
-      icon: AlertCircle,
+      title: "Execution",
+      description: "Execute purchase, pricing and listing actions.",
+      icon: PlayCircle,
       color: "text-orange-500",
-      path: "/menu/error-hunting",
-      show: true,
+      path: "/execution",
+      show: isSeniorUser || isSuperUser,
     },
     {
       title: "Administration",
-      description: "System administration and user management",
+      description: "User management, API keys and billing.",
       icon: Users,
       color: "text-slate-500",
-      path: "/menu/administration",
-      show: isSuperUser || isSeniorUser,
+      path: "/admin",
+      show: isSuperUser,
     },
   ];
 

@@ -1,44 +1,39 @@
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, ArrowLeft } from "lucide-react";
+import { ShoppingBag, Flame, TrendingDown, Package, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 
-const AdministrationSection = () => {
+const DecisionsIndex = () => {
   const navigate = useNavigate();
-
-  const { data: userRoles } = useQuery({
-    queryKey: ["current-user-roles"],
-    queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return [];
-
-      const { data, error } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user.id);
-
-      if (error) throw error;
-      return data;
-    },
-  });
-
-  const isSuperUser = userRoles?.some((r: any) => r.role === "super_user");
-  const isSeniorUser = userRoles?.some((r: any) => r.role === "senior_user");
-
-  if (!isSuperUser && !isSeniorUser) {
-    navigate("/menu");
-    return null;
-  }
 
   const options = [
     {
-      title: "Users",
-      description: "Manage users and permissions",
-      icon: Users,
-      color: "text-slate-500",
-      onClick: () => navigate("/user-management"),
+      title: "Buy Recommendations",
+      description: "AI-driven purchase order suggestions based on velocity",
+      icon: ShoppingBag,
+      color: "text-blue-500",
+      onClick: () => navigate("/decisions/buy"),
+    },
+    {
+      title: "Liquidation Candidates",
+      description: "Products recommended for clearance or fire sale",
+      icon: Flame,
+      color: "text-orange-500",
+      onClick: () => navigate("/decisions/liquidation"),
+    },
+    {
+      title: "Price Moves",
+      description: "Suggested pricing adjustments for competitiveness",
+      icon: TrendingDown,
+      color: "text-green-500",
+      onClick: () => navigate("/decisions/price-moves"),
+    },
+    {
+      title: "Bundle Suggestions",
+      description: "Product combinations for bundling opportunities",
+      icon: Package,
+      color: "text-purple-500",
+      onClick: () => navigate("/decisions/bundles"),
     },
   ];
 
@@ -50,8 +45,8 @@ const AdministrationSection = () => {
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Main Menu
           </Button>
-          <h1 className="text-2xl font-bold">Administration</h1>
-          <p className="text-sm text-muted-foreground">System administration and user management</p>
+          <h1 className="text-2xl font-bold">Decisions</h1>
+          <p className="text-sm text-muted-foreground">AI-driven buying, pricing and liquidation recommendations.</p>
         </div>
       </header>
 
@@ -83,4 +78,4 @@ const AdministrationSection = () => {
   );
 };
 
-export default AdministrationSection;
+export default DecisionsIndex;
