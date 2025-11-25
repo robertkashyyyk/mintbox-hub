@@ -515,6 +515,66 @@ export type Database = {
         }
         Relationships: []
       }
+      order_lines: {
+        Row: {
+          brand_id: string | null
+          channel: string | null
+          channel_order_ref: string | null
+          created_at: string
+          id: number
+          line_index: number
+          mintsoft_order_id: number
+          order_date: string
+          qty: number
+          sku: string
+          updated_at: string
+          warehouse_id: string | null
+        }
+        Insert: {
+          brand_id?: string | null
+          channel?: string | null
+          channel_order_ref?: string | null
+          created_at?: string
+          id?: number
+          line_index: number
+          mintsoft_order_id: number
+          order_date: string
+          qty: number
+          sku: string
+          updated_at?: string
+          warehouse_id?: string | null
+        }
+        Update: {
+          brand_id?: string | null
+          channel?: string | null
+          channel_order_ref?: string | null
+          created_at?: string
+          id?: number
+          line_index?: number
+          mintsoft_order_id?: number
+          order_date?: string
+          qty?: number
+          sku?: string
+          updated_at?: string
+          warehouse_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_lines_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_lines_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands_missing_base_multiplier"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       order_tracking: {
         Row: {
           brand_id: string

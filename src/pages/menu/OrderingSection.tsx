@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ShoppingCart, ArrowLeft } from "lucide-react";
+import { ShoppingCart, ArrowLeft, Receipt } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const OrderingSection = () => {
@@ -13,6 +13,13 @@ const OrderingSection = () => {
       icon: ShoppingCart,
       color: "text-blue-500",
       onClick: () => navigate("/dashboard"),
+    },
+    {
+      title: "Sales Orders",
+      description: "View and sync order lines from Mintsoft",
+      icon: Receipt,
+      color: "text-green-500",
+      onClick: () => navigate("/sales-orders"),
     },
   ];
 
