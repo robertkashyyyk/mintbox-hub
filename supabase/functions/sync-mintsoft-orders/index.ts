@@ -6,11 +6,13 @@ const corsHeaders = {
 };
 
 interface MintsoftOrder {
-  OrderId: number;
+  ID: number;
   OrderDate: string;
-  Channel: string;
-  ChannelOrderRef: string;
-  WarehouseId?: string;
+  Channel: {
+    Name: string;
+  } | null;
+  ExternalOrderReference: string;
+  WarehouseId?: number;
   OrderItems: MintsoftOrderItem[];
 }
 
@@ -90,8 +92,8 @@ Deno.serve(async (req) => {
       throw new Error("No brands found for SKU resolution");
     }
 
-    // Fetch orders from Mintsoft using GET method with query parameters
-    const ordersUrl = `${settings.base_url}/api/Order?FromDate=${fromDate}&Status=40`;
+    // Fetch orders from Mintsoft using GET /api/Order/List endpoint
+    const ordersUrl = `${settings.base_url}/api/Order/List?OrderStatusId=40&SinceDate=${fromDate}T00:00:00Z&IncludeOrderItems=true&Limit=100`;
     
     console.log(`Fetching from Mintsoft: ${ordersUrl}`);
     
@@ -167,21 +169,21 @@ Deno.serve(async (req) => {
           .from("order_lines")
           .upsert(
             {
-              mintsoft_order_id: order.OrderId,
+              mintsoft_order_id: order.ID,
               line_index: lineIndex,
               sku: item.SKU,
               qty: item.Quantity,
               order_date: order.OrderDate,
-              channel: order.Channel || null,
-              channel_order_ref: order.ChannelOrderRef || null,
-              warehouse_id: order.WarehouseId || null,
+              channel: order.Channel?.Name || null,
+              channel_order_ref: order.ExternalOrderReference || null,
+              warehouse_id: order.WarehouseId?.toString() || null,
               brand_id: brandId,
             },
             { onConflict: "mintsoft_order_id,line_index" }
           );
 
         if (upsertError) {
-          console.error(`Error upserting line for order ${order.OrderId}, line ${lineIndex}:`, upsertError);
+          console.error(`Error upserting line for order ${order.ID}, line ${lineIndex}:`, upsertError);
         } else {
           linesInserted++;
         }
