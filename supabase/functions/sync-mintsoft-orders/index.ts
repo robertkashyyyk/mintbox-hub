@@ -113,6 +113,7 @@ Deno.serve(async (req) => {
     let linesProcessed = 0;
     let linesInserted = 0;
     let linesSkipped = 0;
+    let productsCreated = 0;
 
     // Process each order
     for (const order of orders) {
@@ -128,6 +129,30 @@ Deno.serve(async (req) => {
           console.log(`Skipping line: SKU ${item.SKU} - no brand match`);
           linesSkipped++;
           continue;
+        }
+
+        // Check if product exists in products_cache
+        const { data: existingProduct } = await supabase
+          .from("products_cache")
+          .select("id")
+          .eq("sku", item.SKU)
+          .maybeSingle();
+
+        if (!existingProduct) {
+          // Auto-create minimal product record
+          const { error: productError } = await supabase
+            .from("products_cache")
+            .insert({
+              sku: item.SKU,
+              name: item.SKU,
+            });
+          
+          if (productError) {
+            console.log(`Could not auto-create product for SKU ${item.SKU}:`, productError);
+          } else {
+            productsCreated++;
+            console.log(`Auto-created product for SKU: ${item.SKU}`);
+          }
         }
 
         // Upsert into order_lines
@@ -167,6 +192,7 @@ Deno.serve(async (req) => {
         lines_processed: linesProcessed,
         lines_inserted: linesInserted,
         lines_skipped: linesSkipped,
+        products_created: productsCreated,
         message: `Successfully synced ${orders.length} orders with ${linesInserted} lines`,
       }),
       {
