@@ -32,8 +32,8 @@ export const useStockHealth = () => {
     const saved = localStorage.getItem("stockHealthFilters");
     return saved ? JSON.parse(saved) : {
       search: "",
-      brandId: "",
-      healthCategory: "",
+      brandId: "all",
+      healthCategory: "all",
       onlyProblems: false,
     };
   });
@@ -70,11 +70,11 @@ export const useStockHealth = () => {
         query = query.ilike("sku", `%${filters.search}%`);
       }
 
-      if (filters.brandId) {
+      if (filters.brandId && filters.brandId !== "all") {
         query = query.eq("brand_id", filters.brandId);
       }
 
-      if (filters.healthCategory) {
+      if (filters.healthCategory && filters.healthCategory !== "all") {
         query = query.eq("health_category", filters.healthCategory);
       }
 
