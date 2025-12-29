@@ -11,3 +11,9 @@ verify_jwt = false
 
 [functions.update-price-check-results]
 verify_jwt = false
+
+[functions.mintsoft-test-order-count]
+verify_jwt = false
+
+[functions.mintsoft-order-snapshot]
+verify_jwt = false
