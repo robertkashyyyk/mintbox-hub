@@ -209,6 +209,8 @@ Deno.serve(async (req) => {
     const cronSecret = req.headers.get('x-cron-secret');
     const expectedSecret = Deno.env.get('CRON_SECRET');
 
+    console.log(`CRON_SECRET validation - received: "${cronSecret?.substring(0, 8)}..." expected: "${expectedSecret?.substring(0, 8)}..."`);
+
     if (!expectedSecret) {
       console.error('CRON_SECRET not configured');
       return new Response(
