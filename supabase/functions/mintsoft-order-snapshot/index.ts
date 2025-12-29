@@ -90,12 +90,21 @@ Deno.serve(async (req) => {
     }
 
     const validSlot = slot as Slot;
+    const force = body.force === true;
     
     // Step 3: Compute UK local time and validate window
     const ukTime = getUKTimeComponents();
-    console.log(`UK time: ${ukTime.hour}:${ukTime.minute.toString().padStart(2, '0')}, Date: ${ukTime.dateStr}, Slot: ${validSlot}`);
+    console.log(`UK time: ${ukTime.hour}:${ukTime.minute.toString().padStart(2, '0')}, Date: ${ukTime.dateStr}, Slot: ${validSlot}, Force: ${force}`);
     
-    if (!isWithinWindow(validSlot, ukTime)) {
+    // Check if force override is allowed
+    const allowForceRun = Deno.env.get('ALLOW_FORCE_RUN') === 'true';
+    const shouldBypassWindow = force && allowForceRun;
+    
+    if (shouldBypassWindow) {
+      console.log('⚠️ FORCE RUN: Bypassing time window check (ALLOW_FORCE_RUN=true)');
+    }
+    
+    if (!shouldBypassWindow && !isWithinWindow(validSlot, ukTime)) {
       const window = SLOT_WINDOWS[validSlot];
       console.log(`Outside valid window for ${validSlot} slot. Window is ${window.startHour}:${window.startMinute.toString().padStart(2, '0')} - ${window.endHour}:${window.endMinute.toString().padStart(2, '0')}`);
       return new Response(
