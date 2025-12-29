@@ -157,7 +157,8 @@ async function fetchAllBackorders(
   console.log(`Fetching ONBACKORDER orders (statusId: ${statusId})...`);
 
   while (true) {
-    const url = `${baseUrl}/api/Order?StatusID=${statusId}&PageNo=${pageNo}&Limit=${pageSize}`;
+    // Use /api/Order/List endpoint with OrderStatusId parameter
+    const url = `${baseUrl}/api/Order/List?OrderStatusId=${statusId}&PageNo=${pageNo}&Limit=${pageSize}`;
     console.log(`Fetching page ${pageNo}...`);
 
     const response = await fetch(url, {
