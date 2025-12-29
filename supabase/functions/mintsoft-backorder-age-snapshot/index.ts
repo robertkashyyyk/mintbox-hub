@@ -2,7 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.7";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-cron-secret',
 };
 
 // Age bucket definitions (non-overlapping)
@@ -206,8 +206,25 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // JWT auth is handled by Supabase (verify_jwt = true in config.toml)
-    // Service role key provides authentication for cron-triggered calls
+    // 1. Validate CRON_SECRET
+    const cronSecret = req.headers.get('x-cron-secret');
+    const expectedSecret = Deno.env.get('CRON_SECRET');
+
+    if (!expectedSecret) {
+      console.error('CRON_SECRET not configured');
+      return new Response(
+        JSON.stringify({ error: 'Server configuration error' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (cronSecret !== expectedSecret) {
+      console.error('Invalid or missing CRON_SECRET');
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     // 2. Parse request body for force flag
     const body = await req.json().catch(() => ({}));
