@@ -94,6 +94,42 @@ export type Database = {
           },
         ]
       }
+      backorder_age_snapshot: {
+        Row: {
+          bo_fresh_0_1: number
+          bo_pressure_2_6: number
+          bo_rotten_30_plus: number
+          bo_serious_14_29: number
+          bo_urgent_7_13: number
+          capture_date_uk: string
+          created_at: string
+          id: string
+          total_onbackorder: number
+        }
+        Insert: {
+          bo_fresh_0_1?: number
+          bo_pressure_2_6?: number
+          bo_rotten_30_plus?: number
+          bo_serious_14_29?: number
+          bo_urgent_7_13?: number
+          capture_date_uk: string
+          created_at?: string
+          id?: string
+          total_onbackorder?: number
+        }
+        Update: {
+          bo_fresh_0_1?: number
+          bo_pressure_2_6?: number
+          bo_rotten_30_plus?: number
+          bo_serious_14_29?: number
+          bo_urgent_7_13?: number
+          capture_date_uk?: string
+          created_at?: string
+          id?: string
+          total_onbackorder?: number
+        }
+        Relationships: []
+      }
       barcode_types: {
         Row: {
           created_at: string | null
