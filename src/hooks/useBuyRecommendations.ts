@@ -33,7 +33,7 @@ export const useBuyRecommendations = () => {
     const saved = localStorage.getItem("buyRecommendationFilters");
     return saved ? JSON.parse(saved) : {
       search: "",
-      brandId: "",
+      brandId: "all",
       minRecommendedQty: "",
       onlyHighPriority: false,
     };
@@ -62,16 +62,19 @@ export const useBuyRecommendations = () => {
     try {
       setLoading(true);
 
+      // Query sku_stock_health and compute buy recommendations
       let query = supabase
-        .from("buy_recommendations")
-        .select("*", { count: "exact" });
+        .from("sku_stock_health")
+        .select("sku, brand_id, avg_weekly_units, on_hand_qty, base_multiplier, weeks_of_cover, health_category", { count: "exact" })
+        .in("health_category", ["Low Stock", "Critical", "Out of Stock"])
+        .gt("avg_weekly_units", 0);
 
       // Apply filters
       if (filters.search) {
         query = query.ilike("sku", `%${filters.search}%`);
       }
 
-      if (filters.brandId) {
+      if (filters.brandId && filters.brandId !== "all") {
         query = query.eq("brand_id", filters.brandId);
       }
 
@@ -94,23 +97,39 @@ export const useBuyRecommendations = () => {
       const to = from + pageSize - 1;
       query = query.range(from, to);
 
-      const { data: recommendationsData, error, count } = await query;
+      const { data: healthData, error, count } = await query;
 
       if (error) throw error;
 
       // Fetch brand names
-      const brandIds = [...new Set(recommendationsData?.map(row => row.brand_id).filter(Boolean))];
+      const brandIds = [...new Set(healthData?.map(row => row.brand_id).filter(Boolean) as string[])];
       const { data: brandsData } = await supabase
         .from("brands")
         .select("id, name")
-        .in("id", brandIds);
+        .in("id", brandIds.length > 0 ? brandIds : ['00000000-0000-0000-0000-000000000000']);
 
       const brandMap = new Map(brandsData?.map(b => [b.id, b.name]));
 
-      const enrichedData = recommendationsData?.map(row => ({
-        ...row,
-        brand_name: row.brand_id ? brandMap.get(row.brand_id) : "Unknown",
-      })) || [];
+      // Transform to buy recommendation rows with computed fields
+      const enrichedData: BuyRecommendationRow[] = (healthData || []).map(row => {
+        const avgWeekly = row.avg_weekly_units || 0;
+        const multiplier = row.base_multiplier || 4;
+        const onHand = row.on_hand_qty || 0;
+        const targetStock = Math.ceil(avgWeekly * multiplier * 4);
+        const recommendedQty = Math.max(0, targetStock - onHand);
+        
+        return {
+          sku: row.sku,
+          brand_id: row.brand_id || "",
+          brand_name: row.brand_id ? brandMap.get(row.brand_id) || "Unknown" : "Unknown",
+          avg_weekly_units: avgWeekly,
+          on_hand_qty: onHand,
+          base_multiplier: multiplier,
+          weeks_of_cover: row.weeks_of_cover || 0,
+          target_stock: targetStock,
+          recommended_purchase_qty: recommendedQty,
+        };
+      });
 
       setData(enrichedData);
       setTotalCount(count || 0);
