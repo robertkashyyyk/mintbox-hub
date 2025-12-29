@@ -3,7 +3,7 @@ import {
   TrendingUp, DollarSign, Calendar,
   ShoppingBag, Flame, TrendingDown, Package,
   ShoppingCart, RefreshCw, Copy,
-  Users, Key, CreditCard, LogOut, UserCircle
+  Users, Key, CreditCard, LogOut, UserCircle, Gauge
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -96,6 +96,13 @@ export function AppSidebar() {
     { title: "Logs / Diagnostics", url: "/admin/logs", icon: FileText },
   ];
 
+  // Operations Sidebar Items
+  const operationsItems = [
+    { title: "Order Monitoring", url: "/operations/order-monitoring", icon: Activity },
+    { title: "Sync Status", url: "/operations/sync-status", icon: RefreshCw },
+    { title: "System Health", url: "/operations/system-health", icon: Gauge },
+  ];
+
   // Determine which sidebar to show based on current path
   const getModuleSidebar = () => {
     if (currentPath.startsWith('/discovery')) {
@@ -109,6 +116,9 @@ export function AppSidebar() {
     }
     if (currentPath.startsWith('/execution')) {
       return { label: "Execution", items: executionItems };
+    }
+    if (currentPath.startsWith('/operations')) {
+      return { label: "Operations", items: operationsItems };
     }
     if (currentPath.startsWith('/admin')) {
       return { label: "Administration", items: adminItems };

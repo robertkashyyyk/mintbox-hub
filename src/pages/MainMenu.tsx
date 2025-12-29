@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Search, BarChart3, Sparkles, PlayCircle, Users, UserCircle } from "lucide-react";
+import { Search, BarChart3, Sparkles, PlayCircle, Users, UserCircle, Activity } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
@@ -64,6 +64,14 @@ const MainMenu = () => {
       icon: PlayCircle,
       color: "text-orange-500",
       path: "/execution",
+      show: isSeniorUser || isSuperUser,
+    },
+    {
+      title: "Operations",
+      description: "Order monitoring, sync status, and system health.",
+      icon: Activity,
+      color: "text-amber-500",
+      path: "/operations",
       show: isSeniorUser || isSuperUser,
     },
     {

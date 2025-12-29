@@ -3,7 +3,6 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { DownloadHistory } from "@/components/dashboard/DownloadHistory";
 import { OrderTracking } from "@/components/dashboard/OrderTracking";
-import { OrderStatusSnapshots } from "@/components/dashboard/OrderStatusSnapshots";
 import { SyncControl } from "@/components/dashboard/SyncControl";
 import { SyncHistory } from "@/components/dashboard/SyncHistory";
 
@@ -20,8 +19,6 @@ const Dashboard = () => {
 
   return (
     <div className="space-y-8">
-      <OrderStatusSnapshots />
-
       <SyncControl />
 
       <SyncHistory />

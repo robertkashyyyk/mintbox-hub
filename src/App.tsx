@@ -33,6 +33,10 @@ import IntelligenceIndex from "./pages/IntelligenceIndex";
 import DecisionsIndex from "./pages/DecisionsIndex";
 import ExecutionIndex from "./pages/ExecutionIndex";
 import AdminIndex from "./pages/AdminIndex";
+import OperationsIndex from "./pages/OperationsIndex";
+
+// Operations Pages
+import OrderMonitoring from "./pages/operations/OrderMonitoring";
 
 // Discovery Pages
 import DiscoveryQueue from "./pages/discovery/DiscoveryQueue";
@@ -72,6 +76,7 @@ const App = () => (
           <Route path="/intelligence" element={<IntelligenceIndex />} />
           <Route path="/decisions" element={<DecisionsIndex />} />
           <Route path="/execution" element={<ExecutionIndex />} />
+          <Route path="/operations" element={<OperationsIndex />} />
           <Route path="/admin" element={<AdminIndex />} />
           
           <Route element={<DashboardLayout />}>
@@ -108,6 +113,9 @@ const App = () => (
             <Route path="/admin/api-keys" element={<ApiAccess />} />
             <Route path="/admin/billing" element={<BillingUsage />} />
             <Route path="/admin/logs" element={<LogsDiagnostics />} />
+
+            {/* Operations Sub-Routes */}
+            <Route path="/operations/order-monitoring" element={<OrderMonitoring />} />
 
             {/* Legacy Pages (Still Accessible) */}
             <Route path="/ebay-admin" element={<EbayAdmin />} />
