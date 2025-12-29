@@ -17,3 +17,9 @@ verify_jwt = false
 
 [functions.mintsoft-order-snapshot]
 verify_jwt = false
+
+[functions.mintsoft-statuses]
+verify_jwt = false
+
+[functions.mintsoft-backorder-age-snapshot]
+verify_jwt = false
