@@ -2,7 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.7";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-cron-secret',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
 interface MintsoftStatus {
@@ -65,19 +65,8 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Step 1: Validate CRON_SECRET
-    const cronSecret = req.headers.get('x-cron-secret');
-    const expectedSecret = Deno.env.get('CRON_SECRET');
-    
-    console.log(`CRON_SECRET validation - received: "${cronSecret?.substring(0, 8)}..." expected: "${expectedSecret?.substring(0, 8)}..."`);
-    
-    if (!cronSecret || cronSecret !== expectedSecret) {
-      console.error('Invalid or missing CRON_SECRET');
-      return new Response(
-        JSON.stringify({ status: 'error', message: 'Unauthorized' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
-      );
-    }
+    // JWT auth is handled by Supabase (verify_jwt = true in config.toml)
+    // Service role key provides authentication for cron-triggered calls
 
     // Step 2: Parse and validate slot from request body
     const body = await req.json().catch(() => ({}));
