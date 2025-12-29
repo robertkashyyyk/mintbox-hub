@@ -225,11 +225,23 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 2. Check UK time window (07:25-07:35)
-    const ukTime = getUKTimeComponents();
-    console.log(`UK time: ${ukTime.hour}:${ukTime.minute}, date: ${ukTime.dateString}`);
+    // 2. Parse request body for force flag
+    const body = await req.json().catch(() => ({}));
+    const force = body.force === true;
 
-    if (!isWithinWindow(ukTime)) {
+    // 3. Check UK time window (07:25-07:35)
+    const ukTime = getUKTimeComponents();
+    console.log(`UK time: ${ukTime.hour}:${ukTime.minute}, date: ${ukTime.dateString}, force: ${force}`);
+
+    // Check if force override is allowed
+    const allowForceRun = Deno.env.get('ALLOW_FORCE_RUN') === 'true';
+    const shouldBypassWindow = force && allowForceRun;
+
+    if (shouldBypassWindow) {
+      console.log('⚠️ FORCE RUN: Bypassing time window check (ALLOW_FORCE_RUN=true)');
+    }
+
+    if (!shouldBypassWindow && !isWithinWindow(ukTime)) {
       console.log('Outside valid window (07:25-07:35), skipping');
       return new Response(
         JSON.stringify({ 
