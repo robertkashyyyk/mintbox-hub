@@ -485,6 +485,27 @@ export type Database = {
         }
         Relationships: []
       }
+      mintsoft_status_cache: {
+        Row: {
+          cached_at: string
+          external_name: string
+          id: string
+          status_id: number
+        }
+        Insert: {
+          cached_at?: string
+          external_name: string
+          id?: string
+          status_id: number
+        }
+        Update: {
+          cached_at?: string
+          external_name?: string
+          id?: string
+          status_id?: number
+        }
+        Relationships: []
+      }
       notifications: {
         Row: {
           created_at: string | null
@@ -577,6 +598,48 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      order_status_snapshots: {
+        Row: {
+          awaitingpicking_count: number
+          capture_date_uk: string
+          captured_at: string
+          created_at: string
+          error_message: string | null
+          id: string
+          new_count: number
+          onbackorder_count: number
+          picked_count: number
+          run_ok: boolean
+          slot: string
+        }
+        Insert: {
+          awaitingpicking_count?: number
+          capture_date_uk: string
+          captured_at?: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          new_count?: number
+          onbackorder_count?: number
+          picked_count?: number
+          run_ok?: boolean
+          slot: string
+        }
+        Update: {
+          awaitingpicking_count?: number
+          capture_date_uk?: string
+          captured_at?: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          new_count?: number
+          onbackorder_count?: number
+          picked_count?: number
+          run_ok?: boolean
+          slot?: string
+        }
+        Relationships: []
       }
       order_tracking: {
         Row: {
@@ -1313,6 +1376,38 @@ export type Database = {
             referencedColumns: ["email_id"]
           },
         ]
+      }
+      order_status_snapshot_latest: {
+        Row: {
+          awaitingpicking_count: number | null
+          capture_date_uk: string | null
+          captured_at: string | null
+          new_count: number | null
+          onbackorder_count: number | null
+          picked_count: number | null
+          slot: string | null
+        }
+        Relationships: []
+      }
+      order_status_snapshot_today: {
+        Row: {
+          am_awaitingpicking: number | null
+          am_captured_at: string | null
+          am_new: number | null
+          am_onbackorder: number | null
+          am_picked: number | null
+          date_uk: string | null
+          delta_awaitingpicking: number | null
+          delta_new: number | null
+          delta_onbackorder: number | null
+          delta_picked: number | null
+          pm_awaitingpicking: number | null
+          pm_captured_at: string | null
+          pm_new: number | null
+          pm_onbackorder: number | null
+          pm_picked: number | null
+        }
+        Relationships: []
       }
       products_need_ordering: {
         Row: {
