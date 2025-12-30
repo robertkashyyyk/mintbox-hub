@@ -3,6 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import ErrorBoundary from "@/components/ErrorBoundary";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import MainMenu from "./pages/MainMenu";
@@ -57,14 +58,39 @@ import BundleSuggestions from "./pages/decisions/BundleSuggestions";
 import BillingUsage from "./pages/admin/BillingUsage";
 import LogsDiagnostics from "./pages/admin/LogsDiagnostics";
 
-const queryClient = new QueryClient();
+// Configure QueryClient with better error handling and retry logic
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      // Retry network errors but not 4xx errors
+      retry: (failureCount, error) => {
+        // Don't retry on auth errors (401, 403)
+        if (error && typeof error === 'object' && 'status' in error) {
+          const status = (error as { status: number }).status;
+          if (status === 401 || status === 403) return false;
+        }
+        // Retry up to 2 times for other errors
+        return failureCount < 2;
+      },
+      // Stale time of 30 seconds
+      staleTime: 30 * 1000,
+      // Refetch on window focus
+      refetchOnWindowFocus: true,
+    },
+    mutations: {
+      // Don't retry mutations by default
+      retry: false,
+    },
+  },
+});
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
+      <ErrorBoundary>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/auth" element={<Auth />} />
@@ -152,6 +178,7 @@ const App = () => (
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
+      </ErrorBoundary>
     </TooltipProvider>
   </QueryClientProvider>
 );
