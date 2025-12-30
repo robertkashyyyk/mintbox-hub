@@ -45,8 +45,10 @@ export function SnapshotControls() {
       // Invalidate queries to refresh the UI
       queryClient.invalidateQueries({ queryKey: ["order-status-snapshot-today"] });
       queryClient.invalidateQueries({ queryKey: ["order-status-snapshot-latest"] });
-      queryClient.invalidateQueries({ queryKey: ["backorder-snapshot-today"] });
-      queryClient.invalidateQueries({ queryKey: ["backorder-snapshot-latest"] });
+      // Backorder age snapshot uses different keys - must match BackorderAgeingSnapshot.tsx
+      queryClient.invalidateQueries({ queryKey: ["backorder-age-snapshot-today"] });
+      queryClient.invalidateQueries({ queryKey: ["backorder-age-snapshot-yesterday"] });
+      queryClient.invalidateQueries({ queryKey: ["backorder-age-snapshot-latest"] });
 
       const results = data?.results;
       let message = "Snapshots run completed.";
