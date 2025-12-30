@@ -95,21 +95,21 @@ const SlotBadge = ({ slot, capturedAt }: { slot: string; capturedAt: string | nu
 
 export function OrderStatusSnapshots() {
   // Query today's snapshot data
-  const { data: todayData, isLoading: todayLoading, error: todayError } = useQuery({
+  const { data: todayData, isLoading: todayLoading, error: todayError, isSuccess: todaySuccess } = useQuery({
     queryKey: ["order-status-snapshot-today"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_status_snapshot_today")
         .select("*")
-        .single();
+        .maybeSingle();
       
-      if (error && error.code !== "PGRST116") throw error; // PGRST116 = no rows
+      if (error) throw error;
       return data as SnapshotToday | null;
     },
     refetchInterval: 60000, // Refetch every minute
   });
 
-  // Query latest snapshots as fallback
+  // Query latest snapshots as fallback - ONLY after today query has finished AND returned null
   const { data: latestData, isLoading: latestLoading } = useQuery({
     queryKey: ["order-status-snapshot-latest"],
     queryFn: async () => {
@@ -122,10 +122,11 @@ export function OrderStatusSnapshots() {
       if (error) throw error;
       return data as SnapshotLatest[];
     },
-    enabled: !todayData, // Only fetch if today's data is missing
+    // Only fetch fallback when today query succeeded but returned no data
+    enabled: todaySuccess && !todayData,
   });
 
-  const isLoading = todayLoading || latestLoading;
+  const isLoading = todayLoading || (todaySuccess && !todayData && latestLoading);
   const hasData = todayData || (latestData && latestData.length > 0);
 
   if (isLoading) {
