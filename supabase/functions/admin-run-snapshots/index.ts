@@ -115,6 +115,7 @@ Deno.serve(async (req) => {
     const runOrderSnapshot = body.order_snapshot !== false;
     const runBackorderSnapshot = body.backorder_snapshot !== false;
     const slot = body.slot || 'AM';
+    const overwriteExisting = body.overwrite_existing === true;
 
     if (!['AM', 'PM'].includes(slot)) {
       return new Response(
@@ -122,6 +123,8 @@ Deno.serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    console.log(`Options: slot=${slot}, overwrite=${overwriteExisting}`);
 
     const results: { order_snapshot?: any; backorder_snapshot?: any } = {};
     const ukDateStr = getUKDateString();
@@ -277,7 +280,7 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Insert or skip if exists
+      // Insert, update (if overwrite), or skip if exists
       const { data: orderSnapshotData, error: orderInsertError } = await adminClient
         .from('order_status_snapshots')
         .insert({
@@ -294,7 +297,30 @@ Deno.serve(async (req) => {
 
       if (orderInsertError) {
         if (orderInsertError.code === '23505') {
-          results.order_snapshot = { status: 'already_exists', slot, capture_date_uk: ukDateStr };
+          // Duplicate exists
+          if (overwriteExisting) {
+            console.log(`Overwriting existing order snapshot for ${ukDateStr} ${slot}`);
+            const { error: updateError } = await adminClient
+              .from('order_status_snapshots')
+              .update({
+                new_count: counts.NEW,
+                onbackorder_count: counts.ONBACKORDER,
+                awaitingpicking_count: counts.AWAITINGPICKING,
+                picked_count: counts.PICKED,
+                captured_at: new Date().toISOString(),
+                run_ok: true,
+                error_message: null,
+              })
+              .eq('capture_date_uk', ukDateStr)
+              .eq('slot', slot);
+
+            if (updateError) {
+              throw updateError;
+            }
+            results.order_snapshot = { status: 'updated', counts, slot, capture_date_uk: ukDateStr };
+          } else {
+            results.order_snapshot = { status: 'already_exists', slot, capture_date_uk: ukDateStr };
+          }
         } else {
           throw orderInsertError;
         }
@@ -371,7 +397,7 @@ Deno.serve(async (req) => {
 
       const totalOnBackorder = Object.values(bucketCounts).reduce((sum, count) => sum + count, 0);
 
-      // Insert or skip if exists
+      // Insert, update (if overwrite), or skip if exists
       const { data: backorderData, error: backorderInsertError } = await adminClient
         .from('backorder_age_snapshot')
         .insert({
@@ -384,7 +410,29 @@ Deno.serve(async (req) => {
 
       if (backorderInsertError) {
         if (backorderInsertError.code === '23505') {
-          results.backorder_snapshot = { status: 'already_exists', capture_date_uk: ukDateStr };
+          // Duplicate exists
+          if (overwriteExisting) {
+            console.log(`Overwriting existing backorder snapshot for ${ukDateStr}`);
+            const { error: updateError } = await adminClient
+              .from('backorder_age_snapshot')
+              .update({
+                total_onbackorder: totalOnBackorder,
+                ...bucketCounts,
+              })
+              .eq('capture_date_uk', ukDateStr);
+
+            if (updateError) {
+              throw updateError;
+            }
+            results.backorder_snapshot = { 
+              status: 'updated', 
+              capture_date_uk: ukDateStr, 
+              total_onbackorder: totalOnBackorder,
+              buckets: bucketCounts 
+            };
+          } else {
+            results.backorder_snapshot = { status: 'already_exists', capture_date_uk: ukDateStr };
+          }
         } else {
           throw backorderInsertError;
         }

@@ -23,6 +23,7 @@ export function SnapshotControls() {
   const [slot, setSlot] = useState<string>("AM");
   const [runOrderSnapshot, setRunOrderSnapshot] = useState(true);
   const [runBackorderSnapshot, setRunBackorderSnapshot] = useState(true);
+  const [overwriteExisting, setOverwriteExisting] = useState(false);
 
   const runSnapshotsMutation = useMutation({
     mutationFn: async () => {
@@ -33,6 +34,7 @@ export function SnapshotControls() {
             slot,
             order_snapshot: runOrderSnapshot,
             backorder_snapshot: runBackorderSnapshot,
+            overwrite_existing: overwriteExisting,
           },
         }
       );
@@ -54,13 +56,17 @@ export function SnapshotControls() {
       let message = "Snapshots run completed.";
       
       if (results?.order_snapshot?.status === "already_exists") {
-        message += ` Order snapshot (${slot}) already exists.`;
+        message += ` Order snapshot (${slot}) already exists — enable overwrite to update.`;
+      } else if (results?.order_snapshot?.status === "updated") {
+        message += ` Order snapshot (${slot}) updated (overwritten).`;
       } else if (results?.order_snapshot?.status === "success") {
         message += ` Order snapshot (${slot}) captured.`;
       }
       
       if (results?.backorder_snapshot?.status === "already_exists") {
-        message += " Backorder snapshot already exists.";
+        message += " Backorder snapshot already exists — enable overwrite to update.";
+      } else if (results?.backorder_snapshot?.status === "updated") {
+        message += " Backorder snapshot updated (overwritten).";
       } else if (results?.backorder_snapshot?.status === "success") {
         message += ` Backorder snapshot captured (${results.backorder_snapshot.total_onbackorder} orders).`;
       }
@@ -122,6 +128,17 @@ export function SnapshotControls() {
             />
             <Label htmlFor="backorder-snapshot" className="text-sm cursor-pointer">
               Backorder Age
+            </Label>
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="overwrite-existing"
+              checked={overwriteExisting}
+              onCheckedChange={(checked) => setOverwriteExisting(checked === true)}
+            />
+            <Label htmlFor="overwrite-existing" className="text-sm cursor-pointer text-muted-foreground">
+              Overwrite existing
             </Label>
           </div>
         </div>
