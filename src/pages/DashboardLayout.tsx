@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Outlet, useNavigate } from "react-router-dom";
+import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Session } from "@supabase/supabase-js";
 import { Button } from "@/components/ui/button";
@@ -7,32 +7,38 @@ import { useToast } from "@/hooks/use-toast";
 import { NotificationBell } from "@/components/dashboard/NotificationBell";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
-import { LogOut } from "lucide-react";
+import { LogOut, Loader2 } from "lucide-react";
 
 const DashboardLayout = () => {
   const [session, setSession] = useState<Session | null>(null);
+  const [isCheckingSession, setIsCheckingSession] = useState(true);
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      if (!session) {
-        navigate("/auth");
-      }
-    });
-
+    // Set up auth state listener FIRST
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
+      // Only redirect if we've finished the initial check and there's no session
+      if (!isCheckingSession && !session) {
+        navigate("/auth", { state: { from: location.pathname } });
+      }
+    });
+
+    // THEN check for existing session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setIsCheckingSession(false);
       if (!session) {
-        navigate("/auth");
+        navigate("/auth", { state: { from: location.pathname } });
       }
     });
 
     return () => subscription.unsubscribe();
-  }, [navigate]);
+  }, [navigate, location.pathname, isCheckingSession]);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -43,6 +49,19 @@ const DashboardLayout = () => {
     navigate("/auth");
   };
 
+  // Show loading state while checking session
+  if (isCheckingSession) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">Checking session...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Don't render anything if no session (redirect will happen)
   if (!session) {
     return null;
   }
