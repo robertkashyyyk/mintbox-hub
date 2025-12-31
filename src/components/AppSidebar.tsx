@@ -45,17 +45,14 @@ interface NavGroup {
 }
 
 export function AppSidebar() {
+  // ALL hooks must be called at the top, before any conditional returns
   const { open } = useSidebar();
   const location = useLocation();
   const navigate = useNavigate();
   const currentPath = location.pathname;
   const { data: rbacEnabled } = useRbacEnabled();
 
-  // If RBAC navigation is enabled, use the new RBAC sidebar
-  if (rbacEnabled) {
-    return <RbacSidebar />;
-  }
-
+  // Move useQuery to top (before any conditional return)
   const { data: userRoles } = useQuery({
     queryKey: ["current-user-roles"],
     queryFn: async () => {
@@ -70,10 +67,7 @@ export function AppSidebar() {
     },
   });
 
-  const isSuperUser = userRoles?.some((r: any) => r.role === "super_user");
-  const isSeniorUser = userRoles?.some((r: any) => r.role === "senior_user");
-  const isSeniorOrSuper = isSeniorUser || isSuperUser;
-
+  // Define navGroups before useState that depends on it
   const navGroups: NavGroup[] = [
     {
       label: "Discovery",
@@ -156,6 +150,7 @@ export function AppSidebar() {
         { title: "API Access", url: "/admin/api-keys", icon: Key },
         { title: "Billing & Usage", url: "/admin/billing", icon: CreditCard },
         { title: "Logs / Diagnostics", url: "/admin/logs", icon: FileText },
+        { title: "System Settings", url: "/admin/settings", icon: Settings },
       ],
     },
   ];
@@ -175,6 +170,16 @@ export function AppSidebar() {
     }
   }, [currentPath]);
 
+  // NOW conditional return is safe - all hooks already ran
+  if (rbacEnabled) {
+    return <RbacSidebar />;
+  }
+
+  // Non-hook logic after the conditional return
+  const isSuperUser = userRoles?.some((r: any) => r.role === "super_user");
+  const isSeniorUser = userRoles?.some((r: any) => r.role === "senior_user");
+  const isSeniorOrSuper = isSeniorUser || isSuperUser;
+
   const toggleGroup = (label: string) => {
     setOpenGroups(prev => {
       const newSet = new Set(prev);
@@ -188,7 +193,6 @@ export function AppSidebar() {
   };
 
   const isActive = (path: string) => currentPath.startsWith(path);
-  const isGroupActive = (basePath: string) => currentPath.startsWith(basePath);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
