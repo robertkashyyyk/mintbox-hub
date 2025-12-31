@@ -23,3 +23,6 @@ verify_jwt = false
 
 [functions.mintsoft-backorder-age-snapshot]
 verify_jwt = false
+
+[functions.send-ops-weekly-report]
+verify_jwt = false
