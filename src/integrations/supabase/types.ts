@@ -575,6 +575,63 @@ export type Database = {
         }
         Relationships: []
       }
+      ops_report_log: {
+        Row: {
+          error_message: string | null
+          id: string
+          recipients_count: number
+          report_type: string
+          sent_at: string
+          status: string
+          week_ending: string | null
+        }
+        Insert: {
+          error_message?: string | null
+          id?: string
+          recipients_count?: number
+          report_type?: string
+          sent_at?: string
+          status?: string
+          week_ending?: string | null
+        }
+        Update: {
+          error_message?: string | null
+          id?: string
+          recipients_count?: number
+          report_type?: string
+          sent_at?: string
+          status?: string
+          week_ending?: string | null
+        }
+        Relationships: []
+      }
+      ops_report_subscribers: {
+        Row: {
+          created_at: string
+          email: string
+          enabled: boolean
+          id: string
+          name: string
+          report_type: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          enabled?: boolean
+          id?: string
+          name: string
+          report_type?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          enabled?: boolean
+          id?: string
+          name?: string
+          report_type?: string
+        }
+        Relationships: []
+      }
       order_lines: {
         Row: {
           brand_id: string | null
@@ -1412,6 +1469,50 @@ export type Database = {
             referencedColumns: ["email_id"]
           },
         ]
+      }
+      ops_backorder_daily_delta: {
+        Row: {
+          bo_fresh_0_1: number | null
+          bo_pressure_2_6: number | null
+          bo_rotten_30_plus: number | null
+          bo_serious_14_29: number | null
+          bo_urgent_7_13: number | null
+          capture_date_uk: string | null
+          created_at: string | null
+          delta_fresh: number | null
+          delta_pressure: number | null
+          delta_rotten: number | null
+          delta_serious: number | null
+          delta_total: number | null
+          delta_urgent: number | null
+          total_onbackorder: number | null
+        }
+        Relationships: []
+      }
+      ops_backorder_weekly_summary: {
+        Row: {
+          current_rotten: number | null
+          current_serious: number | null
+          current_total: number | null
+          current_urgent: number | null
+          net_change: number | null
+          week_end: string | null
+          week_start: string | null
+          week_start_rotten: number | null
+          week_start_serious: number | null
+          week_start_total: number | null
+          week_start_urgent: number | null
+        }
+        Relationships: []
+      }
+      ops_exceptions_today: {
+        Row: {
+          backorders_rising_trend: boolean | null
+          picking_not_cleared: boolean | null
+          rotten_increased: boolean | null
+          serious_increased: boolean | null
+        }
+        Relationships: []
       }
       order_status_snapshot_latest: {
         Row: {

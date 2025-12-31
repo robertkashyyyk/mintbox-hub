@@ -1,14 +1,29 @@
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Activity, RefreshCw, Gauge } from "lucide-react";
+import { ArrowLeft, LayoutDashboard, FileText, Activity, RefreshCw, Gauge } from "lucide-react";
 
 const OperationsIndex = () => {
   const navigate = useNavigate();
 
   const options = [
     {
-      title: "Order Monitoring",
+      title: "Dashboard",
+      description: "Operational health at a glance - backorders, throughput, exceptions",
+      icon: LayoutDashboard,
+      color: "text-primary",
+      onClick: () => navigate("/operations/dashboard"),
+      primary: true,
+    },
+    {
+      title: "Reports",
+      description: "Weekly ops reports and subscriber management",
+      icon: FileText,
+      color: "text-purple-500",
+      onClick: () => navigate("/operations/reports"),
+    },
+    {
+      title: "Monitoring",
       description: "Track order status snapshots and daily progress",
       icon: Activity,
       color: "text-amber-500",
@@ -40,7 +55,7 @@ const OperationsIndex = () => {
             </Button>
             <div>
               <h1 className="text-2xl font-bold">Operations</h1>
-              <p className="text-sm text-muted-foreground">Order monitoring, sync status, and system health</p>
+              <p className="text-sm text-muted-foreground">Dashboard, reports, monitoring, and system health</p>
             </div>
           </div>
         </div>
@@ -51,7 +66,7 @@ const OperationsIndex = () => {
           {options.map((option) => (
             <Card
               key={option.title}
-              className="cursor-pointer hover:shadow-lg transition-shadow"
+              className={`cursor-pointer hover:shadow-lg transition-shadow ${option.primary ? 'border-primary/50 bg-primary/5' : ''}`}
               onClick={option.onClick}
             >
               <CardHeader>
@@ -62,7 +77,7 @@ const OperationsIndex = () => {
                 <CardDescription>{option.description}</CardDescription>
               </CardHeader>
               <CardContent>
-                <Button className="w-full" variant="secondary">
+                <Button className="w-full" variant={option.primary ? "default" : "secondary"}>
                   Open
                 </Button>
               </CardContent>

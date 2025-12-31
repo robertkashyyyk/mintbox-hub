@@ -40,6 +40,8 @@ import DashboardsIndex from "./pages/DashboardsIndex";
 
 // Operations Pages
 import OrderMonitoring from "./pages/operations/OrderMonitoring";
+import OpsDashboard from "./pages/operations/OpsDashboard";
+import OpsReports from "./pages/operations/OpsReports";
 
 // Discovery Pages
 import DiscoveryQueue from "./pages/discovery/DiscoveryQueue";
@@ -152,6 +154,8 @@ const App = () => (
             <Route path="/admin/logs" element={<LogsDiagnostics />} />
 
             {/* Operations Sub-Routes */}
+            <Route path="/operations/dashboard" element={<OpsDashboard />} />
+            <Route path="/operations/reports" element={<OpsReports />} />
             <Route path="/operations/order-monitoring" element={<OrderMonitoring />} />
 
             {/* Dashboards Sub-Routes */}
