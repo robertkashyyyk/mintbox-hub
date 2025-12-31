@@ -31,6 +31,9 @@ export const useMenuForUser = () => {
         .select('*')
         .order('sort_order');
 
+      console.log('[RBAC Menu] data:', data);
+      console.log('[RBAC Menu] error:', error);
+
       if (error) {
         console.error('Error fetching menu:', error);
         throw error;

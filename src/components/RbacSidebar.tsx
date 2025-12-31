@@ -5,6 +5,7 @@ import { LucideIcon, Home, LogOut, User, Settings, ChevronRight } from "lucide-r
 import { supabase } from "@/integrations/supabase/client";
 import { useMenuForUser, MenuGroup } from "@/hooks/useMenuForUser";
 import { NavLink } from "@/components/NavLink";
+import { cn } from "@/lib/utils";
 import {
   Sidebar,
   SidebarContent,
@@ -23,7 +24,7 @@ import {
 } from "@/components/ui/collapsible";
 import { Skeleton } from "@/components/ui/skeleton";
 
-// Icon map for dynamic icon lookup
+// Icon map for dynamic icon lookup - includes Settings
 const iconMap: Record<string, LucideIcon> = {
   Search: Icons.Search,
   Package: Icons.Package,
@@ -56,6 +57,7 @@ const iconMap: Record<string, LucideIcon> = {
   Terminal: Icons.Terminal,
   Warehouse: Icons.Warehouse,
   CalendarDays: Icons.CalendarDays,
+  Settings: Icons.Settings,
 };
 
 const getIcon = (iconName: string | null): LucideIcon => {
@@ -168,17 +170,37 @@ export const RbacSidebar = () => {
           return (
             <SidebarGroup key={group.key}>
               <Collapsible open={isOpen} onOpenChange={() => toggleGroup(group.key)}>
-                <CollapsibleTrigger asChild>
-                  <SidebarGroupLabel className="cursor-pointer hover:bg-accent/50 rounded-md transition-colors flex items-center justify-between pr-2">
-                    <span className="flex items-center gap-2">
+                {/* Group header: text is clickable link, chevron toggles collapse */}
+                <SidebarGroupLabel className="flex items-center justify-between pr-2 hover:bg-accent/50 rounded-md transition-colors">
+                  {group.routePath ? (
+                    <NavLink
+                      to={group.routePath}
+                      className="flex items-center gap-2 flex-1 py-1"
+                      activeClassName="text-primary font-medium"
+                    >
+                      <GroupIcon className="h-4 w-4" />
+                      <span>{group.label}</span>
+                    </NavLink>
+                  ) : (
+                    <span className="flex items-center gap-2 flex-1">
                       <GroupIcon className="h-4 w-4" />
                       {group.label}
                     </span>
-                    <ChevronRight 
-                      className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-90' : ''}`} 
-                    />
-                  </SidebarGroupLabel>
-                </CollapsibleTrigger>
+                  )}
+                  <CollapsibleTrigger asChild>
+                    <button 
+                      className="p-1 hover:bg-muted rounded transition-colors"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <ChevronRight 
+                        className={cn(
+                          "h-4 w-4 transition-transform",
+                          isOpen && "rotate-90"
+                        )} 
+                      />
+                    </button>
+                  </CollapsibleTrigger>
+                </SidebarGroupLabel>
                 <CollapsibleContent>
                   <SidebarGroupContent>
                     <SidebarMenu>
