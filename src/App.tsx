@@ -18,6 +18,7 @@ import Brands from "./pages/Brands";
 import EbayAdmin from "./pages/EbayAdmin";
 import ApiAccess from "./pages/ApiAccess";
 import Profile from "./pages/Profile";
+import Settings from "./pages/Settings";
 import MissingCostPrices from "./pages/MissingCostPrices";
 import ProblematicOrders from "./pages/ProblematicOrders";
 import NotFound from "./pages/NotFound";
@@ -35,6 +36,7 @@ import DecisionsIndex from "./pages/DecisionsIndex";
 import ExecutionIndex from "./pages/ExecutionIndex";
 import AdminIndex from "./pages/AdminIndex";
 import OperationsIndex from "./pages/OperationsIndex";
+import DashboardsIndex from "./pages/DashboardsIndex";
 
 // Operations Pages
 import OrderMonitoring from "./pages/operations/OrderMonitoring";
@@ -57,6 +59,11 @@ import BundleSuggestions from "./pages/decisions/BundleSuggestions";
 // Admin Pages
 import BillingUsage from "./pages/admin/BillingUsage";
 import LogsDiagnostics from "./pages/admin/LogsDiagnostics";
+
+// Dashboard Pages
+import WarehousePerformance from "./pages/dashboards/WarehousePerformance";
+import PackingAreaDisplay from "./pages/dashboards/PackingAreaDisplay";
+import WeeklySummary from "./pages/dashboards/WeeklySummary";
 
 // Configure QueryClient with better error handling and retry logic
 const queryClient = new QueryClient({
@@ -94,18 +101,22 @@ const App = () => (
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/auth" element={<Auth />} />
-          <Route path="/menu" element={<MainMenu />} />
           <Route path="/access-denied" element={<AccessDenied />} />
           
-          {/* Module Index Routes */}
-          <Route path="/discovery" element={<DiscoveryIndex />} />
-          <Route path="/intelligence" element={<IntelligenceIndex />} />
-          <Route path="/decisions" element={<DecisionsIndex />} />
-          <Route path="/execution" element={<ExecutionIndex />} />
-          <Route path="/operations" element={<OperationsIndex />} />
-          <Route path="/admin" element={<AdminIndex />} />
-          
+          {/* All authenticated routes wrapped in DashboardLayout for sidebar visibility */}
           <Route element={<DashboardLayout />}>
+            {/* Main Menu */}
+            <Route path="/menu" element={<MainMenu />} />
+            
+            {/* Module Index Pages */}
+            <Route path="/discovery" element={<DiscoveryIndex />} />
+            <Route path="/intelligence" element={<IntelligenceIndex />} />
+            <Route path="/decisions" element={<DecisionsIndex />} />
+            <Route path="/execution" element={<ExecutionIndex />} />
+            <Route path="/operations" element={<OperationsIndex />} />
+            <Route path="/admin" element={<AdminIndex />} />
+            <Route path="/dashboards" element={<DashboardsIndex />} />
+
             {/* Discovery Sub-Routes */}
             <Route path="/discovery/products" element={<SkuDatabase />} />
             <Route path="/discovery/products/:id" element={<ProductDetail />} />
@@ -143,11 +154,19 @@ const App = () => (
             {/* Operations Sub-Routes */}
             <Route path="/operations/order-monitoring" element={<OrderMonitoring />} />
 
+            {/* Dashboards Sub-Routes */}
+            <Route path="/dashboards/warehouse" element={<WarehousePerformance />} />
+            <Route path="/dashboards/packing" element={<PackingAreaDisplay />} />
+            <Route path="/dashboards/weekly" element={<WeeklySummary />} />
+
+            {/* Settings & Profile */}
+            <Route path="/settings" element={<Settings />} />
+            <Route path="/profile" element={<Profile />} />
+
             {/* Legacy Pages (Still Accessible) */}
             <Route path="/ebay-admin" element={<EbayAdmin />} />
             <Route path="/missing-cost-prices" element={<MissingCostPrices />} />
             <Route path="/problematic-orders" element={<ProblematicOrders />} />
-            <Route path="/profile" element={<Profile />} />
           </Route>
 
           {/* Legacy Redirects */}
