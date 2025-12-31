@@ -12,6 +12,8 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { useRbacEnabled } from "@/hooks/useRbacEnabled";
+import { RbacSidebar } from "@/components/RbacSidebar";
 
 import {
   Sidebar,
@@ -47,6 +49,12 @@ export function AppSidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const currentPath = location.pathname;
+  const { data: rbacEnabled } = useRbacEnabled();
+
+  // If RBAC navigation is enabled, use the new RBAC sidebar
+  if (rbacEnabled) {
+    return <RbacSidebar />;
+  }
 
   const { data: userRoles } = useQuery({
     queryKey: ["current-user-roles"],
