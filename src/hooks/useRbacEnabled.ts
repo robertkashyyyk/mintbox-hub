@@ -18,6 +18,7 @@ export const useRbacEnabled = () => {
 
       return data?.value === true;
     },
-    staleTime: 60 * 1000, // Cache for 1 minute
+    staleTime: 0,
+    refetchOnWindowFocus: true,
   });
 };

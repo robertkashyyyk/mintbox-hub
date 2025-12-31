@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, Key, CreditCard, FileText, ArrowLeft } from "lucide-react";
+import { Users, Key, CreditCard, FileText, ArrowLeft, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const AdminIndex = () => {
@@ -34,6 +34,13 @@ const AdminIndex = () => {
       icon: FileText,
       color: "text-slate-500",
       onClick: () => navigate("/admin/logs"),
+    },
+    {
+      title: "System Settings",
+      description: "Application-wide configuration and feature flags",
+      icon: Settings,
+      color: "text-orange-500",
+      onClick: () => navigate("/admin/settings"),
     },
   ];
 
