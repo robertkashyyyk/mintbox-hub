@@ -94,6 +94,27 @@ export type Database = {
           },
         ]
       }
+      app_settings: {
+        Row: {
+          description: string | null
+          key: string
+          updated_at: string
+          value: Json
+        }
+        Insert: {
+          description?: string | null
+          key: string
+          updated_at?: string
+          value?: Json
+        }
+        Update: {
+          description?: string | null
+          key?: string
+          updated_at?: string
+          value?: Json
+        }
+        Relationships: []
+      }
       backorder_age_snapshot: {
         Row: {
           bo_fresh_0_1: number
@@ -1218,6 +1239,57 @@ export type Database = {
         }
         Relationships: []
       }
+      role_area_permissions: {
+        Row: {
+          area_key: string
+          capability: Database["public"]["Enums"]["app_capability"]
+          role: Database["public"]["Enums"]["rbac_role"]
+        }
+        Insert: {
+          area_key: string
+          capability?: Database["public"]["Enums"]["app_capability"]
+          role: Database["public"]["Enums"]["rbac_role"]
+        }
+        Update: {
+          area_key?: string
+          capability?: Database["public"]["Enums"]["app_capability"]
+          role?: Database["public"]["Enums"]["rbac_role"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "role_area_permissions_area_key_fkey"
+            columns: ["area_key"]
+            isOneToOne: false
+            referencedRelation: "menu_for_user"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "role_area_permissions_area_key_fkey"
+            columns: ["area_key"]
+            isOneToOne: false
+            referencedRelation: "system_areas"
+            referencedColumns: ["key"]
+          },
+        ]
+      }
+      role_conflicts: {
+        Row: {
+          reason: string
+          role_a: Database["public"]["Enums"]["rbac_role"]
+          role_b: Database["public"]["Enums"]["rbac_role"]
+        }
+        Insert: {
+          reason: string
+          role_a: Database["public"]["Enums"]["rbac_role"]
+          role_b: Database["public"]["Enums"]["rbac_role"]
+        }
+        Update: {
+          reason?: string
+          role_a?: Database["public"]["Enums"]["rbac_role"]
+          role_b?: Database["public"]["Enums"]["rbac_role"]
+        }
+        Relationships: []
+      }
       sync_jobs: {
         Row: {
           brand_id: string
@@ -1272,6 +1344,51 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "brands_missing_base_multiplier"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      system_areas: {
+        Row: {
+          icon_name: string | null
+          is_menu_item: boolean
+          key: string
+          label: string
+          parent_key: string | null
+          route_path: string | null
+          sort_order: number
+        }
+        Insert: {
+          icon_name?: string | null
+          is_menu_item?: boolean
+          key: string
+          label: string
+          parent_key?: string | null
+          route_path?: string | null
+          sort_order?: number
+        }
+        Update: {
+          icon_name?: string | null
+          is_menu_item?: boolean
+          key?: string
+          label?: string
+          parent_key?: string | null
+          route_path?: string | null
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "system_areas_parent_key_fkey"
+            columns: ["parent_key"]
+            isOneToOne: false
+            referencedRelation: "menu_for_user"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "system_areas_parent_key_fkey"
+            columns: ["parent_key"]
+            isOneToOne: false
+            referencedRelation: "system_areas"
+            referencedColumns: ["key"]
           },
         ]
       }
@@ -1337,6 +1454,38 @@ export type Database = {
           used?: boolean
         }
         Relationships: []
+      }
+      user_rbac_roles: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          role: Database["public"]["Enums"]["rbac_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          role: Database["public"]["Enums"]["rbac_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          role?: Database["public"]["Enums"]["rbac_role"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_rbac_roles_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
@@ -1467,6 +1616,51 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "latest_email_per_type"
             referencedColumns: ["email_id"]
+          },
+        ]
+      }
+      menu_for_user: {
+        Row: {
+          capability: Database["public"]["Enums"]["app_capability"] | null
+          icon_name: string | null
+          key: string | null
+          label: string | null
+          parent_key: string | null
+          route_path: string | null
+          sort_order: number | null
+        }
+        Insert: {
+          capability?: never
+          icon_name?: string | null
+          key?: string | null
+          label?: string | null
+          parent_key?: string | null
+          route_path?: string | null
+          sort_order?: number | null
+        }
+        Update: {
+          capability?: never
+          icon_name?: string | null
+          key?: string | null
+          label?: string | null
+          parent_key?: string | null
+          route_path?: string | null
+          sort_order?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "system_areas_parent_key_fkey"
+            columns: ["parent_key"]
+            isOneToOne: false
+            referencedRelation: "menu_for_user"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "system_areas_parent_key_fkey"
+            columns: ["parent_key"]
+            isOneToOne: false
+            referencedRelation: "system_areas"
+            referencedColumns: ["key"]
           },
         ]
       }
@@ -1771,10 +1965,22 @@ export type Database = {
       }
     }
     Functions: {
+      capability_rank: {
+        Args: { c: Database["public"]["Enums"]["app_capability"] }
+        Returns: number
+      }
       has_any_role: {
         Args: {
           _roles: Database["public"]["Enums"]["app_role"][]
           _user_id: string
+        }
+        Returns: boolean
+      }
+      has_area_capability: {
+        Args: {
+          area_key: string
+          min_capability: Database["public"]["Enums"]["app_capability"]
+          uid?: string
         }
         Returns: boolean
       }
@@ -1785,11 +1991,25 @@ export type Database = {
         }
         Returns: boolean
       }
+      user_area_capability: {
+        Args: { area_key: string; uid?: string }
+        Returns: Database["public"]["Enums"]["app_capability"]
+      }
     }
     Enums: {
       alert_type: "LowStock" | "RemoteStock" | "BackOrders" | "Inventory"
+      app_capability: "none" | "read" | "propose" | "execute" | "admin"
       app_role: "super_user" | "senior_user" | "simple_user"
       prefix_style: "hyphen" | "slash"
+      rbac_role:
+        | "systems_controller"
+        | "commercial_governor"
+        | "inventory_steward"
+        | "operations_steward"
+        | "execution_operator"
+        | "customer_service_operator"
+        | "finance_governor"
+        | "executive_viewer"
       remote_stock_feed_type:
         | "email"
         | "google_sheet"
@@ -1926,8 +2146,19 @@ export const Constants = {
   public: {
     Enums: {
       alert_type: ["LowStock", "RemoteStock", "BackOrders", "Inventory"],
+      app_capability: ["none", "read", "propose", "execute", "admin"],
       app_role: ["super_user", "senior_user", "simple_user"],
       prefix_style: ["hyphen", "slash"],
+      rbac_role: [
+        "systems_controller",
+        "commercial_governor",
+        "inventory_steward",
+        "operations_steward",
+        "execution_operator",
+        "customer_service_operator",
+        "finance_governor",
+        "executive_viewer",
+      ],
       remote_stock_feed_type: [
         "email",
         "google_sheet",
