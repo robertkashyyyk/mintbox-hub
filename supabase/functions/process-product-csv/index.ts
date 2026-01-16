@@ -173,6 +173,7 @@ Deno.serve(async (req) => {
         upload_name: uploadName,
         items_imported: imported,
         status: "success",
+        source: "push",
       });
 
     if (historyError) {

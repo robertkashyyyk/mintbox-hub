@@ -26,3 +26,6 @@ verify_jwt = false
 
 [functions.send-ops-weekly-report]
 verify_jwt = false
+
+[functions.mintsoft-fetch-products]
+verify_jwt = false
