@@ -81,18 +81,15 @@ Deno.serve(async (req) => {
     console.log(`Fetching products with prefix: ${prefix}`);
 
     while (hasMore) {
-      const url = `${baseUrl}/api/Product/Search?ApiKey=${apiKey}`;
+      const url = `${baseUrl}/api/Product/List?PageNo=${page}&Limit=${limit}`;
       console.log(`Fetching page ${page}...`);
 
       const response = await fetch(url, {
-        method: "POST",
+        method: "GET",
         headers: {
+          "ms-apikey": apiKey,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          PageNo: page,
-          Limit: limit,
-        }),
       });
 
       if (!response.ok) {
