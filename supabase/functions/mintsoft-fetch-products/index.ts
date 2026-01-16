@@ -21,6 +21,19 @@ interface MintsoftProduct {
   HandlingTime?: number;
 }
 
+// Normalize prefix for matching - strip trailing separators
+function normalizePrefix(prefix: string): { original: string; normalized: string } {
+  const original = prefix.trim().toUpperCase();
+  const normalized = original.replace(/[-/]+$/, ""); // Remove trailing - or /
+  return { original, normalized };
+}
+
+// Check if SKU matches the prefix (handles both ZAP- and ZAP formats)
+function skuMatchesPrefix(sku: string, prefixes: { original: string; normalized: string }): boolean {
+  const skuUpper = sku.toUpperCase();
+  return skuUpper.startsWith(prefixes.original) || skuUpper.startsWith(prefixes.normalized);
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -42,6 +55,10 @@ Deno.serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    // Normalize the prefix for flexible matching
+    const prefixes = normalizePrefix(prefix);
+    console.log(`Prefix matching: original="${prefixes.original}", normalized="${prefixes.normalized}"`);
 
     // Get Mintsoft credentials from Supabase
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -72,15 +89,21 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Configuration
+    const limit = 100;
+    const MAX_PAGES_PREVIEW = 10; // Cap for preview mode to avoid timeout
+    const MAX_PAGES_IMPORT = 500; // Higher cap for import
+    const maxPages = mode === "preview" ? MAX_PAGES_PREVIEW : MAX_PAGES_IMPORT;
+
     // Fetch products from Mintsoft with pagination
     const allProducts: MintsoftProduct[] = [];
     let page = 1;
-    const limit = 100;
     let hasMore = true;
+    let truncated = false;
 
-    console.log(`Fetching products with prefix: ${prefix}`);
+    console.log(`Fetching products with prefix: ${prefix} (mode: ${mode})`);
 
-    while (hasMore) {
+    while (hasMore && page <= maxPages) {
       const url = `${baseUrl}/api/Product/List?PageNo=${page}&Limit=${limit}`;
       console.log(`Fetching page ${page}...`);
 
@@ -95,13 +118,20 @@ Deno.serve(async (req) => {
       if (!response.ok) {
         const errorText = await response.text();
         console.error(`Mintsoft API error: ${response.status} - ${errorText}`);
-        throw new Error(`Mintsoft API error: ${response.status}`);
+        return new Response(
+          JSON.stringify({ 
+            error: `Mintsoft API error: ${response.status} ${response.statusText}`,
+            detail: errorText.substring(0, 200),
+            url: url.replace(apiKey, "***")
+          }),
+          { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
       }
 
       const products: MintsoftProduct[] = await response.json();
       
-      // Filter by prefix
-      const filtered = products.filter((p) => p.SKU?.startsWith(prefix));
+      // Filter by prefix using normalized matching
+      const filtered = products.filter((p) => p.SKU && skuMatchesPrefix(p.SKU, prefixes));
       allProducts.push(...filtered);
 
       console.log(`Page ${page}: Found ${products.length} products, ${filtered.length} match prefix`);
@@ -109,17 +139,26 @@ Deno.serve(async (req) => {
       hasMore = products.length === limit;
       page++;
 
-      // Safety limit to prevent infinite loops
-      if (page > 500) {
-        console.warn("Reached maximum page limit");
+      // For preview mode, stop early if we have enough samples
+      if (mode === "preview" && allProducts.length >= 5 && page > 3) {
+        truncated = true;
         break;
       }
     }
 
-    console.log(`Total products matching prefix "${prefix}": ${allProducts.length}`);
+    // Check if we hit the page limit
+    if (page > maxPages && hasMore) {
+      truncated = true;
+    }
+
+    console.log(`Total products matching prefix "${prefix}": ${allProducts.length} (pages scanned: ${page - 1}, truncated: ${truncated})`);
 
     // Preview mode - return count and sample
     if (mode === "preview") {
+      const hint = allProducts.length === 0 
+        ? `No products found matching "${prefixes.original}" or "${prefixes.normalized}". Try a different prefix.`
+        : null;
+
       return new Response(
         JSON.stringify({
           count: allProducts.length,
@@ -127,6 +166,9 @@ Deno.serve(async (req) => {
             sku: p.SKU,
             name: p.Name,
           })),
+          truncated,
+          pagesScanned: page - 1,
+          hint,
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
@@ -137,7 +179,7 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({
           imported: 0,
-          message: "No products found matching the prefix",
+          message: `No products found matching prefix "${prefixes.original}" or "${prefixes.normalized}"`,
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
@@ -199,6 +241,8 @@ Deno.serve(async (req) => {
       JSON.stringify({
         imported: totalImported,
         message: `Successfully imported ${totalImported} products with prefix "${prefix}"`,
+        truncated,
+        pagesScanned: page - 1,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
