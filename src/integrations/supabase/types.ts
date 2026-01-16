@@ -1398,6 +1398,8 @@ export type Database = {
           error_message: string | null
           id: string
           items_imported: number
+          prefix: string | null
+          source: string
           status: string
           upload_name: string
           uploaded_at: string
@@ -1408,6 +1410,8 @@ export type Database = {
           error_message?: string | null
           id?: string
           items_imported?: number
+          prefix?: string | null
+          source?: string
           status?: string
           upload_name: string
           uploaded_at?: string
@@ -1418,6 +1422,8 @@ export type Database = {
           error_message?: string | null
           id?: string
           items_imported?: number
+          prefix?: string | null
+          source?: string
           status?: string
           upload_name?: string
           uploaded_at?: string
