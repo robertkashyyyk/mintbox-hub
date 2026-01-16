@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useState } from "react";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2, Plus } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -53,7 +53,16 @@ const Brands = () => {
   const { toast } = useToast();
   const [editingBrand, setEditingBrand] = useState<any>(null);
   const [deletingBrand, setDeletingBrand] = useState<any>(null);
+  const [isAddingBrand, setIsAddingBrand] = useState(false);
   const [editFormData, setEditFormData] = useState({
+    name: "",
+    prefix: "",
+    prefix_style: "hyphen" as "hyphen" | "slash",
+    family: "",
+    remote_stock_feed_type: "" as any,
+    base_multiplier: "",
+  });
+  const [addFormData, setAddFormData] = useState({
     name: "",
     prefix: "",
     prefix_style: "hyphen" as "hyphen" | "slash",
@@ -94,6 +103,36 @@ const Brands = () => {
       );
 
       return brandsWithCount;
+    },
+  });
+
+  const createBrandMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const { error } = await supabase.from("brands").insert(data);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["brands-with-count"] });
+      toast({
+        title: "Success",
+        description: "Brand created successfully",
+      });
+      setIsAddingBrand(false);
+      setAddFormData({
+        name: "",
+        prefix: "",
+        prefix_style: "hyphen",
+        family: "",
+        remote_stock_feed_type: "",
+        base_multiplier: "",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: `Failed to create brand: ${error.message}`,
+        variant: "destructive",
+      });
     },
   });
 
@@ -190,13 +229,48 @@ const Brands = () => {
     deleteBrandMutation.mutate(deletingBrand.id);
   };
 
+  const handleAddBrand = () => {
+    if (!addFormData.name.trim() || !addFormData.prefix.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Brand name and prefix are required",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (addFormData.base_multiplier && Number(addFormData.base_multiplier) <= 0) {
+      toast({
+        title: "Validation Error",
+        description: "Base multiplier must be greater than 0",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    createBrandMutation.mutate({
+      name: addFormData.name.trim(),
+      prefix: addFormData.prefix.trim().toUpperCase(),
+      prefix_style: addFormData.prefix_style,
+      family: addFormData.family || null,
+      remote_stock_feed_type: addFormData.remote_stock_feed_type || null,
+      base_multiplier: addFormData.base_multiplier ? Number(addFormData.base_multiplier) : null,
+    });
+  };
+
   return (
     <div className="container mx-auto p-6 space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Brands</h1>
-        <p className="text-muted-foreground">
-          Manage brands and view product counts
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Brands</h1>
+          <p className="text-muted-foreground">
+            Manage brands and view product counts
+          </p>
+        </div>
+        <Button onClick={() => setIsAddingBrand(true)}>
+          <Plus className="h-4 w-4 mr-2" />
+          Add Brand
+        </Button>
       </div>
 
       <Card>
@@ -292,6 +366,117 @@ const Brands = () => {
         </CardContent>
       </Card>
 
+      {/* Add Brand Dialog */}
+      <Dialog open={isAddingBrand} onOpenChange={setIsAddingBrand}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add New Brand</DialogTitle>
+            <DialogDescription>
+              Enter the details for the new brand.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="add-name">Brand Name *</Label>
+              <Input
+                id="add-name"
+                value={addFormData.name}
+                onChange={(e) =>
+                  setAddFormData({ ...addFormData, name: e.target.value })
+                }
+                placeholder="e.g. Acme Parts"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="add-prefix">Prefix *</Label>
+              <Input
+                id="add-prefix"
+                value={addFormData.prefix}
+                onChange={(e) =>
+                  setAddFormData({ ...addFormData, prefix: e.target.value.toUpperCase() })
+                }
+                placeholder="e.g. ACME"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="add-prefix_style">Prefix Style</Label>
+              <Select
+                value={addFormData.prefix_style}
+                onValueChange={(value: "hyphen" | "slash") =>
+                  setAddFormData({ ...addFormData, prefix_style: value })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="hyphen">- (Hyphen)</SelectItem>
+                  <SelectItem value="slash">/ (Slash)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="add-family">Family (Optional)</Label>
+              <Input
+                id="add-family"
+                value={addFormData.family}
+                onChange={(e) =>
+                  setAddFormData({ ...addFormData, family: e.target.value })
+                }
+                placeholder="e.g. Automotive"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="add-remote_stock_feed_type">Remote Stock Feed Type</Label>
+              <Select
+                value={addFormData.remote_stock_feed_type}
+                onValueChange={(value) =>
+                  setAddFormData({ ...addFormData, remote_stock_feed_type: value })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select feed type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="email">Email</SelectItem>
+                  <SelectItem value="google_sheet">Google Sheet</SelectItem>
+                  <SelectItem value="direct_upload">Direct Upload</SelectItem>
+                  <SelectItem value="ftp_push">FTP Push</SelectItem>
+                  <SelectItem value="ftp_pull">FTP Pull</SelectItem>
+                  <SelectItem value="no_feed">No Feed</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="add-base_multiplier">Base Stock Multiplier</Label>
+              <Input
+                id="add-base_multiplier"
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder="Leave empty if not set"
+                value={addFormData.base_multiplier}
+                onChange={(e) =>
+                  setAddFormData({ ...addFormData, base_multiplier: e.target.value })
+                }
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAddingBrand(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleAddBrand} 
+              disabled={!addFormData.name.trim() || !addFormData.prefix.trim() || createBrandMutation.isPending}
+            >
+              {createBrandMutation.isPending ? "Creating..." : "Create Brand"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Brand Dialog */}
       <Dialog open={!!editingBrand} onOpenChange={() => setEditingBrand(null)}>
         <DialogContent>
           <DialogHeader>
