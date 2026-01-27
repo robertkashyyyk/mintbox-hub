@@ -1,98 +1,100 @@
 
-# Speed Up Enrichment + Fix Brand Assignment
+# External Integrations Management
 
 ## Overview
-The current enrichment job runs every 2 hours and processes only 50 products per run. With 183,000 products to enrich, this would take ~10 months. We'll increase throughput dramatically and also fix the missing `brand_id` assignment.
+Add a new **Integrations** section within Administration to manage credentials and connection status for external services your system calls out to (Mintsoft, 3D Sellers, etc.). This complements the existing **API Access** page which handles inbound authentication.
 
-## Current State
-- **Enrichment rate**: 50 products every 2 hours = 600/day
-- **Products needing enrichment**: ~183,000
-- **Time to complete**: ~305 days (too slow)
-- **Missing brand_id**: 182,049 products have no brand assignment
+## Current vs. Proposed
 
-## What Gets Enriched
-The job already fetches comprehensive data from Mintsoft:
-- Product name, cost price
-- Dimensions (weight, height, length, depth)
-- Barcode (EAN/UPC)
-- Stock levels (current, on order, backorder)
-- Low stock alert level, handling time
-- Discontinued status
+| Aspect | Current State | Proposed |
+|--------|---------------|----------|
+| Mintsoft credentials | Backend secret only | UI to view/update + test connection |
+| 3D Sellers | Not yet integrated | Full credential management |
+| Connection status | No visibility | Live status with last sync time |
+| Testing | Manual only | One-click "Test Connection" button |
 
-**Gap identified**: The job doesn't assign `brand_id` based on SKU prefix.
+## What We'll Build
 
-## Proposed Changes
+### 1. New Admin Card: "Integrations"
+Add to the Administration index page alongside Users, API Access, Billing, etc.
 
-### 1. Increase Batch Size and Frequency
-| Setting | Current | Proposed |
-|---------|---------|----------|
-| Batch size | 50 | 500 |
-| Interval | Every 2 hours | Every 30 minutes |
-| Products/day | 600 | 24,000 |
-| Time to complete | 305 days | ~8 days |
+### 2. Integrations Page (`/admin/integrations`)
+A dedicated page showing all external service connections with:
+- **Mintsoft** - Base URL, API key (masked), connection status, last sync
+- **3D Sellers** - API credentials, connection status
+- Extensible for future integrations
 
-### 2. Add Brand Resolution to Enrichment
-When processing each product, lookup the brand based on SKU prefix and set `brand_id`. This ensures all products get properly categorized for reporting and filtering.
+### 3. Database Table: `integrations`
+Stores non-sensitive configuration per integration (base URLs, enabled status). Sensitive credentials remain in backend secrets for security.
 
-### 3. Backfill Existing Products
-Run a one-time SQL update to assign `brand_id` to the 182,049 products already imported but missing brand assignment.
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│ integrations                                                     │
+├─────────────────────────────────────────────────────────────────┤
+│ id (uuid, PK)                                                   │
+│ name (text) - "mintsoft", "3dsellers"                           │
+│ display_name (text) - "Mintsoft", "3D Sellers"                  │
+│ enabled (boolean)                                               │
+│ base_url (text, nullable)                                       │
+│ config (jsonb) - flexible settings per integration              │
+│ last_connected_at (timestamptz, nullable)                       │
+│ connection_status (text) - "connected", "error", "not_configured"|
+│ error_message (text, nullable)                                  │
+│ created_at, updated_at                                          │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 4. Edge Function: `test-integration-connection`
+Tests if stored credentials are valid by making a lightweight API call to each service.
+
+### 5. UI Features
+- View/edit base URL and non-sensitive config
+- See connection status (green/red indicator)
+- "Test Connection" button
+- Link to backend for managing secrets
+- Last connected timestamp
 
 ---
 
 ## Technical Details
 
-### Edge Function Changes
-**File**: `supabase/functions/mintsoft-enrich-batch/index.ts`
+### Files to Create
+1. `src/pages/admin/Integrations.tsx` - Main integrations management page
+2. `supabase/functions/test-integration-connection/index.ts` - Connection testing
 
-```typescript
-// Increase batch size
-const BATCH_SIZE = 500; // Changed from 50
+### Files to Modify
+1. `src/pages/AdminIndex.tsx` - Add Integrations card
+2. `src/App.tsx` - Add route for `/admin/integrations`
 
-// Add brand resolution
-// Fetch brands once at start of batch
-const { data: brands } = await supabase
-  .from("brands")
-  .select("id, prefix, prefix_style")
-  .not("prefix", "is", null);
+### Database Migration
+Create `integrations` table with RLS policies restricting to super_users.
 
-// For each product, match SKU to brand prefix
-function resolveBrandId(sku: string, brands: Brand[]): string | null {
-  for (const brand of brands) {
-    const separator = brand.prefix_style === 'slash' ? '/' : '-';
-    if (sku.startsWith(`${brand.prefix}${separator}`)) {
-      return brand.id;
-    }
-  }
-  return null;
-}
+Seed with initial integrations:
+- Mintsoft (migrate settings from `mintsoft_settings`)
+- 3D Sellers (placeholder for configuration)
 
-// Include brand_id in the update
-.update({
-  ...existingFields,
-  brand_id: resolveBrandId(product.sku, brands),
-})
-```
+### Security Considerations
+- API keys/secrets remain in backend secrets (not in database)
+- RLS restricts table access to super_users only
+- Connection testing uses backend secrets via edge function
 
-### Cron Schedule Update
-Change from `0 */2 * * *` (every 2 hours) to `*/30 * * * *` (every 30 minutes)
+---
 
-### Backfill SQL
-One-time update to fix existing products:
-```sql
-UPDATE products_cache pc
-SET brand_id = b.id
-FROM brands b
-WHERE pc.brand_id IS NULL
-  AND b.prefix IS NOT NULL
-  AND (
-    (b.prefix_style = 'hyphen' AND pc.sku LIKE b.prefix || '-%')
-    OR (b.prefix_style = 'slash' AND pc.sku LIKE b.prefix || '/%')
-  );
-```
+## Mintsoft Migration
+Migrate existing `mintsoft_settings.base_url` to the new `integrations` table. The `dispatched_status_ids` can move to the `config` JSONB column.
+
+---
+
+## 3D Sellers Setup
+Once implemented, you'll need to:
+1. Add the 3D Sellers API key as a backend secret
+2. Configure the base URL and settings via the new UI
+3. We can then build sync functionality
 
 ---
 
 ## Outcome
-- All 183,000 products enriched within ~8 days
-- Every product gets assigned a `brand_id` for proper categorization
-- Ongoing maintenance: 24,000 products refreshed daily (covers full catalog weekly)
+- Single place to manage all external service connections
+- Visual status for each integration
+- Easy to add new integrations in the future
+- Clear separation: API Access (inbound) vs Integrations (outbound)
