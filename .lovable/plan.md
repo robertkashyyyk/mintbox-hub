@@ -1,79 +1,98 @@
 
-# Fix CSV Upload CPU Timeout Issue
+# Speed Up Enrichment + Fix Brand Assignment
 
-## Problem Identified
-The edge function is hitting **CPU time limits** (not wall-clock time) during CSV processing. Even with 500-row chunks, the character-by-character CSV parsing and multiple string operations per row consume too much CPU.
+## Overview
+The current enrichment job runs every 2 hours and processes only 50 products per run. With 183,000 products to enrich, this would take ~10 months. We'll increase throughput dramatically and also fix the missing `brand_id` assignment.
 
-## Proposed Solution
+## Current State
+- **Enrichment rate**: 50 products every 2 hours = 600/day
+- **Products needing enrichment**: ~183,000
+- **Time to complete**: ~305 days (too slow)
+- **Missing brand_id**: 182,049 products have no brand assignment
 
-### 1. Reduce Client Chunk Size to 100 Rows
-Smaller chunks mean less CPU work per request. With 100-row chunks, a 200k file becomes 2,000 requests, but each completes in milliseconds.
+## What Gets Enriched
+The job already fetches comprehensive data from Mintsoft:
+- Product name, cost price
+- Dimensions (weight, height, length, depth)
+- Barcode (EAN/UPC)
+- Stock levels (current, on order, backorder)
+- Low stock alert level, handling time
+- Discontinued status
 
-**File**: `src/hooks/useChunkedCsvUpload.ts`
-- Change `CHUNK_SIZE` from 500 to 100
+**Gap identified**: The job doesn't assign `brand_id` based on SKU prefix.
 
-### 2. Optimize Edge Function Parsing
-The current implementation is CPU-heavy. We'll streamline it for minimal imports specifically.
+## Proposed Changes
 
-**File**: `supabase/functions/process-product-csv/index.ts`
+### 1. Increase Batch Size and Frequency
+| Setting | Current | Proposed |
+|---------|---------|----------|
+| Batch size | 50 | 500 |
+| Interval | Every 2 hours | Every 30 minutes |
+| Products/day | 600 | 24,000 |
+| Time to complete | 305 days | ~8 days |
 
-Key optimizations:
-- Use a simple `.split(',')` for minimal imports (no quoted fields in typical Mintsoft exports)
-- Reduce `findColumn()` calls by checking header indices once upfront
-- Lower the batch size to 100 to match incoming chunk size
-- Skip unnecessary processing for minimal imports (no barcode detection, no category parsing)
+### 2. Add Brand Resolution to Enrichment
+When processing each product, lookup the brand based on SKU prefix and set `brand_id`. This ensures all products get properly categorized for reporting and filtering.
 
-### 3. Add Early Bail-Out for Empty Chunks
-Prevent processing if a chunk has no valid rows.
+### 3. Backfill Existing Products
+Run a one-time SQL update to assign `brand_id` to the 182,049 products already imported but missing brand assignment.
 
 ---
 
 ## Technical Details
 
-### Client-Side Change
-```typescript
-// src/hooks/useChunkedCsvUpload.ts
-const CHUNK_SIZE = 100; // Reduced from 500 to prevent CPU timeouts
-```
+### Edge Function Changes
+**File**: `supabase/functions/mintsoft-enrich-batch/index.ts`
 
-### Edge Function Optimizations
-
-1. **Pre-compute header indices** (O(1) lookup instead of O(n) per row):
 ```typescript
-// Build column index map once
-const columnIndices: Record<string, number> = {};
-headers.forEach((h, idx) => {
-  const normalized = h.trim();
-  columnIndices[normalized] = idx;
-  columnIndices[normalized.toLowerCase()] = idx;
-});
-```
+// Increase batch size
+const BATCH_SIZE = 500; // Changed from 50
 
-2. **Simplified minimal import parsing**:
-```typescript
-// For minimal imports, use simple split (no quoted field handling needed)
-if (isMinimalImport) {
-  const values = line.split(',');
-  // Direct index access instead of findColumn loops
+// Add brand resolution
+// Fetch brands once at start of batch
+const { data: brands } = await supabase
+  .from("brands")
+  .select("id, prefix, prefix_style")
+  .not("prefix", "is", null);
+
+// For each product, match SKU to brand prefix
+function resolveBrandId(sku: string, brands: Brand[]): string | null {
+  for (const brand of brands) {
+    const separator = brand.prefix_style === 'slash' ? '/' : '-';
+    if (sku.startsWith(`${brand.prefix}${separator}`)) {
+      return brand.id;
+    }
+  }
+  return null;
 }
+
+// Include brand_id in the update
+.update({
+  ...existingFields,
+  brand_id: resolveBrandId(product.sku, brands),
+})
 ```
 
-3. **Reduce batch size to match chunk size**:
-```typescript
-const BATCH_SIZE = 100; // Match client chunk size
+### Cron Schedule Update
+Change from `0 */2 * * *` (every 2 hours) to `*/30 * * * *` (every 30 minutes)
+
+### Backfill SQL
+One-time update to fix existing products:
+```sql
+UPDATE products_cache pc
+SET brand_id = b.id
+FROM brands b
+WHERE pc.brand_id IS NULL
+  AND b.prefix IS NOT NULL
+  AND (
+    (b.prefix_style = 'hyphen' AND pc.sku LIKE b.prefix || '-%')
+    OR (b.prefix_style = 'slash' AND pc.sku LIKE b.prefix || '/%')
+  );
 ```
 
 ---
 
-## Trade-offs
-| Aspect | Before | After |
-|--------|--------|-------|
-| Rows per request | 500 | 100 |
-| Requests for 200k rows | 400 | 2,000 |
-| CPU per request | High (timeouts) | Low (completes fast) |
-| Total upload time | Fails | ~5-10 minutes |
-
-## Expected Outcome
-- No more `CPU Time exceeded` errors
-- Reliable processing of massive CSV files
-- More granular progress updates (every 100 rows)
+## Outcome
+- All 183,000 products enriched within ~8 days
+- Every product gets assigned a `brand_id` for proper categorization
+- Ongoing maintenance: 24,000 products refreshed daily (covers full catalog weekly)
