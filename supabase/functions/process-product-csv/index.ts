@@ -107,11 +107,11 @@ Deno.serve(async (req) => {
     }
 
     let imported = 0;
-    let updated = 0;
     const categorySet = new Set<string>();
+    const productsToUpsert: Record<string, unknown>[] = [];
     const categoriesForProduct = new Map<string, string[]>();
 
-    // Process each product row
+    // Parse all rows first (batch preparation)
     for (let i = 1; i < lines.length; i++) {
       const line = lines[i];
       if (!line.trim()) continue;
@@ -122,33 +122,6 @@ Deno.serve(async (req) => {
         row[header] = values[index] || "";
       });
 
-      // Extract and merge barcode
-      const eanBarcode = row["EANBarcode"] || "";
-      const upcBarcode = row["UPCBarcode"] || "";
-      let barcode = eanBarcode || upcBarcode;
-      let barcodeTypeId: string | null = null;
-
-      // Determine barcode type based on length
-      if (barcode) {
-        barcode = barcode.replace(/\D/g, ""); // Remove non-digits
-        const barcodeType =
-          barcode.length === 12
-            ? barcodeTypeMap.get("UPC")
-            : barcode.length === 13
-            ? barcodeTypeMap.get("EAN")
-            : barcodeTypeMap.get("Other");
-        barcodeTypeId = barcodeType?.id || null;
-      }
-
-      // Parse categories
-      const categoriesStr = row["Categories"] || "";
-      const categories = categoriesStr
-        .split(",")
-        .map((c) => c.trim())
-        .filter((c) => c);
-      categories.forEach((cat) => categorySet.add(cat));
-
-      // Extract values using flexible column mapping
       const sku = findColumn(row, "sku");
       const name = findColumn(row, "name");
       
@@ -157,13 +130,10 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // Prepare product data based on import mode
       let productData: Record<string, unknown>;
       
       if (isMinimalImport) {
-        // Minimal catalog import - only SKU, Name, Mintsoft ID
         const mintsoftId = findColumn(row, "mintsoft_product_id");
-        
         productData = {
           sku: sku,
           name: name || sku,
@@ -172,15 +142,13 @@ Deno.serve(async (req) => {
           discovered_at: new Date().toISOString(),
         };
       } else {
-        // Full import with all fields
         const eanBarcode = findColumn(row, "ean_barcode");
         const upcBarcode = findColumn(row, "upc_barcode");
         let barcode = eanBarcode || upcBarcode;
         let barcodeTypeId: string | null = null;
 
-        // Determine barcode type based on length
         if (barcode) {
-          barcode = barcode.replace(/\D/g, ""); // Remove non-digits
+          barcode = barcode.replace(/\D/g, "");
           const barcodeType =
             barcode.length === 12
               ? barcodeTypeMap.get("UPC")
@@ -190,13 +158,15 @@ Deno.serve(async (req) => {
           barcodeTypeId = barcodeType?.id || null;
         }
 
-        // Parse categories
         const categoriesStr = findColumn(row, "categories");
         const categories = categoriesStr
           .split(",")
           .map((c) => c.trim())
           .filter((c) => c);
         categories.forEach((cat) => categorySet.add(cat));
+        if (categories.length > 0) {
+          categoriesForProduct.set(sku, categories);
+        }
         
         const mintsoftId = findColumn(row, "mintsoft_product_id");
         const discontinued = findColumn(row, "discontinued");
@@ -231,61 +201,23 @@ Deno.serve(async (req) => {
           back_order_qty: parseFloat(backOrderQty) || 0,
           on_order: parseFloat(onOrder) || 0,
         };
-
-        // Handle categories for full import
-        if (categories.length > 0) {
-          categoriesForProduct.set(sku, categories);
-        }
       }
 
-      // Upsert product
-      const { data: product, error: productError } = await supabase
+      productsToUpsert.push(productData);
+    }
+
+    // Batch upsert products in chunks of 500
+    const BATCH_SIZE = 500;
+    for (let i = 0; i < productsToUpsert.length; i += BATCH_SIZE) {
+      const batch = productsToUpsert.slice(i, i + BATCH_SIZE);
+      const { error: batchError } = await supabase
         .from("products_cache")
-        .upsert(productData, { onConflict: "sku" })
-        .select()
-        .single();
+        .upsert(batch, { onConflict: "sku" });
 
-      if (productError) {
-        console.error(`Error upserting product ${sku}:`, productError);
-        continue;
-      }
-
-      if (product) {
-        // Handle categories only for full imports
-        if (!isMinimalImport && categoriesForProduct.has(sku)) {
-          const categories = categoriesForProduct.get(sku)!;
-          
-          // First, ensure all categories exist
-          for (const catName of categories) {
-            await supabase
-              .from("product_categories")
-              .upsert({ name: catName }, { onConflict: "name" });
-          }
-
-          // Get category IDs
-          const { data: categoryData } = await supabase
-            .from("product_categories")
-            .select("id, name")
-            .in("name", categories);
-
-          if (categoryData) {
-            // Delete existing links
-            await supabase
-              .from("product_category_links")
-              .delete()
-              .eq("product_id", product.id);
-
-            // Create new links
-            const links = categoryData.map((cat) => ({
-              product_id: product.id,
-              category_id: cat.id,
-            }));
-
-            await supabase.from("product_category_links").insert(links);
-          }
-        }
-
-        imported++;
+      if (batchError) {
+        console.error(`Error upserting batch at ${i}:`, batchError);
+      } else {
+        imported += batch.length;
       }
     }
 
@@ -307,7 +239,7 @@ Deno.serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ imported, updated, categories: categorySet.size }),
+      JSON.stringify({ imported, categories: categorySet.size }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       }
