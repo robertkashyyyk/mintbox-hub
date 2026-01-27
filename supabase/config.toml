@@ -29,3 +29,9 @@ verify_jwt = false
 
 [functions.mintsoft-fetch-products]
 verify_jwt = false
+
+[functions.mintsoft-enrich-batch]
+verify_jwt = false
+
+[functions.process-product-csv]
+verify_jwt = false

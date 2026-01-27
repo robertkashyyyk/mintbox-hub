@@ -1787,6 +1787,7 @@ export type Database = {
           back_order_qty: number | null
           barcode: string | null
           barcode_type_id: string | null
+          brand_id: string | null
           cost_price: number | null
           created_at: string | null
           current_stock: number | null
@@ -1828,6 +1829,7 @@ export type Database = {
           back_order_qty?: number | null
           barcode?: string | null
           barcode_type_id?: string | null
+          brand_id?: string | null
           cost_price?: number | null
           created_at?: string | null
           current_stock?: number | null
@@ -1869,6 +1871,7 @@ export type Database = {
           back_order_qty?: number | null
           barcode?: string | null
           barcode_type_id?: string | null
+          brand_id?: string | null
           cost_price?: number | null
           created_at?: string | null
           current_stock?: number | null
@@ -1912,6 +1915,20 @@ export type Database = {
             columns: ["barcode_type_id"]
             isOneToOne: false
             referencedRelation: "barcode_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "products_cache_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "products_cache_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands_missing_base_multiplier"
             referencedColumns: ["id"]
           },
         ]

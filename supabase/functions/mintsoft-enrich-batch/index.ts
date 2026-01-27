@@ -1,0 +1,276 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.80.0";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
+};
+
+interface ProductToEnrich {
+  id: string;
+  sku: string;
+  mintsoft_product_id: number;
+}
+
+interface MintsoftProductDetails {
+  ID: number;
+  SKU: string;
+  Name: string;
+  CostPrice?: number;
+  Weight?: number;
+  Height?: number;
+  Length?: number;
+  Depth?: number;
+  EANBarcode?: string;
+  UPCBarcode?: string;
+  LowStockAlertLevel?: number;
+  HandlingTime?: number;
+  Discontinued?: boolean;
+}
+
+const BATCH_SIZE = 50;
+const STALE_DAYS = 7;
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+    );
+
+    const mintsoftApiKey = Deno.env.get("MINTSOFT_API_KEY");
+    if (!mintsoftApiKey) {
+      throw new Error("MINTSOFT_API_KEY not configured");
+    }
+
+    // Get Mintsoft settings
+    const { data: settings, error: settingsError } = await supabase
+      .from("mintsoft_settings")
+      .select("base_url")
+      .single();
+
+    if (settingsError || !settings?.base_url) {
+      throw new Error("Mintsoft settings not configured");
+    }
+
+    console.log("Starting enrichment batch...");
+
+    // Find products needing enrichment:
+    // 1. Has mintsoft_product_id but never synced (last_stock_sync IS NULL)
+    // 2. Or last_stock_sync is stale (> 7 days old)
+    const staleDate = new Date();
+    staleDate.setDate(staleDate.getDate() - STALE_DAYS);
+
+    const { data: products, error: productsError } = await supabase
+      .from("products_cache")
+      .select("id, sku, mintsoft_product_id")
+      .not("mintsoft_product_id", "is", null)
+      .or(`last_stock_sync.is.null,last_stock_sync.lt.${staleDate.toISOString()}`)
+      .order("last_stock_sync", { ascending: true, nullsFirst: true })
+      .limit(BATCH_SIZE);
+
+    if (productsError) {
+      throw new Error(`Failed to fetch products: ${productsError.message}`);
+    }
+
+    if (!products || products.length === 0) {
+      console.log("No products need enrichment");
+      
+      // Update ingest state
+      await supabase
+        .from("ingest_run_state")
+        .upsert({
+          id: "mintsoft_enrich_batch",
+          last_run_at: new Date().toISOString(),
+          last_ok_at: new Date().toISOString(),
+          last_status: "ok - no products needed",
+          updated_at: new Date().toISOString(),
+        });
+
+      return new Response(
+        JSON.stringify({ message: "No products need enrichment", enriched: 0 }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    console.log(`Found ${products.length} products to enrich`);
+
+    let enrichedCount = 0;
+    let errorCount = 0;
+    const errors: string[] = [];
+
+    // Process each product
+    for (const product of products as ProductToEnrich[]) {
+      try {
+        // Fetch product details from Mintsoft
+        const productUrl = `${settings.base_url}/api/Product/${product.mintsoft_product_id}`;
+        
+        const response = await fetch(productUrl, {
+          headers: {
+            "ms-apikey": mintsoftApiKey,
+            "Accept": "application/json",
+          },
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`Mintsoft API error for ${product.sku}: ${response.status} - ${errorText}`);
+          errors.push(`${product.sku}: ${response.status}`);
+          errorCount++;
+          continue;
+        }
+
+        const productDetails: MintsoftProductDetails = await response.json();
+
+        // Now fetch inventory for stock levels
+        const inventoryUrl = `${settings.base_url}/api/Product/${product.mintsoft_product_id}/Inventory?breakdown=true`;
+        let currentStock = 0;
+        let onOrder = 0;
+        let backOrderQty = 0;
+
+        try {
+          const inventoryResponse = await fetch(inventoryUrl, {
+            headers: {
+              "ms-apikey": mintsoftApiKey,
+              "Accept": "application/json",
+            },
+          });
+
+          if (inventoryResponse.ok) {
+            const inventoryData = await inventoryResponse.json();
+            if (Array.isArray(inventoryData) && inventoryData.length > 0) {
+              // Sum up inventory across warehouses
+              for (const inv of inventoryData) {
+                currentStock += inv.Available || 0;
+                onOrder += inv.OnOrder || 0;
+                backOrderQty += inv.OnBackOrder || 0;
+              }
+            }
+          }
+        } catch (invError) {
+          console.warn(`Could not fetch inventory for ${product.sku}:`, invError);
+        }
+
+        // Determine barcode
+        let barcode = productDetails.EANBarcode || productDetails.UPCBarcode || null;
+        let barcodeTypeId: string | null = null;
+
+        if (barcode) {
+          barcode = barcode.replace(/\D/g, "");
+          
+          // Get barcode type based on length
+          const { data: barcodeTypes } = await supabase
+            .from("barcode_types")
+            .select("id, digit_count")
+            .or(`digit_count.eq.${barcode.length},type_name.eq.Other`);
+
+          if (barcodeTypes && barcodeTypes.length > 0) {
+            const exactMatch = barcodeTypes.find(bt => bt.digit_count === barcode!.length);
+            barcodeTypeId = exactMatch?.id || barcodeTypes[0]?.id || null;
+          }
+        }
+
+        // Update product with enriched data
+        const { error: updateError } = await supabase
+          .from("products_cache")
+          .update({
+            name: productDetails.Name || product.sku,
+            cost_price: productDetails.CostPrice || null,
+            weight: productDetails.Weight || null,
+            height: productDetails.Height || null,
+            length: productDetails.Length || null,
+            depth: productDetails.Depth || null,
+            barcode: barcode,
+            barcode_type_id: barcodeTypeId,
+            low_stock_alert_level: productDetails.LowStockAlertLevel || 0,
+            handling_time: productDetails.HandlingTime || null,
+            discontinued: productDetails.Discontinued || false,
+            current_stock: currentStock,
+            on_order: onOrder,
+            back_order_qty: backOrderQty,
+            last_stock_sync: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", product.id);
+
+        if (updateError) {
+          console.error(`Failed to update ${product.sku}:`, updateError);
+          errors.push(`${product.sku}: update failed`);
+          errorCount++;
+        } else {
+          enrichedCount++;
+          console.log(`Enriched ${product.sku}`);
+        }
+
+        // Small delay to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+      } catch (productError) {
+        console.error(`Error processing ${product.sku}:`, productError);
+        errors.push(`${product.sku}: ${productError instanceof Error ? productError.message : "unknown error"}`);
+        errorCount++;
+      }
+    }
+
+    // Update ingest state
+    const status = errorCount === 0 
+      ? `ok - enriched ${enrichedCount} products`
+      : `partial - enriched ${enrichedCount}, errors: ${errorCount}`;
+
+    await supabase
+      .from("ingest_run_state")
+      .upsert({
+        id: "mintsoft_enrich_batch",
+        last_run_at: new Date().toISOString(),
+        last_ok_at: errorCount === 0 ? new Date().toISOString() : undefined,
+        last_status: status,
+        updated_at: new Date().toISOString(),
+      });
+
+    console.log(`Enrichment complete: ${enrichedCount} enriched, ${errorCount} errors`);
+
+    return new Response(
+      JSON.stringify({
+        message: "Enrichment batch complete",
+        enriched: enrichedCount,
+        errors: errorCount,
+        errorDetails: errors.slice(0, 10), // Return first 10 errors
+      }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+
+  } catch (error) {
+    console.error("Enrichment batch failed:", error);
+    
+    // Try to update ingest state with error
+    try {
+      const supabase = createClient(
+        Deno.env.get("SUPABASE_URL") ?? "",
+        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+      );
+      
+      await supabase
+        .from("ingest_run_state")
+        .upsert({
+          id: "mintsoft_enrich_batch",
+          last_run_at: new Date().toISOString(),
+          last_status: `error: ${error instanceof Error ? error.message : "unknown"}`,
+          updated_at: new Date().toISOString(),
+        });
+    } catch {}
+
+    return new Response(
+      JSON.stringify({ 
+        error: error instanceof Error ? error.message : "Unknown error" 
+      }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
+    );
+  }
+});
