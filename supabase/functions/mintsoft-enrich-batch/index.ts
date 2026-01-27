@@ -28,8 +28,25 @@ interface MintsoftProductDetails {
   Discontinued?: boolean;
 }
 
-const BATCH_SIZE = 50;
+const BATCH_SIZE = 500;
 const STALE_DAYS = 7;
+
+interface Brand {
+  id: string;
+  prefix: string;
+  prefix_style: "hyphen" | "slash" | null;
+}
+
+function resolveBrandId(sku: string, brands: Brand[]): string | null {
+  for (const brand of brands) {
+    if (!brand.prefix) continue;
+    const separator = brand.prefix_style === "slash" ? "/" : "-";
+    if (sku.startsWith(`${brand.prefix}${separator}`)) {
+      return brand.id;
+    }
+  }
+  return null;
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
