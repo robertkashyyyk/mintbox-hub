@@ -1,100 +1,64 @@
 
-# External Integrations Management
 
-## Overview
-Add a new **Integrations** section within Administration to manage credentials and connection status for external services your system calls out to (Mintsoft, 3D Sellers, etc.). This complements the existing **API Access** page which handles inbound authentication.
+# Fix Enrichment Timeout & Enhance Progress Display
 
-## Current vs. Proposed
+## Problem Identified
+The 30-minute cron job is firing, but the Edge Function times out because processing 500 products sequentially (each with 2 API calls + 100ms delay) takes too long. At ~200ms per product minimum, 500 products = 100+ seconds, exceeding Edge Function limits.
 
-| Aspect | Current State | Proposed |
-|--------|---------------|----------|
-| Mintsoft credentials | Backend secret only | UI to view/update + test connection |
-| 3D Sellers | Not yet integrated | Full credential management |
-| Connection status | No visibility | Live status with last sync time |
-| Testing | Manual only | One-click "Test Connection" button |
+## Solution Overview
 
-## What We'll Build
+### 1. Reduce Batch Size to Prevent Timeouts
+Change `BATCH_SIZE` from 500 to **200** in the Edge Function. This keeps each run under the timeout limit while still processing ~9,600 products/day at 30-minute intervals.
 
-### 1. New Admin Card: "Integrations"
-Add to the Administration index page alongside Users, API Access, Billing, etc.
+### 2. Remove Duplicate Cron Job
+Delete the old 2-hour cron job (#23) that's no longer needed, keeping only the 30-minute job (#24).
 
-### 2. Integrations Page (`/admin/integrations`)
-A dedicated page showing all external service connections with:
-- **Mintsoft** - Base URL, API key (masked), connection status, last sync
-- **3D Sellers** - API credentials, connection status
-- Extensible for future integrations
+### 3. Add Progress Bar to Discovery Queue
+Enhance the UI to show total catalog progress (how many products have been enriched out of total).
 
-### 3. Database Table: `integrations`
-Stores non-sensitive configuration per integration (base URLs, enabled status). Sensitive credentials remain in backend secrets for security.
+---
 
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│ integrations                                                     │
-├─────────────────────────────────────────────────────────────────┤
-│ id (uuid, PK)                                                   │
-│ name (text) - "mintsoft", "3dsellers"                           │
-│ display_name (text) - "Mintsoft", "3D Sellers"                  │
-│ enabled (boolean)                                               │
-│ base_url (text, nullable)                                       │
-│ config (jsonb) - flexible settings per integration              │
-│ last_connected_at (timestamptz, nullable)                       │
-│ connection_status (text) - "connected", "error", "not_configured"|
-│ error_message (text, nullable)                                  │
-│ created_at, updated_at                                          │
-└─────────────────────────────────────────────────────────────────┘
+## Technical Changes
+
+### File: `supabase/functions/mintsoft-enrich-batch/index.ts`
+- Change line 31: `const BATCH_SIZE = 500;` to `const BATCH_SIZE = 200;`
+
+### Database: Remove duplicate cron job
+```sql
+SELECT cron.unschedule(23);
 ```
 
-### 4. Edge Function: `test-integration-connection`
-Tests if stored credentials are valid by making a lightweight API call to each service.
-
-### 5. UI Features
-- View/edit base URL and non-sensitive config
-- See connection status (green/red indicator)
-- "Test Connection" button
-- Link to backend for managing secrets
-- Last connected timestamp
+### File: `src/pages/discovery/DiscoveryQueue.tsx`
+Add a new stat card showing overall progress:
+- **Total Products**: Count from `products_cache`
+- **Fully Enriched**: Count where `last_stock_sync IS NOT NULL`
+- **Progress Bar**: Visual percentage indicator
 
 ---
 
-## Technical Details
+## Updated UI Layout
 
-### Files to Create
-1. `src/pages/admin/Integrations.tsx` - Main integrations management page
-2. `supabase/functions/test-integration-connection/index.ts` - Connection testing
-
-### Files to Modify
-1. `src/pages/AdminIndex.tsx` - Add Integrations card
-2. `src/App.tsx` - Add route for `/admin/integrations`
-
-### Database Migration
-Create `integrations` table with RLS policies restricting to super_users.
-
-Seed with initial integrations:
-- Mintsoft (migrate settings from `mintsoft_settings`)
-- 3D Sellers (placeholder for configuration)
-
-### Security Considerations
-- API keys/secrets remain in backend secrets (not in database)
-- RLS restricts table access to super_users only
-- Connection testing uses backend secrets via edge function
+```text
+┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
+│ Awaiting        │  │ Enriched Today  │  │ Overall         │  │ Last Run        │
+│ Enrichment      │  │                 │  │ Progress        │  │                 │
+│ 181,770         │  │ 0               │  │ ████░░░░ 0.7%   │  │ 2 hours ago     │
+│                 │  │                 │  │ 1,302/183,072   │  │ ok - 500        │
+└─────────────────┘  └─────────────────┘  └─────────────────┘  └─────────────────┘
+```
 
 ---
 
-## Mintsoft Migration
-Migrate existing `mintsoft_settings.base_url` to the new `integrations` table. The `dispatched_status_ids` can move to the `config` JSONB column.
+## Expected Outcome
+- Enrichment runs successfully every 30 minutes
+- ~200 products enriched per run = 9,600/day
+- Full catalog enriched in ~19 days (vs previous 8 days at 500/run, but actually working)
+- Visual progress tracking in the UI
 
 ---
 
-## 3D Sellers Setup
-Once implemented, you'll need to:
-1. Add the 3D Sellers API key as a backend secret
-2. Configure the base URL and settings via the new UI
-3. We can then build sync functionality
+## Files to Modify
+1. `supabase/functions/mintsoft-enrich-batch/index.ts` - Reduce BATCH_SIZE to 200
+2. `src/pages/discovery/DiscoveryQueue.tsx` - Add overall progress card with progress bar
+3. Database operation - Unschedule cron job #23
 
----
-
-## Outcome
-- Single place to manage all external service connections
-- Visual status for each integration
-- Easy to add new integrations in the future
-- Clear separation: API Access (inbound) vs Integrations (outbound)
