@@ -62,6 +62,7 @@ import BundleSuggestions from "./pages/decisions/BundleSuggestions";
 import BillingUsage from "./pages/admin/BillingUsage";
 import LogsDiagnostics from "./pages/admin/LogsDiagnostics";
 import SystemSettings from "./pages/admin/SystemSettings";
+import Integrations from "./pages/admin/Integrations";
 
 // Dashboard Pages
 import WarehousePerformance from "./pages/dashboards/WarehousePerformance";
@@ -154,6 +155,7 @@ const App = () => (
             <Route path="/admin/billing" element={<BillingUsage />} />
             <Route path="/admin/logs" element={<LogsDiagnostics />} />
             <Route path="/admin/settings" element={<SystemSettings />} />
+            <Route path="/admin/integrations" element={<Integrations />} />
 
             {/* Operations Sub-Routes */}
             <Route path="/operations/dashboard" element={<OpsDashboard />} />

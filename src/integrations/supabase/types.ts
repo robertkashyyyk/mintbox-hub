@@ -521,6 +521,48 @@ export type Database = {
         }
         Relationships: []
       }
+      integrations: {
+        Row: {
+          base_url: string | null
+          config: Json
+          connection_status: string
+          created_at: string
+          display_name: string
+          enabled: boolean
+          error_message: string | null
+          id: string
+          last_connected_at: string | null
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          base_url?: string | null
+          config?: Json
+          connection_status?: string
+          created_at?: string
+          display_name: string
+          enabled?: boolean
+          error_message?: string | null
+          id?: string
+          last_connected_at?: string | null
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          base_url?: string | null
+          config?: Json
+          connection_status?: string
+          created_at?: string
+          display_name?: string
+          enabled?: boolean
+          error_message?: string | null
+          id?: string
+          last_connected_at?: string | null
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       mintsoft_settings: {
         Row: {
           base_url: string

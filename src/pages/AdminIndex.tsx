@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, Key, CreditCard, FileText, ArrowLeft, Settings } from "lucide-react";
+import { Users, Key, CreditCard, FileText, ArrowLeft, Settings, Plug } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const AdminIndex = () => {
@@ -41,6 +41,13 @@ const AdminIndex = () => {
       icon: Settings,
       color: "text-orange-500",
       onClick: () => navigate("/admin/settings"),
+    },
+    {
+      title: "Integrations",
+      description: "Manage connections to external services",
+      icon: Plug,
+      color: "text-cyan-500",
+      onClick: () => navigate("/admin/integrations"),
     },
   ];
 
