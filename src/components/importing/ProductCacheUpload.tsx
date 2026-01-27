@@ -4,10 +4,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, FileText, Loader2, Download } from "lucide-react";
+import { Upload, FileText, Loader2, Download, Info, ChevronDown, ChevronUp } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { toast as sonnerToast } from "sonner";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export function ProductCacheUpload() {
   const { toast } = useToast();
@@ -16,6 +18,7 @@ export function ProductCacheUpload() {
   const [uploadName, setUploadName] = useState("");
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
 
   const uploadMutation = useMutation({
     mutationFn: async ({ file, name }: { file: File; name: string }) => {
@@ -43,7 +46,7 @@ export function ProductCacheUpload() {
     onSuccess: (data) => {
       toast({
         title: "Upload successful",
-        description: `Imported ${data.imported} products across ${data.categories} categories`,
+        description: `Imported ${data.imported} products${data.categories > 0 ? ` across ${data.categories} categories` : ""}`,
       });
       setFile(null);
       setUploadName("");
@@ -51,6 +54,7 @@ export function ProductCacheUpload() {
       setIsProcessing(false);
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["upload-history"] });
+      queryClient.invalidateQueries({ queryKey: ["products-needs-enrichment"] });
     },
     onError: (error: any) => {
       toast({
@@ -168,6 +172,38 @@ export function ProductCacheUpload() {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Mintsoft Export Help */}
+        <Collapsible open={showHelp} onOpenChange={setShowHelp}>
+          <CollapsibleTrigger asChild>
+            <Button variant="ghost" size="sm" className="w-full justify-between">
+              <span className="flex items-center gap-2">
+                <Info className="h-4 w-4" />
+                Mintsoft Export Guide
+              </span>
+              {showHelp ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="mt-2">
+            <Alert>
+              <AlertDescription className="space-y-3 text-sm">
+                <p className="font-medium">Quick Catalog Import (Recommended for large exports)</p>
+                <p>For a fast import of your entire product catalog, export a CSV from Mintsoft with just these columns:</p>
+                <ul className="list-disc list-inside space-y-1 ml-2">
+                  <li><code className="bg-muted px-1 rounded">ProductID</code> (or ID) - Mintsoft's product ID</li>
+                  <li><code className="bg-muted px-1 rounded">SKU</code> - Product SKU</li>
+                  <li><code className="bg-muted px-1 rounded">Name</code> - Product name</li>
+                </ul>
+                <p className="text-muted-foreground">
+                  Full product details (cost, stock, barcode) will be fetched automatically in the background every 2 hours.
+                  Products appear in the <strong>Discovery Queue</strong> until enriched.
+                </p>
+                <p className="font-medium mt-3">Full Import</p>
+                <p>For a complete import with all details, include additional columns like CostPrice, CurrentStock, Categories, etc. Download the template for the full list.</p>
+              </AlertDescription>
+            </Alert>
+          </CollapsibleContent>
+        </Collapsible>
+
         <div className="space-y-2">
           <label htmlFor="upload-name" className="text-sm font-medium">
             Upload Name
@@ -177,7 +213,7 @@ export function ProductCacheUpload() {
             type="text"
             value={uploadName}
             onChange={(e) => setUploadName(e.target.value)}
-            placeholder="e.g., Berryman Products Jan 2025"
+            placeholder="e.g., Mintsoft Full Catalog Jan 2025"
             className="w-full px-3 py-2 border rounded-md"
             disabled={isProcessing}
           />
@@ -207,7 +243,7 @@ export function ProductCacheUpload() {
               {file ? file.name : "Click to upload or drag and drop"}
             </p>
             <p className="text-xs text-muted-foreground">
-              CSV files only • Download template above for correct format
+              CSV files only • Minimal (SKU, Name, ID) or full export supported
             </p>
           </label>
         </div>
