@@ -76,6 +76,15 @@ Deno.serve(async (req) => {
 
     console.log("Starting enrichment batch...");
 
+    // Fetch all brands for prefix matching
+    const { data: brands } = await supabase
+      .from("brands")
+      .select("id, prefix, prefix_style")
+      .not("prefix", "is", null);
+
+    const brandList: Brand[] = brands || [];
+    console.log(`Loaded ${brandList.length} brands for prefix matching`);
+
     // Find products needing enrichment:
     // 1. Has mintsoft_product_id but never synced (last_stock_sync IS NULL)
     // 2. Or last_stock_sync is stale (> 7 days old)
@@ -191,6 +200,9 @@ Deno.serve(async (req) => {
           }
         }
 
+        // Resolve brand_id from SKU prefix
+        const brandId = resolveBrandId(product.sku, brandList);
+
         // Update product with enriched data
         const { error: updateError } = await supabase
           .from("products_cache")
@@ -209,6 +221,7 @@ Deno.serve(async (req) => {
             current_stock: currentStock,
             on_order: onOrder,
             back_order_qty: backOrderQty,
+            brand_id: brandId,
             last_stock_sync: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           })
