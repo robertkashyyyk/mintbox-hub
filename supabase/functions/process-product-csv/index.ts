@@ -16,7 +16,7 @@ interface BarcodeType {
 const COLUMN_MAPPINGS: Record<string, string[]> = {
   sku: ["SKU", "Sku", "ProductSKU", "Product SKU"],
   name: ["Name", "ProductName", "Product Name", "Title"],
-  mintsoft_product_id: ["MintsoftProductID", "ProductID", "ID", "ProductId", "Product ID"],
+  mintsoft_product_id: ["MintsoftProductID", "ProductID", "ID", "ProductId", "Product ID", "PRODUCTID"],
   ean_barcode: ["EANBarcode", "EAN", "Barcode", "EAN Barcode"],
   upc_barcode: ["UPCBarcode", "UPC", "UPC Barcode"],
   discontinued: ["Discontinued"],
@@ -34,29 +34,67 @@ const COLUMN_MAPPINGS: Record<string, string[]> = {
   categories: ["Categories", "Category"],
 };
 
-// Find a column value from row using flexible mapping
-function findColumn(row: Record<string, string>, columnKey: string): string {
+// Build a fast lookup map from header names to their indices
+function buildHeaderIndexMap(headers: string[]): Map<string, number> {
+  const indexMap = new Map<string, number>();
+  headers.forEach((h, idx) => {
+    const trimmed = h.trim();
+    indexMap.set(trimmed, idx);
+    indexMap.set(trimmed.toLowerCase(), idx);
+    indexMap.set(trimmed.toUpperCase(), idx);
+  });
+  return indexMap;
+}
+
+// Get column index using pre-computed map (O(1) instead of O(n))
+function getColumnIndex(headerMap: Map<string, number>, columnKey: string): number {
   const possibleNames = COLUMN_MAPPINGS[columnKey] || [columnKey];
   for (const name of possibleNames) {
-    if (row[name] !== undefined) {
-      return row[name];
-    }
+    const idx = headerMap.get(name);
+    if (idx !== undefined) return idx;
+    const lowerIdx = headerMap.get(name.toLowerCase());
+    if (lowerIdx !== undefined) return lowerIdx;
   }
-  return "";
+  return -1;
 }
 
 // Detect if this is a minimal catalog import (only SKU, Name, ID)
 function isMinimalCatalogImport(headers: string[]): boolean {
-  const normalizedHeaders = headers.map(h => h.trim().toLowerCase());
+  const normalizedHeaders = new Set(headers.map(h => h.trim().toLowerCase()));
   
-  // Check if we have SKU, Name, and optionally ID - but NOT detailed fields like CostPrice
-  const hasSku = normalizedHeaders.some(h => ["sku", "productsku"].includes(h));
-  const hasName = normalizedHeaders.some(h => ["name", "productname", "title"].includes(h));
-  const hasDetailedFields = normalizedHeaders.some(h => 
-    ["costprice", "cost price", "currentstock", "current stock", "weight", "categories", "eanbarcode", "barcode"].includes(h)
-  );
+  // Check for detailed fields that indicate a full import
+  const detailedFields = ["costprice", "cost price", "currentstock", "current stock", "weight", "categories", "eanbarcode", "barcode"];
+  const hasDetailedFields = detailedFields.some(f => normalizedHeaders.has(f));
   
-  return hasSku && hasName && !hasDetailedFields;
+  return !hasDetailedFields;
+}
+
+// Simple CSV line parser - handles basic quoted fields
+function parseCSVLineSimple(line: string): string[] {
+  // For minimal imports, most Mintsoft exports don't have complex quoting
+  // Use simple split for speed, fall back to full parser if needed
+  if (!line.includes('"')) {
+    return line.split(',').map(v => v.trim());
+  }
+  
+  // Full parser for quoted fields
+  const values: string[] = [];
+  let current = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    if (char === '"') {
+      inQuotes = !inQuotes;
+    } else if (char === "," && !inQuotes) {
+      values.push(current.trim());
+      current = "";
+    } else {
+      current += char;
+    }
+  }
+  values.push(current.replace(/^"|"$/g, "").trim());
+  return values;
 }
 
 Deno.serve(async (req) => {
@@ -80,19 +118,29 @@ Deno.serve(async (req) => {
       throw new Error("Upload name and user ID are required");
     }
 
-    console.log("Processing CSV upload...");
+    // Parse CSV - split lines efficiently
+    const lines = csvContent.split("\n");
+    if (lines.length < 2) {
+      return new Response(
+        JSON.stringify({ imported: 0, categories: 0 }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
-    // Parse CSV
-    const lines = csvContent.trim().split("\n");
     const headers = lines[0].split(",").map((h: string) => h.trim());
-
-    console.log("CSV headers:", headers);
-    
-    // Detect if this is a minimal catalog import
     const isMinimalImport = isMinimalCatalogImport(headers);
-    console.log(`Import mode: ${isMinimalImport ? "minimal catalog" : "full"}`);
+    
+    // Pre-compute header indices once (O(1) lookups instead of O(n))
+    const headerMap = buildHeaderIndexMap(headers);
+    const skuIdx = getColumnIndex(headerMap, "sku");
+    const nameIdx = getColumnIndex(headerMap, "name");
+    const mintsoftIdIdx = getColumnIndex(headerMap, "mintsoft_product_id");
 
-    // Get barcode types (only needed for full import)
+    if (skuIdx === -1) {
+      throw new Error("SKU column not found in CSV");
+    }
+
+    // Get barcode types only for full imports
     let barcodeTypeMap = new Map<string, BarcodeType>();
     if (!isMinimalImport) {
       const { data: barcodeTypes, error: barcodeError } = await supabase
@@ -100,50 +148,69 @@ Deno.serve(async (req) => {
         .select("*");
 
       if (barcodeError) throw barcodeError;
-
       barcodeTypeMap = new Map(
         barcodeTypes.map((bt: BarcodeType) => [bt.type_name, bt])
       );
     }
 
-    let imported = 0;
-    const categorySet = new Set<string>();
+    // Pre-compute additional indices for full imports
+    let eanIdx = -1, upcIdx = -1, discontinuedIdx = -1, lowStockIdx = -1;
+    let weightIdx = -1, heightIdx = -1, lengthIdx = -1, depthIdx = -1;
+    let costPriceIdx = -1, handlingTimeIdx = -1, currentStockIdx = -1;
+    let backOrderIdx = -1, onOrderIdx = -1, suppliersIdx = -1, categoriesIdx = -1;
+
+    if (!isMinimalImport) {
+      eanIdx = getColumnIndex(headerMap, "ean_barcode");
+      upcIdx = getColumnIndex(headerMap, "upc_barcode");
+      discontinuedIdx = getColumnIndex(headerMap, "discontinued");
+      lowStockIdx = getColumnIndex(headerMap, "low_stock_alert_level");
+      weightIdx = getColumnIndex(headerMap, "weight");
+      heightIdx = getColumnIndex(headerMap, "height");
+      lengthIdx = getColumnIndex(headerMap, "length");
+      depthIdx = getColumnIndex(headerMap, "depth");
+      costPriceIdx = getColumnIndex(headerMap, "cost_price");
+      handlingTimeIdx = getColumnIndex(headerMap, "handling_time");
+      currentStockIdx = getColumnIndex(headerMap, "current_stock");
+      backOrderIdx = getColumnIndex(headerMap, "back_order_qty");
+      onOrderIdx = getColumnIndex(headerMap, "on_order");
+      suppliersIdx = getColumnIndex(headerMap, "suppliers");
+      categoriesIdx = getColumnIndex(headerMap, "categories");
+    }
+
     const productsToUpsert: Record<string, unknown>[] = [];
+    const categorySet = new Set<string>();
     const categoriesForProduct = new Map<string, string[]>();
 
-    // Parse all rows first (batch preparation)
+    // Process rows - skip header
     for (let i = 1; i < lines.length; i++) {
       const line = lines[i];
-      if (!line.trim()) continue;
+      if (!line || !line.trim()) continue;
 
-      const values = parseCSVLine(line);
-      const row: Record<string, string> = {};
-      headers.forEach((header: string, index: number) => {
-        row[header] = values[index] || "";
-      });
-
-      const sku = findColumn(row, "sku");
-      const name = findColumn(row, "name");
+      const values = parseCSVLineSimple(line);
+      const sku = values[skuIdx]?.trim();
       
-      if (!sku) {
-        console.warn(`Skipping row ${i}: missing SKU`);
-        continue;
-      }
+      if (!sku) continue;
 
-      let productData: Record<string, unknown>;
-      
       if (isMinimalImport) {
-        const mintsoftId = findColumn(row, "mintsoft_product_id");
-        productData = {
-          sku: sku,
+        // Fast path for minimal imports
+        const name = nameIdx >= 0 ? values[nameIdx]?.trim() : "";
+        const mintsoftIdStr = mintsoftIdIdx >= 0 ? values[mintsoftIdIdx]?.trim() : "";
+        const mintsoftId = mintsoftIdStr ? parseInt(mintsoftIdStr) : null;
+
+        productsToUpsert.push({
+          sku,
           name: name || sku,
-          mintsoft_product_id: mintsoftId ? parseInt(mintsoftId) : null,
+          mintsoft_product_id: isNaN(mintsoftId as number) ? null : mintsoftId,
           discovery_source: "catalog_import",
           discovered_at: new Date().toISOString(),
-        };
+        });
       } else {
-        const eanBarcode = findColumn(row, "ean_barcode");
-        const upcBarcode = findColumn(row, "upc_barcode");
+        // Full import path
+        const name = nameIdx >= 0 ? values[nameIdx]?.trim() : "";
+        const mintsoftIdStr = mintsoftIdIdx >= 0 ? values[mintsoftIdIdx]?.trim() : "";
+        
+        const eanBarcode = eanIdx >= 0 ? values[eanIdx]?.trim() : "";
+        const upcBarcode = upcIdx >= 0 ? values[upcIdx]?.trim() : "";
         let barcode = eanBarcode || upcBarcode;
         let barcodeTypeId: string | null = null;
 
@@ -158,56 +225,62 @@ Deno.serve(async (req) => {
           barcodeTypeId = barcodeType?.id || null;
         }
 
-        const categoriesStr = findColumn(row, "categories");
-        const categories = categoriesStr
-          .split(",")
-          .map((c) => c.trim())
-          .filter((c) => c);
-        categories.forEach((cat) => categorySet.add(cat));
-        if (categories.length > 0) {
-          categoriesForProduct.set(sku, categories);
+        const categoriesStr = categoriesIdx >= 0 ? values[categoriesIdx]?.trim() : "";
+        if (categoriesStr) {
+          const categories = categoriesStr.split(",").map(c => c.trim()).filter(c => c);
+          categories.forEach(cat => categorySet.add(cat));
+          if (categories.length > 0) {
+            categoriesForProduct.set(sku, categories);
+          }
         }
-        
-        const mintsoftId = findColumn(row, "mintsoft_product_id");
-        const discontinued = findColumn(row, "discontinued");
-        const lowStockLevel = findColumn(row, "low_stock_alert_level");
-        const weight = findColumn(row, "weight");
-        const height = findColumn(row, "height");
-        const length = findColumn(row, "length");
-        const depth = findColumn(row, "depth");
-        const costPrice = findColumn(row, "cost_price");
-        const handlingTime = findColumn(row, "handling_time");
-        const currentStock = findColumn(row, "current_stock");
-        const backOrderQty = findColumn(row, "back_order_qty");
-        const onOrder = findColumn(row, "on_order");
-        const suppliers = findColumn(row, "suppliers");
 
-        productData = {
-          sku: sku,
+        const discontinued = discontinuedIdx >= 0 ? values[discontinuedIdx]?.trim() : "";
+        const lowStock = lowStockIdx >= 0 ? values[lowStockIdx]?.trim() : "";
+        const weight = weightIdx >= 0 ? values[weightIdx]?.trim() : "";
+        const height = heightIdx >= 0 ? values[heightIdx]?.trim() : "";
+        const length = lengthIdx >= 0 ? values[lengthIdx]?.trim() : "";
+        const depth = depthIdx >= 0 ? values[depthIdx]?.trim() : "";
+        const costPrice = costPriceIdx >= 0 ? values[costPriceIdx]?.trim() : "";
+        const handlingTime = handlingTimeIdx >= 0 ? values[handlingTimeIdx]?.trim() : "";
+        const currentStock = currentStockIdx >= 0 ? values[currentStockIdx]?.trim() : "";
+        const backOrder = backOrderIdx >= 0 ? values[backOrderIdx]?.trim() : "";
+        const onOrder = onOrderIdx >= 0 ? values[onOrderIdx]?.trim() : "";
+        const suppliers = suppliersIdx >= 0 ? values[suppliersIdx]?.trim() : "";
+
+        productsToUpsert.push({
+          sku,
           name: name || sku,
           barcode: barcode || null,
           barcode_type_id: barcodeTypeId,
           discontinued: discontinued?.toLowerCase() === "true",
           suppliers: suppliers || null,
-          low_stock_alert_level: parseFloat(lowStockLevel) || 0,
+          low_stock_alert_level: parseFloat(lowStock) || 0,
           weight: parseFloat(weight) || null,
           height: parseFloat(height) || null,
           length: parseFloat(length) || null,
           depth: parseFloat(depth) || null,
           cost_price: parseFloat(costPrice) || null,
           handling_time: parseInt(handlingTime) || null,
-          mintsoft_product_id: mintsoftId ? parseInt(mintsoftId) : null,
+          mintsoft_product_id: mintsoftIdStr ? parseInt(mintsoftIdStr) : null,
           current_stock: parseFloat(currentStock) || 0,
-          back_order_qty: parseFloat(backOrderQty) || 0,
+          back_order_qty: parseFloat(backOrder) || 0,
           on_order: parseFloat(onOrder) || 0,
-        };
+        });
       }
-
-      productsToUpsert.push(productData);
     }
 
-    // Batch upsert products in chunks of 500
-    const BATCH_SIZE = 500;
+    // Early bail-out for empty chunks
+    if (productsToUpsert.length === 0) {
+      return new Response(
+        JSON.stringify({ imported: 0, categories: categorySet.size }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Batch upsert - use smaller batches to match chunk size
+    const BATCH_SIZE = 100;
+    let imported = 0;
+
     for (let i = 0; i < productsToUpsert.length; i += BATCH_SIZE) {
       const batch = productsToUpsert.slice(i, i + BATCH_SIZE);
       const { error: batchError } = await supabase
@@ -220,8 +293,6 @@ Deno.serve(async (req) => {
         imported += batch.length;
       }
     }
-
-    console.log(`Import complete: ${imported} products processed`);
 
     // Save upload history
     const { error: historyError } = await supabase
@@ -240,9 +311,7 @@ Deno.serve(async (req) => {
 
     return new Response(
       JSON.stringify({ imported, categories: categorySet.size }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
     console.error("Error processing CSV:", error);
@@ -255,25 +324,3 @@ Deno.serve(async (req) => {
     );
   }
 });
-
-function parseCSVLine(line: string): string[] {
-  const values: string[] = [];
-  let current = "";
-  let inQuotes = false;
-
-  for (let i = 0; i < line.length; i++) {
-    const char = line[i];
-
-    if (char === '"') {
-      inQuotes = !inQuotes;
-    } else if (char === "," && !inQuotes) {
-      values.push(current);
-      current = "";
-    } else {
-      current += char;
-    }
-  }
-
-  values.push(current);
-  return values.map((v) => v.replace(/^"|"$/g, "").trim());
-}

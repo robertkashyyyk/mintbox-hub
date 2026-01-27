@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
-const CHUNK_SIZE = 500; // rows per chunk - smaller for faster progress updates
+const CHUNK_SIZE = 100; // rows per chunk - reduced to prevent CPU timeouts
 
 interface ChunkProgress {
   totalRows: number;
