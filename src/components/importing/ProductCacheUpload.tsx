@@ -1,76 +1,33 @@
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, FileText, Loader2, Download, Info, ChevronDown, ChevronUp } from "lucide-react";
+import { Upload, Loader2, Download, Info, ChevronDown, ChevronUp, CheckCircle2, AlertCircle } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { toast as sonnerToast } from "sonner";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useChunkedCsvUpload } from "@/hooks/useChunkedCsvUpload";
 
 export function ProductCacheUpload() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [file, setFile] = useState<File | null>(null);
   const [uploadName, setUploadName] = useState("");
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [isProcessing, setIsProcessing] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
 
-  const uploadMutation = useMutation({
-    mutationFn: async ({ file, name }: { file: File; name: string }) => {
-      setIsProcessing(true);
-      setUploadProgress(30);
+  const { progress, processChunkedUpload, reset } = useChunkedCsvUpload();
 
-      const csvContent = await file.text();
-      setUploadProgress(50);
-
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("User not authenticated");
-
-      const { data, error } = await supabase.functions.invoke(
-        "process-product-csv",
-        {
-          body: { csvContent, uploadName: name, userId: user.id },
-        }
-      );
-
-      setUploadProgress(100);
-
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: (data) => {
-      toast({
-        title: "Upload successful",
-        description: `Imported ${data.imported} products${data.categories > 0 ? ` across ${data.categories} categories` : ""}`,
-      });
-      setFile(null);
-      setUploadName("");
-      setUploadProgress(0);
-      setIsProcessing(false);
-      queryClient.invalidateQueries({ queryKey: ["products"] });
-      queryClient.invalidateQueries({ queryKey: ["upload-history"] });
-      queryClient.invalidateQueries({ queryKey: ["products-needs-enrichment"] });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Upload failed",
-        description: error.message || "Failed to process CSV",
-        variant: "destructive",
-      });
-      setUploadProgress(0);
-      setIsProcessing(false);
-    },
-  });
+  const isProcessing = progress.status === "parsing" || progress.status === "uploading";
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (selectedFile && selectedFile.name.endsWith(".csv")) {
       setFile(selectedFile);
+      reset();
     } else {
       toast({
         title: "Invalid file",
@@ -85,13 +42,42 @@ export function ProductCacheUpload() {
     const droppedFile = e.dataTransfer.files[0];
     if (droppedFile && droppedFile.name.endsWith(".csv")) {
       setFile(droppedFile);
+      reset();
     }
   };
 
-  const handleUpload = () => {
-    if (file && uploadName.trim()) {
-      uploadMutation.mutate({ file, name: uploadName.trim() });
+  const handleUpload = async () => {
+    if (!file || !uploadName.trim()) return;
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("User not authenticated");
+
+      const result = await processChunkedUpload(file, uploadName.trim(), user.id);
+
+      toast({
+        title: "Upload successful",
+        description: `Imported ${result.imported.toLocaleString()} products${result.categories > 0 ? ` across ${result.categories} categories` : ""}`,
+      });
+
+      setFile(null);
+      setUploadName("");
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["upload-history"] });
+      queryClient.invalidateQueries({ queryKey: ["products-needs-enrichment"] });
+    } catch (error: any) {
+      toast({
+        title: "Upload failed",
+        description: error.message || "Failed to process CSV",
+        variant: "destructive",
+      });
     }
+  };
+
+  const handleClear = () => {
+    setFile(null);
+    setUploadName("");
+    reset();
   };
 
   const downloadTemplate = () => {
@@ -155,6 +141,10 @@ export function ProductCacheUpload() {
     sonnerToast.success("Template downloaded successfully");
   };
 
+  const progressPercent = progress.totalRows > 0
+    ? Math.round((progress.processedRows / progress.totalRows) * 100)
+    : 0;
+
   return (
     <Card>
       <CardHeader>
@@ -197,6 +187,11 @@ export function ProductCacheUpload() {
                   Full product details (cost, stock, barcode) will be fetched automatically in the background every 2 hours.
                   Products appear in the <strong>Discovery Queue</strong> until enriched.
                 </p>
+                <p className="font-medium mt-3">Massive File Support</p>
+                <p className="text-muted-foreground">
+                  Files with 200k+ rows are automatically split into 5,000-row chunks and processed sequentially. 
+                  You'll see real-time progress as each chunk completes.
+                </p>
                 <p className="font-medium mt-3">Full Import</p>
                 <p>For a complete import with all details, include additional columns like CostPrice, CurrentStock, Categories, etc. Download the template for the full list.</p>
               </AlertDescription>
@@ -214,7 +209,7 @@ export function ProductCacheUpload() {
             value={uploadName}
             onChange={(e) => setUploadName(e.target.value)}
             placeholder="e.g., Mintsoft Full Catalog Jan 2025"
-            className="w-full px-3 py-2 border rounded-md"
+            className="w-full px-3 py-2 border rounded-md bg-background"
             disabled={isProcessing}
           />
         </div>
@@ -243,17 +238,54 @@ export function ProductCacheUpload() {
               {file ? file.name : "Click to upload or drag and drop"}
             </p>
             <p className="text-xs text-muted-foreground">
-              CSV files only • Minimal (SKU, Name, ID) or full export supported
+              CSV files only • Supports massive files (200k+ rows) with automatic chunking
             </p>
           </label>
         </div>
 
-        {isProcessing && (
-          <div className="space-y-2">
-            <Progress value={uploadProgress} />
-            <p className="text-sm text-muted-foreground text-center">
-              Processing... {uploadProgress}%
-            </p>
+        {/* Progress Display */}
+        {(isProcessing || progress.status === "complete" || progress.status === "error") && (
+          <div className="space-y-3 p-4 bg-muted/50 rounded-lg">
+            <div className="flex items-center justify-between text-sm">
+              <span className="flex items-center gap-2">
+                {progress.status === "parsing" && (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Parsing CSV file...
+                  </>
+                )}
+                {progress.status === "uploading" && (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Processing chunk {progress.currentChunk} of {progress.totalChunks}
+                  </>
+                )}
+                {progress.status === "complete" && (
+                  <>
+                    <CheckCircle2 className="h-4 w-4 text-green-600" />
+                    Import complete
+                  </>
+                )}
+                {progress.status === "error" && (
+                  <>
+                    <AlertCircle className="h-4 w-4 text-destructive" />
+                    Error: {progress.error}
+                  </>
+                )}
+              </span>
+              <span className="font-medium">
+                {progress.importedCount.toLocaleString()} imported
+              </span>
+            </div>
+
+            <Progress value={progressPercent} className="h-2" />
+
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>
+                {progress.processedRows.toLocaleString()} / {progress.totalRows.toLocaleString()} rows
+              </span>
+              <span>{progressPercent}%</span>
+            </div>
           </div>
         )}
 
@@ -272,14 +304,10 @@ export function ProductCacheUpload() {
               "Upload & Process"
             )}
           </Button>
-          {file && (
+          {(file || progress.status !== "idle") && (
             <Button
               variant="outline"
-              onClick={() => {
-                setFile(null);
-                setUploadName("");
-                setUploadProgress(0);
-              }}
+              onClick={handleClear}
               disabled={isProcessing}
             >
               Clear
