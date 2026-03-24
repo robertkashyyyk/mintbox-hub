@@ -1,38 +1,73 @@
 
 
-# Two Changes: Fix Order Sync Pagination + SKU Database Enhancements
+# PartsDoc Public Website — Replace `/` Landing Page
 
-## 1. Fix Order Sync to Handle 500-600 Orders/Day
+## Overview
+Replace the current generic Index page with a full, professional public-facing website for PartsDoc. This is a single-page React component with multiple sections, plus new route pages for About, Products, Trade, Contact, and FAQ. The Hub Login button links to `/auth`.
 
-The current `sync-mintsoft-orders` edge function has `Limit=100` and no pagination. With 500-600 dispatched orders per day, it only captures the first 100.
+## Palette & Design Tokens
+Extend `index.css` with public-site CSS variables:
+- Dark charcoal: `hsl(220, 10%, 15%)` — hero backgrounds, header
+- Graphite: `hsl(220, 8%, 25%)` — secondary surfaces
+- Steel grey: `hsl(220, 5%, 70%)` — borders, muted text
+- Off-white: `hsl(220, 10%, 97%)` — content backgrounds
+- Amber accent: `hsl(38, 92%, 50%)` — CTAs, highlights
+- Success green: `hsl(142, 71%, 45%)` — trust indicators
 
-**Change**: Add pagination loop to `supabase/functions/sync-mintsoft-orders/index.ts`
-- For each status ID, loop through pages (`PageNo=1,2,3...`) with `Limit=100` until an empty page is returned
-- This ensures all 500-600+ daily orders are captured
-- The daily cron (2-day window) will now pull everything
+## Files to Create
 
-## 2. SKU Database: Thumbnail + Clickable SKU Link
+### 1. `src/pages/PublicHome.tsx` — Homepage
+Full scrolling homepage with these sections:
+- **Sticky Header**: PartsDoc text logo, nav links (About, Products, Trade, Contact), phone number, amber "Hub Login" button linking to `/auth`
+- **Hero**: Dark charcoal background, bold headline ("Motor Parts. Real Expertise. Fast Action."), subtext, two CTAs (Browse Products, Contact Us), subtle automotive-themed CSS pattern
+- **Category Tiles**: 6-8 animated cards (Braking, Suspension, Filters, Electrical, etc.) with icons
+- **Why PartsDoc**: 4-column grid — Local Stock, Trade Pricing, Expert Knowledge, Fast Collection
+- **Trade Section**: Dark panel aimed at garages/workshops with enquiry CTA
+- **Opening Hours Strip**: Amber-accented bar with days/times
+- **Trust/Testimonials**: Quote cards with star ratings
+- **Location Panel**: Map placeholder, address, click-to-call
+- **Footer CTA**: "Need the right part?" with contact button
+- **Footer**: Contact details, quick links, opening hours, Hub Login link, copyright
 
-**Changes to `src/pages/SkuDatabase.tsx`**:
-- Add a small thumbnail (24x24px) to the left of each SKU using the `product_images` table (primary image)
-- Update the query in `src/hooks/useSkuDatabase.ts` to join `product_images` (where `is_primary = true`) to get the `public_url`
-- Make the SKU text a clickable link (`<Link to={/discovery/products/${product.id}}>`) that navigates to the existing ProductDetail page
-- Show a placeholder icon (e.g. `ImageIcon`) when no image exists
+### 2. `src/pages/PublicAbout.tsx` — About PartsDoc
+Company story, values, team approach, Coleraine heritage
 
-## 3. Enrich ProductDetail Page
+### 3. `src/pages/PublicProducts.tsx` — Products / Categories
+Category-led grid with brand tiles, product family cards, "Need help finding a part?" CTA, trade enquiry CTA
 
-The existing `ProductDetail` page already shows stock, price hunter data, and images. We'll add the remaining fields we hold:
+### 4. `src/pages/PublicTrade.tsx` — Trade / Business Customers
+Trade supply info, account benefits, parts sourcing, support, enquiry form CTA
 
-**Changes to `src/pages/ProductDetail.tsx`**:
-- Add: Barcode, Barcode Type, Weight, Height, Length, Depth, Handling Time, Low Stock Alert Level, Suppliers, Mintsoft Product ID
-- Add: Discovery Source and Discovered At
-- Add: Categories (join `product_category_links` + `product_categories`)
-- Add: Fire Sale and Discontinued status badges
-- Organize into logical card sections (Physical Attributes, Identifiers, etc.)
+### 5. `src/pages/PublicContact.tsx` — Contact / Visit Us
+Contact card, opening hours card, map placeholder, enquiry form, click-to-call on mobile
 
-### Files to modify
-- `supabase/functions/sync-mintsoft-orders/index.ts` — add pagination loop
-- `src/hooks/useSkuDatabase.ts` — add `product_images` join to query
-- `src/pages/SkuDatabase.tsx` — add thumbnail + clickable SKU link
-- `src/pages/ProductDetail.tsx` — display all available product fields
+### 6. `src/pages/PublicFAQ.tsx` — FAQ
+Accordion-based FAQ using existing shadcn Accordion component
+
+### 7. `src/components/public/PublicHeader.tsx` — Shared sticky header
+Extracted for reuse across all public pages. Mobile hamburger menu.
+
+### 8. `src/components/public/PublicFooter.tsx` — Shared footer
+
+### 9. `src/components/public/PublicLayout.tsx` — Layout wrapper
+Wraps header + children + footer for all public routes
+
+## Routing Changes (`App.tsx`)
+- Replace `<Index />` at `/` with `<PublicHome />`
+- Add routes: `/about`, `/products`, `/trade`, `/contact`, `/faq`
+- All wrapped in `<PublicLayout />`
+
+## Key UX Details
+- Sticky header with backdrop blur on scroll
+- Scroll-reveal animations via Tailwind `animate-` classes
+- Floating "Call Now" button on mobile (fixed bottom-right)
+- Strong hover states on all cards
+- Fully responsive — mobile-first sections
+- Hub Login button always prominent (amber, top-right)
+- No external dependencies needed — all built with existing shadcn + Tailwind
+
+## Files to Modify
+- `src/App.tsx` — new routes
+- `src/index.css` — add public-site color variables
+- `src/pages/Index.tsx` — replaced entirely
 
