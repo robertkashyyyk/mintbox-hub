@@ -1,33 +1,29 @@
 
 
-# Fix Broken Links: Sidebar & Routing Audit
+# Restyle Invite Email to Match PartsDoc Hub Branding
 
-## Issues Found
+## Problem
+The current invite email uses purple gradients and generic styling. It should reflect the PartsDoc Hub brand — dark charcoal/graphite tones, teal accent, and the "PD" logo mark.
 
-### 1. `/main-menu` → should be `/menu`
-**File**: `src/components/RbacSidebar.tsx` (line 130)
-- The RBAC sidebar links "Main Menu" to `/main-menu`, but the route is `/menu`
-- Fix: Change `to="/main-menu"` to `to="/menu"`
+## Brand Colours (from CSS variables)
+- Charcoal: `#0f172a` (hsl 222 47% 11%)
+- Graphite: `#1e293b` (hsl 217 33% 17%)
+- Teal accent: `#279e8a` (hsl 174 58% 37%)
+- Teal light: `#2eb8a1` (hsl 174 42% 50%)
+- Steel: `#4a5568` (hsl 215 14% 34%)
+- Off-white: `#f7f9fb`
 
-### 2. Missing routes — Operations sidebar & index cards link to pages that don't exist
-**Sidebar** (`AppSidebar.tsx`) and **index page** (`OperationsIndex.tsx`) both link to:
-- `/operations/sync-status` — **no route defined** → 404
-- `/operations/system-health` — **no route defined** → 404
+## Changes — `supabase/functions/send-invite-email/index.ts`
 
-**Fix options**: Either add placeholder pages for these two, or remove the links from both the sidebar and the index page until they're built. I recommend removing them to avoid 404s, since the sidebar and cards should only show working links.
+1. **Header banner** — Replace purple gradient with charcoal-to-graphite gradient (`#0f172a` → `#1e293b`). Add "PD" logo badge (white text on teal circle) and title "PartsDoc Hub" instead of just "You're Invited!"
+2. **CTA button** — Replace purple gradient with solid teal (`#279e8a`), white text
+3. **Role info box** — Subtle teal-tinted background (`#f0fdf9`) with teal left border instead of plain grey
+4. **Body heading** — "Welcome to PartsDoc Hub" instead of "Welcome to Mintsoft Inventory System"
+5. **Subject line** — "You've been invited to PartsDoc Hub"
+6. **From name** — Update to "PartsDoc Hub" (keep same sender address)
+7. **Footer text** — Reference PartsDoc Hub
+8. **Text colours** — Use charcoal (`#0f172a`) for headings, steel (`#4a5568`) for body text
 
-### 3. All other links verified OK
-Every other sidebar link in `AppSidebar.tsx` maps to a defined route in `App.tsx`:
-- Discovery (7 items) — all match
-- Intelligence (4 items) — all match
-- Decisions (4 items) — all match
-- Execution (4 items) — all match
-- Dashboards (3 items) — all match
-- Administration (5 items) — all match (note: `/admin/integrations` has a route but isn't in sidebar — fine for now)
-- Footer links (`/profile`, `/settings`) — both match
-
-## Files Modified
-- `src/components/RbacSidebar.tsx` — fix `/main-menu` → `/menu`
-- `src/components/AppSidebar.tsx` — remove `Sync Status` and `System Health` items
-- `src/pages/OperationsIndex.tsx` — remove `Sync Status` and `System Health` cards
+## File Modified
+- `supabase/functions/send-invite-email/index.ts`
 
