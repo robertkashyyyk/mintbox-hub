@@ -1,30 +1,25 @@
 
-I’ve identified the issue: the “Contact Us” style buttons are using `variant="outline"`, and that variant injects `bg-background` (white). On dark hero/CTA sections this creates white background + white text, so labels look invisible.
 
-## Plan to fix
+# Fix Dark-Mode Filter Input Visibility
 
-1. **Add a dark-surface outline button variant**
-   - Update `src/components/ui/button.tsx` with a new variant (e.g. `outlineDark`) that is explicitly:
-   - `bg-transparent text-white border-white/30 hover:bg-white/10 hover:text-white`
-   - This prevents the default white background from leaking into dark sections.
+## Problem
+In dark mode, `Input` and `SelectTrigger` components use `bg-background` (very dark, `hsl(222 47% 11%)`) sitting on `bg-card` (`hsl(217 33% 17%)`), with `border-input` at only 15% white opacity. This makes inputs appear as near-invisible dark rectangles — labels and placeholders blend into the background.
 
-2. **Apply the new variant on Home page CTAs**
-   - Update `src/pages/PublicHome.tsx`:
-   - Hero CTA secondary button (“Contact Us”)
-   - Trade section secondary button (“Open a Trade Account”)
+## Root Cause
+The dark-mode CSS variable `--input: 0 0% 100% / 15%` is too subtle. The background difference between `--background` and `--card` also creates a "darker hole" effect.
 
-3. **Prevent repeat issues in other public dark sections**
-   - Replace the same pattern in:
-   - `src/pages/PublicTrade.tsx` (“Call Now”)
-   - `src/pages/PublicProducts.tsx` (“Call Us”)
-   - This keeps all dark-background outline buttons visually consistent.
+## Fix — Update dark-mode CSS variables in `src/index.css`
 
-4. **Quick contrast QA pass**
-   - Verify in preview that all affected buttons show visible text in default/hover states on desktop and mobile widths.
-   - Specifically confirm the two Home-page “contact” boxes no longer render white-on-white.
+1. **Bump `--input` border opacity** from `15%` to `25%` so input borders are clearly visible
+2. **Bump `--border` opacity** from `10%` to `15%` for general border visibility improvement
+3. **Change input background behavior** — add a subtle lighter input background variable or override `bg-background` on inputs to use the card color so they don't appear darker than their container
 
-## Files to modify
-- `src/components/ui/button.tsx`
-- `src/pages/PublicHome.tsx`
-- `src/pages/PublicTrade.tsx`
-- `src/pages/PublicProducts.tsx`
+Specifically in the `.dark` block:
+- `--input: 0 0% 100% / 25%;` (was 15%)
+- `--border: 0 0% 100% / 15%;` (was 10%)
+
+This is a global fix affecting all inputs/selects across the entire hub — no need to patch individual filter components.
+
+## Files Modified
+- `src/index.css` — dark-mode variable adjustments (2 lines)
+
