@@ -111,7 +111,15 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Index />} />
+          {/* Public website routes */}
+          <Route element={<PublicLayout />}>
+            <Route path="/" element={<PublicHome />} />
+            <Route path="/about" element={<PublicAbout />} />
+            <Route path="/products" element={<PublicProducts />} />
+            <Route path="/trade" element={<PublicTrade />} />
+            <Route path="/contact" element={<PublicContact />} />
+            <Route path="/faq" element={<PublicFAQ />} />
+          </Route>
           <Route path="/auth" element={<Auth />} />
           <Route path="/access-denied" element={<AccessDenied />} />
           
