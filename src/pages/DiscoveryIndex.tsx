@@ -65,6 +65,14 @@ const DiscoveryIndex = () => {
       onClick: () => navigate("/discovery/feed-imports"),
       show: true,
     },
+    {
+      title: "Bulk Image Upload",
+      description: "Upload images in bulk, matched to products by SKU filename",
+      icon: Images,
+      color: "text-cyan-500",
+      onClick: () => navigate("/discovery/bulk-images"),
+      show: true,
+    },
   ];
 
   return (

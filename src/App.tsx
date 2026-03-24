@@ -129,6 +129,7 @@ const App = () => (
             <Route path="/discovery/discovery-queue" element={<DiscoveryQueue />} />
             <Route path="/discovery/order-telemetry" element={<SalesOrders />} />
             <Route path="/discovery/feed-imports" element={<Importing />} />
+            <Route path="/discovery/bulk-images" element={<BulkImageUpload />} />
 
             {/* Intelligence Sub-Routes */}
             <Route path="/intelligence/velocity" element={<VelocityCoverage />} />
