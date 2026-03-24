@@ -127,8 +127,6 @@ export function AppSidebar() {
         { title: "Dashboard", url: "/operations/dashboard", icon: LayoutDashboard },
         { title: "Reports", url: "/operations/reports", icon: FileText, superOnly: true },
         { title: "Monitoring", url: "/operations/order-monitoring", icon: Activity },
-        { title: "Sync Status", url: "/operations/sync-status", icon: RefreshCw },
-        { title: "System Health", url: "/operations/system-health", icon: Gauge },
       ],
     },
     {

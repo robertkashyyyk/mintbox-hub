@@ -11,8 +11,6 @@ const OperationsIndex = () => {
     { title: "Dashboard", description: "Operational health at a glance - backorders, throughput, exceptions", icon: LayoutDashboard, onClick: () => navigate("/operations/dashboard"), primary: true },
     { title: "Reports", description: "Weekly ops reports and subscriber management", icon: FileText, onClick: () => navigate("/operations/reports") },
     { title: "Monitoring", description: "Track order status snapshots and daily progress", icon: Activity, onClick: () => navigate("/operations/order-monitoring") },
-    { title: "Sync Status", description: "Monitor data synchronization across systems", icon: RefreshCw, onClick: () => navigate("/operations/sync-status") },
-    { title: "System Health", description: "View system performance and diagnostics", icon: Gauge, onClick: () => navigate("/operations/system-health") },
   ];
 
   return (
