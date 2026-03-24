@@ -45,6 +45,7 @@ import OpsReports from "./pages/operations/OpsReports";
 
 // Discovery Pages
 import DiscoveryQueue from "./pages/discovery/DiscoveryQueue";
+import BulkImageUpload from "./pages/discovery/BulkImageUpload";
 
 // Intelligence Pages
 import VelocityCoverage from "./pages/intelligence/VelocityCoverage";
