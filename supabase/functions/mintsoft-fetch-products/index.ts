@@ -91,21 +91,19 @@ Deno.serve(async (req) => {
 
     // Configuration
     const limit = 100;
-    const MAX_PAGES_PREVIEW = 10; // Cap for preview mode to avoid timeout
-    const MAX_PAGES_IMPORT = 500; // Higher cap for import
-    const maxPages = mode === "preview" ? MAX_PAGES_PREVIEW : MAX_PAGES_IMPORT;
+    const MAX_PAGES = 200; // Safety cap for pagination
 
-    // Fetch products from Mintsoft with pagination
+    // Use Mintsoft Search endpoint for server-side filtering
     const allProducts: MintsoftProduct[] = [];
     let page = 1;
     let hasMore = true;
     let truncated = false;
 
-    console.log(`Fetching products with prefix: ${prefix} (mode: ${mode})`);
+    console.log(`Searching products with prefix: ${prefix} (mode: ${mode}) using Search endpoint`);
 
-    while (hasMore && page <= maxPages) {
-      const url = `${baseUrl}/api/Product/List?PageNo=${page}&Limit=${limit}`;
-      console.log(`Fetching page ${page}...`);
+    while (hasMore && page <= MAX_PAGES) {
+      const url = `${baseUrl}/api/Product/Search?SearchTerm=${encodeURIComponent(prefix)}&PageNo=${page}&Limit=${limit}`;
+      console.log(`Fetching search page ${page}...`);
 
       const response = await fetch(url, {
         method: "GET",
@@ -122,7 +120,6 @@ Deno.serve(async (req) => {
           JSON.stringify({ 
             error: `Mintsoft API error: ${response.status} ${response.statusText}`,
             detail: errorText.substring(0, 200),
-            url: url.replace(apiKey, "***")
           }),
           { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
@@ -130,18 +127,18 @@ Deno.serve(async (req) => {
 
       const products: MintsoftProduct[] = await response.json();
       
-      // Filter by prefix using normalized matching
+      // Still apply client-side prefix filter to ensure exact prefix matches
       const filtered = products.filter((p) => p.SKU && skuMatchesPrefix(p.SKU, prefixes));
       allProducts.push(...filtered);
 
-      console.log(`Page ${page}: Found ${products.length} products, ${filtered.length} match prefix`);
+      console.log(`Page ${page}: Found ${products.length} results, ${filtered.length} match prefix exactly`);
 
       hasMore = products.length === limit;
       page++;
 
-      // For preview mode, stop early if we have enough samples
-      if (mode === "preview" && allProducts.length >= 5 && page > 3) {
-        truncated = true;
+      // For preview mode, stop once we have enough samples
+      if (mode === "preview" && allProducts.length >= 5) {
+        truncated = hasMore;
         break;
       }
     }
