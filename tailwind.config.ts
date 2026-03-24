@@ -65,9 +65,11 @@ export default {
 				charcoal: 'hsl(var(--pd-charcoal))',
 				graphite: 'hsl(var(--pd-graphite))',
 				steel: 'hsl(var(--pd-steel))',
+				'steel-light': 'hsl(var(--pd-steel-light))',
 				offwhite: 'hsl(var(--pd-offwhite))',
-				amber: 'hsl(var(--pd-amber))',
-				'amber-foreground': 'hsl(var(--pd-amber-foreground))'
+				accent: 'hsl(var(--pd-accent))',
+				'accent-light': 'hsl(var(--pd-accent-light))',
+				'accent-foreground': 'hsl(var(--pd-accent-foreground))'
 			}
   		},
   		borderRadius: {

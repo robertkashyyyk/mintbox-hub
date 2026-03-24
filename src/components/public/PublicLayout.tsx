@@ -14,7 +14,7 @@ const PublicLayout = () => (
     {/* Mobile floating call button */}
     <a
       href="tel:+442870344344"
-      className="md:hidden fixed bottom-5 right-5 z-40 bg-pd-amber text-pd-charcoal p-3.5 rounded-full shadow-lg hover:bg-pd-amber/90 transition-colors"
+      className="lg:hidden fixed bottom-5 right-5 z-40 bg-pd-accent text-white p-3.5 rounded-full shadow-xl shadow-pd-accent/30 hover:bg-pd-accent-light transition-colors"
       aria-label="Call PartsDoc"
     >
       <Phone className="h-5 w-5" />
