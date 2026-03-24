@@ -27,7 +27,6 @@ serve(async (req) => {
 
     const resend = new Resend(resendApiKey);
     
-    // Get the app URL from the request origin or use production URL
     const appUrl = Deno.env.get("APP_URL") || "https://mintbox-hub.lovable.app";
     const signupUrl = `${appUrl}/auth`;
     
@@ -42,9 +41,9 @@ serve(async (req) => {
     const roleLabel = roleLabels[role] || role;
 
     const emailResponse = await resend.emails.send({
-      from: "Mintsoft System <noreply@updates.kashyyyk.co.uk>",
+      from: "PartsDoc Hub <noreply@updates.kashyyyk.co.uk>",
       to: [email],
-      subject: `You've been invited to Mintsoft Inventory System`,
+      subject: `You've been invited to PartsDoc Hub`,
       html: `
         <!DOCTYPE html>
         <html>
@@ -53,21 +52,25 @@ serve(async (req) => {
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>You're Invited!</title>
           </head>
-          <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px 20px; text-align: center; border-radius: 8px 8px 0 0;">
-              <h1 style="color: white; margin: 0; font-size: 28px;">You're Invited!</h1>
+          <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #4a5568; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f7f9fb;">
+            <div style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); padding: 40px 20px; text-align: center; border-radius: 8px 8px 0 0;">
+              <div style="width: 56px; height: 56px; background-color: #279e8a; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 16px;">
+                <span style="color: #ffffff; font-size: 22px; font-weight: 700; line-height: 56px;">PD</span>
+              </div>
+              <h1 style="color: #ffffff; margin: 0; font-size: 26px; font-weight: 600;">PartsDoc Hub</h1>
+              <p style="color: #94a3b8; margin: 8px 0 0; font-size: 15px;">You've been invited!</p>
             </div>
             
-            <div style="background: white; padding: 40px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
-              <h2 style="color: #1f2937; margin-top: 0;">Welcome to Mintsoft Inventory System</h2>
+            <div style="background: #ffffff; padding: 40px; border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 8px 8px;">
+              <h2 style="color: #0f172a; margin-top: 0; font-size: 22px;">Welcome to PartsDoc Hub</h2>
               
-              <p style="font-size: 16px; color: #4b5563;">
-                You've been invited to join the Mintsoft Inventory System with <strong>${roleLabel}</strong> access.
+              <p style="font-size: 16px; color: #4a5568;">
+                You've been invited to join PartsDoc Hub with <strong style="color: #0f172a;">${roleLabel}</strong> access.
               </p>
 
-              <div style="background: #f3f4f6; padding: 20px; border-radius: 8px; margin: 30px 0;">
-                <h3 style="margin-top: 0; color: #374151; font-size: 18px;">Your Role: ${roleLabel}</h3>
-                <p style="margin: 10px 0; color: #6b7280; font-size: 14px;">
+              <div style="background: #f0fdf9; padding: 20px; border-radius: 8px; margin: 30px 0; border-left: 4px solid #279e8a;">
+                <h3 style="margin-top: 0; color: #0f172a; font-size: 18px;">Your Role: ${roleLabel}</h3>
+                <p style="margin: 10px 0 0; color: #4a5568; font-size: 14px;">
                   ${role === "super_user" 
                     ? "Full system access including user management, brand management, and all features."
                     : role === "senior_user"
@@ -79,23 +82,24 @@ serve(async (req) => {
 
               <div style="text-align: center; margin: 40px 0;">
                 <a href="${signupUrl}" 
-                   style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 16px 32px; text-decoration: none; border-radius: 6px; font-weight: 600; display: inline-block; font-size: 16px;">
-                  Accept Invitation & Sign Up
+                   style="background-color: #279e8a; color: #ffffff; padding: 16px 32px; text-decoration: none; border-radius: 6px; font-weight: 600; display: inline-block; font-size: 16px;">
+                  Accept Invitation &amp; Sign Up
                 </a>
               </div>
 
-              <p style="font-size: 14px; color: #6b7280; margin-top: 30px;">
-                <strong>Important:</strong> Please sign up using this email address (<strong>${email}</strong>) to receive your assigned role automatically.
+              <p style="font-size: 14px; color: #4a5568; margin-top: 30px;">
+                <strong style="color: #0f172a;">Important:</strong> Please sign up using this email address (<strong style="color: #0f172a;">${email}</strong>) to receive your assigned role automatically.
               </p>
 
-              <p style="font-size: 14px; color: #6b7280; margin-top: 20px;">
+              <p style="font-size: 14px; color: #64748b; margin-top: 20px;">
                 This invitation will expire in 7 days.
               </p>
 
-              <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+              <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 30px 0;">
 
-              <p style="font-size: 12px; color: #9ca3af; text-align: center;">
-                If you didn't expect this invitation, you can safely ignore this email.
+              <p style="font-size: 12px; color: #94a3b8; text-align: center;">
+                If you didn't expect this invitation, you can safely ignore this email.<br>
+                &copy; PartsDoc Hub
               </p>
             </div>
           </body>
