@@ -1,29 +1,28 @@
 
 
-# Restyle Invite Email to Match PartsDoc Hub Branding
+# Fix Low-Contrast Text Across Dark Mode
 
 ## Problem
-The current invite email uses purple gradients and generic styling. It should reflect the PartsDoc Hub brand — dark charcoal/graphite tones, teal accent, and the "PD" logo mark.
+Labels, placeholders, and muted text (filter labels like "Search", "Brand", badge text, etc.) use `text-muted-foreground` which resolves to `hsl(214, 12%, 60%)` in dark mode. Against the dark charcoal/graphite backgrounds, this is too dim and hard to read — as visible in the screenshot where filter labels nearly disappear.
 
-## Brand Colours (from CSS variables)
-- Charcoal: `#0f172a` (hsl 222 47% 11%)
-- Graphite: `#1e293b` (hsl 217 33% 17%)
-- Teal accent: `#279e8a` (hsl 174 58% 37%)
-- Teal light: `#2eb8a1` (hsl 174 42% 50%)
-- Steel: `#4a5568` (hsl 215 14% 34%)
-- Off-white: `#f7f9fb`
+## Fix — Single CSS variable change in `src/index.css`
 
-## Changes — `supabase/functions/send-invite-email/index.ts`
+In the `.dark` block, bump `--muted-foreground` lightness from `60%` to `72%`:
 
-1. **Header banner** — Replace purple gradient with charcoal-to-graphite gradient (`#0f172a` → `#1e293b`). Add "PD" logo badge (white text on teal circle) and title "PartsDoc Hub" instead of just "You're Invited!"
-2. **CTA button** — Replace purple gradient with solid teal (`#279e8a`), white text
-3. **Role info box** — Subtle teal-tinted background (`#f0fdf9`) with teal left border instead of plain grey
-4. **Body heading** — "Welcome to PartsDoc Hub" instead of "Welcome to Mintsoft Inventory System"
-5. **Subject line** — "You've been invited to PartsDoc Hub"
-6. **From name** — Update to "PartsDoc Hub" (keep same sender address)
-7. **Footer text** — Reference PartsDoc Hub
-8. **Text colours** — Use charcoal (`#0f172a`) for headings, steel (`#4a5568`) for body text
+```css
+/* Was: */
+--muted-foreground: 214 12% 60%;
 
-## File Modified
-- `supabase/functions/send-invite-email/index.ts`
+/* Now: */
+--muted-foreground: 214 12% 72%;
+```
+
+This single change fixes all labels, placeholders, helper text, and muted descriptions across every page — SKU Database filters, Buy Recommendation filters, sidebar secondary text, table headers, badges, etc.
+
+## Why 72%
+- 60% gives ~3.2:1 contrast against `#0f172a` — below WCAG AA (4.5:1)
+- 72% gives ~5.5:1 contrast — passes WCAG AA and is clearly readable without being too bright
+
+## Files Modified
+- `src/index.css` — one line change in `.dark` block
 
