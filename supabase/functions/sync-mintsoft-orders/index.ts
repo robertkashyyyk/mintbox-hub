@@ -99,28 +99,42 @@ Deno.serve(async (req) => {
     let allOrders: MintsoftOrder[] = [];
     
     for (const statusId of dispatchedStatusIds) {
-      const ordersUrl = `${settings.base_url}/api/Order/List?OrderStatusId=${statusId}&SinceDate=${fromDate}T00:00:00Z&IncludeOrderItems=true&Limit=100`;
+      let pageNo = 1;
+      let statusTotal = 0;
       
-      console.log(`Fetching orders with status ${statusId} from: ${ordersUrl}`);
-      
-      const ordersResponse = await fetch(ordersUrl, {
-        method: "GET",
-        headers: {
-          "ms-apikey": mintsoftApiKey,
-          "Content-Type": "application/json",
-        },
-      });
+      while (true) {
+        const ordersUrl = `${settings.base_url}/api/Order/List?OrderStatusId=${statusId}&SinceDate=${fromDate}T00:00:00Z&IncludeOrderItems=true&Limit=250&PageNo=${pageNo}`;
+        
+        console.log(`Fetching orders with status ${statusId}, page ${pageNo}`);
+        
+        const ordersResponse = await fetch(ordersUrl, {
+          method: "GET",
+          headers: {
+            "ms-apikey": mintsoftApiKey,
+            "Content-Type": "application/json",
+          },
+        });
 
-      if (!ordersResponse.ok) {
-        const errorBody = await ordersResponse.text();
-        console.error(`Mintsoft error for status ${statusId}: ${errorBody}`);
-        // Continue with other statuses instead of failing completely
-        continue;
+        if (!ordersResponse.ok) {
+          const errorBody = await ordersResponse.text();
+          console.error(`Mintsoft error for status ${statusId} page ${pageNo}: ${errorBody}`);
+          break;
+        }
+
+        const orders: MintsoftOrder[] = await ordersResponse.json();
+        console.log(`Page ${pageNo}: received ${orders.length} orders with status ${statusId}`);
+        
+        if (orders.length === 0) break;
+        
+        allOrders = allOrders.concat(orders);
+        statusTotal += orders.length;
+        
+        if (orders.length < 250) break;
+        
+        pageNo++;
       }
-
-      const orders: MintsoftOrder[] = await ordersResponse.json();
-      console.log(`Received ${orders.length} orders with status ${statusId}`);
-      allOrders = allOrders.concat(orders);
+      
+      console.log(`Status ${statusId} total: ${statusTotal} orders across ${pageNo} page(s)`);
     }
 
     console.log(`Total orders fetched across all statuses: ${allOrders.length}`);

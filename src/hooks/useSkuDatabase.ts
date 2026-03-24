@@ -110,6 +110,9 @@ export const useSkuDatabase = () => {
           created_at,
           product_category_links (
             product_categories (name)
+          ),
+          product_images!product_images_product_id_fkey (
+            public_url
           )
         `, { count: 'exact' });
 

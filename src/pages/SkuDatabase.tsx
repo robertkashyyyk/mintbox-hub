@@ -19,8 +19,9 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
-import { ArrowUpDown, Download } from "lucide-react";
+import { ArrowUpDown, Download, ImageIcon } from "lucide-react";
 import { toast } from "sonner";
+import { Link } from "react-router-dom";
 
 const SkuDatabase = () => {
   const {
