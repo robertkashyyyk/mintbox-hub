@@ -301,6 +301,9 @@ export default function ProductDetail() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Product Images */}
+      <ProductImageUpload productId={product.id} productSku={product.sku} />
     </div>
   );
 }
