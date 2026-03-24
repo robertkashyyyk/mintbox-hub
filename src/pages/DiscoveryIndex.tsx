@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Database, Tag, AlertCircle, Activity, FileText, ArrowLeft } from "lucide-react";
+import { Database, Tag, AlertCircle, Activity, FileText, ArrowLeft, Images } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
