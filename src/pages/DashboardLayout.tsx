@@ -68,22 +68,25 @@ const DashboardLayout = () => {
 
   return (
     <SidebarProvider>
-      <div className="min-h-screen flex w-full bg-background">
+      <div className="min-h-screen flex w-full bg-background dark">
         <AppSidebar />
         
         <div className="flex-1 flex flex-col">
-          <header className="h-16 border-b bg-card sticky top-0 z-10">
+          <header className="h-16 border-b border-white/10 bg-[hsl(222,47%,11%)] sticky top-0 z-10">
             <div className="h-full px-4 flex items-center justify-between">
               <div className="flex items-center gap-4">
                 <SidebarTrigger />
-                <div>
-                  <h1 className="text-xl font-bold">Dashboard</h1>
-                  <p className="text-xs text-muted-foreground">{session.user.email}</p>
+                <div className="flex items-center gap-3">
+                  <div className="h-8 w-1 rounded-full bg-[hsl(174,58%,37%)]" />
+                  <div>
+                    <h1 className="text-lg font-bold text-white tracking-tight">PartsDoc Hub</h1>
+                    <p className="text-xs text-white/50">{session.user.email}</p>
+                  </div>
                 </div>
               </div>
               <div className="flex items-center gap-2">
                 <NotificationBell />
-                <Button variant="outline" onClick={handleSignOut} size="sm">
+                <Button variant="outline" onClick={handleSignOut} size="sm" className="border-white/10 text-white/70 hover:text-white hover:bg-white/5">
                   <LogOut className="mr-2 h-4 w-4" />
                   Sign Out
                 </Button>
