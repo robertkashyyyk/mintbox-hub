@@ -1103,6 +1103,58 @@ export type Database = {
           },
         ]
       }
+      product_images: {
+        Row: {
+          created_at: string
+          display_order: number
+          file_path: string
+          id: string
+          is_primary: boolean
+          product_id: string
+          public_url: string
+        }
+        Insert: {
+          created_at?: string
+          display_order?: number
+          file_path: string
+          id?: string
+          is_primary?: boolean
+          product_id: string
+          public_url: string
+        }
+        Update: {
+          created_at?: string
+          display_order?: number
+          file_path?: string
+          id?: string
+          is_primary?: boolean
+          product_id?: string
+          public_url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_images_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products_cache"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_images_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products_need_ordering"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_images_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products_needs_enrichment"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       products_cache: {
         Row: {
           back_order_qty: number | null
