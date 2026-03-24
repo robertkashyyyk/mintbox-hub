@@ -1,38 +1,38 @@
 
 
-# Fix: Schedule Daily Order Sync for Velocity Data
+# Two Changes: Fix Order Sync Pagination + SKU Database Enhancements
 
-## Problem
-The Velocity & Coverage page has no meaningful data because `sync-mintsoft-orders` has never been scheduled. It ran once manually on 25 Nov 2025 (82 lines) and never again. The `sku_velocity` materialized view needs continuous order line data to calculate 30/60/90-day sales windows.
+## 1. Fix Order Sync to Handle 500-600 Orders/Day
 
-## Product Enrichment Status (Good News)
-Enrichment is essentially complete: 182,971 products enriched, 88% have cost prices, 0 remaining in the enrichment queue. No action needed here.
+The current `sync-mintsoft-orders` edge function has `Limit=100` and no pagination. With 500-600 dispatched orders per day, it only captures the first 100.
 
-## Changes
+**Change**: Add pagination loop to `supabase/functions/sync-mintsoft-orders/index.ts`
+- For each status ID, loop through pages (`PageNo=1,2,3...`) with `Limit=100` until an empty page is returned
+- This ensures all 500-600+ daily orders are captured
+- The daily cron (2-day window) will now pull everything
 
-### 1. Schedule `sync-mintsoft-orders` as a daily cron job
-- Run daily at **06:00 UTC** (before the AM order snapshot at 07:30)
-- Pass `fromDate` as 2 days ago to catch any stragglers
-- Uses the existing edge function with no code changes needed
-- SQL insert into `cron.schedule` (same pattern as existing jobs)
+## 2. SKU Database: Thumbnail + Clickable SKU Link
 
-### 2. Backfill: Run a one-time historical pull
-- Invoke `sync-mintsoft-orders` manually with `fromDate` set to 90 days ago
-- This populates the 30/60/90-day velocity windows immediately
-- Without this, it would take 90 days of daily syncs to fill the view
+**Changes to `src/pages/SkuDatabase.tsx`**:
+- Add a small thumbnail (24x24px) to the left of each SKU using the `product_images` table (primary image)
+- Update the query in `src/hooks/useSkuDatabase.ts` to join `product_images` (where `is_primary = true`) to get the `public_url`
+- Make the SKU text a clickable link (`<Link to={/discovery/products/${product.id}}>`) that navigates to the existing ProductDetail page
+- Show a placeholder icon (e.g. `ImageIcon`) when no image exists
 
-### 3. Schedule `sku_velocity` materialized view refresh
-- The materialized view needs periodic refresh to reflect new order data
-- Add a daily cron job to run `REFRESH MATERIALIZED VIEW sku_velocity` after the order sync completes (e.g. 06:30 UTC)
+## 3. Enrich ProductDetail Page
 
-### 4. Add `sync-mintsoft-orders` to `supabase/config.toml`
-- Add `verify_jwt = false` entry so the cron job can call it without auth
+The existing `ProductDetail` page already shows stock, price hunter data, and images. We'll add the remaining fields we hold:
 
-## Technical Detail
+**Changes to `src/pages/ProductDetail.tsx`**:
+- Add: Barcode, Barcode Type, Weight, Height, Length, Depth, Handling Time, Low Stock Alert Level, Suppliers, Mintsoft Product ID
+- Add: Discovery Source and Discovered At
+- Add: Categories (join `product_category_links` + `product_categories`)
+- Add: Fire Sale and Discontinued status badges
+- Organize into logical card sections (Physical Attributes, Identifiers, etc.)
 
-The cron schedule will be:
-- `0 6 * * *` — sync orders daily at 06:00 UTC
-- `30 6 * * *` — refresh `sku_velocity` materialized view
-
-The backfill call will use `fromDate: "2025-12-24"` (90 days back from today) to seed historical data.
+### Files to modify
+- `supabase/functions/sync-mintsoft-orders/index.ts` — add pagination loop
+- `src/hooks/useSkuDatabase.ts` — add `product_images` join to query
+- `src/pages/SkuDatabase.tsx` — add thumbnail + clickable SKU link
+- `src/pages/ProductDetail.tsx` — display all available product fields
 
