@@ -86,10 +86,6 @@ const DashboardLayout = () => {
               </div>
               <div className="flex items-center gap-2">
                 <NotificationBell />
-                <Button variant="outline" onClick={handleSignOut} size="sm" className="border-white/10 text-white/70 hover:text-white hover:bg-white/5">
-                  <LogOut className="mr-2 h-4 w-4" />
-                  Sign Out
-                </Button>
               </div>
             </div>
           </header>
