@@ -20,7 +20,13 @@ export default function ProductDetail() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("products_cache")
-        .select("*")
+        .select(`
+          *,
+          barcode_types (type_name),
+          product_category_links (
+            product_categories (name)
+          )
+        `)
         .eq("id", id)
         .single();
       if (error) throw error;
