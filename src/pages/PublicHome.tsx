@@ -65,7 +65,7 @@ const PublicHome = () => (
             Real Expertise.<br />
             <span className="text-pd-accent">Fast Action.</span>
           </h1>
-          <p className="mt-6 text-lg md:text-xl text-white/50 max-w-lg leading-relaxed">
+          <p className="mt-6 text-lg md:text-xl text-white/80 max-w-lg leading-relaxed">
             Serving trade and retail customers with the right parts,
             practical advice and dependable service.
           </p>
@@ -75,7 +75,7 @@ const PublicHome = () => (
                 Browse Products <ArrowRight className="h-4 w-4 ml-1" />
               </Link>
             </Button>
-            <Button asChild size="lg" variant="outline" className="border-white/20 text-white hover:bg-white/10 text-base h-12 px-8">
+            <Button asChild size="lg" variant="outline" className="border-white/30 text-white hover:bg-white/10 text-base h-12 px-8">
               <Link to="/contact">Contact Us</Link>
             </Button>
           </div>
@@ -83,12 +83,12 @@ const PublicHome = () => (
       </div>
 
       {/* Bottom stats strip */}
-      <div className="absolute bottom-0 left-0 right-0 bg-pd-charcoal/80 backdrop-blur-md border-t border-white/5">
+      <div className="absolute bottom-0 left-0 right-0 bg-pd-charcoal/80 backdrop-blur-md border-t border-white/10">
         <div className="container mx-auto px-4 py-5 grid grid-cols-2 md:grid-cols-4 gap-4">
           {stats.map((s) => (
             <div key={s.label} className="text-center">
               <div className="text-2xl font-bold text-pd-accent">{s.value}</div>
-              <div className="text-xs text-white/40 uppercase tracking-wider mt-0.5">{s.label}</div>
+              <div className="text-xs text-white/70 uppercase tracking-wider mt-0.5">{s.label}</div>
             </div>
           ))}
         </div>
@@ -115,7 +115,7 @@ const PublicHome = () => (
             <div className="absolute inset-0 bg-gradient-to-t from-pd-charcoal via-pd-charcoal/30 to-transparent" />
             <div className="absolute bottom-0 left-0 right-0 p-5">
               <h3 className="text-lg font-bold text-white">{c.label}</h3>
-              <p className="text-sm text-white/50 mt-0.5">{c.desc}</p>
+              <p className="text-sm text-white/70 mt-0.5">{c.desc}</p>
               <div className="mt-3 inline-flex items-center gap-1 text-pd-accent text-sm font-medium opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300">
                 View range <ArrowRight className="h-3.5 w-3.5" />
               </div>
@@ -134,12 +134,12 @@ const PublicHome = () => (
         </div>
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {reasons.map((r) => (
-            <div key={r.title} className="bg-pd-graphite rounded-xl p-6 border border-white/5 hover:border-pd-accent/30 transition-colors">
+            <div key={r.title} className="bg-pd-graphite rounded-xl p-6 border border-white/10 hover:border-pd-accent/30 transition-colors">
               <div className="w-12 h-12 rounded-lg bg-pd-accent/10 flex items-center justify-center text-pd-accent mb-5">
                 <r.icon className="h-6 w-6" />
               </div>
               <h3 className="font-bold text-white mb-2">{r.title}</h3>
-              <p className="text-sm text-white/50 leading-relaxed">{r.desc}</p>
+              <p className="text-sm text-white/70 leading-relaxed">{r.desc}</p>
             </div>
           ))}
         </div>
@@ -161,13 +161,13 @@ const PublicHome = () => (
         <div className="max-w-xl">
           <p className="text-pd-accent text-sm font-semibold uppercase tracking-wider mb-3">For the Trade</p>
           <h2 className="text-3xl md:text-4xl font-bold text-white mb-5">Trade &amp; Business Customers</h2>
-          <p className="text-white/50 text-lg leading-relaxed mb-4">
+          <p className="text-white/75 text-lg leading-relaxed mb-4">
             Competitive trade pricing, dedicated support, and reliable stock for garages,
             workshops and fleet operators across Northern Ireland.
           </p>
           <ul className="space-y-2 mb-8">
             {["Trade account pricing", "Same-day collection", "Dedicated parts support", "Hard-to-find sourcing"].map((item) => (
-              <li key={item} className="flex items-center gap-2 text-white/70 text-sm">
+              <li key={item} className="flex items-center gap-2 text-white/80 text-sm">
                 <CheckCircle2 className="h-4 w-4 text-pd-accent shrink-0" /> {item}
               </li>
             ))}
@@ -176,7 +176,7 @@ const PublicHome = () => (
             <Button asChild size="lg" className="bg-pd-accent hover:bg-pd-accent-light text-white font-semibold">
               <Link to="/trade">Learn More <ArrowRight className="h-4 w-4 ml-1" /></Link>
             </Button>
-            <Button asChild size="lg" variant="outline" className="border-white/20 text-white hover:bg-white/10">
+            <Button asChild size="lg" variant="outline" className="border-white/30 text-white hover:bg-white/10">
               <Link to="/contact">Open a Trade Account</Link>
             </Button>
           </div>
@@ -190,9 +190,9 @@ const PublicHome = () => (
         <div className="flex items-center gap-2 font-bold">
           <Clock className="h-5 w-5" /> Opening Hours
         </div>
-        <span className="text-sm font-medium text-white/90">Mon–Fri: 8:30 – 17:30</span>
-        <span className="text-sm font-medium text-white/90">Sat: 9:00 – 13:00</span>
-        <span className="text-sm font-medium text-white/50">Sun: Closed</span>
+        <span className="text-sm font-medium">Mon–Fri: 8:30 – 17:30</span>
+        <span className="text-sm font-medium">Sat: 9:00 – 13:00</span>
+        <span className="text-sm font-medium text-white/70">Sun: Closed</span>
       </div>
     </section>
 
@@ -219,25 +219,25 @@ const PublicHome = () => (
       </div>
     </section>
 
-    {/* Location */}
+    {/* Location with Map */}
     <section className="bg-pd-charcoal">
       <div className="container mx-auto px-4 py-20">
         <div className="grid md:grid-cols-2 gap-10 items-center">
           <div>
             <p className="text-pd-accent text-sm font-semibold uppercase tracking-wider mb-3">Find Us</p>
             <h2 className="text-3xl md:text-4xl font-bold text-white mb-5">Visit Us in Coleraine</h2>
-            <p className="text-white/50 mb-8 text-lg leading-relaxed">
+            <p className="text-white/75 mb-8 text-lg leading-relaxed">
               Our counter is open for trade and retail customers. Pop in for parts,
               advice, or to collect an order.
             </p>
             <ul className="space-y-4 text-sm">
-              <li className="flex items-center gap-3 text-white/70">
+              <li className="flex items-center gap-3 text-white/80">
                 <div className="w-9 h-9 rounded-lg bg-pd-accent/10 flex items-center justify-center shrink-0">
                   <MapPin className="h-4 w-4 text-pd-accent" />
                 </div>
                 Coleraine, Co. Londonderry, Northern Ireland
               </li>
-              <li className="flex items-center gap-3 text-white/70">
+              <li className="flex items-center gap-3 text-white/80">
                 <div className="w-9 h-9 rounded-lg bg-pd-accent/10 flex items-center justify-center shrink-0">
                   <Phone className="h-4 w-4 text-pd-accent" />
                 </div>
@@ -248,11 +248,17 @@ const PublicHome = () => (
               <Link to="/contact">Get Directions &amp; Contact <ArrowRight className="h-4 w-4 ml-1" /></Link>
             </Button>
           </div>
-          <div className="bg-pd-graphite rounded-2xl h-72 flex items-center justify-center border border-white/5">
-            <div className="text-center">
-              <MapPin className="h-12 w-12 mx-auto mb-3 text-pd-accent/30" />
-              <span className="text-sm text-white/30">Map — Coleraine, NI</span>
-            </div>
+          <div className="rounded-2xl overflow-hidden border border-white/10 h-72">
+            <iframe
+              src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d36168.81918201844!2d-6.6899!3d55.1326!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x486017b3cf11cc01%3A0xa9b1e11c5d5e3c0!2sColeraine!5e0!3m2!1sen!2suk!4v1700000000000!5m2!1sen!2suk"
+              width="100%"
+              height="100%"
+              style={{ border: 0 }}
+              allowFullScreen
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+              title="PartsDoc Location - Coleraine"
+            />
           </div>
         </div>
       </div>

@@ -14,7 +14,6 @@ const benefits = [
 
 const PublicTrade = () => (
   <div>
-    {/* Hero with image */}
     <section className="relative min-h-[50vh] flex items-center">
       <img
         src={tradeImg}
@@ -27,7 +26,7 @@ const PublicTrade = () => (
       <div className="container mx-auto px-4 relative z-10 py-20 max-w-3xl text-center">
         <p className="text-pd-accent text-sm font-semibold uppercase tracking-wider mb-3">For the Trade</p>
         <h1 className="text-3xl md:text-5xl font-bold text-white mb-5">Trade &amp; Business Customers</h1>
-        <p className="text-white/50 text-lg leading-relaxed">
+        <p className="text-white/75 text-lg leading-relaxed">
           Garages, workshops, fleet operators and trade buyers — PartsDoc is built to support
           your business with competitive pricing, reliable stock and expert service.
         </p>
@@ -42,7 +41,7 @@ const PublicTrade = () => (
               <b.icon className="h-5 w-5" />
             </div>
             <h3 className="font-bold text-pd-charcoal mb-1.5">{b.title}</h3>
-            <p className="text-sm text-pd-steel leading-relaxed">{b.desc}</p>
+            <p className="text-sm text-pd-charcoal/70 leading-relaxed">{b.desc}</p>
           </div>
         ))}
       </div>
@@ -51,7 +50,7 @@ const PublicTrade = () => (
     <section className="bg-pd-charcoal">
       <div className="container mx-auto px-4 py-20 text-center max-w-2xl">
         <h2 className="text-3xl font-bold text-white mb-4">Open a Trade Account</h2>
-        <p className="text-white/50 mb-8 text-lg">
+        <p className="text-white/70 mb-8 text-lg">
           Get in touch to discuss trade pricing, set up an account, or talk to our team about
           how we can support your workshop or business.
         </p>
@@ -59,7 +58,7 @@ const PublicTrade = () => (
           <Button asChild size="lg" className="bg-pd-accent hover:bg-pd-accent-light text-white font-semibold">
             <Link to="/contact">Contact Us <ArrowRight className="h-4 w-4 ml-1" /></Link>
           </Button>
-          <Button asChild size="lg" variant="outline" className="border-white/20 text-white hover:bg-white/10">
+          <Button asChild size="lg" variant="outline" className="border-white/30 text-white hover:bg-white/10">
             <a href="tel:+442870344344">Call Now</a>
           </Button>
         </div>
