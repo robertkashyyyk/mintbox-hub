@@ -219,7 +219,21 @@ const SkuDatabase = () => {
                         <TableRow key={product.id} className={needsOrdering ? "bg-accent/5" : ""}>
                           <TableCell className="font-medium">
                             <div className="flex items-center gap-2">
-                              {product.sku}
+                              {product.product_images?.[0]?.public_url ? (
+                                <img
+                                  src={product.product_images[0].public_url}
+                                  alt={product.sku}
+                                  className="h-6 w-6 rounded object-cover flex-shrink-0"
+                                />
+                              ) : (
+                                <ImageIcon className="h-6 w-6 text-muted-foreground/40 flex-shrink-0" />
+                              )}
+                              <Link
+                                to={`/discovery/products/${product.id}`}
+                                className="text-primary hover:underline"
+                              >
+                                {product.sku}
+                              </Link>
                               {product.discovery_source === 'order' && (
                                 <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
                                   Order-discovered
