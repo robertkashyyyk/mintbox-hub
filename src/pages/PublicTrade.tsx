@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
-import { ShieldCheck, Truck, Users, Clock, Phone, Wrench } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
+import { ShieldCheck, Truck, Users, Clock, Phone, Wrench, ArrowRight, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import tradeImg from "@/assets/trade-workshop.jpg";
 
 const benefits = [
   { icon: ShieldCheck, title: "Trade Pricing", desc: "Competitive rates for registered trade customers across all product lines." },
@@ -14,42 +14,50 @@ const benefits = [
 
 const PublicTrade = () => (
   <div>
-    <section className="bg-pd-charcoal py-16 md:py-20">
-      <div className="container mx-auto px-4 text-center max-w-3xl">
-        <h1 className="text-3xl md:text-4xl font-bold text-white mb-4">Trade &amp; Business Customers</h1>
-        <p className="text-white/60 text-lg">
+    {/* Hero with image */}
+    <section className="relative min-h-[50vh] flex items-center">
+      <img
+        src={tradeImg}
+        alt="Trade workshop"
+        className="absolute inset-0 w-full h-full object-cover"
+        width={1280}
+        height={640}
+      />
+      <div className="absolute inset-0 bg-gradient-to-r from-pd-charcoal via-pd-charcoal/95 to-pd-charcoal/70" />
+      <div className="container mx-auto px-4 relative z-10 py-20 max-w-3xl text-center">
+        <p className="text-pd-accent text-sm font-semibold uppercase tracking-wider mb-3">For the Trade</p>
+        <h1 className="text-3xl md:text-5xl font-bold text-white mb-5">Trade &amp; Business Customers</h1>
+        <p className="text-white/50 text-lg leading-relaxed">
           Garages, workshops, fleet operators and trade buyers — PartsDoc is built to support
           your business with competitive pricing, reliable stock and expert service.
         </p>
       </div>
     </section>
 
-    <section className="container mx-auto px-4 py-16">
+    <section className="container mx-auto px-4 py-20">
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {benefits.map((b) => (
-          <Card key={b.title} className="border-pd-steel/20 bg-white">
-            <CardContent className="p-6">
-              <div className="inline-flex p-2.5 rounded-lg bg-pd-amber/10 text-pd-amber mb-4">
-                <b.icon className="h-5 w-5" />
-              </div>
-              <h3 className="font-semibold text-pd-charcoal mb-1">{b.title}</h3>
-              <p className="text-sm text-pd-steel">{b.desc}</p>
-            </CardContent>
-          </Card>
+          <div key={b.title} className="bg-white rounded-xl p-6 border border-pd-steel-light/20 hover:border-pd-accent/30 hover:shadow-md transition-all">
+            <div className="w-11 h-11 rounded-lg bg-pd-accent/10 flex items-center justify-center text-pd-accent mb-4">
+              <b.icon className="h-5 w-5" />
+            </div>
+            <h3 className="font-bold text-pd-charcoal mb-1.5">{b.title}</h3>
+            <p className="text-sm text-pd-steel leading-relaxed">{b.desc}</p>
+          </div>
         ))}
       </div>
     </section>
 
-    <section className="bg-pd-graphite">
-      <div className="container mx-auto px-4 py-16 text-center max-w-2xl">
-        <h2 className="text-2xl font-bold text-white mb-3">Open a Trade Account</h2>
-        <p className="text-white/60 mb-6">
+    <section className="bg-pd-charcoal">
+      <div className="container mx-auto px-4 py-20 text-center max-w-2xl">
+        <h2 className="text-3xl font-bold text-white mb-4">Open a Trade Account</h2>
+        <p className="text-white/50 mb-8 text-lg">
           Get in touch to discuss trade pricing, set up an account, or talk to our team about
           how we can support your workshop or business.
         </p>
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
-          <Button asChild size="lg" className="bg-pd-amber hover:bg-pd-amber/90 text-pd-charcoal font-semibold">
-            <Link to="/contact">Contact Us</Link>
+          <Button asChild size="lg" className="bg-pd-accent hover:bg-pd-accent-light text-white font-semibold">
+            <Link to="/contact">Contact Us <ArrowRight className="h-4 w-4 ml-1" /></Link>
           </Button>
           <Button asChild size="lg" variant="outline" className="border-white/20 text-white hover:bg-white/10">
             <a href="tel:+442870344344">Call Now</a>

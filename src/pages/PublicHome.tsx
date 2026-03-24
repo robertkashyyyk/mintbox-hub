@@ -1,119 +1,180 @@
 import { Link } from "react-router-dom";
 import {
-  Disc3, Wrench, Filter, Zap, Car, Cog,
-  ShieldCheck, Clock, Truck, Star, MapPin, Phone, Package, Users
+  ShieldCheck, Clock, Star, MapPin, Phone, Users, ArrowRight, CheckCircle2
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
+import heroImg from "@/assets/hero-warehouse.jpg";
+import catBraking from "@/assets/cat-braking.jpg";
+import catSuspension from "@/assets/cat-suspension.jpg";
+import catFilters from "@/assets/cat-filters.jpg";
+import catElectrical from "@/assets/cat-electrical.jpg";
+import catEngine from "@/assets/cat-engine.jpg";
+import catTransmission from "@/assets/cat-transmission.jpg";
+import tradeImg from "@/assets/trade-workshop.jpg";
+
 const categories = [
-  { icon: Disc3, label: "Braking", desc: "Discs, pads, callipers & hydraulics" },
-  { icon: Wrench, label: "Suspension", desc: "Shocks, springs, arms & bushes" },
-  { icon: Filter, label: "Filters", desc: "Oil, air, fuel & cabin filters" },
-  { icon: Zap, label: "Electrical", desc: "Batteries, alternators & starters" },
-  { icon: Car, label: "Body & Trim", desc: "Panels, mirrors, lights & wipers" },
-  { icon: Cog, label: "Engine Parts", desc: "Timing, gaskets, pumps & belts" },
-  { icon: Truck, label: "Transmission", desc: "Clutches, CV joints & driveshafts" },
-  { icon: Package, label: "Accessories", desc: "Oils, fluids, tools & car care" },
+  { img: catBraking, label: "Braking", desc: "Discs, pads & hydraulics" },
+  { img: catSuspension, label: "Suspension", desc: "Shocks, springs & arms" },
+  { img: catFilters, label: "Filters", desc: "Oil, air, fuel & cabin" },
+  { img: catElectrical, label: "Electrical", desc: "Batteries & alternators" },
+  { img: catEngine, label: "Engine", desc: "Timing, gaskets & pumps" },
+  { img: catTransmission, label: "Transmission", desc: "Clutches & driveshafts" },
 ];
 
 const reasons = [
-  { icon: ShieldCheck, title: "Local Stock", desc: "Parts available for same-day collection from Coleraine." },
+  { icon: ShieldCheck, title: "Local Stock", desc: "Parts available for same-day collection from our Coleraine counter." },
   { icon: Star, title: "Trade Pricing", desc: "Competitive pricing for garages, workshops and trade accounts." },
-  { icon: Users, title: "Expert Knowledge", desc: "Real parts people who understand what you need." },
-  { icon: Clock, title: "Fast Action", desc: "Order today, collect today — no waiting around." },
+  { icon: Users, title: "Expert Knowledge", desc: "Real parts people who understand what you need — no scripts." },
+  { icon: Clock, title: "Fast Action", desc: "Order today, collect today. No waiting around." },
 ];
 
 const testimonials = [
-  { quote: "PartsDoc always has what we need. Reliable service, every time.", author: "Local Garage, Coleraine" },
-  { quote: "The trade pricing and fast turnaround keep us coming back.", author: "Workshop Owner, North Coast" },
-  { quote: "Knowledgeable staff who actually know their parts.", author: "Independent Mechanic" },
+  { quote: "PartsDoc always has what we need. Reliable service, every time.", author: "Local Garage, Coleraine", rating: 5 },
+  { quote: "The trade pricing and fast turnaround keep us coming back.", author: "Workshop Owner, North Coast", rating: 5 },
+  { quote: "Knowledgeable staff who actually know their parts.", author: "Independent Mechanic", rating: 5 },
+];
+
+const stats = [
+  { value: "44+", label: "Brands Stocked" },
+  { value: "250K+", label: "Parts Available" },
+  { value: "Same Day", label: "Collection" },
+  { value: "30+", label: "Years Experience" },
 ];
 
 const PublicHome = () => (
   <div>
-    {/* Hero */}
-    <section className="bg-pd-charcoal relative overflow-hidden">
-      <div className="absolute inset-0 opacity-5" style={{
-        backgroundImage: "radial-gradient(circle at 1px 1px, white 1px, transparent 0)",
-        backgroundSize: "40px 40px",
-      }} />
-      <div className="container mx-auto px-4 py-20 md:py-28 relative">
+    {/* Hero — full-bleed image with gradient overlay */}
+    <section className="relative min-h-[85vh] flex items-center overflow-hidden">
+      <img
+        src={heroImg}
+        alt="PartsDoc warehouse"
+        className="absolute inset-0 w-full h-full object-cover"
+        width={1920}
+        height={800}
+      />
+      <div className="absolute inset-0 bg-gradient-to-r from-pd-charcoal via-pd-charcoal/90 to-pd-charcoal/40" />
+      <div className="container mx-auto px-4 relative z-10 py-20">
         <div className="max-w-2xl">
-          <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-white leading-tight">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-pd-accent/15 border border-pd-accent/30 text-pd-accent text-sm font-medium mb-6">
+            <CheckCircle2 className="h-3.5 w-3.5" /> Coleraine, Northern Ireland
+          </div>
+          <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-white leading-[1.1] tracking-tight">
             Motor Parts.<br />
             Real Expertise.<br />
-            <span className="text-pd-amber">Fast Action.</span>
+            <span className="text-pd-accent">Fast Action.</span>
           </h1>
-          <p className="mt-6 text-lg text-white/60 max-w-lg">
-            Serving trade and retail customers from Coleraine with the right parts,
+          <p className="mt-6 text-lg md:text-xl text-white/50 max-w-lg leading-relaxed">
+            Serving trade and retail customers with the right parts,
             practical advice and dependable service.
           </p>
-          <div className="mt-8 flex flex-col sm:flex-row gap-3">
-            <Button asChild size="lg" className="bg-pd-amber hover:bg-pd-amber/90 text-pd-charcoal font-semibold text-base">
-              <Link to="/products">Browse Products</Link>
+          <div className="mt-10 flex flex-col sm:flex-row gap-4">
+            <Button asChild size="lg" className="bg-pd-accent hover:bg-pd-accent-light text-white font-semibold text-base px-8 h-12 shadow-lg shadow-pd-accent/25">
+              <Link to="/products">
+                Browse Products <ArrowRight className="h-4 w-4 ml-1" />
+              </Link>
             </Button>
-            <Button asChild size="lg" variant="outline" className="border-white/20 text-white hover:bg-white/10 text-base">
+            <Button asChild size="lg" variant="outline" className="border-white/20 text-white hover:bg-white/10 text-base h-12 px-8">
               <Link to="/contact">Contact Us</Link>
             </Button>
           </div>
         </div>
       </div>
-    </section>
 
-    {/* Category Tiles */}
-    <section className="container mx-auto px-4 py-16">
-      <h2 className="text-2xl md:text-3xl font-bold text-pd-charcoal text-center mb-2">Product Categories</h2>
-      <p className="text-pd-steel text-center mb-10 max-w-md mx-auto">
-        We stock a wide range of parts and accessories across all major vehicle systems.
-      </p>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {categories.map((c) => (
-          <Link key={c.label} to="/products">
-            <Card className="group hover:shadow-md hover:border-pd-amber/40 transition-all duration-200 cursor-pointer h-full bg-white border-pd-steel/20">
-              <CardContent className="p-5 flex flex-col items-center text-center">
-                <div className="p-3 rounded-lg bg-pd-amber/10 text-pd-amber group-hover:bg-pd-amber group-hover:text-white transition-colors mb-3">
-                  <c.icon className="h-6 w-6" />
-                </div>
-                <h3 className="font-semibold text-pd-charcoal text-sm">{c.label}</h3>
-                <p className="text-xs text-pd-steel mt-1">{c.desc}</p>
-              </CardContent>
-            </Card>
-          </Link>
-        ))}
-      </div>
-    </section>
-
-    {/* Why PartsDoc */}
-    <section className="bg-white border-y border-pd-steel/10">
-      <div className="container mx-auto px-4 py-16">
-        <h2 className="text-2xl md:text-3xl font-bold text-pd-charcoal text-center mb-10">Why Choose PartsDoc?</h2>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {reasons.map((r) => (
-            <div key={r.title} className="text-center">
-              <div className="inline-flex p-3 rounded-full bg-pd-amber/10 text-pd-amber mb-4">
-                <r.icon className="h-6 w-6" />
-              </div>
-              <h3 className="font-semibold text-pd-charcoal mb-1">{r.title}</h3>
-              <p className="text-sm text-pd-steel">{r.desc}</p>
+      {/* Bottom stats strip */}
+      <div className="absolute bottom-0 left-0 right-0 bg-pd-charcoal/80 backdrop-blur-md border-t border-white/5">
+        <div className="container mx-auto px-4 py-5 grid grid-cols-2 md:grid-cols-4 gap-4">
+          {stats.map((s) => (
+            <div key={s.label} className="text-center">
+              <div className="text-2xl font-bold text-pd-accent">{s.value}</div>
+              <div className="text-xs text-white/40 uppercase tracking-wider mt-0.5">{s.label}</div>
             </div>
           ))}
         </div>
       </div>
     </section>
 
-    {/* Trade Section */}
-    <section className="bg-pd-graphite">
-      <div className="container mx-auto px-4 py-16 md:py-20">
-        <div className="max-w-2xl mx-auto text-center">
-          <h2 className="text-2xl md:text-3xl font-bold text-white mb-4">Trade &amp; Business Customers</h2>
-          <p className="text-white/60 mb-8 text-lg">
+    {/* Category Tiles — image-based */}
+    <section className="container mx-auto px-4 py-20">
+      <div className="text-center mb-12">
+        <p className="text-pd-accent text-sm font-semibold uppercase tracking-wider mb-2">What We Stock</p>
+        <h2 className="text-3xl md:text-4xl font-bold text-pd-charcoal">Product Categories</h2>
+      </div>
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+        {categories.map((c) => (
+          <Link key={c.label} to="/products" className="group relative rounded-xl overflow-hidden aspect-square">
+            <img
+              src={c.img}
+              alt={c.label}
+              className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+              loading="lazy"
+              width={640}
+              height={640}
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-pd-charcoal via-pd-charcoal/30 to-transparent" />
+            <div className="absolute bottom-0 left-0 right-0 p-5">
+              <h3 className="text-lg font-bold text-white">{c.label}</h3>
+              <p className="text-sm text-white/50 mt-0.5">{c.desc}</p>
+              <div className="mt-3 inline-flex items-center gap-1 text-pd-accent text-sm font-medium opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300">
+                View range <ArrowRight className="h-3.5 w-3.5" />
+              </div>
+            </div>
+          </Link>
+        ))}
+      </div>
+    </section>
+
+    {/* Why PartsDoc */}
+    <section className="bg-pd-charcoal">
+      <div className="container mx-auto px-4 py-20">
+        <div className="text-center mb-14">
+          <p className="text-pd-accent text-sm font-semibold uppercase tracking-wider mb-2">Why Choose Us</p>
+          <h2 className="text-3xl md:text-4xl font-bold text-white">Built for the Trade. Open to Everyone.</h2>
+        </div>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          {reasons.map((r) => (
+            <div key={r.title} className="bg-pd-graphite rounded-xl p-6 border border-white/5 hover:border-pd-accent/30 transition-colors">
+              <div className="w-12 h-12 rounded-lg bg-pd-accent/10 flex items-center justify-center text-pd-accent mb-5">
+                <r.icon className="h-6 w-6" />
+              </div>
+              <h3 className="font-bold text-white mb-2">{r.title}</h3>
+              <p className="text-sm text-white/50 leading-relaxed">{r.desc}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+
+    {/* Trade Section — with image */}
+    <section className="relative overflow-hidden">
+      <img
+        src={tradeImg}
+        alt="Trade workshop"
+        className="absolute inset-0 w-full h-full object-cover"
+        loading="lazy"
+        width={1280}
+        height={640}
+      />
+      <div className="absolute inset-0 bg-gradient-to-r from-pd-charcoal via-pd-charcoal/95 to-pd-charcoal/70" />
+      <div className="container mx-auto px-4 py-20 md:py-24 relative z-10">
+        <div className="max-w-xl">
+          <p className="text-pd-accent text-sm font-semibold uppercase tracking-wider mb-3">For the Trade</p>
+          <h2 className="text-3xl md:text-4xl font-bold text-white mb-5">Trade &amp; Business Customers</h2>
+          <p className="text-white/50 text-lg leading-relaxed mb-4">
             Competitive trade pricing, dedicated support, and reliable stock for garages,
-            workshops, and fleet operators across Northern Ireland.
+            workshops and fleet operators across Northern Ireland.
           </p>
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <Button asChild size="lg" className="bg-pd-amber hover:bg-pd-amber/90 text-pd-charcoal font-semibold">
-              <Link to="/trade">Learn More</Link>
+          <ul className="space-y-2 mb-8">
+            {["Trade account pricing", "Same-day collection", "Dedicated parts support", "Hard-to-find sourcing"].map((item) => (
+              <li key={item} className="flex items-center gap-2 text-white/70 text-sm">
+                <CheckCircle2 className="h-4 w-4 text-pd-accent shrink-0" /> {item}
+              </li>
+            ))}
+          </ul>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <Button asChild size="lg" className="bg-pd-accent hover:bg-pd-accent-light text-white font-semibold">
+              <Link to="/trade">Learn More <ArrowRight className="h-4 w-4 ml-1" /></Link>
             </Button>
             <Button asChild size="lg" variant="outline" className="border-white/20 text-white hover:bg-white/10">
               <Link to="/contact">Open a Trade Account</Link>
@@ -124,30 +185,33 @@ const PublicHome = () => (
     </section>
 
     {/* Opening Hours Strip */}
-    <section className="bg-pd-amber">
-      <div className="container mx-auto px-4 py-5 flex flex-col md:flex-row items-center justify-center gap-4 md:gap-10 text-pd-charcoal">
-        <div className="flex items-center gap-2 font-semibold">
+    <section className="bg-pd-accent">
+      <div className="container mx-auto px-4 py-5 flex flex-col md:flex-row items-center justify-center gap-4 md:gap-10 text-white">
+        <div className="flex items-center gap-2 font-bold">
           <Clock className="h-5 w-5" /> Opening Hours
         </div>
-        <span className="text-sm font-medium">Mon–Fri: 8:30 – 17:30</span>
-        <span className="text-sm font-medium">Sat: 9:00 – 13:00</span>
-        <span className="text-sm font-medium opacity-60">Sun: Closed</span>
+        <span className="text-sm font-medium text-white/90">Mon–Fri: 8:30 – 17:30</span>
+        <span className="text-sm font-medium text-white/90">Sat: 9:00 – 13:00</span>
+        <span className="text-sm font-medium text-white/50">Sun: Closed</span>
       </div>
     </section>
 
     {/* Testimonials */}
-    <section className="container mx-auto px-4 py-16">
-      <h2 className="text-2xl md:text-3xl font-bold text-pd-charcoal text-center mb-10">What Our Customers Say</h2>
+    <section className="container mx-auto px-4 py-20">
+      <div className="text-center mb-12">
+        <p className="text-pd-accent text-sm font-semibold uppercase tracking-wider mb-2">Trusted</p>
+        <h2 className="text-3xl md:text-4xl font-bold text-pd-charcoal">What Our Customers Say</h2>
+      </div>
       <div className="grid md:grid-cols-3 gap-6">
         {testimonials.map((t, i) => (
-          <Card key={i} className="bg-white border-pd-steel/20">
-            <CardContent className="p-6">
-              <div className="flex gap-0.5 text-pd-amber mb-3">
-                {Array.from({ length: 5 }).map((_, j) => (
+          <Card key={i} className="bg-white border-pd-steel-light/20 shadow-sm hover:shadow-md transition-shadow">
+            <CardContent className="p-7">
+              <div className="flex gap-0.5 text-pd-accent mb-4">
+                {Array.from({ length: t.rating }).map((_, j) => (
                   <Star key={j} className="h-4 w-4 fill-current" />
                 ))}
               </div>
-              <p className="text-pd-charcoal italic mb-4">"{t.quote}"</p>
+              <p className="text-pd-charcoal leading-relaxed mb-5">"{t.quote}"</p>
               <p className="text-sm text-pd-steel font-medium">— {t.author}</p>
             </CardContent>
           </Card>
@@ -156,31 +220,38 @@ const PublicHome = () => (
     </section>
 
     {/* Location */}
-    <section className="bg-white border-t border-pd-steel/10">
-      <div className="container mx-auto px-4 py-16">
-        <div className="grid md:grid-cols-2 gap-8 items-center">
+    <section className="bg-pd-charcoal">
+      <div className="container mx-auto px-4 py-20">
+        <div className="grid md:grid-cols-2 gap-10 items-center">
           <div>
-            <h2 className="text-2xl md:text-3xl font-bold text-pd-charcoal mb-4">Visit Us in Coleraine</h2>
-            <p className="text-pd-steel mb-6">
-              Our counter is open for trade and retail customers. Pop in for parts, advice, or to collect an order.
+            <p className="text-pd-accent text-sm font-semibold uppercase tracking-wider mb-3">Find Us</p>
+            <h2 className="text-3xl md:text-4xl font-bold text-white mb-5">Visit Us in Coleraine</h2>
+            <p className="text-white/50 mb-8 text-lg leading-relaxed">
+              Our counter is open for trade and retail customers. Pop in for parts,
+              advice, or to collect an order.
             </p>
-            <ul className="space-y-3 text-sm">
-              <li className="flex items-center gap-2 text-pd-charcoal">
-                <MapPin className="h-4 w-4 text-pd-amber shrink-0" /> Coleraine, Co. Londonderry, Northern Ireland
+            <ul className="space-y-4 text-sm">
+              <li className="flex items-center gap-3 text-white/70">
+                <div className="w-9 h-9 rounded-lg bg-pd-accent/10 flex items-center justify-center shrink-0">
+                  <MapPin className="h-4 w-4 text-pd-accent" />
+                </div>
+                Coleraine, Co. Londonderry, Northern Ireland
               </li>
-              <li className="flex items-center gap-2 text-pd-charcoal">
-                <Phone className="h-4 w-4 text-pd-amber shrink-0" />
-                <a href="tel:+442870344344" className="hover:text-pd-amber transition-colors">028 7034 4344</a>
+              <li className="flex items-center gap-3 text-white/70">
+                <div className="w-9 h-9 rounded-lg bg-pd-accent/10 flex items-center justify-center shrink-0">
+                  <Phone className="h-4 w-4 text-pd-accent" />
+                </div>
+                <a href="tel:+442870344344" className="hover:text-pd-accent transition-colors">028 7034 4344</a>
               </li>
             </ul>
-            <Button asChild className="mt-6 bg-pd-amber hover:bg-pd-amber/90 text-pd-charcoal font-semibold">
-              <Link to="/contact">Get Directions &amp; Contact</Link>
+            <Button asChild className="mt-8 bg-pd-accent hover:bg-pd-accent-light text-white font-semibold">
+              <Link to="/contact">Get Directions &amp; Contact <ArrowRight className="h-4 w-4 ml-1" /></Link>
             </Button>
           </div>
-          <div className="bg-pd-charcoal/5 rounded-lg h-64 flex items-center justify-center text-pd-steel">
+          <div className="bg-pd-graphite rounded-2xl h-72 flex items-center justify-center border border-white/5">
             <div className="text-center">
-              <MapPin className="h-10 w-10 mx-auto mb-2 opacity-40" />
-              <span className="text-sm">Map — Coleraine, NI</span>
+              <MapPin className="h-12 w-12 mx-auto mb-3 text-pd-accent/30" />
+              <span className="text-sm text-white/30">Map — Coleraine, NI</span>
             </div>
           </div>
         </div>

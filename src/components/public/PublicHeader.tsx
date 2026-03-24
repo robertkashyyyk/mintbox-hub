@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Menu, X, Phone, LogIn } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -13,26 +13,42 @@ const navLinks = [
 
 const PublicHeader = () => {
   const [open, setOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
   const location = useLocation();
 
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 20);
+    window.addEventListener("scroll", onScroll);
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
   return (
-    <header className="sticky top-0 z-50 bg-pd-charcoal/95 backdrop-blur-md border-b border-white/10">
-      <div className="container mx-auto px-4 flex items-center justify-between h-16">
+    <header
+      className={`sticky top-0 z-50 transition-all duration-300 ${
+        scrolled
+          ? "bg-pd-charcoal/98 backdrop-blur-lg shadow-lg shadow-black/20"
+          : "bg-transparent"
+      }`}
+    >
+      <div className="container mx-auto px-4 flex items-center justify-between h-16 lg:h-18">
         {/* Logo */}
-        <Link to="/" className="flex items-center gap-2">
-          <span className="text-2xl font-bold text-white tracking-tight">
-            Parts<span className="text-pd-amber">Doc</span>
+        <Link to="/" className="flex items-center gap-2 group">
+          <div className="w-8 h-8 rounded bg-pd-accent flex items-center justify-center font-bold text-white text-sm">
+            PD
+          </div>
+          <span className="text-xl font-bold text-white tracking-tight">
+            Parts<span className="text-pd-accent">Doc</span>
           </span>
         </Link>
 
         {/* Desktop Nav */}
-        <nav className="hidden md:flex items-center gap-6">
+        <nav className="hidden lg:flex items-center gap-8">
           {navLinks.map((l) => (
             <Link
               key={l.to}
               to={l.to}
-              className={`text-sm font-medium transition-colors hover:text-pd-amber ${
-                location.pathname === l.to ? "text-pd-amber" : "text-white/80"
+              className={`text-sm font-medium tracking-wide uppercase transition-colors hover:text-pd-accent ${
+                location.pathname === l.to ? "text-pd-accent" : "text-white/70"
               }`}
             >
               {l.label}
@@ -41,17 +57,19 @@ const PublicHeader = () => {
         </nav>
 
         {/* Right actions */}
-        <div className="hidden md:flex items-center gap-3">
+        <div className="hidden lg:flex items-center gap-4">
           <a
             href="tel:+442870344344"
-            className="flex items-center gap-1.5 text-sm text-white/80 hover:text-white transition-colors"
+            className="flex items-center gap-2 text-sm text-white/70 hover:text-white transition-colors"
           >
-            <Phone className="h-4 w-4" />
+            <div className="w-8 h-8 rounded-full border border-white/20 flex items-center justify-center">
+              <Phone className="h-3.5 w-3.5" />
+            </div>
             028 7034 4344
           </a>
-          <Button asChild className="bg-pd-amber hover:bg-pd-amber/90 text-pd-charcoal font-semibold">
+          <Button asChild className="bg-pd-accent hover:bg-pd-accent-light text-white font-semibold px-5">
             <Link to="/auth">
-              <LogIn className="h-4 w-4 mr-1" />
+              <LogIn className="h-4 w-4 mr-1.5" />
               Hub Login
             </Link>
           </Button>
@@ -60,7 +78,7 @@ const PublicHeader = () => {
         {/* Mobile toggle */}
         <button
           onClick={() => setOpen(!open)}
-          className="md:hidden text-white p-2"
+          className="lg:hidden text-white p-2"
           aria-label="Toggle menu"
         >
           {open ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
@@ -69,15 +87,15 @@ const PublicHeader = () => {
 
       {/* Mobile menu */}
       {open && (
-        <div className="md:hidden bg-pd-charcoal border-t border-white/10 pb-4">
+        <div className="lg:hidden bg-pd-charcoal/98 backdrop-blur-lg border-t border-white/5 pb-6 animate-in slide-in-from-top-2">
           <nav className="flex flex-col px-4 pt-2 gap-1">
             {navLinks.map((l) => (
               <Link
                 key={l.to}
                 to={l.to}
                 onClick={() => setOpen(false)}
-                className={`py-2.5 text-sm font-medium transition-colors ${
-                  location.pathname === l.to ? "text-pd-amber" : "text-white/80"
+                className={`py-3 text-sm font-medium uppercase tracking-wide border-b border-white/5 transition-colors ${
+                  location.pathname === l.to ? "text-pd-accent" : "text-white/70"
                 }`}
               >
                 {l.label}
@@ -85,13 +103,13 @@ const PublicHeader = () => {
             ))}
             <a
               href="tel:+442870344344"
-              className="py-2.5 text-sm text-white/80 flex items-center gap-1.5"
+              className="py-3 text-sm text-white/70 flex items-center gap-2"
             >
               <Phone className="h-4 w-4" /> 028 7034 4344
             </a>
-            <Button asChild className="mt-2 bg-pd-amber hover:bg-pd-amber/90 text-pd-charcoal font-semibold">
+            <Button asChild className="mt-3 bg-pd-accent hover:bg-pd-accent-light text-white font-semibold">
               <Link to="/auth" onClick={() => setOpen(false)}>
-                <LogIn className="h-4 w-4 mr-1" />
+                <LogIn className="h-4 w-4 mr-1.5" />
                 Hub Login
               </Link>
             </Button>
