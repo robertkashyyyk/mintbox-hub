@@ -66,7 +66,7 @@ const PublicProducts = () => (
           <Button asChild size="lg" className="bg-pd-accent hover:bg-pd-accent-light text-white font-semibold">
             <Link to="/contact">Send an Enquiry <ArrowRight className="h-4 w-4 ml-1" /></Link>
           </Button>
-          <Button asChild size="lg" variant="outline" className="border-white/30 text-white hover:bg-white/10">
+          <Button asChild size="lg" variant="outlineDark">
             <a href="tel:+442870344344">Call Us</a>
           </Button>
         </div>

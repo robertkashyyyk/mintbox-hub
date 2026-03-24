@@ -58,9 +58,9 @@ const PublicTrade = () => (
           <Button asChild size="lg" className="bg-pd-accent hover:bg-pd-accent-light text-white font-semibold">
             <Link to="/contact">Contact Us <ArrowRight className="h-4 w-4 ml-1" /></Link>
           </Button>
-          <Button asChild size="lg" variant="outline" className="border-white/30 text-white hover:bg-white/10">
-            <a href="tel:+442870344344">Call Now</a>
-          </Button>
+            <Button asChild size="lg" variant="outlineDark">
+              <a href="tel:+442870344344">Call Now</a>
+            </Button>
         </div>
       </div>
     </section>

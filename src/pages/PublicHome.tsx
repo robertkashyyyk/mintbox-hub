@@ -75,7 +75,7 @@ const PublicHome = () => (
                 Browse Products <ArrowRight className="h-4 w-4 ml-1" />
               </Link>
             </Button>
-            <Button asChild size="lg" variant="outline" className="border-white/30 text-white hover:bg-white/10 text-base h-12 px-8">
+            <Button asChild size="lg" variant="outlineDark" className="text-base h-12 px-8">
               <Link to="/contact">Contact Us</Link>
             </Button>
           </div>
@@ -176,7 +176,7 @@ const PublicHome = () => (
             <Button asChild size="lg" className="bg-pd-accent hover:bg-pd-accent-light text-white font-semibold">
               <Link to="/trade">Learn More <ArrowRight className="h-4 w-4 ml-1" /></Link>
             </Button>
-            <Button asChild size="lg" variant="outline" className="border-white/30 text-white hover:bg-white/10">
+            <Button asChild size="lg" variant="outlineDark">
               <Link to="/contact">Open a Trade Account</Link>
             </Button>
           </div>
