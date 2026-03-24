@@ -10,7 +10,7 @@ const PublicContact = () => (
       <div className="container mx-auto px-4 text-center max-w-3xl">
         <p className="text-pd-accent text-sm font-semibold uppercase tracking-wider mb-3">Get in Touch</p>
         <h1 className="text-3xl md:text-5xl font-bold text-white mb-5">Contact Us</h1>
-        <p className="text-white/50 text-lg leading-relaxed">
+        <p className="text-white/75 text-lg leading-relaxed">
           Get in touch by phone, email, or visit our counter in Coleraine. We're here to help.
         </p>
       </div>
@@ -28,7 +28,7 @@ const PublicContact = () => (
                   <Phone className="h-4 w-4 text-pd-accent" />
                 </div>
                 <div>
-                  <div className="text-xs text-pd-steel uppercase tracking-wider">Phone</div>
+                  <div className="text-xs text-pd-steel-light uppercase tracking-wider">Phone</div>
                   <div className="text-pd-charcoal font-medium group-hover:text-pd-accent transition-colors">028 7034 4344</div>
                 </div>
               </a>
@@ -37,7 +37,7 @@ const PublicContact = () => (
                   <Mail className="h-4 w-4 text-pd-accent" />
                 </div>
                 <div>
-                  <div className="text-xs text-pd-steel uppercase tracking-wider">Email</div>
+                  <div className="text-xs text-pd-steel-light uppercase tracking-wider">Email</div>
                   <div className="text-pd-charcoal font-medium group-hover:text-pd-accent transition-colors">sales@partsdoc.co.uk</div>
                 </div>
               </a>
@@ -46,7 +46,7 @@ const PublicContact = () => (
                   <MapPin className="h-4 w-4 text-pd-accent" />
                 </div>
                 <div>
-                  <div className="text-xs text-pd-steel uppercase tracking-wider">Location</div>
+                  <div className="text-xs text-pd-steel-light uppercase tracking-wider">Location</div>
                   <div className="text-pd-charcoal font-medium">Coleraine, Co. Londonderry, NI</div>
                 </div>
               </div>
@@ -64,44 +64,50 @@ const PublicContact = () => (
               <li className="flex justify-between text-pd-charcoal py-2 border-b border-pd-steel-light/10">
                 <span>Saturday</span><span className="font-semibold">9:00 – 13:00</span>
               </li>
-              <li className="flex justify-between text-pd-steel py-2">
-                <span>Sunday</span><span>Closed</span>
+              <li className="flex justify-between py-2">
+                <span className="text-pd-charcoal">Sunday</span><span className="text-pd-steel-light">Closed</span>
               </li>
             </ul>
           </div>
 
-          {/* Map placeholder */}
-          <div className="bg-pd-charcoal rounded-xl h-52 flex items-center justify-center border border-white/5">
-            <div className="text-center">
-              <MapPin className="h-10 w-10 mx-auto mb-2 text-pd-accent/30" />
-              <span className="text-sm text-white/30">Map — Coleraine, NI</span>
-            </div>
+          {/* Embedded Map */}
+          <div className="rounded-xl overflow-hidden border border-pd-steel-light/20 h-52">
+            <iframe
+              src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d36168.81918201844!2d-6.6899!3d55.1326!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x486017b3cf11cc01%3A0xa9b1e11c5d5e3c0!2sColeraine!5e0!3m2!1sen!2suk!4v1700000000000!5m2!1sen!2suk"
+              width="100%"
+              height="100%"
+              style={{ border: 0 }}
+              allowFullScreen
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+              title="PartsDoc Location - Coleraine"
+            />
           </div>
         </div>
 
         {/* Enquiry Form */}
         <div className="bg-white rounded-xl p-8 border border-pd-steel-light/20 h-fit">
           <h2 className="text-xl font-bold text-pd-charcoal mb-1">Send an Enquiry</h2>
-          <p className="text-sm text-pd-steel mb-7">
+          <p className="text-sm text-pd-steel-light mb-7">
             Tell us what you need and we'll get back to you as quickly as we can.
           </p>
           <form className="space-y-5" onSubmit={(e) => e.preventDefault()}>
             <div className="grid sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="name" className="text-xs uppercase tracking-wider text-pd-steel">Name</Label>
+                <Label htmlFor="name" className="text-xs uppercase tracking-wider text-pd-steel-light">Name</Label>
                 <Input id="name" placeholder="Your name" className="h-11" />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="phone" className="text-xs uppercase tracking-wider text-pd-steel">Phone</Label>
+                <Label htmlFor="phone" className="text-xs uppercase tracking-wider text-pd-steel-light">Phone</Label>
                 <Input id="phone" placeholder="Your phone number" className="h-11" />
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-xs uppercase tracking-wider text-pd-steel">Email</Label>
+              <Label htmlFor="email" className="text-xs uppercase tracking-wider text-pd-steel-light">Email</Label>
               <Input id="email" type="email" placeholder="your@email.com" className="h-11" />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="message" className="text-xs uppercase tracking-wider text-pd-steel">Message</Label>
+              <Label htmlFor="message" className="text-xs uppercase tracking-wider text-pd-steel-light">Message</Label>
               <Textarea id="message" rows={5} placeholder="What parts do you need? Include vehicle details if possible." />
             </div>
             <Button type="submit" className="w-full bg-pd-accent hover:bg-pd-accent-light text-white font-semibold h-11">

@@ -24,7 +24,7 @@ const PublicProducts = () => (
       <div className="container mx-auto px-4 text-center max-w-3xl">
         <p className="text-pd-accent text-sm font-semibold uppercase tracking-wider mb-3">Our Range</p>
         <h1 className="text-3xl md:text-5xl font-bold text-white mb-5">Products &amp; Categories</h1>
-        <p className="text-white/50 text-lg leading-relaxed">
+        <p className="text-white/75 text-lg leading-relaxed">
           Browse our range of motor parts and accessories. Need help finding the right part?
           Just ask — our team knows what fits.
         </p>
@@ -46,7 +46,7 @@ const PublicProducts = () => (
             <div className="absolute inset-0 bg-gradient-to-t from-pd-charcoal via-pd-charcoal/40 to-transparent" />
             <div className="absolute bottom-0 left-0 right-0 p-5">
               <h3 className="text-lg font-bold text-white">{c.label}</h3>
-              <p className="text-sm text-white/50 mt-0.5">{c.desc}</p>
+              <p className="text-sm text-white/70 mt-0.5">{c.desc}</p>
             </div>
           </div>
         ))}
@@ -59,14 +59,14 @@ const PublicProducts = () => (
       <div className="absolute inset-0 bg-pd-charcoal/90" />
       <div className="container mx-auto px-4 py-20 text-center max-w-2xl relative z-10">
         <h2 className="text-3xl font-bold text-white mb-4">Need Help Finding the Right Part?</h2>
-        <p className="text-white/50 mb-8 text-lg">
+        <p className="text-white/70 mb-8 text-lg">
           Tell us your vehicle and what you need — we'll get back to you with availability and pricing.
         </p>
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
           <Button asChild size="lg" className="bg-pd-accent hover:bg-pd-accent-light text-white font-semibold">
             <Link to="/contact">Send an Enquiry <ArrowRight className="h-4 w-4 ml-1" /></Link>
           </Button>
-          <Button asChild size="lg" variant="outline" className="border-white/20 text-white hover:bg-white/10">
+          <Button asChild size="lg" variant="outline" className="border-white/30 text-white hover:bg-white/10">
             <a href="tel:+442870344344">Call Us</a>
           </Button>
         </div>
