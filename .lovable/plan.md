@@ -1,64 +1,65 @@
 
 
-# Fix Enrichment Timeout & Enhance Progress Display
+# Product Image Storage
 
-## Problem Identified
-The 30-minute cron job is firing, but the Edge Function times out because processing 500 products sequentially (each with 2 API calls + 100ms delay) takes too long. At ~200ms per product minimum, 500 products = 100+ seconds, exceeding Edge Function limits.
+## Overview
+Add image upload and management for products in the Discovery section. Each uploaded image gets a public URL that can be used for eBay listings, website, or any other channel.
 
-## Solution Overview
+## What We'll Build
 
-### 1. Reduce Batch Size to Prevent Timeouts
-Change `BATCH_SIZE` from 500 to **200** in the Edge Function. This keeps each run under the timeout limit while still processing ~9,600 products/day at 30-minute intervals.
+### 1. Storage Bucket: `product-images`
+A public storage bucket for product images. Files stored as `{product_id}/{filename}` so each product's images are grouped.
 
-### 2. Remove Duplicate Cron Job
-Delete the old 2-hour cron job (#23) that's no longer needed, keeping only the 30-minute job (#24).
-
-### 3. Add Progress Bar to Discovery Queue
-Enhance the UI to show total catalog progress (how many products have been enriched out of total).
-
----
-
-## Technical Changes
-
-### File: `supabase/functions/mintsoft-enrich-batch/index.ts`
-- Change line 31: `const BATCH_SIZE = 500;` to `const BATCH_SIZE = 200;`
-
-### Database: Remove duplicate cron job
-```sql
-SELECT cron.unschedule(23);
-```
-
-### File: `src/pages/discovery/DiscoveryQueue.tsx`
-Add a new stat card showing overall progress:
-- **Total Products**: Count from `products_cache`
-- **Fully Enriched**: Count where `last_stock_sync IS NOT NULL`
-- **Progress Bar**: Visual percentage indicator
-
----
-
-## Updated UI Layout
+### 2. Database Table: `product_images`
+Tracks which images belong to which product, with display order and metadata.
 
 ```text
-┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
-│ Awaiting        │  │ Enriched Today  │  │ Overall         │  │ Last Run        │
-│ Enrichment      │  │                 │  │ Progress        │  │                 │
-│ 181,770         │  │ 0               │  │ ████░░░░ 0.7%   │  │ 2 hours ago     │
-│                 │  │                 │  │ 1,302/183,072   │  │ ok - 500        │
-└─────────────────┘  └─────────────────┘  └─────────────────┘  └─────────────────┘
+┌──────────────────────────────────────┐
+│ product_images                       │
+├──────────────────────────────────────┤
+│ id (uuid, PK)                        │
+│ product_id (uuid, FK → products_cache)│
+│ file_path (text) - path in bucket    │
+│ public_url (text) - full public URL  │
+│ display_order (int, default 0)       │
+│ is_primary (boolean, default false)  │
+│ created_at (timestamptz)             │
+└──────────────────────────────────────┘
 ```
 
+### 3. Image Upload UI on Product Detail Page
+- Drag-and-drop or click-to-upload area
+- Image gallery showing all uploaded images
+- Set primary image, reorder, delete
+- Copy URL button for each image (for use in listings)
+- Shows public URL prominently so it can be used elsewhere
+
+### 4. Image Thumbnails in Discovery Queue
+Show a small thumbnail in the product list for products that have images.
+
 ---
 
-## Expected Outcome
-- Enrichment runs successfully every 30 minutes
-- ~200 products enriched per run = 9,600/day
-- Full catalog enriched in ~19 days (vs previous 8 days at 500/run, but actually working)
-- Visual progress tracking in the UI
+## Technical Details
 
----
+### Database Migration
+- Create `product_images` table with RLS (authenticated users can CRUD)
+- Create `product-images` storage bucket (public, so URLs work without auth)
+- Storage RLS: authenticated users can upload/delete; public can read
 
-## Files to Modify
-1. `supabase/functions/mintsoft-enrich-batch/index.ts` - Reduce BATCH_SIZE to 200
-2. `src/pages/discovery/DiscoveryQueue.tsx` - Add overall progress card with progress bar
-3. Database operation - Unschedule cron job #23
+### Files to Create/Modify
+1. **New**: `src/components/discovery/ProductImageUpload.tsx` - Upload component with drag-and-drop, gallery, copy URL
+2. **Modify**: `src/pages/ProductDetail.tsx` - Add image section
+3. **Modify**: `src/pages/discovery/DiscoveryQueue.tsx` - Optional: show thumbnail column
+
+### URL Format
+Each image gets a permanent public URL like:
+```
+https://{project}.supabase.co/storage/v1/object/public/product-images/{product_id}/image1.jpg
+```
+This URL can be copied and used directly in eBay listings, websites, etc.
+
+### Security
+- Anyone can view images (public bucket for listing use)
+- Only authenticated users can upload/delete
+- RLS on `product_images` table for authenticated users
 
