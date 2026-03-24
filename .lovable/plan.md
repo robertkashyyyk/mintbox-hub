@@ -1,57 +1,30 @@
 
+I’ve identified the issue: the “Contact Us” style buttons are using `variant="outline"`, and that variant injects `bg-background` (white). On dark hero/CTA sections this creates white background + white text, so labels look invisible.
 
-# Visual Hub Index Pages & Layout Cleanup
+## Plan to fix
 
-## Summary
-Replace the plain text headers on all module index pages with image-driven visual banners (matching the public site's Carbon & Teal aesthetic). Remove redundant navigation elements since the sidebar now handles all navigation.
+1. **Add a dark-surface outline button variant**
+   - Update `src/components/ui/button.tsx` with a new variant (e.g. `outlineDark`) that is explicitly:
+   - `bg-transparent text-white border-white/30 hover:bg-white/10 hover:text-white`
+   - This prevents the default white background from leaking into dark sections.
 
-## Changes
+2. **Apply the new variant on Home page CTAs**
+   - Update `src/pages/PublicHome.tsx`:
+   - Hero CTA secondary button (“Contact Us”)
+   - Trade section secondary button (“Open a Trade Account”)
 
-### 1. Create a reusable `ModuleHeader` component
-**New file**: `src/components/ModuleHeader.tsx`
-- Full-width banner with a background image, dark gradient overlay, module icon, title, and description
-- Teal accent bar on the left edge
-- Styled consistently with the public site hero treatment (gradient overlay, white text)
-- Accepts props: `title`, `description`, `iconName`, `backgroundImage` (optional — falls back to a default gradient)
-- No "Back to Main Menu" button (sidebar handles this)
+3. **Prevent repeat issues in other public dark sections**
+   - Replace the same pattern in:
+   - `src/pages/PublicTrade.tsx` (“Call Now”)
+   - `src/pages/PublicProducts.tsx` (“Call Us”)
+   - This keeps all dark-background outline buttons visually consistent.
 
-### 2. Remove Sign Out from top header bar
-**File**: `src/pages/DashboardLayout.tsx`
-- Remove the Sign Out button from the top-right (line 89-92) — already in the sidebar footer
-- Keep NotificationBell and "PartsDoc Hub" branding
+4. **Quick contrast QA pass**
+   - Verify in preview that all affected buttons show visible text in default/hover states on desktop and mobile widths.
+   - Specifically confirm the two Home-page “contact” boxes no longer render white-on-white.
 
-### 3. Update all module index pages
-**Files**: `DiscoveryIndex.tsx`, `IntelligenceIndex.tsx`, `DecisionsIndex.tsx`, `ExecutionIndex.tsx`, `OperationsIndex.tsx`, `AdminIndex.tsx`, `DashboardsIndex.tsx`
-- Replace the `<header>` block (containing "Back to Main Menu" button + plain h1/p) with the new `<ModuleHeader>` component
-- Each module gets a relevant background image (reuse existing assets like `hero-warehouse.jpg`, `trade-workshop.jpg`, or generate new ones)
-- Cards below get styled with the dark theme (teal accent borders on hover, graphite card backgrounds)
-
-### 4. Update MainMenu page
-**File**: `src/pages/MainMenu.tsx`
-- Remove Profile and Sign Out buttons from the header (lines 95-103) — both in sidebar
-- Replace the plain header with a visual welcome banner (gradient background, "PartsDoc Hub" branding, no back button needed)
-- Style the module cards with teal accent hover effects and dark theme consistency
-
-### 5. Ensure sidebar sub-items match index page options
-**File**: `src/components/AppSidebar.tsx`
-- Discovery sidebar currently missing: "Bulk Image Upload" and "Pending Images" items — add them
-- Verify all other groups match their index page options
-
-## Visual Pattern
-Each module index page will look like:
-```text
-┌─────────────────────────────────────────────┐
-│  [Background image with dark gradient]      │
-│  ┃ Discovery                                │
-│  ┃ See and manage products, brands...       │
-├─────────────────────────────────────────────┤
-│  ┌──────┐  ┌──────┐  ┌──────┐              │
-│  │Card 1│  │Card 2│  │Card 3│  ...         │
-│  └──────┘  └──────┘  └──────┘              │
-└─────────────────────────────────────────────┘
-```
-
-## Files Modified
-- **New**: `src/components/ModuleHeader.tsx`
-- **Modified**: `src/pages/DashboardLayout.tsx`, `src/pages/MainMenu.tsx`, `src/pages/DiscoveryIndex.tsx`, `src/pages/IntelligenceIndex.tsx`, `src/pages/DecisionsIndex.tsx`, `src/pages/ExecutionIndex.tsx`, `src/pages/OperationsIndex.tsx`, `src/pages/AdminIndex.tsx`, `src/pages/DashboardsIndex.tsx`, `src/components/AppSidebar.tsx`
-
+## Files to modify
+- `src/components/ui/button.tsx`
+- `src/pages/PublicHome.tsx`
+- `src/pages/PublicTrade.tsx`
+- `src/pages/PublicProducts.tsx`
