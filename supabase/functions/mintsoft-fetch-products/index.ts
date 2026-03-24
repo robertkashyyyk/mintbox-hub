@@ -102,7 +102,7 @@ Deno.serve(async (req) => {
     console.log(`Searching products with prefix: ${prefix} (mode: ${mode}) using Search endpoint`);
 
     while (hasMore && page <= MAX_PAGES) {
-      const url = `${baseUrl}/api/Product/Search?SearchTerm=${encodeURIComponent(prefix)}&PageNo=${page}&Limit=${limit}`;
+      const url = `${baseUrl}/api/Product/List?SearchTerm=${encodeURIComponent(prefix)}&PageNo=${page}&Limit=${limit}`;
       console.log(`Fetching search page ${page}...`);
 
       const response = await fetch(url, {
