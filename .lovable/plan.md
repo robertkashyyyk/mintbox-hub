@@ -1,42 +1,26 @@
 
 
-# Mirror PartsDoc Branding into the Hub (Post-Login)
+# Fix Visibility Issues — Header & Contact Form
 
-## What Changes
-Restyle the internal dashboard to use the same Carbon & Teal palette from the public site. The Hub should feel like a continuation of the brand, not a completely different app.
+## Problem
+1. **Header on `/`**: The header starts `bg-transparent` with `text-white` nav links. If the hero image fails to load or on initial render, white text can blend into light backgrounds. Also "Parts" in white is invisible if any light bleed occurs — only "Doc" (teal) shows.
+2. **Contact form inputs**: The `Input`, `Label`, and `Textarea` components use default theme variables (`bg-background`, `border-input`) which in light mode are white/near-white — invisible inside the white card.
 
-## 1. Update Dark Mode CSS Variables (`src/index.css`)
-Remap the `.dark` theme to use the PartsDoc palette:
-- `--background`: pd-charcoal (`222 47% 11%`)
-- `--card`: pd-graphite (`217 33% 17%`)
-- `--primary`: pd-accent teal (`174 58% 37%`)
-- `--primary-foreground`: white
-- `--accent`: slightly lighter graphite
-- `--sidebar-background`: pd-charcoal
-- `--sidebar-primary`: pd-accent teal
-- `--border` / `--input`: white/10% on dark
-- `--ring`: pd-accent teal
+## Fix 1 — Header Always Dark (`src/components/public/PublicHeader.tsx`)
+- Change default (non-scrolled) state from `bg-transparent` to `bg-pd-charcoal` so white text always sits on a dark background
+- Scrolled state stays `bg-pd-charcoal/98 backdrop-blur-lg`
+- This guarantees visibility on every page, regardless of hero image loading
 
-## 2. Force Dark Mode on Hub (`src/pages/DashboardLayout.tsx`)
-- Add `dark` class to the root wrapper so the Hub always renders in dark mode (matching the carbon feel)
-- Style the top header bar with pd-charcoal background, teal accent for the "PartsDoc Hub" branding
-- Add "PartsDoc Hub" text branding in the header alongside the sidebar trigger
+## Fix 2 — Contact Form Contrast (`src/pages/PublicContact.tsx`)
+- Add explicit classes to `Input` and `Textarea`: `bg-white border-pd-steel-light/30 text-pd-charcoal placeholder:text-pd-steel-light`
+- Change `Label` from `text-pd-steel-light` to `text-pd-steel` (darker) for better readability
+- Ensure form fields have visible borders and text against the white card
 
-## 3. Restyle Sidebar (`src/components/AppSidebar.tsx`)
-- The sidebar already uses `--sidebar-*` variables, so the CSS variable changes will cascade automatically
-- Add a "PartsDoc" brand mark at the top of the sidebar
-- Style active nav items with teal accent highlight
-- Teal accent on hover states
-
-## 4. Restyle Auth Page (`src/pages/Auth.tsx`)
-- Dark background matching pd-charcoal
-- Teal-accented login button
-- "PartsDoc Hub" branding above the form
-- Update `brand` / `brandAccent` colors to teal
+## Fix 3 — Light-Section Text Audit (quick pass)
+- `PublicHome.tsx` — "Product Categories" and "Testimonials" section headings use `text-pd-charcoal` which should be fine, but verify `Card` borders (`border-pd-steel-light/20`) are strong enough; bump to `/30`
 
 ## Files to Modify
-- `src/index.css` — remap `.dark` variables to Carbon & Teal palette
-- `src/pages/DashboardLayout.tsx` — force dark class, brand header
-- `src/components/AppSidebar.tsx` — add brand mark at top
-- `src/pages/Auth.tsx` — dark themed login with teal accents and branding
+- `src/components/public/PublicHeader.tsx` — always-dark header background
+- `src/pages/PublicContact.tsx` — explicit input/label styling
+- `src/pages/PublicHome.tsx` — minor border contrast bump
 
