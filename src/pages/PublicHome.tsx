@@ -204,7 +204,7 @@ const PublicHome = () => (
       </div>
       <div className="grid md:grid-cols-3 gap-6">
         {testimonials.map((t, i) => (
-          <Card key={i} className="bg-white border-pd-steel-light/20 shadow-sm hover:shadow-md transition-shadow">
+          <Card key={i} className="bg-white border-pd-steel-light/30 shadow-sm hover:shadow-md transition-shadow">
             <CardContent className="p-7">
               <div className="flex gap-0.5 text-pd-accent mb-4">
                 {Array.from({ length: t.rating }).map((_, j) => (
