@@ -94,21 +94,21 @@ const PublicContact = () => (
           <form className="space-y-5" onSubmit={(e) => e.preventDefault()}>
             <div className="grid sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="name" className="text-xs uppercase tracking-wider text-pd-steel-light">Name</Label>
-                <Input id="name" placeholder="Your name" className="h-11" />
+                <Label htmlFor="name" className="text-xs uppercase tracking-wider text-pd-steel">Name</Label>
+                <Input id="name" placeholder="Your name" className="h-11 bg-white border-pd-steel-light/30 text-pd-charcoal placeholder:text-pd-steel-light" />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="phone" className="text-xs uppercase tracking-wider text-pd-steel-light">Phone</Label>
-                <Input id="phone" placeholder="Your phone number" className="h-11" />
+                <Label htmlFor="phone" className="text-xs uppercase tracking-wider text-pd-steel">Phone</Label>
+                <Input id="phone" placeholder="Your phone number" className="h-11 bg-white border-pd-steel-light/30 text-pd-charcoal placeholder:text-pd-steel-light" />
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-xs uppercase tracking-wider text-pd-steel-light">Email</Label>
-              <Input id="email" type="email" placeholder="your@email.com" className="h-11" />
+              <Label htmlFor="email" className="text-xs uppercase tracking-wider text-pd-steel">Email</Label>
+              <Input id="email" type="email" placeholder="your@email.com" className="h-11 bg-white border-pd-steel-light/30 text-pd-charcoal placeholder:text-pd-steel-light" />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="message" className="text-xs uppercase tracking-wider text-pd-steel-light">Message</Label>
-              <Textarea id="message" rows={5} placeholder="What parts do you need? Include vehicle details if possible." />
+              <Label htmlFor="message" className="text-xs uppercase tracking-wider text-pd-steel">Message</Label>
+              <Textarea id="message" rows={5} placeholder="What parts do you need? Include vehicle details if possible." className="bg-white border-pd-steel-light/30 text-pd-charcoal placeholder:text-pd-steel-light" />
             </div>
             <Button type="submit" className="w-full bg-pd-accent hover:bg-pd-accent-light text-white font-semibold h-11">
               Send Enquiry <ArrowRight className="h-4 w-4 ml-1" />

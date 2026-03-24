@@ -27,7 +27,7 @@ const PublicHeader = () => {
       className={`sticky top-0 z-50 transition-all duration-300 ${
         scrolled
           ? "bg-pd-charcoal/98 backdrop-blur-lg shadow-lg shadow-black/20"
-          : "bg-transparent"
+          : "bg-pd-charcoal"
       }`}
     >
       <div className="container mx-auto px-4 flex items-center justify-between h-16 lg:h-18">
