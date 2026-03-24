@@ -94,8 +94,8 @@ const PublicContact = () => (
           <form className="space-y-5" onSubmit={(e) => e.preventDefault()}>
             <div className="grid sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="name" className="text-xs uppercase tracking-wider text-pd-steel-light">Name</Label>
-                <Input id="name" placeholder="Your name" className="h-11" />
+                <Label htmlFor="name" className="text-xs uppercase tracking-wider text-pd-steel">Name</Label>
+                <Input id="name" placeholder="Your name" className="h-11 bg-white border-pd-steel-light/30 text-pd-charcoal placeholder:text-pd-steel-light" />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="phone" className="text-xs uppercase tracking-wider text-pd-steel-light">Phone</Label>
