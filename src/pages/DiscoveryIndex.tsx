@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Database, Tag, AlertCircle, Activity, FileText, ArrowLeft } from "lucide-react";
+import { Database, Tag, AlertCircle, Activity, FileText, ArrowLeft, Images } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -63,6 +63,14 @@ const DiscoveryIndex = () => {
       icon: FileText,
       color: "text-green-500",
       onClick: () => navigate("/discovery/feed-imports"),
+      show: true,
+    },
+    {
+      title: "Bulk Image Upload",
+      description: "Upload images in bulk, matched to products by SKU filename",
+      icon: Images,
+      color: "text-cyan-500",
+      onClick: () => navigate("/discovery/bulk-images"),
       show: true,
     },
   ];

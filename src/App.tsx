@@ -45,6 +45,7 @@ import OpsReports from "./pages/operations/OpsReports";
 
 // Discovery Pages
 import DiscoveryQueue from "./pages/discovery/DiscoveryQueue";
+import BulkImageUpload from "./pages/discovery/BulkImageUpload";
 
 // Intelligence Pages
 import VelocityCoverage from "./pages/intelligence/VelocityCoverage";
@@ -128,6 +129,7 @@ const App = () => (
             <Route path="/discovery/discovery-queue" element={<DiscoveryQueue />} />
             <Route path="/discovery/order-telemetry" element={<SalesOrders />} />
             <Route path="/discovery/feed-imports" element={<Importing />} />
+            <Route path="/discovery/bulk-images" element={<BulkImageUpload />} />
 
             {/* Intelligence Sub-Routes */}
             <Route path="/intelligence/velocity" element={<VelocityCoverage />} />
