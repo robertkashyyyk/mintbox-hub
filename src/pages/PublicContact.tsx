@@ -103,8 +103,8 @@ const PublicContact = () => (
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-xs uppercase tracking-wider text-pd-steel-light">Email</Label>
-              <Input id="email" type="email" placeholder="your@email.com" className="h-11" />
+              <Label htmlFor="email" className="text-xs uppercase tracking-wider text-pd-steel">Email</Label>
+              <Input id="email" type="email" placeholder="your@email.com" className="h-11 bg-white border-pd-steel-light/30 text-pd-charcoal placeholder:text-pd-steel-light" />
             </div>
             <div className="space-y-2">
               <Label htmlFor="message" className="text-xs uppercase tracking-wider text-pd-steel-light">Message</Label>
