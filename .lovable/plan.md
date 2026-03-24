@@ -1,37 +1,26 @@
 
 
-# Bulk Image Upload for Discovery
+# Fix: Product PULL Not Finding Products
 
-## Overview
-Add a new "Bulk Image Upload" page to the Discovery menu where you can upload images in bulk, matched to products by SKU. This lets you upload a batch of image files named by SKU (e.g., `ABC123.jpg`) and automatically link them to the correct products in `product_images`.
+## The Problem
+The current `mintsoft-fetch-products` edge function uses `/api/Product/List` which returns ALL products paginated. In preview mode it only scans 10 pages (1,000 products). With 200K+ products in Mintsoft, FA1 products are simply not in the first 1,000 results.
 
-## How It Works
-
-1. **New menu item** in Discovery Index: "Bulk Image Upload" card
-2. **New page** at `/discovery/bulk-images` with:
-   - Drag-and-drop zone accepting multiple image files
-   - Files are matched to products by filename → SKU lookup (e.g., `ABC-123.jpg` matches SKU `ABC-123`)
-   - Preview grid showing each file, its matched SKU, and status (matched/unmatched)
-   - "Upload All" button to process matched images
-3. **Upload process**: For each matched file, upload to `product-images` storage bucket under `{product_id}/` and insert into `product_images` table — reusing the same storage and table already set up
-4. **Results summary**: Shows how many uploaded successfully, how many SKUs weren't found
+## The Fix
+Mintsoft has a dedicated **`GET /api/Product/Search`** endpoint ("Product Search by SKU/Name") that allows server-side filtering. We need to switch the edge function to use this endpoint instead of paging through the entire catalog.
 
 ## Technical Changes
 
-### New Files
-- `src/pages/discovery/BulkImageUpload.tsx` — Main page with drag-and-drop, SKU matching preview, batch upload logic
+### 1. Update `supabase/functions/mintsoft-fetch-products/index.ts`
+- Replace `/api/Product/List` with `/api/Product/Search?SearchTerm={prefix}` for the initial query
+- This returns only products matching the prefix, eliminating the need to scan thousands of pages
+- Keep pagination for the search results in case there are many matches
+- For import mode, use the search results directly instead of scanning 500+ pages
 
-### Modified Files
-- `src/pages/DiscoveryIndex.tsx` — Add "Bulk Image Upload" card to the menu grid
-- `src/App.tsx` — Add route `/discovery/bulk-images`
+### 2. Fallback logic
+- If the Search endpoint doesn't support prefix matching well, we can combine it with client-side filtering to ensure only exact prefix matches are kept
+- Remove the artificial page caps (MAX_PAGES_PREVIEW = 10) since the search endpoint returns relevant results immediately
 
-### SKU Matching Logic
-1. User drops files (e.g., `SKU-001.jpg`, `SKU-002.png`)
-2. Extract SKU from filename (strip extension)
-3. Query `products_cache` to find matching products by SKU
-4. Show preview: green = matched, red = no match found
-5. On confirm, upload each matched image to storage and insert `product_images` record
-
-### No database changes needed
-The existing `product_images` table and `product-images` storage bucket are already in place with correct RLS policies.
+## Why This Matters
+- **Before**: Scans 1,000 products (10 pages), misses anything not in that range
+- **After**: Server-side search returns matching products directly, works regardless of catalog size
 
