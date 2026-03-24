@@ -4,8 +4,14 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import ErrorBoundary from "@/components/ErrorBoundary";
-import Index from "./pages/Index";
 import Auth from "./pages/Auth";
+import PublicLayout from "./components/public/PublicLayout";
+import PublicHome from "./pages/PublicHome";
+import PublicAbout from "./pages/PublicAbout";
+import PublicProducts from "./pages/PublicProducts";
+import PublicTrade from "./pages/PublicTrade";
+import PublicContact from "./pages/PublicContact";
+import PublicFAQ from "./pages/PublicFAQ";
 import MainMenu from "./pages/MainMenu";
 import Dashboard from "./pages/Dashboard";
 import DashboardLayout from "./pages/DashboardLayout";
@@ -105,7 +111,15 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Index />} />
+          {/* Public website routes */}
+          <Route element={<PublicLayout />}>
+            <Route path="/" element={<PublicHome />} />
+            <Route path="/about" element={<PublicAbout />} />
+            <Route path="/products" element={<PublicProducts />} />
+            <Route path="/trade" element={<PublicTrade />} />
+            <Route path="/contact" element={<PublicContact />} />
+            <Route path="/faq" element={<PublicFAQ />} />
+          </Route>
           <Route path="/auth" element={<Auth />} />
           <Route path="/access-denied" element={<AccessDenied />} />
           
