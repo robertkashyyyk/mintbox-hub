@@ -212,6 +212,13 @@ export default function ProductDetail() {
     );
   };
 
+  const DetailRow = ({ label, value }: { label: string; value: React.ReactNode }) => (
+    <div className="flex justify-between">
+      <span className="text-muted-foreground text-sm">{label}</span>
+      <span className="font-medium text-sm">{value}</span>
+    </div>
+  );
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex items-center gap-4">
