@@ -73,6 +73,14 @@ const DiscoveryIndex = () => {
       onClick: () => navigate("/discovery/bulk-images"),
       show: true,
     },
+    {
+      title: "Pending Images",
+      description: "Review unmatched images and promote them to product records",
+      icon: Clock,
+      color: "text-orange-500",
+      onClick: () => navigate("/discovery/pending-images"),
+      show: true,
+    },
   ];
 
   return (
