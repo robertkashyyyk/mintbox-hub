@@ -1,8 +1,8 @@
 import { useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Upload, CheckCircle, XCircle, Copy, Loader2, ImageIcon } from "lucide-react";
+import { ArrowLeft, Upload, CheckCircle, XCircle, Copy, Loader2, ImageIcon, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
@@ -13,7 +13,7 @@ interface FileMatch {
   sku: string;
   productId: string | null;
   productName: string | null;
-  status: "matched" | "unmatched" | "uploading" | "uploaded" | "error";
+  status: "matched" | "unmatched" | "uploading" | "uploaded" | "queued" | "error";
   publicUrl?: string;
   error?: string;
 }
@@ -37,7 +37,6 @@ const BulkImageUpload = () => {
     const skus = selectedFiles.map((f) => extractSku(f.name));
     const uniqueSkus = [...new Set(skus)];
 
-    // Query products in batches
     const { data: products, error } = await supabase
       .from("products_cache")
       .select("id, sku, name")
@@ -70,7 +69,7 @@ const BulkImageUpload = () => {
     toast({
       title: `${matchedCount} of ${matched.length} matched`,
       description: matchedCount < matched.length
-        ? `${matched.length - matchedCount} file(s) had no matching SKU`
+        ? `${matched.length - matchedCount} file(s) had no matching SKU — they'll be queued for review`
         : "All files matched to products",
     });
   }, [toast]);
@@ -96,8 +95,8 @@ const BulkImageUpload = () => {
   );
 
   const uploadAll = async () => {
-    const toUpload = files.filter((f) => f.status === "matched");
-    if (!toUpload.length) return;
+    const toProcess = files.filter((f) => f.status === "matched" || f.status === "unmatched");
+    if (!toProcess.length) return;
 
     setIsUploading(true);
     setUploadProgress(0);
@@ -105,13 +104,15 @@ const BulkImageUpload = () => {
 
     const updated = [...files];
 
-    for (const item of toUpload) {
+    for (const item of toProcess) {
       const idx = updated.findIndex((f) => f.file === item.file);
       updated[idx] = { ...updated[idx], status: "uploading" };
       setFiles([...updated]);
 
       const ext = item.file.name.split(".").pop();
-      const filePath = `${item.productId}/${Date.now()}-${item.sku}.${ext}`;
+      const isMatched = item.productId !== null;
+      const folder = isMatched ? item.productId : "pending";
+      const filePath = `${folder}/${Date.now()}-${item.sku}.${ext}`;
 
       const { error: uploadError } = await supabase.storage
         .from("product-images")
@@ -121,7 +122,7 @@ const BulkImageUpload = () => {
         updated[idx] = { ...updated[idx], status: "error", error: uploadError.message };
         setFiles([...updated]);
         completed++;
-        setUploadProgress(Math.round((completed / toUpload.length) * 100));
+        setUploadProgress(Math.round((completed / toProcess.length) * 100));
         continue;
       }
 
@@ -129,30 +130,48 @@ const BulkImageUpload = () => {
         .from("product-images")
         .getPublicUrl(filePath);
 
-      const { error: dbError } = await supabase.from("product_images").insert({
-        product_id: item.productId!,
-        file_path: filePath,
-        public_url: urlData.publicUrl,
-        display_order: 0,
-        is_primary: false,
-      });
+      if (isMatched) {
+        // Matched: insert into product_images
+        const { error: dbError } = await supabase.from("product_images").insert({
+          product_id: item.productId!,
+          file_path: filePath,
+          public_url: urlData.publicUrl,
+          display_order: 0,
+          is_primary: false,
+        });
 
-      if (dbError) {
-        updated[idx] = { ...updated[idx], status: "error", error: dbError.message };
+        if (dbError) {
+          updated[idx] = { ...updated[idx], status: "error", error: dbError.message };
+        } else {
+          updated[idx] = { ...updated[idx], status: "uploaded", publicUrl: urlData.publicUrl };
+        }
       } else {
-        updated[idx] = { ...updated[idx], status: "uploaded", publicUrl: urlData.publicUrl };
+        // Unmatched: insert into pending_images for review
+        const { error: dbError } = await supabase.from("pending_images" as any).insert({
+          suggested_sku: item.sku,
+          file_path: filePath,
+          public_url: urlData.publicUrl,
+          status: "pending",
+        });
+
+        if (dbError) {
+          updated[idx] = { ...updated[idx], status: "error", error: dbError.message };
+        } else {
+          updated[idx] = { ...updated[idx], status: "queued", publicUrl: urlData.publicUrl };
+        }
       }
 
       setFiles([...updated]);
       completed++;
-      setUploadProgress(Math.round((completed / toUpload.length) * 100));
+      setUploadProgress(Math.round((completed / toProcess.length) * 100));
     }
 
     setIsUploading(false);
     const successCount = updated.filter((f) => f.status === "uploaded").length;
+    const queuedCount = updated.filter((f) => f.status === "queued").length;
     toast({
       title: "Bulk upload complete",
-      description: `${successCount} image(s) uploaded successfully`,
+      description: `${successCount} uploaded to products, ${queuedCount} queued for review`,
     });
   };
 
@@ -162,8 +181,11 @@ const BulkImageUpload = () => {
   };
 
   const matchedCount = files.filter((f) => f.status === "matched").length;
+  const unmatchedCount = files.filter((f) => f.status === "unmatched").length;
   const uploadedCount = files.filter((f) => f.status === "uploaded").length;
+  const queuedCount = files.filter((f) => f.status === "queued").length;
   const errorCount = files.filter((f) => f.status === "error").length;
+  const readyCount = matchedCount + unmatchedCount;
 
   return (
     <div className="min-h-screen bg-background">
@@ -175,13 +197,12 @@ const BulkImageUpload = () => {
           </Button>
           <h1 className="text-2xl font-bold">Bulk Image Upload</h1>
           <p className="text-sm text-muted-foreground">
-            Drop image files named by SKU to automatically match and upload to products.
+            Drop image files named by SKU. Matched images go to products; unmatched ones are queued for review.
           </p>
         </div>
       </header>
 
       <main className="container mx-auto px-4 py-8 space-y-6">
-        {/* Drop zone */}
         <Card>
           <CardContent className="p-8">
             <div
@@ -219,32 +240,38 @@ const BulkImageUpload = () => {
           </CardContent>
         </Card>
 
-        {/* Results */}
         {files.length > 0 && (
           <>
-            <div className="flex items-center justify-between">
-              <div className="flex gap-3">
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div className="flex gap-3 flex-wrap">
                 <Badge variant="secondary">{files.length} files</Badge>
-                <Badge className="bg-green-600">{matchedCount + uploadedCount} matched</Badge>
+                {(matchedCount + uploadedCount) > 0 && (
+                  <Badge className="bg-primary text-primary-foreground">{matchedCount + uploadedCount} matched</Badge>
+                )}
+                {(unmatchedCount + queuedCount) > 0 && (
+                  <Badge variant="outline">{unmatchedCount + queuedCount} unmatched → review queue</Badge>
+                )}
                 {errorCount > 0 && <Badge variant="destructive">{errorCount} errors</Badge>}
               </div>
-              <Button onClick={uploadAll} disabled={isUploading || matchedCount === 0}>
-                {isUploading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    Uploading…
-                  </>
-                ) : (
-                  `Upload ${matchedCount} Matched`
-                )}
-              </Button>
+              <div className="flex gap-2">
+                <Button onClick={uploadAll} disabled={isUploading || readyCount === 0}>
+                  {isUploading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      Processing…
+                    </>
+                  ) : (
+                    `Upload All ${readyCount}`
+                  )}
+                </Button>
+              </div>
             </div>
 
             {isUploading && <Progress value={uploadProgress} />}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {files.map((item, i) => (
-                <Card key={i} className={item.status === "unmatched" ? "opacity-60" : ""}>
+                <Card key={i} className={item.status === "unmatched" ? "border-dashed" : ""}>
                   <CardContent className="p-3 space-y-2">
                     <div className="aspect-square rounded overflow-hidden bg-muted flex items-center justify-center">
                       <img
@@ -254,9 +281,10 @@ const BulkImageUpload = () => {
                       />
                     </div>
                     <div className="flex items-center gap-2">
-                      {item.status === "matched" && <ImageIcon className="h-4 w-4 text-blue-500" />}
-                      {item.status === "uploaded" && <CheckCircle className="h-4 w-4 text-green-500" />}
-                      {item.status === "unmatched" && <XCircle className="h-4 w-4 text-destructive" />}
+                      {item.status === "matched" && <ImageIcon className="h-4 w-4 text-primary" />}
+                      {item.status === "uploaded" && <CheckCircle className="h-4 w-4 text-primary" />}
+                      {item.status === "unmatched" && <Clock className="h-4 w-4 text-muted-foreground" />}
+                      {item.status === "queued" && <Clock className="h-4 w-4 text-primary" />}
                       {item.status === "uploading" && <Loader2 className="h-4 w-4 animate-spin" />}
                       {item.status === "error" && <XCircle className="h-4 w-4 text-destructive" />}
                       <span className="font-mono text-sm truncate">{item.sku}</span>
@@ -265,7 +293,10 @@ const BulkImageUpload = () => {
                       <p className="text-xs text-muted-foreground truncate">{item.productName}</p>
                     )}
                     {item.status === "unmatched" && (
-                      <p className="text-xs text-destructive">No product found for this SKU</p>
+                      <p className="text-xs text-muted-foreground">Will be queued for review</p>
+                    )}
+                    {item.status === "queued" && (
+                      <p className="text-xs text-muted-foreground">Queued — review in Pending Images</p>
                     )}
                     {item.status === "error" && (
                       <p className="text-xs text-destructive">{item.error}</p>
