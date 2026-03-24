@@ -208,6 +208,23 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon">
       <SidebarContent>
+        {/* Brand Mark */}
+        <SidebarGroup>
+          <SidebarGroupContent>
+            <div className="flex items-center gap-3 px-2 py-3">
+              <div className="h-8 w-8 rounded-lg bg-[hsl(174,58%,37%)] flex items-center justify-center flex-shrink-0">
+                <span className="text-white font-bold text-sm">PD</span>
+              </div>
+              {open && (
+                <div>
+                  <p className="text-sm font-semibold text-sidebar-foreground">PartsDoc</p>
+                  <p className="text-[10px] text-sidebar-foreground/50">Hub</p>
+                </div>
+              )}
+            </div>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
         {/* Main Menu Link */}
         <SidebarGroup>
           <SidebarGroupContent>
