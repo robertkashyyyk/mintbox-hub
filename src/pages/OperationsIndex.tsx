@@ -1,90 +1,38 @@
 import { useNavigate } from "react-router-dom";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { ArrowLeft, LayoutDashboard, FileText, Activity, RefreshCw, Gauge } from "lucide-react";
+import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { LayoutDashboard, FileText, Activity, RefreshCw, Gauge } from "lucide-react";
+import ModuleHeader from "@/components/ModuleHeader";
+import operationsBanner from "@/assets/banners/operations-banner.jpg";
 
 const OperationsIndex = () => {
   const navigate = useNavigate();
 
   const options = [
-    {
-      title: "Dashboard",
-      description: "Operational health at a glance - backorders, throughput, exceptions",
-      icon: LayoutDashboard,
-      color: "text-primary",
-      onClick: () => navigate("/operations/dashboard"),
-      primary: true,
-    },
-    {
-      title: "Reports",
-      description: "Weekly ops reports and subscriber management",
-      icon: FileText,
-      color: "text-purple-500",
-      onClick: () => navigate("/operations/reports"),
-    },
-    {
-      title: "Monitoring",
-      description: "Track order status snapshots and daily progress",
-      icon: Activity,
-      color: "text-amber-500",
-      onClick: () => navigate("/operations/order-monitoring"),
-    },
-    {
-      title: "Sync Status",
-      description: "Monitor data synchronization across systems",
-      icon: RefreshCw,
-      color: "text-blue-500",
-      onClick: () => navigate("/operations/sync-status"),
-    },
-    {
-      title: "System Health",
-      description: "View system performance and diagnostics",
-      icon: Gauge,
-      color: "text-green-500",
-      onClick: () => navigate("/operations/system-health"),
-    },
+    { title: "Dashboard", description: "Operational health at a glance - backorders, throughput, exceptions", icon: LayoutDashboard, onClick: () => navigate("/operations/dashboard"), primary: true },
+    { title: "Reports", description: "Weekly ops reports and subscriber management", icon: FileText, onClick: () => navigate("/operations/reports") },
+    { title: "Monitoring", description: "Track order status snapshots and daily progress", icon: Activity, onClick: () => navigate("/operations/order-monitoring") },
+    { title: "Sync Status", description: "Monitor data synchronization across systems", icon: RefreshCw, onClick: () => navigate("/operations/sync-status") },
+    { title: "System Health", description: "View system performance and diagnostics", icon: Gauge, onClick: () => navigate("/operations/system-health") },
   ];
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b bg-card">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" onClick={() => navigate("/menu")}>
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-            <div>
-              <h1 className="text-2xl font-bold">Operations</h1>
-              <p className="text-sm text-muted-foreground">Dashboard, reports, monitoring, and system health</p>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <main className="container mx-auto px-4 py-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {options.map((option) => (
-            <Card
-              key={option.title}
-              className={`cursor-pointer hover:shadow-lg transition-shadow ${option.primary ? 'border-primary/50 bg-primary/5' : ''}`}
-              onClick={option.onClick}
-            >
-              <CardHeader>
-                <div className="flex items-center gap-3">
-                  <option.icon className={`h-8 w-8 ${option.color}`} />
-                  <CardTitle>{option.title}</CardTitle>
+    <div className="space-y-2">
+      <ModuleHeader title="Operations" description="Dashboard, reports, monitoring, and system health." icon={Activity} backgroundImage={operationsBanner} />
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {options.map((option) => (
+          <Card key={option.title} className={`cursor-pointer bg-card hover:border-primary/50 transition-all hover:shadow-lg group ${option.primary ? 'border-primary/30' : ''}`} onClick={option.onClick}>
+            <CardHeader className="pb-3">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                  <option.icon className="h-5 w-5 text-primary" />
                 </div>
-                <CardDescription>{option.description}</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full" variant={option.primary ? "default" : "secondary"}>
-                  Open
-                </Button>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </main>
+                <CardTitle className="text-base">{option.title}</CardTitle>
+              </div>
+              <CardDescription className="text-xs">{option.description}</CardDescription>
+            </CardHeader>
+          </Card>
+        ))}
+      </div>
     </div>
   );
 };
