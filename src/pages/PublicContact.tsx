@@ -98,8 +98,8 @@ const PublicContact = () => (
                 <Input id="name" placeholder="Your name" className="h-11 bg-white border-pd-steel-light/30 text-pd-charcoal placeholder:text-pd-steel-light" />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="phone" className="text-xs uppercase tracking-wider text-pd-steel-light">Phone</Label>
-                <Input id="phone" placeholder="Your phone number" className="h-11" />
+                <Label htmlFor="phone" className="text-xs uppercase tracking-wider text-pd-steel">Phone</Label>
+                <Input id="phone" placeholder="Your phone number" className="h-11 bg-white border-pd-steel-light/30 text-pd-charcoal placeholder:text-pd-steel-light" />
               </div>
             </div>
             <div className="space-y-2">
