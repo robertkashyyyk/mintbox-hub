@@ -906,6 +906,61 @@ export type Database = {
           },
         ]
       }
+      pending_images: {
+        Row: {
+          created_at: string
+          file_path: string
+          id: string
+          promoted_product_id: string | null
+          public_url: string
+          reviewed_at: string | null
+          status: string
+          suggested_sku: string
+        }
+        Insert: {
+          created_at?: string
+          file_path: string
+          id?: string
+          promoted_product_id?: string | null
+          public_url: string
+          reviewed_at?: string | null
+          status?: string
+          suggested_sku: string
+        }
+        Update: {
+          created_at?: string
+          file_path?: string
+          id?: string
+          promoted_product_id?: string | null
+          public_url?: string
+          reviewed_at?: string | null
+          status?: string
+          suggested_sku?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pending_images_promoted_product_id_fkey"
+            columns: ["promoted_product_id"]
+            isOneToOne: false
+            referencedRelation: "products_cache"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pending_images_promoted_product_id_fkey"
+            columns: ["promoted_product_id"]
+            isOneToOne: false
+            referencedRelation: "products_need_ordering"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pending_images_promoted_product_id_fkey"
+            columns: ["promoted_product_id"]
+            isOneToOne: false
+            referencedRelation: "products_needs_enrichment"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       price_hunter_automations: {
         Row: {
           brand_id: string
