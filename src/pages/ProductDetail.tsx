@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
+import ProductImageUpload from "@/components/discovery/ProductImageUpload";
 
 export default function ProductDetail() {
   const { id } = useParams<{ id: string }>();
@@ -300,6 +301,9 @@ export default function ProductDetail() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Product Images */}
+      <ProductImageUpload productId={product.id} productSku={product.sku} />
     </div>
   );
 }
