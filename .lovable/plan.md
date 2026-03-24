@@ -1,65 +1,37 @@
 
 
-# Product Image Storage
+# Bulk Image Upload for Discovery
 
 ## Overview
-Add image upload and management for products in the Discovery section. Each uploaded image gets a public URL that can be used for eBay listings, website, or any other channel.
+Add a new "Bulk Image Upload" page to the Discovery menu where you can upload images in bulk, matched to products by SKU. This lets you upload a batch of image files named by SKU (e.g., `ABC123.jpg`) and automatically link them to the correct products in `product_images`.
 
-## What We'll Build
+## How It Works
 
-### 1. Storage Bucket: `product-images`
-A public storage bucket for product images. Files stored as `{product_id}/{filename}` so each product's images are grouped.
+1. **New menu item** in Discovery Index: "Bulk Image Upload" card
+2. **New page** at `/discovery/bulk-images` with:
+   - Drag-and-drop zone accepting multiple image files
+   - Files are matched to products by filename → SKU lookup (e.g., `ABC-123.jpg` matches SKU `ABC-123`)
+   - Preview grid showing each file, its matched SKU, and status (matched/unmatched)
+   - "Upload All" button to process matched images
+3. **Upload process**: For each matched file, upload to `product-images` storage bucket under `{product_id}/` and insert into `product_images` table — reusing the same storage and table already set up
+4. **Results summary**: Shows how many uploaded successfully, how many SKUs weren't found
 
-### 2. Database Table: `product_images`
-Tracks which images belong to which product, with display order and metadata.
+## Technical Changes
 
-```text
-┌──────────────────────────────────────┐
-│ product_images                       │
-├──────────────────────────────────────┤
-│ id (uuid, PK)                        │
-│ product_id (uuid, FK → products_cache)│
-│ file_path (text) - path in bucket    │
-│ public_url (text) - full public URL  │
-│ display_order (int, default 0)       │
-│ is_primary (boolean, default false)  │
-│ created_at (timestamptz)             │
-└──────────────────────────────────────┘
-```
+### New Files
+- `src/pages/discovery/BulkImageUpload.tsx` — Main page with drag-and-drop, SKU matching preview, batch upload logic
 
-### 3. Image Upload UI on Product Detail Page
-- Drag-and-drop or click-to-upload area
-- Image gallery showing all uploaded images
-- Set primary image, reorder, delete
-- Copy URL button for each image (for use in listings)
-- Shows public URL prominently so it can be used elsewhere
+### Modified Files
+- `src/pages/DiscoveryIndex.tsx` — Add "Bulk Image Upload" card to the menu grid
+- `src/App.tsx` — Add route `/discovery/bulk-images`
 
-### 4. Image Thumbnails in Discovery Queue
-Show a small thumbnail in the product list for products that have images.
+### SKU Matching Logic
+1. User drops files (e.g., `SKU-001.jpg`, `SKU-002.png`)
+2. Extract SKU from filename (strip extension)
+3. Query `products_cache` to find matching products by SKU
+4. Show preview: green = matched, red = no match found
+5. On confirm, upload each matched image to storage and insert `product_images` record
 
----
-
-## Technical Details
-
-### Database Migration
-- Create `product_images` table with RLS (authenticated users can CRUD)
-- Create `product-images` storage bucket (public, so URLs work without auth)
-- Storage RLS: authenticated users can upload/delete; public can read
-
-### Files to Create/Modify
-1. **New**: `src/components/discovery/ProductImageUpload.tsx` - Upload component with drag-and-drop, gallery, copy URL
-2. **Modify**: `src/pages/ProductDetail.tsx` - Add image section
-3. **Modify**: `src/pages/discovery/DiscoveryQueue.tsx` - Optional: show thumbnail column
-
-### URL Format
-Each image gets a permanent public URL like:
-```
-https://{project}.supabase.co/storage/v1/object/public/product-images/{product_id}/image1.jpg
-```
-This URL can be copied and used directly in eBay listings, websites, etc.
-
-### Security
-- Anyone can view images (public bucket for listing use)
-- Only authenticated users can upload/delete
-- RLS on `product_images` table for authenticated users
+### No database changes needed
+The existing `product_images` table and `product-images` storage bucket are already in place with correct RLS policies.
 
