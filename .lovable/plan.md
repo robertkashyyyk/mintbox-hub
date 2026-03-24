@@ -1,73 +1,42 @@
 
 
-# PartsDoc Public Website — Replace `/` Landing Page
+# Mirror PartsDoc Branding into the Hub (Post-Login)
 
-## Overview
-Replace the current generic Index page with a full, professional public-facing website for PartsDoc. This is a single-page React component with multiple sections, plus new route pages for About, Products, Trade, Contact, and FAQ. The Hub Login button links to `/auth`.
+## What Changes
+Restyle the internal dashboard to use the same Carbon & Teal palette from the public site. The Hub should feel like a continuation of the brand, not a completely different app.
 
-## Palette & Design Tokens
-Extend `index.css` with public-site CSS variables:
-- Dark charcoal: `hsl(220, 10%, 15%)` — hero backgrounds, header
-- Graphite: `hsl(220, 8%, 25%)` — secondary surfaces
-- Steel grey: `hsl(220, 5%, 70%)` — borders, muted text
-- Off-white: `hsl(220, 10%, 97%)` — content backgrounds
-- Amber accent: `hsl(38, 92%, 50%)` — CTAs, highlights
-- Success green: `hsl(142, 71%, 45%)` — trust indicators
+## 1. Update Dark Mode CSS Variables (`src/index.css`)
+Remap the `.dark` theme to use the PartsDoc palette:
+- `--background`: pd-charcoal (`222 47% 11%`)
+- `--card`: pd-graphite (`217 33% 17%`)
+- `--primary`: pd-accent teal (`174 58% 37%`)
+- `--primary-foreground`: white
+- `--accent`: slightly lighter graphite
+- `--sidebar-background`: pd-charcoal
+- `--sidebar-primary`: pd-accent teal
+- `--border` / `--input`: white/10% on dark
+- `--ring`: pd-accent teal
 
-## Files to Create
+## 2. Force Dark Mode on Hub (`src/pages/DashboardLayout.tsx`)
+- Add `dark` class to the root wrapper so the Hub always renders in dark mode (matching the carbon feel)
+- Style the top header bar with pd-charcoal background, teal accent for the "PartsDoc Hub" branding
+- Add "PartsDoc Hub" text branding in the header alongside the sidebar trigger
 
-### 1. `src/pages/PublicHome.tsx` — Homepage
-Full scrolling homepage with these sections:
-- **Sticky Header**: PartsDoc text logo, nav links (About, Products, Trade, Contact), phone number, amber "Hub Login" button linking to `/auth`
-- **Hero**: Dark charcoal background, bold headline ("Motor Parts. Real Expertise. Fast Action."), subtext, two CTAs (Browse Products, Contact Us), subtle automotive-themed CSS pattern
-- **Category Tiles**: 6-8 animated cards (Braking, Suspension, Filters, Electrical, etc.) with icons
-- **Why PartsDoc**: 4-column grid — Local Stock, Trade Pricing, Expert Knowledge, Fast Collection
-- **Trade Section**: Dark panel aimed at garages/workshops with enquiry CTA
-- **Opening Hours Strip**: Amber-accented bar with days/times
-- **Trust/Testimonials**: Quote cards with star ratings
-- **Location Panel**: Map placeholder, address, click-to-call
-- **Footer CTA**: "Need the right part?" with contact button
-- **Footer**: Contact details, quick links, opening hours, Hub Login link, copyright
+## 3. Restyle Sidebar (`src/components/AppSidebar.tsx`)
+- The sidebar already uses `--sidebar-*` variables, so the CSS variable changes will cascade automatically
+- Add a "PartsDoc" brand mark at the top of the sidebar
+- Style active nav items with teal accent highlight
+- Teal accent on hover states
 
-### 2. `src/pages/PublicAbout.tsx` — About PartsDoc
-Company story, values, team approach, Coleraine heritage
-
-### 3. `src/pages/PublicProducts.tsx` — Products / Categories
-Category-led grid with brand tiles, product family cards, "Need help finding a part?" CTA, trade enquiry CTA
-
-### 4. `src/pages/PublicTrade.tsx` — Trade / Business Customers
-Trade supply info, account benefits, parts sourcing, support, enquiry form CTA
-
-### 5. `src/pages/PublicContact.tsx` — Contact / Visit Us
-Contact card, opening hours card, map placeholder, enquiry form, click-to-call on mobile
-
-### 6. `src/pages/PublicFAQ.tsx` — FAQ
-Accordion-based FAQ using existing shadcn Accordion component
-
-### 7. `src/components/public/PublicHeader.tsx` — Shared sticky header
-Extracted for reuse across all public pages. Mobile hamburger menu.
-
-### 8. `src/components/public/PublicFooter.tsx` — Shared footer
-
-### 9. `src/components/public/PublicLayout.tsx` — Layout wrapper
-Wraps header + children + footer for all public routes
-
-## Routing Changes (`App.tsx`)
-- Replace `<Index />` at `/` with `<PublicHome />`
-- Add routes: `/about`, `/products`, `/trade`, `/contact`, `/faq`
-- All wrapped in `<PublicLayout />`
-
-## Key UX Details
-- Sticky header with backdrop blur on scroll
-- Scroll-reveal animations via Tailwind `animate-` classes
-- Floating "Call Now" button on mobile (fixed bottom-right)
-- Strong hover states on all cards
-- Fully responsive — mobile-first sections
-- Hub Login button always prominent (amber, top-right)
-- No external dependencies needed — all built with existing shadcn + Tailwind
+## 4. Restyle Auth Page (`src/pages/Auth.tsx`)
+- Dark background matching pd-charcoal
+- Teal-accented login button
+- "PartsDoc Hub" branding above the form
+- Update `brand` / `brandAccent` colors to teal
 
 ## Files to Modify
-- `src/App.tsx` — new routes
-- `src/index.css` — add public-site color variables
-- `src/pages/Index.tsx` — replaced entirely
+- `src/index.css` — remap `.dark` variables to Carbon & Teal palette
+- `src/pages/DashboardLayout.tsx` — force dark class, brand header
+- `src/components/AppSidebar.tsx` — add brand mark at top
+- `src/pages/Auth.tsx` — dark themed login with teal accents and branding
 
