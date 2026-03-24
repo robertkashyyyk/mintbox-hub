@@ -127,7 +127,7 @@ export const RbacSidebar = () => {
             <SidebarMenuItem>
               <SidebarMenuButton asChild>
                 <NavLink
-                  to="/main-menu"
+                  to="/menu"
                   end
                   className="flex items-center gap-2"
                   activeClassName="bg-accent text-accent-foreground"
