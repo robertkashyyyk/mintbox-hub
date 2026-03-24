@@ -114,7 +114,8 @@ export const useSkuDatabase = () => {
           product_images!product_images_product_id_fkey (
             public_url
           )
-        `, { count: 'exact' });
+        `, { count: 'exact' })
+        .eq("product_images.is_primary", true);
 
       // Apply text search
       if (filters.search) {
