@@ -20,7 +20,13 @@ export default function ProductDetail() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("products_cache")
-        .select("*")
+        .select(`
+          *,
+          barcode_types (type_name),
+          product_category_links (
+            product_categories (name)
+          )
+        `)
         .eq("id", id)
         .single();
       if (error) throw error;
@@ -206,6 +212,13 @@ export default function ProductDetail() {
     );
   };
 
+  const DetailRow = ({ label, value }: { label: string; value: React.ReactNode }) => (
+    <div className="flex justify-between">
+      <span className="text-muted-foreground text-sm">{label}</span>
+      <span className="font-medium text-sm">{value}</span>
+    </div>
+  );
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex items-center gap-4">
@@ -217,40 +230,81 @@ export default function ProductDetail() {
 
       <div className="space-y-2">
         <h1 className="text-3xl font-bold">{product.name}</h1>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 flex-wrap">
           <div className="font-mono text-lg">{product.sku}</div>
           {brand && <Badge variant="secondary">{brand.name}</Badge>}
+          {product.discontinued && <Badge variant="destructive">Discontinued</Badge>}
+          {product.fire_sale && <Badge className="bg-orange-500 text-white">Fire Sale</Badge>}
         </div>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         <Card>
           <CardHeader>
-            <CardTitle>Product Details</CardTitle>
+            <CardTitle>Stock & Ordering</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Current Stock:</span>
-              <span className="font-medium">{product.current_stock || 0}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Back Orders:</span>
-              <span className="font-medium">{product.back_order_qty || 0}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">On Order:</span>
-              <span className="font-medium">{product.on_order || 0}</span>
-            </div>
+            <DetailRow label="Current Stock" value={product.current_stock || 0} />
+            <DetailRow label="Back Orders" value={product.back_order_qty || 0} />
+            <DetailRow label="On Order" value={product.on_order || 0} />
+            <DetailRow label="Low Stock Alert" value={product.low_stock_alert_level || 0} />
             {product.cost_price && (
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Cost Price:</span>
-                <span className="font-medium">£{product.cost_price}</span>
-              </div>
+              <DetailRow label="Cost Price" value={`£${Number(product.cost_price).toFixed(2)}`} />
             )}
+            <DetailRow label="Last Synced" value={product.last_stock_sync ? format(new Date(product.last_stock_sync), "dd MMM yyyy, HH:mm") : "Never"} />
           </CardContent>
         </Card>
 
         <Card>
+          <CardHeader>
+            <CardTitle>Identifiers</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <DetailRow label="Barcode" value={product.barcode || "—"} />
+            <DetailRow label="Barcode Type" value={(product as any).barcode_types?.type_name || "—"} />
+            <DetailRow label="Mintsoft ID" value={product.mintsoft_product_id || "—"} />
+            <DetailRow label="Suppliers" value={product.suppliers || "—"} />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Physical Attributes</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <DetailRow label="Weight" value={product.weight ? `${product.weight}g` : "—"} />
+            <DetailRow label="Height" value={product.height ? `${product.height}cm` : "—"} />
+            <DetailRow label="Length" value={product.length ? `${product.length}cm` : "—"} />
+            <DetailRow label="Depth" value={product.depth ? `${product.depth}cm` : "—"} />
+            <DetailRow label="Handling Time" value={product.handling_time ? `${product.handling_time} day(s)` : "—"} />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Discovery & Categories</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <DetailRow label="Discovery Source" value={product.discovery_source || "—"} />
+            <DetailRow label="Discovered At" value={product.discovered_at ? format(new Date(product.discovered_at), "dd MMM yyyy, HH:mm") : "—"} />
+            <DetailRow label="Created" value={product.created_at ? format(new Date(product.created_at), "dd MMM yyyy") : "—"} />
+            <div className="flex justify-between items-start">
+              <span className="text-muted-foreground text-sm">Categories</span>
+              <div className="flex flex-wrap gap-1 justify-end">
+                {(product as any).product_category_links?.length > 0
+                  ? (product as any).product_category_links.map((link: any, i: number) => (
+                      <Badge key={i} variant="outline" className="text-xs">
+                        {link.product_categories?.name}
+                      </Badge>
+                    ))
+                  : <span className="text-sm text-muted-foreground">—</span>
+                }
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="md:col-span-2 lg:col-span-2">
           <CardHeader>
             <CardTitle>Price Hunter</CardTitle>
           </CardHeader>
