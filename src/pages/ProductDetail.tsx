@@ -222,7 +222,7 @@ export default function ProductDetail() {
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
+        <Button variant="ghost" size="sm" className="text-pd-accent hover:text-pd-accent/80" onClick={() => navigate(-1)}>
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back
         </Button>
@@ -231,7 +231,7 @@ export default function ProductDetail() {
       <div className="space-y-2">
         <h1 className="text-3xl font-bold text-white">{product.name}</h1>
         <div className="flex items-center gap-4 flex-wrap">
-          <div className="font-mono text-lg">{product.sku}</div>
+          <div className="font-mono text-lg text-pd-accent">{product.sku}</div>
           {brand && <Badge variant="secondary">{brand.name}</Badge>}
           {product.discontinued && <Badge variant="destructive">Discontinued</Badge>}
           {product.fire_sale && <Badge className="bg-orange-500 text-white">Fire Sale</Badge>}
