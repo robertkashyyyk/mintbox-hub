@@ -231,7 +231,7 @@ export default function ProductDetail() {
       <div className="space-y-2">
         <h1 className="text-3xl font-bold text-white">{product.name}</h1>
         <div className="flex items-center gap-4 flex-wrap">
-          <div className="font-mono text-lg">{product.sku}</div>
+          <div className="font-mono text-lg text-pd-accent">{product.sku}</div>
           {brand && <Badge variant="secondary">{brand.name}</Badge>}
           {product.discontinued && <Badge variant="destructive">Discontinued</Badge>}
           {product.fire_sale && <Badge className="bg-orange-500 text-white">Fire Sale</Badge>}
