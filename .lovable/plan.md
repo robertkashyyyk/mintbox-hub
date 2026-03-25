@@ -1,46 +1,25 @@
 
 
-# Clean Up Image Storage URLs
+# Fix Invisible Elements on Product Detail Page
 
-## Current State
-Images are stored with paths like:
-- Direct upload: `{product-uuid}/{timestamp}-{index}.png`
-- Bulk upload (matched): `{product-uuid}/{timestamp}-{sku}.png`
-- Bulk upload (unmatched): `pending/{timestamp}-{sku}.png`
-
-This produces long, ugly URLs with UUIDs and timestamps.
-
-## Proposed Clean Structure
-
-**Matched/direct images**: `{sku}/{sku}.{ext}` (single image) or `{sku}/{sku}-{index}.{ext}` (multiple)
-- Example: `product-images/FA1-KF100015/FA1-KF100015.png`
-- Second image: `product-images/FA1-KF100015/FA1-KF100015-2.png`
-
-**Pending/unmatched images**: `pending/{sku}.{ext}` (no timestamp)
-- Example: `product-images/pending/FA1-KF100015.png`
-
-The timestamp prefix currently prevents filename collisions but makes URLs ugly. Since SKUs are unique and we track display_order, we can use a simple index suffix instead.
+## Problem
+On the product detail page, the "← Back" button and the SKU label (e.g. `FA1-KF100015`) use the default grey foreground colour, making them nearly invisible against the dark background.
 
 ## Changes
 
-### 1. `src/components/discovery/ProductImageUpload.tsx`
-Update `handleUpload` to build path as `{sku}/{sku}-{index}.{ext}` where index is `currentCount + i`, or just `{sku}/{sku}.{ext}` for the first image. Use `upsert: true` to handle re-uploads cleanly.
+### `src/pages/ProductDetail.tsx`
 
-### 2. `src/pages/discovery/BulkImageUpload.tsx`
-- **Matched path**: change from `${productId}/${Date.now()}-${sku}.${ext}` to `${sku}/${sku}.${ext}`
-- **Pending path**: change from `pending/${Date.now()}-${sku}.${ext}` to `pending/${sku}.${ext}`
+1. **Back button** (line 225): Add teal text class
+   ```tsx
+   <Button variant="ghost" size="sm" className="text-pd-accent hover:text-pd-accent-light" onClick={() => navigate(-1)}>
+   ```
 
-### 3. `src/pages/discovery/PendingImages.tsx`
-When promoting a pending image, move it from `pending/{sku}.{ext}` to `{sku}/{sku}.{ext}` using storage `move()`, and update the `public_url` in the database accordingly.
+2. **SKU label** (line 234): Change from default to teal
+   ```tsx
+   <div className="font-mono text-lg text-pd-accent">{product.sku}</div>
+   ```
 
-## Important Notes
-- Existing images in the database keep their current URLs (they still work, just ugly)
-- Only new uploads get clean URLs going forward
-- The `pending/` folder is still needed for unmatched bulk uploads, but without the timestamp noise
-- Long-term custom domain (`partsdoc.co.uk/images/...`) would be a CDN/proxy layer on top of this same structure
+3. **DetailRow labels** (line 217): These `text-muted-foreground` labels inside cards should already be fine since card foreground is near-white, but worth checking. No change unless needed.
 
-## Files Modified
-- `src/components/discovery/ProductImageUpload.tsx`
-- `src/pages/discovery/BulkImageUpload.tsx`
-- `src/pages/discovery/PendingImages.tsx`
+Two quick class additions, same file.
 
