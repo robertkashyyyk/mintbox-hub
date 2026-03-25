@@ -28,7 +28,13 @@ export const useSkuDatabase = () => {
   const [sort, setSort] = useState<SortState>({ field: "sku", direction: "asc" });
   const [filters, setFilters] = useState<FilterState>(() => {
     const saved = localStorage.getItem("skuDatabaseFilters");
-    return saved ? JSON.parse(saved) : {
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      // Ensure hasImages exists for backward compat
+      if (parsed.hasImages === undefined) parsed.hasImages = false;
+      return parsed;
+    }
+    return {
       search: "",
       brand: "",
       status: "",
@@ -45,6 +51,7 @@ export const useSkuDatabase = () => {
       costPriceMax: 1000,
       lastSyncedFrom: "",
       lastSyncedTo: "",
+      hasImages: false,
     };
   });
 
@@ -108,6 +115,7 @@ export const useSkuDatabase = () => {
           discovery_source,
           discovered_at,
           created_at,
+          brand_id,
           product_category_links (
             product_categories (name)
           ),
@@ -120,6 +128,11 @@ export const useSkuDatabase = () => {
       // Apply text search
       if (filters.search) {
         query = query.or(`sku.ilike.%${filters.search}%,name.ilike.%${filters.search}%,barcode.ilike.%${filters.search}%`);
+      }
+
+      // Apply brand filter (server-side using brand_id)
+      if (filters.brand) {
+        query = query.eq("brand_id", filters.brand);
       }
 
       // Apply status filter
@@ -168,18 +181,19 @@ export const useSkuDatabase = () => {
 
       if (error) throw error;
 
-      // Client-side brand filtering and sorting if needed
       let filteredData = data || [];
 
-      if (filters.brand && brands) {
-        filteredData = filteredData.filter((product) => {
-          const brandName = getBrandFromSku(product.sku, brands);
-          return brandName === filters.brand;
+      // Client-side has-images filter (checks joined product_images array)
+      if (filters.hasImages) {
+        filteredData = filteredData.filter((product: any) => {
+          const images = product.product_images;
+          return Array.isArray(images) && images.length > 0;
         });
       }
 
+      // Client-side brand sort (display purposes)
       if (sort.field === "brand" && brands) {
-        filteredData = [...filteredData].sort((a, b) => {
+        filteredData = [...filteredData].sort((a: any, b: any) => {
           const brandA = getBrandFromSku(a.sku, brands) || "";
           const brandB = getBrandFromSku(b.sku, brands) || "";
           return sort.direction === "asc" 
@@ -214,12 +228,12 @@ export const useSkuDatabase = () => {
       field,
       direction: prev.field === field && prev.direction === "asc" ? "desc" : "asc",
     }));
-    setPage(1); // Reset to first page when sorting changes
+    setPage(1);
   };
 
   const handleFiltersChange = (newFilters: FilterState) => {
     setFilters(newFilters);
-    setPage(1); // Reset to first page when filters change
+    setPage(1);
   };
 
   const totalPages = productsData ? Math.ceil(productsData.totalCount / ITEMS_PER_PAGE) : 0;
