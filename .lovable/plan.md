@@ -1,25 +1,35 @@
 
 
-# Fix Invisible Elements on Product Detail Page
+# Fix Mintsoft Product PULL — No Results for FA1-
 
-## Problem
-On the product detail page, the "← Back" button and the SKU label (e.g. `FA1-KF100015`) use the default grey foreground colour, making them nearly invisible against the dark background.
+## Root Cause
 
-## Changes
+Two issues:
 
-### `src/pages/ProductDetail.tsx`
+1. **Wrong search strategy**: `SearchTerm=FA1-` does a general text search across all Mintsoft product fields (name, barcode, description), not a SKU-prefix filter. The API returns hundreds of irrelevant products, and the client-side `skuMatchesPrefix` filter rejects them all — giving 0 results even though FA1- products exist.
 
-1. **Back button** (line 225): Add teal text class
-   ```tsx
-   <Button variant="ghost" size="sm" className="text-pd-accent hover:text-pd-accent-light" onClick={() => navigate(-1)}>
+2. **Crash bug on line 147**: `maxPages` (camelCase) is used but the variable is `MAX_PAGES` (UPPER_SNAKE). This causes a `ReferenceError` after the pagination loop exits, killing the function before it can return.
+
+## Fix
+
+### `supabase/functions/mintsoft-fetch-products/index.ts`
+
+1. **Fix the typo**: Line 147 — change `maxPages` to `MAX_PAGES`.
+
+2. **Use SKU-specific search**: Change the API URL to filter by SKU directly using Mintsoft's SKU filter parameter. The Mintsoft API supports `SKU` as a query parameter on `/api/Product/List`. Instead of:
    ```
-
-2. **SKU label** (line 234): Change from default to teal
-   ```tsx
-   <div className="font-mono text-lg text-pd-accent">{product.sku}</div>
+   /api/Product/List?SearchTerm=FA1-&PageNo=1&Limit=100
    ```
+   Use:
+   ```
+   /api/Product/List?SKU=FA1-&PageNo=1&Limit=100
+   ```
+   This tells Mintsoft to filter on the SKU field specifically, returning only products whose SKU contains "FA1-".
 
-3. **DetailRow labels** (line 217): These `text-muted-foreground` labels inside cards should already be fine since card foreground is near-white, but worth checking. No change unless needed.
+3. **Fallback**: If the `SKU` parameter returns an error (some Mintsoft versions may not support it), fall back to `SearchTerm` but log a warning. This makes the function resilient.
 
-Two quick class additions, same file.
+4. **Preview mode optimisation**: For preview, scan up to 10 pages (1,000 products) before giving up, rather than continuing indefinitely. Add a `maxPreviewPages` cap of 10 with a clear message if no matches found.
+
+## Files Modified
+- `supabase/functions/mintsoft-fetch-products/index.ts` — fix typo, use SKU parameter, add fallback
 
