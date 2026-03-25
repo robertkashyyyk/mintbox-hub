@@ -71,12 +71,13 @@ export default function ProductImageUpload({ productId, productSku }: ProductIma
         for (let i = 0; i < files.length; i++) {
           const file = files[i];
           const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
-          const fileName = `${Date.now()}-${i}.${ext}`;
-          const filePath = `${productId}/${fileName}`;
+          const imgIndex = currentCount + i;
+          const fileName = imgIndex === 0 ? `${productSku}.${ext}` : `${productSku}-${imgIndex + 1}.${ext}`;
+          const filePath = `${productSku}/${fileName}`;
 
           const { error: uploadError } = await supabase.storage
             .from("product-images")
-            .upload(filePath, file, { upsert: false });
+            .upload(filePath, file, { upsert: true });
           if (uploadError) throw uploadError;
 
           const { data: urlData } = supabase.storage

@@ -111,12 +111,13 @@ const BulkImageUpload = () => {
 
       const ext = item.file.name.split(".").pop();
       const isMatched = item.productId !== null;
-      const folder = isMatched ? item.productId : "pending";
-      const filePath = `${folder}/${Date.now()}-${item.sku}.${ext}`;
+      const filePath = isMatched
+        ? `${item.sku}/${item.sku}.${ext}`
+        : `pending/${item.sku}.${ext}`;
 
       const { error: uploadError } = await supabase.storage
         .from("product-images")
-        .upload(filePath, item.file, { upsert: false });
+        .upload(filePath, item.file, { upsert: true });
 
       if (uploadError) {
         updated[idx] = { ...updated[idx], status: "error", error: uploadError.message };
