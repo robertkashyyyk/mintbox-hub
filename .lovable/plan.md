@@ -1,42 +1,35 @@
 
 
-# Fix Unreadable UI Elements — Apply Teal Accent to Key Interactive Elements
+# Fix SKU Database Filters — Styling, Brand Bug, and "Has Images" Filter
 
-## Problem
-The sidebar toggle button (expand/collapse) and page titles like "SKU Database" are barely visible against the dark background. The inherited `foreground` color isn't punchy enough for these navigational elements.
+## Issues
 
-## Approach
-Use the teal accent (`#279e8a` / `--pd-accent`) for key interactive and heading elements that need to stand out, rather than relying on the generic foreground color.
+1. **Filter labels invisible** — Labels like "Search", "Brand", "to" use `text-muted-foreground` which is too dim on the card background. Input text inside dark select/input boxes is also hard to read.
+2. **Brand filter returns nothing** — Brand filtering happens client-side after pagination (SKU prefix matching on only 100 rows). Since `products_cache` has a `brand_id` column, this should be a server-side `.eq("brand_id", ...)` filter.
+3. **Missing "Has Images" filter** — New checkbox filter to show only products that have at least one image.
 
 ## Changes
 
-### 1. SidebarTrigger — `src/pages/DashboardLayout.tsx`
-Pass an explicit teal text class to the `SidebarTrigger`:
-```tsx
-<SidebarTrigger className="text-[hsl(var(--pd-accent))] hover:text-[hsl(var(--pd-accent-light))]" />
-```
+### 1. `src/components/sku-database/SkuFilters.tsx` — Styling and new filter
 
-### 2. Page title "SKU Database" — `src/pages/SkuDatabase.tsx`
-Change the `<h1>` from default foreground to white for maximum readability:
-```tsx
-<h1 className="text-3xl font-bold text-white">SKU Database</h1>
-```
-And the subtitle count text to a lighter muted:
-```tsx
-<p className="text-white/60 mt-2">
-```
+- Change filter icon and labels from `text-muted-foreground` to `text-pd-accent` (teal)
+- Change range separator "to" spans from `text-muted-foreground` to `text-white/70`
+- Add input class overrides: `text-white placeholder:text-white/40` on all `<Input>` and `<SelectTrigger>` elements
+- Add `hasImages: boolean` to `FilterState` interface
+- Add a `<Checkbox>` + label for "Has Images" filter in the grid
+- Include `hasImages` in `activeFilterCount` and `clearAllFilters`
 
-### 3. All other page-level `<h1>` headings across module pages
-Apply the same `text-white` treatment to top-level headings in all module index/detail pages that sit on the dark background. This affects pages like:
-- `BuyRecommendations.tsx`, `StockHealth.tsx`, `VelocityCoverage.tsx`, `PriceHunter.tsx`, `SalesOrders.tsx`, `Importing.tsx`, `Settings.tsx`, `Profile.tsx`, `UserManagement.tsx`, and other pages that have a standalone `<h1>` outside a `ModuleHeader`.
+### 2. `src/hooks/useSkuDatabase.ts` — Fix brand filter + add has-images filter
 
-### 4. Card titles inside dark cards — review `CardTitle` defaults
-Since `--card-foreground` is already `210 20% 95%` (near-white), card titles should already be fine. No change needed.
+- **Brand filter (server-side)**: Instead of client-side SKU prefix matching, look up the selected brand name in the `brands` array to get its `id`, then apply `.eq("brand_id", brandId)` directly in the query. Remove the client-side `filteredData.filter(...)` block.
+- **Has Images filter (server-side)**: When `filters.hasImages` is true, use a subquery approach — add an inner join condition by selecting products that have matching `product_images` records. Since we already select `product_images`, we can filter client-side for this one (checking `product_images.length > 0`) or use `.not("product_images", "is", null)`.
+- Update default `FilterState` to include `hasImages: false`.
 
-## Summary
-- **SidebarTrigger**: Teal icon color
-- **Page `<h1>` titles**: Explicit `text-white`
-- **Subtitles/counts**: `text-white/60` instead of `text-muted-foreground`
+### 3. `src/hooks/useSkuDatabase.ts` — Clean up client-side brand sort
 
-Two files changed minimum (`DashboardLayout.tsx`, `SkuDatabase.tsx`), plus a sweep of other page files for consistency.
+Keep the client-side brand sort (when sorting by brand column) since that still needs the prefix lookup for display, but remove the client-side brand *filter* entirely since it now happens server-side.
+
+## Files Modified
+- `src/components/sku-database/SkuFilters.tsx` — styling + checkbox
+- `src/hooks/useSkuDatabase.ts` — server-side brand filter, has-images filter
 
