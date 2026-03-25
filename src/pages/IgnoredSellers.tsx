@@ -56,8 +56,8 @@ export default function IgnoredSellers() {
             Back to Tools
           </Button>
           <div>
-            <h1 className="text-3xl font-bold">Ignored Sellers</h1>
-            <p className="text-muted-foreground">
+            <h1 className="text-3xl font-bold text-white">Ignored Sellers</h1>
+            <p className="text-white/60">
               Manage sellers ignored in Price Hunter
             </p>
           </div>
