@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Upload, CheckCircle, XCircle, Copy, Loader2, ImageIcon, Clock } from "lucide-react";
+import { ArrowLeft, Upload, CheckCircle, XCircle, Copy, Loader2, ImageIcon, Clock, Wrench } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +27,23 @@ const BulkImageUpload = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [isBackfilling, setIsBackfilling] = useState(false);
+
+  const runBackfill = async () => {
+    setIsBackfilling(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("backfill-image-paths");
+      if (error) throw error;
+      toast({
+        title: "Backfill complete",
+        description: `${data.moved} migrated, ${data.errors} errors`,
+      });
+    } catch (e: any) {
+      toast({ title: "Backfill failed", description: e.message, variant: "destructive" });
+    } finally {
+      setIsBackfilling(false);
+    }
+  };
 
   const extractSku = (filename: string): string => {
     return filename.replace(/\.[^/.]+$/, "");
@@ -240,6 +257,16 @@ const BulkImageUpload = () => {
             </div>
           </CardContent>
         </Card>
+
+        <div className="flex justify-end">
+          <Button variant="outline" onClick={runBackfill} disabled={isBackfilling}>
+            {isBackfilling ? (
+              <><Loader2 className="h-4 w-4 animate-spin mr-2" />Running…</>
+            ) : (
+              <><Wrench className="h-4 w-4 mr-2" />Clean Up Image URLs</>
+            )}
+          </Button>
+        </div>
 
         {files.length > 0 && (
           <>
