@@ -27,6 +27,23 @@ const BulkImageUpload = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [isBackfilling, setIsBackfilling] = useState(false);
+
+  const runBackfill = async () => {
+    setIsBackfilling(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("backfill-image-paths");
+      if (error) throw error;
+      toast({
+        title: "Backfill complete",
+        description: `${data.moved} migrated, ${data.errors} errors`,
+      });
+    } catch (e: any) {
+      toast({ title: "Backfill failed", description: e.message, variant: "destructive" });
+    } finally {
+      setIsBackfilling(false);
+    }
+  };
 
   const extractSku = (filename: string): string => {
     return filename.replace(/\.[^/.]+$/, "");
