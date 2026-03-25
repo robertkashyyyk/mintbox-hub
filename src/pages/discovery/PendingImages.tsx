@@ -42,11 +42,32 @@ const PendingImages = () => {
 
       if (productError) throw productError;
 
-      // Move the image: create product_images record
+      // Move the file in storage from pending/ to {sku}/ folder
+      const ext = filePath.split(".").pop() || "png";
+      const newFilePath = `${sku}/${sku}.${ext}`;
+
+      const { error: moveError } = await supabase.storage
+        .from("product-images")
+        .move(filePath, newFilePath);
+
+      // Get the new public URL
+      let finalFilePath = newFilePath;
+      let finalPublicUrl = publicUrl;
+      if (!moveError) {
+        const { data: urlData } = supabase.storage
+          .from("product-images")
+          .getPublicUrl(newFilePath);
+        finalPublicUrl = urlData.publicUrl;
+      } else {
+        // If move fails (e.g. file already exists), keep original path
+        finalFilePath = filePath;
+      }
+
+      // Create product_images record with the (possibly moved) path
       const { error: imgError } = await supabase.from("product_images").insert({
         product_id: product.id,
-        file_path: filePath,
-        public_url: publicUrl,
+        file_path: finalFilePath,
+        public_url: finalPublicUrl,
         display_order: 0,
         is_primary: true,
       });
