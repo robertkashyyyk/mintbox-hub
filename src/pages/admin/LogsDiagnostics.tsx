@@ -6,8 +6,8 @@ const LogsDiagnostics = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-3xl font-bold tracking-tight">Logs / Diagnostics</h2>
-        <p className="text-muted-foreground">
+        <h2 className="text-3xl font-bold tracking-tight text-white">Logs / Diagnostics</h2>
+        <p className="text-white/60">
           System logs and diagnostic information.
         </p>
       </div>

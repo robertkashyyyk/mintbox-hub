@@ -42,8 +42,8 @@ const BuyRecommendations = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Buy Recommendations</h2>
-          <p className="text-muted-foreground">
+          <h2 className="text-3xl font-bold tracking-tight text-white">Buy Recommendations</h2>
+          <p className="text-white/60">
             Velocity-based purchase order suggestions. Advisory only.
           </p>
         </div>

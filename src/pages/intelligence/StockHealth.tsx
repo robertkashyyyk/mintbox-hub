@@ -63,8 +63,8 @@ const StockHealth = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-3xl font-bold tracking-tight">Stock Health</h2>
-        <p className="text-muted-foreground">
+        <h2 className="text-3xl font-bold tracking-tight text-white">Stock Health</h2>
+        <p className="text-white/60">
           Stock levels, overstock, and shortage analysis powered by sales velocity.
         </p>
       </div>

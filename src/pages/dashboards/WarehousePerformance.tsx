@@ -65,8 +65,8 @@ const WarehousePerformance = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Warehouse Performance</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-3xl font-bold tracking-tight text-white">Warehouse Performance</h1>
+          <p className="text-white/60">
             {snapshot?.date_uk ? format(new Date(snapshot.date_uk), "EEEE, d MMMM yyyy") : "Today"}
           </p>
         </div>
