@@ -71,8 +71,8 @@ const RemoteStockUpdates = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Remote Stock Updates</h1>
-        <p className="text-muted-foreground mt-2">
+        <h1 className="text-3xl font-bold text-white">Remote Stock Updates</h1>
+        <p className="text-white/60 mt-2">
           Configure how each brand delivers stock updates to the system
         </p>
       </div>

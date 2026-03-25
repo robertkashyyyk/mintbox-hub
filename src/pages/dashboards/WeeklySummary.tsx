@@ -61,8 +61,8 @@ const WeeklySummary = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Weekly Summary</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-3xl font-bold tracking-tight text-white">Weekly Summary</h1>
+          <p className="text-white/60">
             {format(startOfWeek(new Date()), "d MMM")} - {format(endOfWeek(new Date()), "d MMM yyyy")}
           </p>
         </div>

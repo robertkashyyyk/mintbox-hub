@@ -8,8 +8,8 @@ const Settings = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
-        <p className="text-muted-foreground">Manage your application preferences</p>
+        <h1 className="text-3xl font-bold tracking-tight text-white">Settings</h1>
+        <p className="text-white/60">Manage your application preferences</p>
       </div>
 
       <div className="grid gap-6">

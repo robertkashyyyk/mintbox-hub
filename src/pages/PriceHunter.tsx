@@ -290,8 +290,8 @@ export default function PriceHunter() {
             Back to Tools
           </Button>
           <div>
-            <h1 className="text-3xl font-bold">Price Hunter – Queue & Results</h1>
-            <p className="text-muted-foreground">
+            <h1 className="text-3xl font-bold text-white">Price Hunter – Queue & Results</h1>
+            <p className="text-white/60">
               Manage eBay price checks and view results
             </p>
           </div>

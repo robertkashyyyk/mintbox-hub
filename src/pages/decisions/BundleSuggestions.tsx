@@ -5,8 +5,8 @@ const BundleSuggestions = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-3xl font-bold tracking-tight">Bundle Suggestions</h2>
-        <p className="text-muted-foreground">
+        <h2 className="text-3xl font-bold tracking-tight text-white">Bundle Suggestions</h2>
+        <p className="text-white/60">
           Product combinations for bundling opportunities.
         </p>
       </div>

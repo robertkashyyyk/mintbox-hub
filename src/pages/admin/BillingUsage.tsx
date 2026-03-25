@@ -5,8 +5,8 @@ const BillingUsage = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-3xl font-bold tracking-tight">Billing & Usage</h2>
-        <p className="text-muted-foreground">
+        <h2 className="text-3xl font-bold tracking-tight text-white">Billing & Usage</h2>
+        <p className="text-white/60">
           View Xask usage and billing information.
         </p>
       </div>

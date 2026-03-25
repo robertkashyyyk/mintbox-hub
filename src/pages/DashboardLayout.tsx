@@ -75,7 +75,7 @@ const DashboardLayout = () => {
           <header className="h-16 border-b border-white/10 bg-[hsl(222,47%,11%)] sticky top-0 z-10">
             <div className="h-full px-4 flex items-center justify-between">
               <div className="flex items-center gap-4">
-                <SidebarTrigger />
+                <SidebarTrigger className="text-pd-accent hover:text-pd-accent-light" />
                 <div className="flex items-center gap-3">
                   <div className="h-8 w-1 rounded-full bg-[hsl(174,58%,37%)]" />
                   <div>

@@ -229,7 +229,7 @@ export default function ProductDetail() {
       </div>
 
       <div className="space-y-2">
-        <h1 className="text-3xl font-bold">{product.name}</h1>
+        <h1 className="text-3xl font-bold text-white">{product.name}</h1>
         <div className="flex items-center gap-4 flex-wrap">
           <div className="font-mono text-lg">{product.sku}</div>
           {brand && <Badge variant="secondary">{brand.name}</Badge>}

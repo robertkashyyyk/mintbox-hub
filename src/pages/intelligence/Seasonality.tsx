@@ -5,8 +5,8 @@ const Seasonality = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-3xl font-bold tracking-tight">Seasonality</h2>
-        <p className="text-muted-foreground">
+        <h2 className="text-3xl font-bold tracking-tight text-white">Seasonality</h2>
+        <p className="text-white/60">
           Seasonal demand patterns and forecasts.
         </p>
       </div>

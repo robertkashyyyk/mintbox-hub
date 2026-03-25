@@ -27,8 +27,8 @@ const MissingCostPrices = () => {
       <div className="flex items-center gap-3">
         <AlertCircle className="h-8 w-8 text-orange-500" />
         <div>
-          <h1 className="text-3xl font-bold">Missing Cost Prices</h1>
-          <p className="text-muted-foreground">Products without cost prices configured</p>
+           <h1 className="text-3xl font-bold text-white">Missing Cost Prices</h1>
+           <p className="text-white/60">Products without cost prices configured</p>
         </div>
       </div>
 
