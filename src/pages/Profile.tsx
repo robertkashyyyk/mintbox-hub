@@ -99,8 +99,8 @@ const Profile = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Profile Settings</h1>
-        <p className="text-muted-foreground mt-2">
+        <h1 className="text-3xl font-bold text-white">Profile Settings</h1>
+        <p className="text-white/60 mt-2">
           Manage your account information and security settings
         </p>
       </div>

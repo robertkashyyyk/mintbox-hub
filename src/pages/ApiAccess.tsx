@@ -99,8 +99,8 @@ export default function ApiAccess() {
           Back to Management
         </Button>
         <div>
-          <h1 className="text-3xl font-bold">API Access</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-3xl font-bold text-white">API Access</h1>
+          <p className="text-white/60">
             Manage API keys and integration endpoints
           </p>
         </div>
