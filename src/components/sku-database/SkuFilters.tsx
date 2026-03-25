@@ -1,6 +1,7 @@
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -10,7 +11,6 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { X, Filter } from "lucide-react";
-import { Slider } from "@/components/ui/slider";
 
 export interface FilterState {
   search: string;
@@ -29,6 +29,7 @@ export interface FilterState {
   costPriceMax: number;
   lastSyncedFrom: string;
   lastSyncedTo: string;
+  hasImages: boolean;
 }
 
 interface SkuFiltersProps {
@@ -37,6 +38,8 @@ interface SkuFiltersProps {
   brands: Array<{ id: string; name: string }>;
   categories: string[];
 }
+
+const inputClasses = "text-white placeholder:text-white/40";
 
 export const SkuFilters = ({
   filters,
@@ -66,6 +69,7 @@ export const SkuFilters = ({
       costPriceMax: 1000,
       lastSyncedFrom: "",
       lastSyncedTo: "",
+      hasImages: false,
     });
   };
 
@@ -81,14 +85,15 @@ export const SkuFilters = ({
     filters.costPriceMin > 0 || filters.costPriceMax < 1000,
     filters.lastSyncedFrom,
     filters.lastSyncedTo,
+    filters.hasImages,
   ].filter(Boolean).length;
 
   return (
     <div className="space-y-4 p-4 bg-card rounded-lg border">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Filter className="h-4 w-4 text-muted-foreground" />
-          <h3 className="text-sm font-medium">Filters</h3>
+          <Filter className="h-4 w-4 text-pd-accent" />
+          <h3 className="text-sm font-medium text-white">Filters</h3>
           {activeFilterCount > 0 && (
             <Badge variant="secondary" className="ml-2">
               {activeFilterCount} active
@@ -109,26 +114,27 @@ export const SkuFilters = ({
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Text Search */}
         <div className="space-y-2">
-          <Label htmlFor="search">Search</Label>
+          <Label htmlFor="search" className="text-pd-accent">Search</Label>
           <Input
             id="search"
             placeholder="SKU, Name, Barcode..."
             value={filters.search}
             onChange={(e) => updateFilter("search", e.target.value)}
+            className={inputClasses}
           />
         </div>
 
         {/* Brand Filter */}
         <div className="space-y-2">
-          <Label htmlFor="brand">Brand</Label>
+          <Label htmlFor="brand" className="text-pd-accent">Brand</Label>
           <Select value={filters.brand || "all"} onValueChange={(value) => updateFilter("brand", value === "all" ? "" : value)}>
-            <SelectTrigger id="brand">
+            <SelectTrigger id="brand" className={inputClasses}>
               <SelectValue placeholder="All Brands" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Brands</SelectItem>
               {brands.map((brand) => (
-                <SelectItem key={brand.id} value={brand.name}>
+                <SelectItem key={brand.id} value={brand.id}>
                   {brand.name}
                 </SelectItem>
               ))}
@@ -138,9 +144,9 @@ export const SkuFilters = ({
 
         {/* Status Filter */}
         <div className="space-y-2">
-          <Label htmlFor="status">Status</Label>
+          <Label htmlFor="status" className="text-pd-accent">Status</Label>
           <Select value={filters.status || "all"} onValueChange={(value) => updateFilter("status", value === "all" ? "" : value)}>
-            <SelectTrigger id="status">
+            <SelectTrigger id="status" className={inputClasses}>
               <SelectValue placeholder="All Status" />
             </SelectTrigger>
             <SelectContent>
@@ -153,89 +159,105 @@ export const SkuFilters = ({
 
         {/* Date Range - Last Synced From */}
         <div className="space-y-2">
-          <Label htmlFor="lastSyncedFrom">Last Synced From</Label>
+          <Label htmlFor="lastSyncedFrom" className="text-pd-accent">Last Synced From</Label>
           <Input
             id="lastSyncedFrom"
             type="date"
             value={filters.lastSyncedFrom}
             onChange={(e) => updateFilter("lastSyncedFrom", e.target.value)}
+            className={inputClasses}
           />
         </div>
 
         {/* Date Range - Last Synced To */}
         <div className="space-y-2">
-          <Label htmlFor="lastSyncedTo">Last Synced To</Label>
+          <Label htmlFor="lastSyncedTo" className="text-pd-accent">Last Synced To</Label>
           <Input
             id="lastSyncedTo"
             type="date"
             value={filters.lastSyncedTo}
             onChange={(e) => updateFilter("lastSyncedTo", e.target.value)}
+            className={inputClasses}
           />
         </div>
 
         {/* Stock Range */}
         <div className="space-y-2">
-          <Label>Current Stock: {filters.stockMin} - {filters.stockMax}</Label>
+          <Label className="text-pd-accent">Current Stock: {filters.stockMin} - {filters.stockMax}</Label>
           <div className="flex gap-2 items-center">
             <Input
               type="number"
               placeholder="Min"
               value={filters.stockMin}
               onChange={(e) => updateFilter("stockMin", Number(e.target.value))}
-              className="w-20"
+              className={`w-20 ${inputClasses}`}
             />
-            <span className="text-muted-foreground">to</span>
+            <span className="text-white/70">to</span>
             <Input
               type="number"
               placeholder="Max"
               value={filters.stockMax}
               onChange={(e) => updateFilter("stockMax", Number(e.target.value))}
-              className="w-20"
+              className={`w-20 ${inputClasses}`}
             />
           </div>
         </div>
 
         {/* Back Order Range */}
         <div className="space-y-2">
-          <Label>Back Orders: {filters.backOrderMin} - {filters.backOrderMax}</Label>
+          <Label className="text-pd-accent">Back Orders: {filters.backOrderMin} - {filters.backOrderMax}</Label>
           <div className="flex gap-2 items-center">
             <Input
               type="number"
               placeholder="Min"
               value={filters.backOrderMin}
               onChange={(e) => updateFilter("backOrderMin", Number(e.target.value))}
-              className="w-20"
+              className={`w-20 ${inputClasses}`}
             />
-            <span className="text-muted-foreground">to</span>
+            <span className="text-white/70">to</span>
             <Input
               type="number"
               placeholder="Max"
               value={filters.backOrderMax}
               onChange={(e) => updateFilter("backOrderMax", Number(e.target.value))}
-              className="w-20"
+              className={`w-20 ${inputClasses}`}
             />
           </div>
         </div>
 
         {/* Cost Price Range */}
         <div className="space-y-2">
-          <Label>Cost Price: £{filters.costPriceMin} - £{filters.costPriceMax}</Label>
+          <Label className="text-pd-accent">Cost Price: £{filters.costPriceMin} - £{filters.costPriceMax}</Label>
           <div className="flex gap-2 items-center">
             <Input
               type="number"
               placeholder="Min"
               value={filters.costPriceMin}
               onChange={(e) => updateFilter("costPriceMin", Number(e.target.value))}
-              className="w-20"
+              className={`w-20 ${inputClasses}`}
             />
-            <span className="text-muted-foreground">to</span>
+            <span className="text-white/70">to</span>
             <Input
               type="number"
               placeholder="Max"
               value={filters.costPriceMax}
               onChange={(e) => updateFilter("costPriceMax", Number(e.target.value))}
-              className="w-20"
+              className={`w-20 ${inputClasses}`}
             />
+          </div>
+        </div>
+
+        {/* Has Images Filter */}
+        <div className="space-y-2 flex items-end">
+          <div className="flex items-center gap-2 pb-2">
+            <Checkbox
+              id="hasImages"
+              checked={filters.hasImages}
+              onCheckedChange={(checked) => updateFilter("hasImages", !!checked)}
+            />
+            <Label htmlFor="hasImages" className="text-pd-accent cursor-pointer">
+              Has Images Only
+            </Label>
           </div>
         </div>
       </div>
