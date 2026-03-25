@@ -34,17 +34,14 @@ function skuMatchesPrefix(sku: string, prefixes: { original: string; normalized:
   return skuUpper.startsWith(prefixes.original) || skuUpper.startsWith(prefixes.normalized);
 }
 
-// Fetch a page of products, trying SKU param first then falling back to SearchTerm
+// Fetch a page of products — no server-side filtering (Mintsoft ignores SKU/SearchTerm params)
 async function fetchProductPage(
   baseUrl: string,
   apiKey: string,
-  prefix: string,
   page: number,
-  limit: number,
-  useSku: boolean
-): Promise<{ products: MintsoftProduct[]; usedSku: boolean }> {
-  const param = useSku ? "SKU" : "SearchTerm";
-  const url = `${baseUrl}/api/Product/List?${param}=${encodeURIComponent(prefix)}&PageNo=${page}&Limit=${limit}`;
+  limit: number
+): Promise<MintsoftProduct[]> {
+  const url = `${baseUrl}/api/Product/List?PageNo=${page}&Limit=${limit}`;
 
   const response = await fetch(url, {
     method: "GET",
@@ -54,20 +51,13 @@ async function fetchProductPage(
     },
   });
 
-  // If SKU param fails, caller should retry with SearchTerm
-  if (!response.ok && useSku) {
-    const errorText = await response.text();
-    console.warn(`SKU param failed (${response.status}): ${errorText.substring(0, 200)}. Falling back to SearchTerm.`);
-    return fetchProductPage(baseUrl, apiKey, prefix, page, limit, false);
-  }
-
   if (!response.ok) {
     const errorText = await response.text();
     throw new Error(`Mintsoft API error: ${response.status} ${response.statusText} - ${errorText.substring(0, 200)}`);
   }
 
   const products: MintsoftProduct[] = await response.json();
-  return { products, usedSku: useSku };
+  return products;
 }
 
 Deno.serve(async (req) => {
@@ -123,35 +113,55 @@ Deno.serve(async (req) => {
     }
 
     const limit = 100;
-    const MAX_PAGES = 200;
-    const MAX_PREVIEW_PAGES = 10;
+    const MAX_PAGES = 2500;
+    const MAX_PREVIEW_PAGES = 50;
 
     const allProducts: MintsoftProduct[] = [];
     let page = 1;
     let hasMore = true;
     let truncated = false;
-    let useSku = true; // Try SKU param first
+    let consecutiveEmptyPages = 0;
 
     const maxPages = mode === "preview" ? MAX_PREVIEW_PAGES : MAX_PAGES;
 
-    console.log(`Searching products with prefix: ${prefix} (mode: ${mode})`);
+    console.log(`Scanning full catalog for prefix: ${prefix} (mode: ${mode}, max pages: ${maxPages})`);
 
     while (hasMore && page <= maxPages) {
-      console.log(`Fetching page ${page} (using ${useSku ? "SKU" : "SearchTerm"} param)...`);
+      const products = await fetchProductPage(baseUrl, apiKey, page, limit);
 
-      const result = await fetchProductPage(baseUrl, apiKey, prefix, page, limit, useSku);
-      useSku = result.usedSku; // Stick with whatever worked
+      // Debug: log first 3 SKUs from page 1
+      if (page === 1) {
+        const sampleSkus = products.slice(0, 3).map((p) => p.SKU).join(", ");
+        console.log(`Page 1 sample SKUs: ${sampleSkus}`);
+      }
 
-      const filtered = result.products.filter((p) => p.SKU && skuMatchesPrefix(p.SKU, prefixes));
+      const filtered = products.filter((p) => p.SKU && skuMatchesPrefix(p.SKU, prefixes));
       allProducts.push(...filtered);
 
-      console.log(`Page ${page}: Found ${result.products.length} results, ${filtered.length} match prefix exactly`);
+      if (filtered.length > 0) {
+        consecutiveEmptyPages = 0;
+        console.log(`Page ${page}: ${filtered.length} matches (total: ${allProducts.length})`);
+      } else {
+        consecutiveEmptyPages++;
+      }
 
-      hasMore = result.products.length === limit;
+      // Log progress every 10 pages
+      if (page % 10 === 0) {
+        console.log(`Progress: page ${page}, matches so far: ${allProducts.length}`);
+      }
+
+      hasMore = products.length === limit;
       page++;
 
-      // For preview mode, stop once we have enough samples
+      // Preview mode: stop once we have enough samples
       if (mode === "preview" && allProducts.length >= 5) {
+        truncated = hasMore;
+        break;
+      }
+
+      // Import mode: early termination if we found matches but hit 20 consecutive empty pages
+      if (mode === "import" && allProducts.length > 0 && consecutiveEmptyPages >= 20) {
+        console.log(`Early termination: 20 consecutive pages with no new matches after finding ${allProducts.length} products`);
         truncated = hasMore;
         break;
       }
@@ -166,7 +176,7 @@ Deno.serve(async (req) => {
     // Preview mode - return count and sample
     if (mode === "preview") {
       const hint = allProducts.length === 0
-        ? `No products found matching "${prefixes.original}" or "${prefixes.normalized}". Try a different prefix.`
+        ? `No products found matching "${prefixes.original}" or "${prefixes.normalized}" in ${page - 1} pages scanned. The products may be beyond the scan window.`
         : null;
 
       return new Response(
@@ -189,7 +199,7 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({
           imported: 0,
-          message: `No products found matching prefix "${prefixes.original}" or "${prefixes.normalized}"`,
+          message: `No products found matching prefix "${prefixes.original}" or "${prefixes.normalized}" after scanning ${page - 1} pages`,
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
