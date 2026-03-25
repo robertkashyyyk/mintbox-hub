@@ -24,7 +24,7 @@ interface MintsoftProduct {
 // Normalize prefix for matching - strip trailing separators
 function normalizePrefix(prefix: string): { original: string; normalized: string } {
   const original = prefix.trim().toUpperCase();
-  const normalized = original.replace(/[-/]+$/, ""); // Remove trailing - or /
+  const normalized = original.replace(/[-/]+$/, "");
   return { original, normalized };
 }
 
@@ -32,6 +32,42 @@ function normalizePrefix(prefix: string): { original: string; normalized: string
 function skuMatchesPrefix(sku: string, prefixes: { original: string; normalized: string }): boolean {
   const skuUpper = sku.toUpperCase();
   return skuUpper.startsWith(prefixes.original) || skuUpper.startsWith(prefixes.normalized);
+}
+
+// Fetch a page of products, trying SKU param first then falling back to SearchTerm
+async function fetchProductPage(
+  baseUrl: string,
+  apiKey: string,
+  prefix: string,
+  page: number,
+  limit: number,
+  useSku: boolean
+): Promise<{ products: MintsoftProduct[]; usedSku: boolean }> {
+  const param = useSku ? "SKU" : "SearchTerm";
+  const url = `${baseUrl}/api/Product/List?${param}=${encodeURIComponent(prefix)}&PageNo=${page}&Limit=${limit}`;
+
+  const response = await fetch(url, {
+    method: "GET",
+    headers: {
+      "ms-apikey": apiKey,
+      "Content-Type": "application/json",
+    },
+  });
+
+  // If SKU param fails, caller should retry with SearchTerm
+  if (!response.ok && useSku) {
+    const errorText = await response.text();
+    console.warn(`SKU param failed (${response.status}): ${errorText.substring(0, 200)}. Falling back to SearchTerm.`);
+    return fetchProductPage(baseUrl, apiKey, prefix, page, limit, false);
+  }
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Mintsoft API error: ${response.status} ${response.statusText} - ${errorText.substring(0, 200)}`);
+  }
+
+  const products: MintsoftProduct[] = await response.json();
+  return { products, usedSku: useSku };
 }
 
 Deno.serve(async (req) => {
@@ -56,16 +92,13 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Normalize the prefix for flexible matching
     const prefixes = normalizePrefix(prefix);
     console.log(`Prefix matching: original="${prefixes.original}", normalized="${prefixes.normalized}"`);
 
-    // Get Mintsoft credentials from Supabase
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Fetch mintsoft settings
     const { data: settings, error: settingsError } = await supabase
       .from("mintsoft_settings")
       .select("base_url")
@@ -89,51 +122,32 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Configuration
     const limit = 100;
-    const MAX_PAGES = 200; // Safety cap for pagination
+    const MAX_PAGES = 200;
+    const MAX_PREVIEW_PAGES = 10;
 
-    // Use Mintsoft Search endpoint for server-side filtering
     const allProducts: MintsoftProduct[] = [];
     let page = 1;
     let hasMore = true;
     let truncated = false;
+    let useSku = true; // Try SKU param first
 
-    console.log(`Searching products with prefix: ${prefix} (mode: ${mode}) using Search endpoint`);
+    const maxPages = mode === "preview" ? MAX_PREVIEW_PAGES : MAX_PAGES;
 
-    while (hasMore && page <= MAX_PAGES) {
-      const url = `${baseUrl}/api/Product/List?SearchTerm=${encodeURIComponent(prefix)}&PageNo=${page}&Limit=${limit}`;
-      console.log(`Fetching search page ${page}...`);
+    console.log(`Searching products with prefix: ${prefix} (mode: ${mode})`);
 
-      const response = await fetch(url, {
-        method: "GET",
-        headers: {
-          "ms-apikey": apiKey,
-          "Content-Type": "application/json",
-        },
-      });
+    while (hasMore && page <= maxPages) {
+      console.log(`Fetching page ${page} (using ${useSku ? "SKU" : "SearchTerm"} param)...`);
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`Mintsoft API error: ${response.status} - ${errorText}`);
-        return new Response(
-          JSON.stringify({ 
-            error: `Mintsoft API error: ${response.status} ${response.statusText}`,
-            detail: errorText.substring(0, 200),
-          }),
-          { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
+      const result = await fetchProductPage(baseUrl, apiKey, prefix, page, limit, useSku);
+      useSku = result.usedSku; // Stick with whatever worked
 
-      const products: MintsoftProduct[] = await response.json();
-      
-      // Still apply client-side prefix filter to ensure exact prefix matches
-      const filtered = products.filter((p) => p.SKU && skuMatchesPrefix(p.SKU, prefixes));
+      const filtered = result.products.filter((p) => p.SKU && skuMatchesPrefix(p.SKU, prefixes));
       allProducts.push(...filtered);
 
-      console.log(`Page ${page}: Found ${products.length} results, ${filtered.length} match prefix exactly`);
+      console.log(`Page ${page}: Found ${result.products.length} results, ${filtered.length} match prefix exactly`);
 
-      hasMore = products.length === limit;
+      hasMore = result.products.length === limit;
       page++;
 
       // For preview mode, stop once we have enough samples
@@ -143,7 +157,6 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Check if we hit the page limit
     if (page > maxPages && hasMore) {
       truncated = true;
     }
@@ -152,7 +165,7 @@ Deno.serve(async (req) => {
 
     // Preview mode - return count and sample
     if (mode === "preview") {
-      const hint = allProducts.length === 0 
+      const hint = allProducts.length === 0
         ? `No products found matching "${prefixes.original}" or "${prefixes.normalized}". Try a different prefix.`
         : null;
 
@@ -182,7 +195,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Batch upsert products
     const productsToUpsert = allProducts.map((p) => ({
       sku: p.SKU,
       name: p.Name || p.SKU,
@@ -198,7 +210,6 @@ Deno.serve(async (req) => {
       handling_time: p.HandlingTime || null,
     }));
 
-    // Upsert in batches of 100
     const batchSize = 100;
     let totalImported = 0;
 
@@ -216,7 +227,6 @@ Deno.serve(async (req) => {
       totalImported += batch.length;
     }
 
-    // Log to upload_history
     if (userId) {
       const { error: historyError } = await supabase
         .from("upload_history")
