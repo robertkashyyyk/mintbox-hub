@@ -258,7 +258,16 @@ const BulkImageUpload = () => {
           </CardContent>
         </Card>
 
-        {files.length > 0 && (
+        <div className="flex justify-end">
+          <Button variant="outline" onClick={runBackfill} disabled={isBackfilling}>
+            {isBackfilling ? (
+              <><Loader2 className="h-4 w-4 animate-spin mr-2" />Running…</>
+            ) : (
+              <><Wrench className="h-4 w-4 mr-2" />Clean Up Image URLs</>
+            )}
+          </Button>
+        </div>
+
           <>
             <div className="flex items-center justify-between flex-wrap gap-3">
               <div className="flex gap-3 flex-wrap">
