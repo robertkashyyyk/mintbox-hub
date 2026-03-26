@@ -80,8 +80,8 @@ export function AppSidebar() {
         { title: "Discovery Queue", url: "/discovery/discovery-queue", icon: AlertCircle },
         { title: "Order Telemetry", url: "/discovery/order-telemetry", icon: Activity, superOnly: true },
         { title: "Feed Imports", url: "/discovery/feed-imports", icon: FileText },
-        { title: "Bulk Image Upload", url: "/discovery/bulk-images", icon: Database },
-        { title: "Pending Images", url: "/discovery/pending-images", icon: Database },
+        { title: "Bulk Image Upload", url: "/discovery/bulk-images", icon: Images },
+        { title: "Pending Images", url: "/discovery/pending-images", icon: Clock },
       ],
     },
     {
