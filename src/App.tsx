@@ -162,9 +162,12 @@ const App = () => (
 
             {/* Execution Sub-Routes */}
             <Route path="/execution/purchase-orders" element={<Dashboard />} />
-            <Route path="/execution/price-push" element={<PriceHunter />} />
-            <Route path="/execution/price-push/ignored-sellers" element={<IgnoredSellers />} />
-            <Route path="/execution/price-push/ignored-listings" element={<IgnoredListings />} />
+            <Route path="/execution/price-hunter" element={<PriceHunter />} />
+            <Route path="/execution/price-hunter/ignored-sellers" element={<IgnoredSellers />} />
+            <Route path="/execution/price-hunter/ignored-listings" element={<IgnoredListings />} />
+            <Route path="/execution/price-push" element={<Navigate to="/execution/price-hunter" replace />} />
+            <Route path="/execution/price-push/ignored-sellers" element={<Navigate to="/execution/price-hunter/ignored-sellers" replace />} />
+            <Route path="/execution/price-push/ignored-listings" element={<Navigate to="/execution/price-hunter/ignored-listings" replace />} />
             <Route path="/execution/remote-stock-updates" element={<RemoteStockUpdates />} />
             <Route path="/execution/listing-cloner" element={<EbayClone />} />
 
