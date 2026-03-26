@@ -206,21 +206,17 @@ const BulkImageUpload = () => {
   const readyCount = matchedCount + unmatchedCount;
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b bg-card">
-        <div className="container mx-auto px-4 py-4">
-          <Button variant="ghost" onClick={() => navigate("/discovery")} className="mb-2">
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Discovery
-          </Button>
-          <h1 className="text-2xl font-bold">Bulk Image Upload</h1>
-          <p className="text-sm text-muted-foreground">
-            Drop image files named by SKU. Matched images go to products; unmatched ones are queued for review.
-          </p>
-        </div>
-      </header>
-
-      <main className="container mx-auto px-4 py-8 space-y-6">
+    <div className="space-y-6">
+      <div>
+        <Button variant="ghost" size="sm" className="text-pd-accent hover:text-pd-accent-light mb-2" onClick={() => navigate("/discovery")}>
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Back to Discovery
+        </Button>
+        <h1 className="text-2xl font-bold text-white">Bulk Image Upload</h1>
+        <p className="text-sm text-white/60">
+          Drop image files named by SKU. Matched images go to products; unmatched ones are queued for review.
+        </p>
+      </div>
         <Card>
           <CardContent className="p-8">
             <div
