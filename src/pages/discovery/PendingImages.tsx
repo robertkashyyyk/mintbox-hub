@@ -116,21 +116,17 @@ const PendingImages = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b bg-card">
-        <div className="container mx-auto px-4 py-4">
-          <Button variant="ghost" onClick={() => navigate("/discovery")} className="mb-2">
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Discovery
-          </Button>
-          <h1 className="text-2xl font-bold">Pending Images</h1>
-          <p className="text-sm text-muted-foreground">
-            Images uploaded without a matching product. Promote to create a product record, or dismiss.
-          </p>
-        </div>
-      </header>
-
-      <main className="container mx-auto px-4 py-8 space-y-6">
+    <div className="space-y-6">
+      <div>
+        <Button variant="ghost" size="sm" className="text-pd-accent hover:text-pd-accent-light mb-2" onClick={() => navigate("/discovery")}>
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Back to Discovery
+        </Button>
+        <h1 className="text-2xl font-bold text-white">Pending Images</h1>
+        <p className="text-sm text-white/60">
+          Images uploaded without a matching product. Promote to create a product record, or dismiss.
+        </p>
+      </div>
         {isLoading && (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
