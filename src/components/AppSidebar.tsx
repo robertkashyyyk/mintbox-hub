@@ -152,6 +152,7 @@ export function AppSidebar() {
         { title: "Billing & Usage", url: "/admin/billing", icon: CreditCard },
         { title: "Logs / Diagnostics", url: "/admin/logs", icon: FileText },
         { title: "System Settings", url: "/admin/settings", icon: Settings },
+        { title: "Integrations", url: "/admin/integrations", icon: Plug },
       ],
     },
   ];
