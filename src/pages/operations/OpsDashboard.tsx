@@ -26,54 +26,41 @@ const OpsDashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b bg-card sticky top-0 z-10">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Button variant="ghost" size="icon" onClick={() => navigate("/operations")}>
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
-              <div>
-                <h1 className="text-2xl font-bold">Operations Dashboard</h1>
-                <p className="text-sm text-muted-foreground">
-                  Are we winning or losing today — and why?
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-4">
-              <span className="text-sm text-muted-foreground">
-                Last updated: {format(lastRefresh, 'HH:mm:ss')}
-              </span>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={handleRefresh}
-                disabled={isRefreshing}
-              >
-                <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
-                Refresh
-              </Button>
-            </div>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="sm" className="text-pd-accent hover:text-pd-accent-light" onClick={() => navigate("/operations")}>
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div>
+            <h1 className="text-2xl font-bold text-white">Operations Dashboard</h1>
+            <p className="text-sm text-white/60">
+              Are we winning or losing today — and why?
+            </p>
           </div>
         </div>
-      </header>
-
-      <main className="container mx-auto px-4 py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Section A - Backorder Health */}
-          <BackorderHealthCard />
-          
-          {/* Section B - Order Flow */}
-          <OrderFlowCard />
-          
-          {/* Section C - Exceptions */}
-          <OpsExceptionsCard />
-          
-          {/* Section D - 7-Day Trend */}
-          <BackorderTrendMiniChart />
+        <div className="flex items-center gap-4">
+          <span className="text-sm text-white/60">
+            Last updated: {format(lastRefresh, 'HH:mm:ss')}
+          </span>
+          <Button 
+            variant="outlineDark" 
+            size="sm" 
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
         </div>
-      </main>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <BackorderHealthCard />
+        <OrderFlowCard />
+        <OpsExceptionsCard />
+        <BackorderTrendMiniChart />
+      </div>
     </div>
   );
 };

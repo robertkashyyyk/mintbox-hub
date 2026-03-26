@@ -209,7 +209,6 @@ const PendingImages = () => {
             </div>
           </>
         )}
-      </main>
     </div>
   );
 };

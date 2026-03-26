@@ -336,7 +336,6 @@ const BulkImageUpload = () => {
             </div>
           </>
         )}
-      </main>
     </div>
   );
 };

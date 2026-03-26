@@ -127,7 +127,7 @@ export function AppSidebar() {
       items: [
         { title: "Dashboard", url: "/operations/dashboard", icon: LayoutDashboard },
         { title: "Reports", url: "/operations/reports", icon: FileText, superOnly: true },
-        { title: "Monitoring", url: "/operations/order-monitoring", icon: Activity },
+        { title: "Monitoring", url: "/operations/monitoring", icon: Activity },
       ],
     },
     {

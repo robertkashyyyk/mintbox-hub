@@ -182,7 +182,8 @@ const App = () => (
             {/* Operations Sub-Routes */}
             <Route path="/operations/dashboard" element={<OpsDashboard />} />
             <Route path="/operations/reports" element={<OpsReports />} />
-            <Route path="/operations/order-monitoring" element={<OrderMonitoring />} />
+            <Route path="/operations/monitoring" element={<OrderMonitoring />} />
+            <Route path="/operations/order-monitoring" element={<Navigate to="/operations/monitoring" replace />} />
 
             {/* Dashboards Sub-Routes */}
             <Route path="/dashboards/warehouse" element={<WarehousePerformance />} />
