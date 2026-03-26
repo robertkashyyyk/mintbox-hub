@@ -93,10 +93,11 @@ export default function ApiAccess() {
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => navigate("/menu/management")}
+          className="text-pd-accent hover:text-pd-accent-light"
+          onClick={() => navigate("/admin")}
         >
           <ArrowLeft className="h-4 w-4 mr-2" />
-          Back to Management
+          Back to Administration
         </Button>
         <div>
           <h1 className="text-3xl font-bold text-white">API Access</h1>

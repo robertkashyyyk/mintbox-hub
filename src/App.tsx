@@ -154,16 +154,20 @@ const App = () => (
             <Route path="/intelligence/seasonality" element={<Seasonality />} />
 
             {/* Decisions Sub-Routes */}
-            <Route path="/decisions/buy" element={<BuyRecommendations />} />
+            <Route path="/decisions/buying" element={<BuyRecommendations />} />
+            <Route path="/decisions/buy" element={<Navigate to="/decisions/buying" replace />} />
             <Route path="/decisions/liquidation" element={<LiquidationCandidates />} />
             <Route path="/decisions/price-moves" element={<PriceMoves />} />
             <Route path="/decisions/bundles" element={<BundleSuggestions />} />
 
             {/* Execution Sub-Routes */}
             <Route path="/execution/purchase-orders" element={<Dashboard />} />
-            <Route path="/execution/price-push" element={<PriceHunter />} />
-            <Route path="/execution/price-push/ignored-sellers" element={<IgnoredSellers />} />
-            <Route path="/execution/price-push/ignored-listings" element={<IgnoredListings />} />
+            <Route path="/execution/price-hunter" element={<PriceHunter />} />
+            <Route path="/execution/price-hunter/ignored-sellers" element={<IgnoredSellers />} />
+            <Route path="/execution/price-hunter/ignored-listings" element={<IgnoredListings />} />
+            <Route path="/execution/price-push" element={<Navigate to="/execution/price-hunter" replace />} />
+            <Route path="/execution/price-push/ignored-sellers" element={<Navigate to="/execution/price-hunter/ignored-sellers" replace />} />
+            <Route path="/execution/price-push/ignored-listings" element={<Navigate to="/execution/price-hunter/ignored-listings" replace />} />
             <Route path="/execution/remote-stock-updates" element={<RemoteStockUpdates />} />
             <Route path="/execution/listing-cloner" element={<EbayClone />} />
 
@@ -178,7 +182,8 @@ const App = () => (
             {/* Operations Sub-Routes */}
             <Route path="/operations/dashboard" element={<OpsDashboard />} />
             <Route path="/operations/reports" element={<OpsReports />} />
-            <Route path="/operations/order-monitoring" element={<OrderMonitoring />} />
+            <Route path="/operations/monitoring" element={<OrderMonitoring />} />
+            <Route path="/operations/order-monitoring" element={<Navigate to="/operations/monitoring" replace />} />
 
             {/* Dashboards Sub-Routes */}
             <Route path="/dashboards/warehouse" element={<WarehousePerformance />} />
@@ -202,7 +207,7 @@ const App = () => (
           <Route path="/brands" element={<Navigate to="/discovery/brands" replace />} />
           <Route path="/importing" element={<Navigate to="/discovery/feed-imports" replace />} />
           <Route path="/sales-orders" element={<Navigate to="/discovery/order-telemetry" replace />} />
-          <Route path="/price-hunter" element={<Navigate to="/execution/price-push" replace />} />
+          <Route path="/price-hunter" element={<Navigate to="/execution/price-hunter" replace />} />
           <Route path="/ignored-sellers" element={<Navigate to="/execution/price-push/ignored-sellers" replace />} />
           <Route path="/ignored-listings" element={<Navigate to="/execution/price-push/ignored-listings" replace />} />
           <Route path="/remote-stock-updates" element={<Navigate to="/execution/remote-stock-updates" replace />} />

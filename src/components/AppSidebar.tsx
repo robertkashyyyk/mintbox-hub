@@ -101,7 +101,7 @@ export function AppSidebar() {
       icon: ShoppingBag,
       requireSenior: true,
       items: [
-        { title: "Buy Recommendations", url: "/decisions/buy", icon: ShoppingBag },
+        { title: "Buy Recommendations", url: "/decisions/buying", icon: ShoppingBag },
         { title: "Liquidation Candidates", url: "/decisions/liquidation", icon: Flame },
         { title: "Price Moves", url: "/decisions/price-moves", icon: TrendingDown },
         { title: "Bundle Suggestions", url: "/decisions/bundles", icon: Package },
@@ -114,7 +114,7 @@ export function AppSidebar() {
       requireSenior: true,
       items: [
         { title: "Purchase Order Builder", url: "/execution/purchase-orders", icon: ShoppingCart },
-        { title: "Price Push", url: "/execution/price-push", icon: DollarSign },
+        { title: "Price Hunter", url: "/execution/price-hunter", icon: DollarSign },
         { title: "Remote Stock Updates", url: "/execution/remote-stock-updates", icon: RefreshCw },
         { title: "Listing Cloner", url: "/execution/listing-cloner", icon: Copy },
       ],
@@ -127,7 +127,7 @@ export function AppSidebar() {
       items: [
         { title: "Dashboard", url: "/operations/dashboard", icon: LayoutDashboard },
         { title: "Reports", url: "/operations/reports", icon: FileText, superOnly: true },
-        { title: "Monitoring", url: "/operations/order-monitoring", icon: Activity },
+        { title: "Monitoring", url: "/operations/monitoring", icon: Activity },
       ],
     },
     {

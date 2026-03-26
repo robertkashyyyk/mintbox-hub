@@ -284,10 +284,11 @@ export default function PriceHunter() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => navigate("/menu/tools")}
+            className="text-pd-accent hover:text-pd-accent-light"
+            onClick={() => navigate("/execution")}
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Tools
+            Back to Execution
           </Button>
           <div>
             <h1 className="text-3xl font-bold text-white">Price Hunter – Queue & Results</h1>

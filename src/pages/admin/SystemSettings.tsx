@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Settings, Shield, AlertTriangle } from "lucide-react";
+import { Settings, Shield, AlertTriangle, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
@@ -18,85 +18,57 @@ const SystemSettings = () => {
 
   const handleRbacToggle = async (checked: boolean) => {
     try {
-      await updateSetting.mutateAsync({
-        key: 'use_rbac_navigation',
-        value: checked,
-      });
+      await updateSetting.mutateAsync({ key: 'use_rbac_navigation', value: checked });
       toast({
         title: checked ? "RBAC Navigation Enabled" : "RBAC Navigation Disabled",
-        description: checked 
-          ? "Sidebar now uses role-based permissions." 
-          : "Sidebar reverted to legacy navigation.",
+        description: checked ? "Sidebar now uses role-based permissions." : "Sidebar reverted to legacy navigation.",
       });
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to update setting. Please try again.",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: "Failed to update setting. Please try again.", variant: "destructive" });
     }
   };
 
   return (
     <AccessGate area="administration.settings" minCapability="admin">
-      <div className="min-h-screen bg-background">
-        <header className="border-b bg-card">
-          <div className="container mx-auto px-4 py-4">
-            <Button variant="ghost" onClick={() => navigate("/admin")} className="mb-2">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Administration
-            </Button>
-            <div className="flex items-center gap-3">
-              <Settings className="h-6 w-6 text-orange-500" />
-              <div>
-                <h1 className="text-2xl font-bold">System Settings</h1>
-                <p className="text-sm text-muted-foreground">Application-wide configuration and feature flags</p>
-              </div>
+      <div className="space-y-6">
+        <div>
+          <Button variant="ghost" size="sm" className="text-pd-accent hover:text-pd-accent-light mb-2" onClick={() => navigate("/admin")}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Administration
+          </Button>
+          <div className="flex items-center gap-3">
+            <Settings className="h-6 w-6 text-pd-accent" />
+            <div>
+              <h1 className="text-2xl font-bold text-white">System Settings</h1>
+              <p className="text-sm text-white/60">Application-wide configuration and feature flags</p>
             </div>
           </div>
-        </header>
+        </div>
 
-        <main className="container mx-auto px-4 py-8">
-          <div className="max-w-2xl space-y-6">
-            <Card>
-              <CardHeader>
-                <div className="flex items-center gap-2">
-                  <Shield className="h-5 w-5 text-blue-500" />
-                  <CardTitle>Navigation & Access Control</CardTitle>
+        <div className="max-w-2xl space-y-6">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Shield className="h-5 w-5 text-blue-500" />
+                <CardTitle>Navigation & Access Control</CardTitle>
+              </div>
+              <CardDescription>Configure how users navigate and access areas of the application</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <Label htmlFor="rbac-toggle" className="text-base font-medium">RBAC Navigation</Label>
+                  <p className="text-sm text-muted-foreground">When enabled, sidebar uses role-based permissions instead of legacy roles.</p>
                 </div>
-                <CardDescription>
-                  Configure how users navigate and access areas of the application
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-1">
-                    <Label htmlFor="rbac-toggle" className="text-base font-medium">
-                      RBAC Navigation
-                    </Label>
-                    <p className="text-sm text-muted-foreground">
-                      When enabled, sidebar uses role-based permissions instead of legacy roles.
-                    </p>
-                  </div>
-                  <Switch
-                    id="rbac-toggle"
-                    checked={rbacEnabled ?? false}
-                    onCheckedChange={handleRbacToggle}
-                    disabled={isLoading || updateSetting.isPending}
-                  />
-                </div>
-
-                <Alert>
-                  <AlertTriangle className="h-4 w-4" />
-                  <AlertDescription>
-                    Ensure RBAC roles are assigned to users before enabling. Users without roles 
-                    will have no menu access.
-                  </AlertDescription>
-                </Alert>
-              </CardContent>
-            </Card>
-          </div>
-        </main>
+                <Switch id="rbac-toggle" checked={rbacEnabled ?? false} onCheckedChange={handleRbacToggle} disabled={isLoading || updateSetting.isPending} />
+              </div>
+              <Alert>
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>Ensure RBAC roles are assigned to users before enabling. Users without roles will have no menu access.</AlertDescription>
+              </Alert>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </AccessGate>
   );
