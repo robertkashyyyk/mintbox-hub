@@ -5,7 +5,8 @@ import {
   ShoppingBag, Flame, TrendingDown, Package,
   ShoppingCart, RefreshCw, Copy,
   Users, Key, CreditCard, LogOut, UserCircle, Gauge,
-  ChevronDown, ChevronRight, LayoutDashboard, Settings
+  ChevronDown, ChevronRight, LayoutDashboard, Settings,
+  Images, Clock, Plug
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
