@@ -5,7 +5,8 @@ import {
   ShoppingBag, Flame, TrendingDown, Package,
   ShoppingCart, RefreshCw, Copy,
   Users, Key, CreditCard, LogOut, UserCircle, Gauge,
-  ChevronDown, ChevronRight, LayoutDashboard, Settings
+  ChevronDown, ChevronRight, LayoutDashboard, Settings,
+  Images, Clock, Plug
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -79,8 +80,8 @@ export function AppSidebar() {
         { title: "Discovery Queue", url: "/discovery/discovery-queue", icon: AlertCircle },
         { title: "Order Telemetry", url: "/discovery/order-telemetry", icon: Activity, superOnly: true },
         { title: "Feed Imports", url: "/discovery/feed-imports", icon: FileText },
-        { title: "Bulk Image Upload", url: "/discovery/bulk-images", icon: Database },
-        { title: "Pending Images", url: "/discovery/pending-images", icon: Database },
+        { title: "Bulk Image Upload", url: "/discovery/bulk-images", icon: Images },
+        { title: "Pending Images", url: "/discovery/pending-images", icon: Clock },
       ],
     },
     {
@@ -151,6 +152,7 @@ export function AppSidebar() {
         { title: "Billing & Usage", url: "/admin/billing", icon: CreditCard },
         { title: "Logs / Diagnostics", url: "/admin/logs", icon: FileText },
         { title: "System Settings", url: "/admin/settings", icon: Settings },
+        { title: "Integrations", url: "/admin/integrations", icon: Plug },
       ],
     },
   ];
