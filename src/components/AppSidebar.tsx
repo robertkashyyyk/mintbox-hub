@@ -114,7 +114,7 @@ export function AppSidebar() {
       requireSenior: true,
       items: [
         { title: "Purchase Order Builder", url: "/execution/purchase-orders", icon: ShoppingCart },
-        { title: "Price Push", url: "/execution/price-push", icon: DollarSign },
+        { title: "Price Hunter", url: "/execution/price-hunter", icon: DollarSign },
         { title: "Remote Stock Updates", url: "/execution/remote-stock-updates", icon: RefreshCw },
         { title: "Listing Cloner", url: "/execution/listing-cloner", icon: Copy },
       ],
