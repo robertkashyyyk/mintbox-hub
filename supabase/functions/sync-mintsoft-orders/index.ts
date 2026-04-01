@@ -8,6 +8,9 @@ const corsHeaders = {
 interface MintsoftOrder {
   ID: number;
   OrderDate: string;
+  OrderStatusId?: number;
+  OrderStatus?: string;
+  CustomerName?: string;
   Channel: {
     Name: string;
   } | null;
@@ -18,6 +21,7 @@ interface MintsoftOrder {
 interface MintsoftOrderItem {
   SKU: string;
   Quantity: number;
+  Name?: string;
 }
 
 interface Brand {
@@ -81,7 +85,6 @@ Deno.serve(async (req) => {
 
     const mintsoftApiKey = Deno.env.get("MINTSOFT_API_KEY");
     if (!mintsoftApiKey) throw new Error("MINTSOFT_API_KEY not configured");
-    if (!mintsoftApiKey) throw new Error("MINTSOFT_API_KEY not configured");
 
     // Parse request body for optional fromDate
     let fromDate: string;
@@ -108,8 +111,6 @@ Deno.serve(async (req) => {
     }
 
     // Fetch orders from Mintsoft for each dispatched status ID
-    // NOTE: /api/Order/List does NOT support IncludeOrderItems or SinceDate
-    // We fetch orders, filter by date client-side, then fetch items per order
     let allOrders: MintsoftOrder[] = [];
 
     for (const statusId of dispatchedStatusIds) {
@@ -197,23 +198,51 @@ Deno.serve(async (req) => {
           }
         }
 
-        // Upsert into order_lines
+        // Check existing record for status change detection
+        const { data: existingLine } = await supabase
+          .from("order_lines")
+          .select("order_status_id, times_seen")
+          .eq("mintsoft_order_id", order.ID)
+          .eq("line_index", lineIndex)
+          .maybeSingle();
+
+        const now = new Date().toISOString();
+        const statusChanged = existingLine && existingLine.order_status_id !== (order.OrderStatusId ?? null);
+        const currentTimesSeen = existingLine ? (existingLine.times_seen || 1) + 1 : 1;
+
+        // Build upsert payload
+        const upsertPayload: Record<string, unknown> = {
+          mintsoft_order_id: order.ID,
+          line_index: lineIndex,
+          sku: item.SKU,
+          qty: item.Quantity,
+          order_date: order.OrderDate,
+          channel: order.Channel?.Name || null,
+          channel_order_ref: order.ExternalOrderReference || null,
+          warehouse_id: order.WarehouseId?.toString() || null,
+          brand_id: brandId,
+          order_status: order.OrderStatus || null,
+          order_status_id: order.OrderStatusId ?? null,
+          product_name: item.Name || null,
+          customer_name: order.CustomerName || null,
+          last_seen_at: now,
+          times_seen: currentTimesSeen,
+        };
+
+        // Only update last_status_change_at if status actually changed
+        if (statusChanged) {
+          upsertPayload.last_status_change_at = now;
+        }
+
+        // For new records, set first_seen_at
+        if (!existingLine) {
+          upsertPayload.first_seen_at = now;
+          upsertPayload.last_status_change_at = now;
+        }
+
         const { error: upsertError } = await supabase
           .from("order_lines")
-          .upsert(
-            {
-              mintsoft_order_id: order.ID,
-              line_index: lineIndex,
-              sku: item.SKU,
-              qty: item.Quantity,
-              order_date: order.OrderDate,
-              channel: order.Channel?.Name || null,
-              channel_order_ref: order.ExternalOrderReference || null,
-              warehouse_id: order.WarehouseId?.toString() || null,
-              brand_id: brandId,
-            },
-            { onConflict: "mintsoft_order_id,line_index" }
-          );
+          .upsert(upsertPayload, { onConflict: "mintsoft_order_id,line_index" });
 
         if (upsertError) {
           console.error(`Error upserting order ${order.ID} line ${lineIndex}:`, upsertError);
@@ -225,6 +254,22 @@ Deno.serve(async (req) => {
     }
 
     console.log(`Sync complete. Processed: ${linesProcessed}, Inserted: ${linesInserted}, Skipped: ${linesSkipped}, Products created: ${productsCreated}`);
+
+    // After sync, invoke evaluate-order-issues
+    try {
+      const evalUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/evaluate-order-issues`;
+      await fetch(evalUrl, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ triggered_by: "sync-mintsoft-orders" }),
+      });
+      console.log("Triggered evaluate-order-issues");
+    } catch (evalErr) {
+      console.error("Failed to trigger evaluate-order-issues:", evalErr);
+    }
 
     return new Response(
       JSON.stringify({

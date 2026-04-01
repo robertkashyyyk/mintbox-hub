@@ -695,18 +695,110 @@ export type Database = {
         }
         Relationships: []
       }
+      order_issues: {
+        Row: {
+          assigned_to: string | null
+          brand_id: string | null
+          created_at: string
+          first_problem_seen_at: string
+          id: string
+          internal_notes: string | null
+          is_suppressed: boolean
+          issue_status: string
+          last_problem_seen_at: string
+          line_index: number
+          mintsoft_order_id: number
+          problem_type: string
+          reason: string | null
+          resolution_type: string | null
+          resolved_at: string | null
+          severity: string
+          sku: string
+          suppressed_until: string | null
+          suppression_reason: string | null
+          updated_at: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          brand_id?: string | null
+          created_at?: string
+          first_problem_seen_at?: string
+          id?: string
+          internal_notes?: string | null
+          is_suppressed?: boolean
+          issue_status?: string
+          last_problem_seen_at?: string
+          line_index: number
+          mintsoft_order_id: number
+          problem_type: string
+          reason?: string | null
+          resolution_type?: string | null
+          resolved_at?: string | null
+          severity?: string
+          sku: string
+          suppressed_until?: string | null
+          suppression_reason?: string | null
+          updated_at?: string
+        }
+        Update: {
+          assigned_to?: string | null
+          brand_id?: string | null
+          created_at?: string
+          first_problem_seen_at?: string
+          id?: string
+          internal_notes?: string | null
+          is_suppressed?: boolean
+          issue_status?: string
+          last_problem_seen_at?: string
+          line_index?: number
+          mintsoft_order_id?: number
+          problem_type?: string
+          reason?: string | null
+          resolution_type?: string | null
+          resolved_at?: string | null
+          severity?: string
+          sku?: string
+          suppressed_until?: string | null
+          suppression_reason?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_issues_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_issues_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands_missing_base_multiplier"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       order_lines: {
         Row: {
           brand_id: string | null
           channel: string | null
           channel_order_ref: string | null
           created_at: string
+          customer_name: string | null
+          first_seen_at: string | null
           id: number
+          last_seen_at: string | null
+          last_status_change_at: string | null
           line_index: number
           mintsoft_order_id: number
           order_date: string
+          order_status: string | null
+          order_status_id: number | null
+          product_name: string | null
           qty: number
           sku: string
+          times_seen: number | null
           updated_at: string
           warehouse_id: string | null
         }
@@ -715,12 +807,20 @@ export type Database = {
           channel?: string | null
           channel_order_ref?: string | null
           created_at?: string
+          customer_name?: string | null
+          first_seen_at?: string | null
           id?: number
+          last_seen_at?: string | null
+          last_status_change_at?: string | null
           line_index: number
           mintsoft_order_id: number
           order_date: string
+          order_status?: string | null
+          order_status_id?: number | null
+          product_name?: string | null
           qty: number
           sku: string
+          times_seen?: number | null
           updated_at?: string
           warehouse_id?: string | null
         }
@@ -729,12 +829,20 @@ export type Database = {
           channel?: string | null
           channel_order_ref?: string | null
           created_at?: string
+          customer_name?: string | null
+          first_seen_at?: string | null
           id?: number
+          last_seen_at?: string | null
+          last_status_change_at?: string | null
           line_index?: number
           mintsoft_order_id?: number
           order_date?: string
+          order_status?: string | null
+          order_status_id?: number | null
+          product_name?: string | null
           qty?: number
           sku?: string
+          times_seen?: number | null
           updated_at?: string
           warehouse_id?: string | null
         }
