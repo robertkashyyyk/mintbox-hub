@@ -134,6 +134,13 @@ function SkuSignal({ count }: { count: number }) {
   );
 }
 
+function SortIcon({ columnKey, sortKey, sortDir }: { columnKey: SortKey; sortKey: SortKey; sortDir: SortDir }) {
+  if (columnKey !== sortKey) return <ArrowUpDown className="h-3 w-3 ml-1 opacity-30" />;
+  return sortDir === "asc"
+    ? <ArrowUp className="h-3 w-3 ml-1 text-primary" />
+    : <ArrowDown className="h-3 w-3 ml-1 text-primary" />;
+}
+
 export default function OrderTable({
   lines,
   page,
@@ -143,6 +150,9 @@ export default function OrderTable({
   totalPages,
   totalFiltered,
   onRowClick,
+  sortKey,
+  sortDir,
+  toggleSort,
 }: OrderTableProps) {
   return (
     <div className="space-y-2">
