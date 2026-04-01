@@ -95,13 +95,22 @@ Deno.serve(async (req) => {
       .lt("suppressed_until", now)
       .eq("is_suppressed", true);
 
-    // Fetch all active (non-terminal) order lines from last 7 days
+    // Fetch all active (non-terminal) order lines from last 7 days — paginate past 1000 limit
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-    const { data: orderLines, error: linesError } = await supabase
-      .from("order_lines")
-      .select("mintsoft_order_id, line_index, sku, brand_id, order_date, order_status, order_status_id, first_seen_at, last_seen_at, times_seen, last_status_change_at")
-      .gte("order_date", sevenDaysAgo)
-      .limit(5000);
+    let orderLines: OrderLine[] = [];
+    let from = 0;
+    const PAGE = 1000;
+    while (true) {
+      const { data, error } = await supabase
+        .from("order_lines")
+        .select("mintsoft_order_id, line_index, sku, brand_id, order_date, order_status, order_status_id, first_seen_at, last_seen_at, times_seen, last_status_change_at")
+        .gte("order_date", sevenDaysAgo)
+        .range(from, from + PAGE - 1);
+      if (error) throw error;
+      orderLines = orderLines.concat(data || []);
+      if (!data || data.length < PAGE) break;
+      from += PAGE;
+    }
 
     if (linesError) throw linesError;
     if (!orderLines || orderLines.length === 0) {
