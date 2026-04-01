@@ -92,6 +92,21 @@ Deno.serve(async (req) => {
     if (brandsError) throw brandsError;
     if (!brands?.length) throw new Error("No brands found");
 
+    // Fetch Mintsoft status name lookup
+    const statusLookup = new Map<number, string>();
+    try {
+      const statusResp = await fetch(`${settings.base_url}/api/Order/Statuses`, {
+        headers: { "ms-apikey": mintsoftApiKey, "Content-Type": "application/json" },
+      });
+      if (statusResp.ok) {
+        const statuses = await statusResp.json();
+        for (const s of statuses) {
+          if (s.ID && s.ExternalName) statusLookup.set(s.ID, s.ExternalName);
+        }
+        console.log(`Loaded ${statusLookup.size} status names from Mintsoft`);
+      }
+    } catch (e) { console.error("Failed to fetch status names:", e); }
+
     // 1. Fetch order headers (fast — no items)
     let allOrders: MintsoftOrder[] = [];
     for (const statusId of dispatchedStatusIds) {
