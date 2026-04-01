@@ -285,11 +285,12 @@ export default function OrderDetail({ line, onClose }: OrderDetailProps) {
                 <Label className="text-xs">Resolve</Label>
                 <div className="flex flex-wrap gap-1.5">
                   {[
-                    { key: "stock_corrected", label: "Stock Corrected" },
-                    { key: "backordered", label: "Backordered" },
+                    { key: "stock_adjusted", label: "Stock Adjusted" },
+                    { key: "moved_to_backorder", label: "Moved to Backorder" },
                     { key: "supplier_ordered", label: "Supplier Ordered" },
+                    { key: "found_and_picked", label: "Found and Picked" },
+                    { key: "false_positive", label: "False Positive" },
                     { key: "order_cancelled", label: "Order Cancelled" },
-                    { key: "false_alarm", label: "False Alarm" },
                   ].map(r => (
                     <Button key={r.key} size="sm" variant="outline" onClick={() => handleResolve(r.key)}>
                       {r.label}

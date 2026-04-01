@@ -229,7 +229,7 @@ Deno.serve(async (req) => {
       if (existing) {
         if (existing.is_suppressed) continue;
         if (["auto_resolved", "resolved", "ignored"].includes(existing.issue_status)) continue;
-        const payload: Record<string, unknown> = { last_problem_seen_at: now, reason: c.reason };
+        const payload: Record<string, unknown> = { last_problem_seen_at: now, reason: c.reason, suggested_action: c.suggested_action };
         if ((sevRank[c.severity] || 0) > (sevRank[existing.severity] || 0)) payload.severity = c.severity;
         toUpdate.push({ id: existing.id, payload });
       } else {

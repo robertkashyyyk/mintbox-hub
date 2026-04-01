@@ -113,6 +113,7 @@ export function useOrderTelemetry() {
         const { data, error } = await supabase
           .from("order_lines")
           .select(`*, brands (name)`)
+          .gte("order_date", "2026-01-01T00:00:00Z")
           .order("order_date", { ascending: false })
           .range(from, from + PAGE_SIZE - 1);
         if (error) throw error;

@@ -350,10 +350,24 @@ Deno.serve(async (req) => {
       }).catch(e => console.error("eval trigger failed:", e));
     }
 
+    // Update backfill cursor if in backfill mode
+    if (isBackfill) {
+      const newCursor = fromDateObj.toISOString();
+      await supabase.from("ingest_run_state").upsert({
+        id: "order_backfill_cursor",
+        last_run_at: new Date().toISOString(),
+        last_ok_at: new Date().toISOString(),
+        last_status: newCursor,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "id" });
+      console.log(`Backfill cursor updated to ${newCursor}`);
+    }
+
     const partial = earlyExit ? " (partial — run again to continue)" : "";
     return new Response(JSON.stringify({
       success: true,
       partial: earlyExit,
+      backfill: isBackfill,
       orders_fetched: allOrders.length,
       new_orders: newOrders.length,
       existing_orders_updated: existingOrders.length,
