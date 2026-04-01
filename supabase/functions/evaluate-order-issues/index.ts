@@ -30,12 +30,27 @@ interface IssueUpsert {
   last_problem_seen_at: string;
 }
 
-// Terminal statuses that indicate order is done
-const TERMINAL_STATUS_NAMES = ['dispatched', 'shipped', 'cancelled', 'refunded', 'completed', 'closed'];
+// Terminal statuses that indicate order is done (text-based)
+const TERMINAL_STATUS_NAMES = ['dispatched', 'despatched', 'shipped', 'cancelled', 'refunded', 'completed', 'closed'];
 
-function isTerminalStatus(statusName: string | null): boolean {
+function isTerminalStatus(statusName: string | null, statusId: number | null, dispatchedIds: number[]): boolean {
+  if (statusId && dispatchedIds.includes(statusId)) return false; // handled separately as dispatched
   if (!statusName) return false;
   return TERMINAL_STATUS_NAMES.some(t => statusName.toLowerCase().includes(t));
+}
+
+// NEW status detection — matches "New" text or known new status IDs
+function isNewStatus(statusName: string | null, statusId: number | null): boolean {
+  if (statusName && statusName.toLowerCase() === 'new') return true;
+  // Common Mintsoft "New" status IDs
+  if (statusId === 1 || statusId === 4) return true;
+  return false;
+}
+
+// Back order status
+function isBackOrderStatus(statusName: string | null): boolean {
+  if (!statusName) return false;
+  return statusName.toLowerCase().includes('back order');
 }
 
 function hoursAgo(dateStr: string | null): number {
@@ -80,15 +95,23 @@ Deno.serve(async (req) => {
       .lt("suppressed_until", now)
       .eq("is_suppressed", true);
 
-    // Fetch all active (non-terminal) order lines from last 7 days
+    // Fetch all active (non-terminal) order lines from last 7 days — paginate past 1000 limit
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-    const { data: orderLines, error: linesError } = await supabase
-      .from("order_lines")
-      .select("mintsoft_order_id, line_index, sku, brand_id, order_date, order_status, order_status_id, first_seen_at, last_seen_at, times_seen, last_status_change_at")
-      .gte("order_date", sevenDaysAgo)
-      .limit(5000);
+    let orderLines: OrderLine[] = [];
+    let from = 0;
+    const PAGE = 1000;
+    while (true) {
+      const { data, error } = await supabase
+        .from("order_lines")
+        .select("mintsoft_order_id, line_index, sku, brand_id, order_date, order_status, order_status_id, first_seen_at, last_seen_at, times_seen, last_status_change_at")
+        .gte("order_date", sevenDaysAgo)
+        .range(from, from + PAGE - 1);
+      if (error) throw error;
+      orderLines = orderLines.concat(data || []);
+      if (!data || data.length < PAGE) break;
+      from += PAGE;
+    }
 
-    if (linesError) throw linesError;
     if (!orderLines || orderLines.length === 0) {
       console.log("No order lines to evaluate");
       return new Response(JSON.stringify({ success: true, issues_created: 0 }), {
@@ -117,7 +140,7 @@ Deno.serve(async (req) => {
     }
 
     // 2. Cancelled orders
-    const cancelledLines = orderLines.filter((l) => isTerminalStatus(l.order_status));
+    const cancelledLines = orderLines.filter((l) => isTerminalStatus(l.order_status, l.order_status_id, dispatchedStatusIds));
     for (const line of cancelledLines) {
       const resType = line.order_status?.toLowerCase().includes("cancel") ? "cancelled" : "condition_cleared";
       await supabase
@@ -158,7 +181,7 @@ Deno.serve(async (req) => {
 
     // === ISSUE DETECTION (only non-terminal lines) ===
     const activeLines = orderLines.filter(
-      (l) => !isTerminalStatus(l.order_status) && !(l.order_status_id && dispatchedStatusIds.includes(l.order_status_id))
+      (l) => !isTerminalStatus(l.order_status, l.order_status_id, dispatchedStatusIds) && !(l.order_status_id && dispatchedStatusIds.includes(l.order_status_id)) && !isBackOrderStatus(l.order_status)
     );
 
     for (const line of activeLines) {
@@ -167,7 +190,7 @@ Deno.serve(async (req) => {
       const timesSeen = line.times_seen || 1;
 
       // Rule 1 — New Order Stuck
-      if (line.order_status?.toLowerCase() === "new" || line.order_status_id === 1) {
+      if (isNewStatus(line.order_status, line.order_status_id)) {
         const severity = getSeverityForAge(orderAgeHours, [4, 12, 24]);
         if (severity) {
           issuesToUpsert.push({

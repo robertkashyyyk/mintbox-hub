@@ -9,11 +9,26 @@ interface MintsoftOrder {
   ID: number;
   OrderDate: string;
   OrderStatusId?: number;
-  OrderStatus?: string;
+  OrderStatus?: string | { ID: number; ExternalName: string } | null;
   CustomerName?: string;
   Channel: { Name: string } | null;
   ExternalOrderReference: string;
   WarehouseId?: number;
+}
+
+// Extract status name from the Mintsoft order object — handles both flat string and nested object
+function extractStatusName(order: MintsoftOrder, statusLookup: Map<number, string>): string | null {
+  // If OrderStatus is a string, use it directly
+  if (typeof order.OrderStatus === 'string' && order.OrderStatus) return order.OrderStatus;
+  // If OrderStatus is an object with ExternalName
+  if (order.OrderStatus && typeof order.OrderStatus === 'object' && 'ExternalName' in order.OrderStatus) {
+    return order.OrderStatus.ExternalName;
+  }
+  // Fall back to lookup by OrderStatusId
+  if (order.OrderStatusId && statusLookup.has(order.OrderStatusId)) {
+    return statusLookup.get(order.OrderStatusId)!;
+  }
+  return null;
 }
 
 interface MintsoftOrderItem {
@@ -76,6 +91,21 @@ Deno.serve(async (req) => {
     const { data: brands, error: brandsError } = await supabase.from("brands").select("id, prefix, prefix_style");
     if (brandsError) throw brandsError;
     if (!brands?.length) throw new Error("No brands found");
+
+    // Fetch Mintsoft status name lookup
+    const statusLookup = new Map<number, string>();
+    try {
+      const statusResp = await fetch(`${settings.base_url}/api/Order/Statuses`, {
+        headers: { "ms-apikey": mintsoftApiKey, "Content-Type": "application/json" },
+      });
+      if (statusResp.ok) {
+        const statuses = await statusResp.json();
+        for (const s of statuses) {
+          if (s.ID && s.ExternalName) statusLookup.set(s.ID, s.ExternalName);
+        }
+        console.log(`Loaded ${statusLookup.size} status names from Mintsoft`);
+      }
+    } catch (e) { console.error("Failed to fetch status names:", e); }
 
     // 1. Fetch order headers (fast — no items)
     let allOrders: MintsoftOrder[] = [];
@@ -155,7 +185,7 @@ Deno.serve(async (req) => {
             product_name: existing.product_name,
             last_seen_at: now,
             times_seen: (existing.times_seen || 1) + 1,
-            order_status: order.OrderStatus || null,
+            order_status: extractStatusName(order, statusLookup),
             order_status_id: order.OrderStatusId ?? null,
             customer_name: order.CustomerName || null,
           };
@@ -214,7 +244,7 @@ Deno.serve(async (req) => {
             channel_order_ref: order.ExternalOrderReference || null,
             warehouse_id: order.WarehouseId?.toString() || null,
             brand_id: brandId,
-            order_status: order.OrderStatus || null,
+            order_status: extractStatusName(order, statusLookup),
             order_status_id: order.OrderStatusId ?? null,
             product_name: item.Name || null,
             customer_name: order.CustomerName || null,

@@ -29,6 +29,25 @@ interface OrderTableProps {
   onRowClick: (line: EnrichedOrderLine) => void;
 }
 
+function OrderStatusBadge({ status }: { status: string | null }) {
+  if (!status) return <span className="text-muted-foreground text-xs">—</span>;
+  const normalized = status.toUpperCase();
+  const styles: Record<string, string> = {
+    NEW: "bg-blue-500/15 text-blue-400 border-blue-500/30",
+    "AWAITING PICKING": "bg-amber-500/15 text-amber-400 border-amber-500/30",
+    "ON BACK ORDER": "bg-purple-500/15 text-purple-400 border-purple-500/30",
+    DESPATCHED: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
+    DISPATCHED: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
+    CANCELLED: "bg-muted text-muted-foreground border-border",
+    PICKED: "bg-teal-500/15 text-teal-400 border-teal-500/30",
+  };
+  return (
+    <Badge variant="outline" className={`text-xs whitespace-nowrap ${styles[normalized] || "bg-secondary text-secondary-foreground"}`}>
+      {status}
+    </Badge>
+  );
+}
+
 function SeverityBadge({ severity }: { severity: string }) {
   const colors: Record<string, string> = {
     watch: "bg-amber-500/20 text-amber-400 border-amber-500/30",
@@ -175,7 +194,7 @@ export default function OrderTable({
                     {new Date(line.order_date).toLocaleDateString()}
                   </TableCell>
                   <TableCell className="font-mono text-xs">{line.age_hours}</TableCell>
-                  <TableCell className="text-xs">{line.order_status || "—"}</TableCell>
+                  <TableCell><OrderStatusBadge status={line.order_status} /></TableCell>
                   <TableCell className="text-xs">{line.brands?.name || "—"}</TableCell>
                   <TableCell className="font-mono text-xs">{line.sku}</TableCell>
                   <TableCell className="text-xs max-w-[160px] truncate">
