@@ -224,7 +224,7 @@ Deno.serve(async (req) => {
     }
 
     // 4. For NEW orders — fetch items and create lines
-    const CONCURRENCY = 10;
+    const CONCURRENCY = 25;
     const CHUNK = 50;
 
     let earlyExit = false;
