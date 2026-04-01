@@ -117,17 +117,18 @@ Deno.serve(async (req) => {
 
       while (true) {
         const ordersUrl = `${settings.base_url}/api/Order/List?OrderStatusId=${statusId}&Limit=250&PageNo=${pageNo}`;
-        console.log(`Fetching orders with status ${statusId}, page ${pageNo}`);
+        console.log(`Fetching: ${ordersUrl}`);
 
         const ordersResponse = await fetch(ordersUrl, {
           method: "GET",
           headers: { "ms-apikey": mintsoftApiKey, "Content-Type": "application/json" },
         });
 
+        console.log(`Response status: ${ordersResponse.status}`);
+
         if (!ordersResponse.ok) {
           const errorBody = await ordersResponse.text();
-          console.error(`Mintsoft error ${ordersResponse.status} for status ${statusId} page ${pageNo}: ${errorBody}`);
-          console.error(`URL was: ${ordersUrl}`);
+          console.error(`Mintsoft error ${ordersResponse.status}: ${errorBody}`);
           break;
         }
 
