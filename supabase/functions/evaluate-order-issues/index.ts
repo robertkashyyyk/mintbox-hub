@@ -190,7 +190,7 @@ Deno.serve(async (req) => {
       const timesSeen = line.times_seen || 1;
 
       // Rule 1 — New Order Stuck
-      if (line.order_status?.toLowerCase() === "new" || line.order_status_id === 1) {
+      if (isNewStatus(line.order_status, line.order_status_id)) {
         const severity = getSeverityForAge(orderAgeHours, [4, 12, 24]);
         if (severity) {
           issuesToUpsert.push({
