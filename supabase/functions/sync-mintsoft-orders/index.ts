@@ -193,7 +193,7 @@ Deno.serve(async (req) => {
       }
 
       const upsertPayloads: Record<string, unknown>[] = [];
-      const newSkus: { sku: string; brand_id: string }[] = [];
+      const newSkus: { sku: string; brand_id: string | null; quarantined: boolean }[] = [];
 
       for (const order of chunk) {
         const items = itemsMap.get(order.ID) || [];
