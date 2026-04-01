@@ -112,7 +112,6 @@ Deno.serve(async (req) => {
       from += PAGE;
     }
 
-    if (linesError) throw linesError;
     if (!orderLines || orderLines.length === 0) {
       console.log("No order lines to evaluate");
       return new Response(JSON.stringify({ success: true, issues_created: 0 }), {
