@@ -181,7 +181,7 @@ Deno.serve(async (req) => {
 
     // === ISSUE DETECTION (only non-terminal lines) ===
     const activeLines = orderLines.filter(
-      (l) => !isTerminalStatus(l.order_status) && !(l.order_status_id && dispatchedStatusIds.includes(l.order_status_id))
+      (l) => !isTerminalStatus(l.order_status, l.order_status_id, dispatchedStatusIds) && !(l.order_status_id && dispatchedStatusIds.includes(l.order_status_id)) && !isBackOrderStatus(l.order_status)
     );
 
     for (const line of activeLines) {
