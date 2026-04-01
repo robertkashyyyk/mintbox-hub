@@ -126,14 +126,29 @@ Deno.serve(async (req) => {
         }
 
         const orders: MintsoftOrder[] = await ordersResponse.json();
-        console.log(`Page ${pageNo}: received ${orders.length} orders with status ${statusId}`);
+        
+        // Filter orders by date client-side since API doesn't support SinceDate
+        const filteredOrders = orders.filter(o => {
+          const orderDate = new Date(o.OrderDate);
+          return orderDate >= fromDateObj;
+        });
+        
+        console.log(`Page ${pageNo}: received ${orders.length} orders, ${filteredOrders.length} after date filter (status ${statusId})`);
         
         if (orders.length === 0) break;
         
-        allOrders = allOrders.concat(orders);
-        statusTotal += orders.length;
+        allOrders = allOrders.concat(filteredOrders);
+        statusTotal += filteredOrders.length;
         
+        // If we're getting orders older than our date filter, we can stop
+        // (orders are typically returned newest-first, but if not, we paginate more)
         if (orders.length < 250) break;
+        
+        // Safety cap: don't paginate beyond 20 pages (5000 orders)
+        if (pageNo >= 20) {
+          console.log(`Reached page cap (20) for status ${statusId}, stopping`);
+          break;
+        }
         
         pageNo++;
       }
