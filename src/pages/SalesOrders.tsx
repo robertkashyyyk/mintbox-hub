@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,7 +22,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { RefreshCw, Settings, Eye, AlertTriangle, ShieldAlert, CircleAlert, Inbox } from "lucide-react";
+import { RefreshCw, Settings, Eye, AlertTriangle, ShieldAlert, CircleAlert, Inbox, Zap } from "lucide-react";
 import DiagnosticBanner from "@/components/DiagnosticBanner";
 import OrderFilters from "@/components/orders/OrderFilters";
 import OrderTable from "@/components/orders/OrderTable";
@@ -62,7 +62,6 @@ const SalesOrders = () => {
     refetch,
   } = useOrderTelemetry();
 
-  // Fetch Mintsoft settings
   const { data: mintsoftSettings, refetch: refetchSettings } = useQuery({
     queryKey: ["mintsoft-settings"],
     queryFn: async () => {
@@ -75,7 +74,6 @@ const SalesOrders = () => {
     },
   });
 
-  // Fetch Mintsoft statuses
   const { data: statusesData, isLoading: isLoadingStatuses, refetch: refetchStatuses } = useQuery({
     queryKey: ["mintsoft-statuses"],
     queryFn: async () => {
@@ -86,7 +84,6 @@ const SalesOrders = () => {
     enabled: false,
   });
 
-  // Sync mutation
   const syncMutation = useMutation({
     mutationFn: async () => {
       const { data, error } = await supabase.functions.invoke("sync-mintsoft-orders", {
@@ -98,11 +95,10 @@ const SalesOrders = () => {
       return data;
     },
     onSuccess: (data) => {
-      const productsMessage =
-        data.products_created > 0 ? ` ${data.products_created} new products discovered.` : "";
+      const msg = data.products_created > 0 ? ` ${data.products_created} new products discovered.` : "";
       toast({
         title: "Sync Complete",
-        description: `Synced ${data.orders_fetched} orders with ${data.lines_inserted} lines.${productsMessage}`,
+        description: `Synced ${data.orders_fetched} orders across ${data.statuses_queried || "?"} statuses. ${data.lines_inserted} lines.${msg}`,
       });
       refetch();
     },
@@ -136,8 +132,8 @@ const SalesOrders = () => {
     try {
       const idsArray = dispatchedStatusIds
         .split(",")
-        .map((id) => parseInt(id.trim()))
-        .filter((id) => !isNaN(id));
+        .map(id => parseInt(id.trim()))
+        .filter(id => !isNaN(id));
       const { error } = await supabase
         .from("mintsoft_settings")
         .update({ dispatched_status_ids: idsArray })
@@ -147,11 +143,7 @@ const SalesOrders = () => {
       refetchSettings();
       setSettingsDialogOpen(false);
     } catch (error) {
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to save",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: error instanceof Error ? error.message : "Failed to save", variant: "destructive" });
     }
   };
 
@@ -182,7 +174,21 @@ const SalesOrders = () => {
       <DiagnosticBanner />
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+        <Card
+          className={`cursor-pointer transition-colors ${filters.savedView === "needs_action" ? "ring-2 ring-orange-500/50" : "hover:bg-muted/50"}`}
+          onClick={() => applySavedView("needs_action")}
+        >
+          <CardContent className="pt-4 pb-3">
+            <div className="flex items-center gap-2">
+              <Zap className="h-4 w-4 text-orange-400" />
+              <div>
+                <p className="text-xs text-muted-foreground">Needs Action</p>
+                <p className={`text-xl font-bold ${stats.needsActionCount > 0 ? "text-orange-400" : ""}`}>{stats.needsActionCount}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
         <Card>
           <CardContent className="pt-4 pb-3">
             <div className="flex items-center gap-2">
@@ -211,7 +217,7 @@ const SalesOrders = () => {
               <AlertTriangle className="h-4 w-4 text-orange-400" />
               <div>
                 <p className="text-xs text-muted-foreground">Problem Lines</p>
-                <p className="text-xl font-bold text-orange-400">{stats.problemCount}</p>
+                <p className={`text-xl font-bold ${stats.problemCount > 0 ? "text-orange-400" : ""}`}>{stats.problemCount}</p>
               </div>
             </div>
           </CardContent>
@@ -222,7 +228,7 @@ const SalesOrders = () => {
               <ShieldAlert className="h-4 w-4 text-red-400" />
               <div>
                 <p className="text-xs text-muted-foreground">Critical</p>
-                <p className="text-xl font-bold text-red-400">{stats.criticalCount}</p>
+                <p className={`text-xl font-bold ${stats.criticalCount > 0 ? "text-red-400" : ""}`}>{stats.criticalCount}</p>
               </div>
             </div>
           </CardContent>
@@ -233,7 +239,7 @@ const SalesOrders = () => {
               <CircleAlert className="h-4 w-4 text-amber-400" />
               <div>
                 <p className="text-xs text-muted-foreground">Open Issues</p>
-                <p className="text-xl font-bold text-amber-400">{stats.openIssueCount}</p>
+                <p className={`text-xl font-bold ${stats.openIssueCount > 0 ? "text-amber-400" : ""}`}>{stats.openIssueCount}</p>
               </div>
             </div>
           </CardContent>
@@ -257,7 +263,6 @@ const SalesOrders = () => {
         <CardContent className="pt-4">
           {isLoading ? (
             <div className="space-y-2">
-              <Skeleton className="h-10 w-full" />
               <Skeleton className="h-10 w-full" />
               <Skeleton className="h-10 w-full" />
               <Skeleton className="h-10 w-full" />
@@ -304,7 +309,7 @@ const SalesOrders = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {statusesData.statuses.map((status) => (
+                  {statusesData.statuses.map(status => (
                     <TableRow key={status.ID}>
                       <TableCell className="font-medium">{status.ID}</TableCell>
                       <TableCell>{status.Name}</TableCell>
@@ -338,22 +343,18 @@ const SalesOrders = () => {
               <Input
                 id="dispatched-ids"
                 value={dispatchedStatusIds}
-                onChange={(e) => setDispatchedStatusIds(e.target.value)}
+                onChange={e => setDispatchedStatusIds(e.target.value)}
                 placeholder="e.g., 40, 45, 50"
               />
               <p className="text-sm text-muted-foreground">
-                Comma-separated Mintsoft Status IDs for dispatched/shipped orders.
+                Comma-separated Mintsoft Status IDs. The sync now fetches ALL active statuses automatically.
               </p>
               {mintsoftSettings?.dispatched_status_ids && (
-                <p className="text-sm font-medium">
-                  Current: {mintsoftSettings.dispatched_status_ids.join(", ")}
-                </p>
+                <p className="text-sm font-medium">Current: {mintsoftSettings.dispatched_status_ids.join(", ")}</p>
               )}
             </div>
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setSettingsDialogOpen(false)}>
-                Cancel
-              </Button>
+              <Button variant="outline" onClick={() => setSettingsDialogOpen(false)}>Cancel</Button>
               <Button onClick={handleSaveSettings}>Save Settings</Button>
             </div>
           </div>

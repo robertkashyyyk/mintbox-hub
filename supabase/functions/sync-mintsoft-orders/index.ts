@@ -16,15 +16,11 @@ interface MintsoftOrder {
   WarehouseId?: number;
 }
 
-// Extract status name from the Mintsoft order object — handles both flat string and nested object
 function extractStatusName(order: MintsoftOrder, statusLookup: Map<number, string>): string | null {
-  // If OrderStatus is a string, use it directly
   if (typeof order.OrderStatus === 'string' && order.OrderStatus) return order.OrderStatus;
-  // If OrderStatus is an object with ExternalName
   if (order.OrderStatus && typeof order.OrderStatus === 'object' && 'ExternalName' in order.OrderStatus) {
     return order.OrderStatus.ExternalName;
   }
-  // Fall back to lookup by OrderStatusId
   if (order.OrderStatusId && statusLookup.has(order.OrderStatusId)) {
     return statusLookup.get(order.OrderStatusId)!;
   }
@@ -52,8 +48,6 @@ function resolveBrandFromSKU(sku: string, brands: Brand[]): string | null {
   return null;
 }
 
-// A "clean" SKU has 2-4 alpha chars followed by - or /
-// Anything else is a "dirty" SKU that gets quarantined
 function isDirtySku(sku: string): boolean {
   return !/^[A-Za-z]{2,4}[-\/]/.test(sku);
 }
@@ -92,8 +86,9 @@ Deno.serve(async (req) => {
     if (brandsError) throw brandsError;
     if (!brands?.length) throw new Error("No brands found");
 
-    // Fetch Mintsoft status name lookup
+    // Fetch ALL Mintsoft statuses for lookup AND to know which status IDs to query
     const statusLookup = new Map<number, string>();
+    const allStatusIds: number[] = [];
     try {
       const statusResp = await fetch(`${settings.base_url}/api/Order/Statuses`, {
         headers: { "ms-apikey": mintsoftApiKey, "Content-Type": "application/json" },
@@ -102,14 +97,20 @@ Deno.serve(async (req) => {
         const statuses = await statusResp.json();
         for (const s of statuses) {
           if (s.ID && s.ExternalName) statusLookup.set(s.ID, s.ExternalName);
+          if (s.ID && s.Active !== false) allStatusIds.push(s.ID);
         }
-        console.log(`Loaded ${statusLookup.size} status names from Mintsoft`);
+        console.log(`Loaded ${statusLookup.size} status names, ${allStatusIds.length} active status IDs`);
       }
     } catch (e) { console.error("Failed to fetch status names:", e); }
 
-    // 1. Fetch order headers (fast — no items)
+    // If we couldn't fetch statuses, fall back to configured IDs
+    const statusIdsToFetch = allStatusIds.length > 0 ? allStatusIds : dispatchedStatusIds;
+
+    // 1. Fetch order headers across ALL statuses
     let allOrders: MintsoftOrder[] = [];
-    for (const statusId of dispatchedStatusIds) {
+    const seenOrderIds = new Set<number>();
+    
+    for (const statusId of statusIdsToFetch) {
       let pageNo = 1;
       while (true) {
         const resp = await fetch(`${settings.base_url}/api/Order/List?OrderStatusId=${statusId}&Limit=100&PageNo=${pageNo}`, {
@@ -118,28 +119,34 @@ Deno.serve(async (req) => {
         if (!resp.ok) break;
         const orders: MintsoftOrder[] = await resp.json();
         if (orders.length === 0) break;
-        const filtered = orders.filter(o => new Date(o.OrderDate) >= fromDateObj);
+        const filtered = orders.filter(o => {
+          if (seenOrderIds.has(o.ID)) return false;
+          if (new Date(o.OrderDate) < fromDateObj) return false;
+          seenOrderIds.add(o.ID);
+          return true;
+        });
         allOrders = allOrders.concat(filtered);
-        if (filtered.length === 0 || orders.length < 100 || pageNo >= 50) break;
+        if (orders.length < 100 || pageNo >= 50) break;
         pageNo++;
       }
     }
-    console.log(`Fetched ${allOrders.length} order headers`);
+    console.log(`Fetched ${allOrders.length} order headers across ${statusIdsToFetch.length} statuses`);
 
     // 2. Find which orders we already have lines for
     const orderIds = [...new Set(allOrders.map(o => o.ID))];
     const knownOrderIds = new Set<number>();
-    const existingLineMap = new Map<string, { order_status_id: number | null; times_seen: number; sku: string; qty: number; order_date: string; channel: string | null; channel_order_ref: string | null; warehouse_id: string | null; brand_id: string | null; product_name: string | null }>();
+    const existingLineMap = new Map<string, { order_status: string | null; order_status_id: number | null; times_seen: number; sku: string; qty: number; order_date: string; channel: string | null; channel_order_ref: string | null; warehouse_id: string | null; brand_id: string | null; product_name: string | null }>();
     
     for (let i = 0; i < orderIds.length; i += 500) {
       const batch = orderIds.slice(i, i + 500);
       const { data: existing } = await supabase
         .from("order_lines")
-        .select("mintsoft_order_id, line_index, order_status_id, times_seen, sku, qty, order_date, channel, channel_order_ref, warehouse_id, brand_id, product_name")
+        .select("mintsoft_order_id, line_index, order_status, order_status_id, times_seen, sku, qty, order_date, channel, channel_order_ref, warehouse_id, brand_id, product_name")
         .in("mintsoft_order_id", batch);
       for (const line of existing || []) {
         knownOrderIds.add(line.mintsoft_order_id);
         existingLineMap.set(`${line.mintsoft_order_id}-${line.line_index}`, {
+          order_status: line.order_status,
           order_status_id: line.order_status_id,
           times_seen: line.times_seen || 1,
           sku: line.sku,
@@ -161,16 +168,20 @@ Deno.serve(async (req) => {
     const now = new Date().toISOString();
     let linesProcessed = 0, linesInserted = 0, linesSkipped = 0, productsCreated = 0;
 
-    // 3. For EXISTING orders — bulk update status fields only (no item fetch needed)
+    // 3. For EXISTING orders — bulk update status fields
     if (existingOrders.length > 0) {
       const updatePayloads: Record<string, unknown>[] = [];
       for (const order of existingOrders) {
-        // We need to update each line for this order
         const lineKeys = [...existingLineMap.keys()].filter(k => k.startsWith(`${order.ID}-`));
+        const newStatusName = extractStatusName(order, statusLookup);
+        
         for (const key of lineKeys) {
           const existing = existingLineMap.get(key)!;
           const [, lineIndexStr] = key.split('-');
-          const statusChanged = existing.order_status_id !== (order.OrderStatusId ?? null);
+          
+          // Detect if status actually changed
+          const oldStatus = existing.order_status;
+          const statusChanged = newStatusName !== oldStatus;
           
           const payload: Record<string, unknown> = {
             mintsoft_order_id: order.ID,
@@ -185,7 +196,7 @@ Deno.serve(async (req) => {
             product_name: existing.product_name,
             last_seen_at: now,
             times_seen: (existing.times_seen || 1) + 1,
-            order_status: extractStatusName(order, statusLookup),
+            order_status: newStatusName,
             order_status_id: order.OrderStatusId ?? null,
             customer_name: order.CustomerName || null,
           };
@@ -194,7 +205,6 @@ Deno.serve(async (req) => {
         }
       }
       
-      // Batch update via upsert
       for (let i = 0; i < updatePayloads.length; i += 500) {
         const batch = updatePayloads.slice(i, i + 500);
         const { error } = await supabase.from("order_lines").upsert(batch, { onConflict: "mintsoft_order_id,line_index" });
@@ -204,14 +214,13 @@ Deno.serve(async (req) => {
       console.log(`Updated ${linesInserted} existing lines with status info`);
     }
 
-    // 4. For NEW orders — fetch items and create lines (this is the slow part)
+    // 4. For NEW orders — fetch items and create lines
     const CONCURRENCY = 10;
     const CHUNK = 50;
 
     for (let c = 0; c < newOrders.length; c += CHUNK) {
       const chunk = newOrders.slice(c, c + CHUNK);
 
-      // Fetch items in parallel
       const itemsMap = new Map<number, MintsoftOrderItem[]>();
       for (let i = 0; i < chunk.length; i += CONCURRENCY) {
         const batch = chunk.slice(i, i + CONCURRENCY);
@@ -257,7 +266,7 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Auto-create products (including dirty/unresolvable SKUs)
+      // Auto-create products
       const uniqueSkus = [...new Map(newSkus.map(s => [s.sku, s])).values()];
       if (uniqueSkus.length > 0) {
         const { data: ep } = await supabase.from("products_cache").select("sku").in("sku", uniqueSkus.map(s => s.sku));
@@ -276,7 +285,6 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Upsert lines
       if (upsertPayloads.length > 0) {
         const { error } = await supabase.from("order_lines").upsert(upsertPayloads, { onConflict: "mintsoft_order_id,line_index" });
         if (error) console.error("Upsert error:", error);
@@ -305,7 +313,8 @@ Deno.serve(async (req) => {
       lines_inserted: linesInserted,
       lines_skipped: linesSkipped,
       products_created: productsCreated,
-      message: `Synced ${allOrders.length} orders (${newOrders.length} new, ${existingOrders.length} updated)`,
+      statuses_queried: statusIdsToFetch.length,
+      message: `Synced ${allOrders.length} orders across ${statusIdsToFetch.length} statuses (${newOrders.length} new, ${existingOrders.length} updated)`,
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (error) {
     console.error("Orders sync error:", error);
