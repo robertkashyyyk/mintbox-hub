@@ -60,6 +60,9 @@ const SalesOrders = () => {
     filterOptions,
     isLoading,
     refetch,
+    sortKey,
+    sortDir,
+    toggleSort,
   } = useOrderTelemetry();
 
   const { data: mintsoftSettings, refetch: refetchSettings } = useQuery({
