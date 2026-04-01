@@ -296,6 +296,9 @@ const SalesOrders = () => {
               totalPages={totalPages}
               totalFiltered={filteredLines.length}
               onRowClick={setSelectedLine}
+              sortKey={sortKey}
+              sortDir={sortDir}
+              toggleSort={toggleSort}
             />
           )}
         </CardContent>
