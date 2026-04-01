@@ -244,7 +244,7 @@ Deno.serve(async (req) => {
             channel_order_ref: order.ExternalOrderReference || null,
             warehouse_id: order.WarehouseId?.toString() || null,
             brand_id: brandId,
-            order_status: order.OrderStatus || null,
+            order_status: extractStatusName(order, statusLookup),
             order_status_id: order.OrderStatusId ?? null,
             product_name: item.Name || null,
             customer_name: order.CustomerName || null,
