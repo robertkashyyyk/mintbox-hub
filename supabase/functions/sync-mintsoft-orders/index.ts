@@ -92,7 +92,8 @@ Deno.serve(async (req) => {
 
     // Fetch ALL Mintsoft statuses for lookup AND to know which status IDs to query
     const statusLookup = new Map<number, string>();
-    const allStatusIds: number[] = [];
+    const activeStatusIds: number[] = [];
+    const terminalNames = ['despatched', 'dispatched', 'cancelled', 'completed', 'delivered', 'refunded', 'returned', 'closed'];
     try {
       const statusResp = await fetch(`${settings.base_url}/api/Order/Statuses`, {
         headers: { "ms-apikey": mintsoftApiKey, "Content-Type": "application/json" },
@@ -101,14 +102,16 @@ Deno.serve(async (req) => {
         const statuses = await statusResp.json();
         for (const s of statuses) {
           if (s.ID && s.ExternalName) statusLookup.set(s.ID, s.ExternalName);
-          if (s.ID && s.Active !== false) allStatusIds.push(s.ID);
+          // Only fetch headers for non-terminal statuses to avoid timeout
+          const isTerminal = terminalNames.some(t => (s.ExternalName || '').toLowerCase().includes(t));
+          if (s.ID && s.Active !== false && !isTerminal) activeStatusIds.push(s.ID);
         }
-        console.log(`Loaded ${statusLookup.size} status names, ${allStatusIds.length} active status IDs`);
+        console.log(`Loaded ${statusLookup.size} status names, fetching ${activeStatusIds.length} non-terminal statuses`);
       }
     } catch (e) { console.error("Failed to fetch status names:", e); }
 
     // If we couldn't fetch statuses, fall back to configured IDs
-    const statusIdsToFetch = allStatusIds.length > 0 ? allStatusIds : dispatchedStatusIds;
+    const statusIdsToFetch = activeStatusIds.length > 0 ? activeStatusIds : dispatchedStatusIds;
 
     // 1. Fetch order headers across ALL statuses
     let allOrders: MintsoftOrder[] = [];
