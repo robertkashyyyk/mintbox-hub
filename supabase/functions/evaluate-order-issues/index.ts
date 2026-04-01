@@ -30,12 +30,27 @@ interface IssueUpsert {
   last_problem_seen_at: string;
 }
 
-// Terminal statuses that indicate order is done
-const TERMINAL_STATUS_NAMES = ['dispatched', 'shipped', 'cancelled', 'refunded', 'completed', 'closed'];
+// Terminal statuses that indicate order is done (text-based)
+const TERMINAL_STATUS_NAMES = ['dispatched', 'despatched', 'shipped', 'cancelled', 'refunded', 'completed', 'closed'];
 
-function isTerminalStatus(statusName: string | null): boolean {
+function isTerminalStatus(statusName: string | null, statusId: number | null, dispatchedIds: number[]): boolean {
+  if (statusId && dispatchedIds.includes(statusId)) return false; // handled separately as dispatched
   if (!statusName) return false;
   return TERMINAL_STATUS_NAMES.some(t => statusName.toLowerCase().includes(t));
+}
+
+// NEW status detection — matches "New" text or known new status IDs
+function isNewStatus(statusName: string | null, statusId: number | null): boolean {
+  if (statusName && statusName.toLowerCase() === 'new') return true;
+  // Common Mintsoft "New" status IDs
+  if (statusId === 1 || statusId === 4) return true;
+  return false;
+}
+
+// Back order status
+function isBackOrderStatus(statusName: string | null): boolean {
+  if (!statusName) return false;
+  return statusName.toLowerCase().includes('back order');
 }
 
 function hoursAgo(dateStr: string | null): number {
