@@ -91,7 +91,7 @@ const SalesOrders = () => {
     mutationFn: async () => {
       const { data, error } = await supabase.functions.invoke("sync-mintsoft-orders", {
         body: {
-          fromDate: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+          fromDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
         },
       });
       if (error) throw error;
