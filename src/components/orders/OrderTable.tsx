@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import {
   Select,
@@ -16,8 +17,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { ChevronLeft, ChevronRight, AlertTriangle } from "lucide-react";
-import type { EnrichedOrderLine } from "@/hooks/useOrderTelemetry";
+import { ChevronLeft, ChevronRight, AlertTriangle, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
+import type { EnrichedOrderLine, SortKey, SortDir } from "@/hooks/useOrderTelemetry";
 
 interface OrderTableProps {
   lines: EnrichedOrderLine[];
@@ -28,6 +29,9 @@ interface OrderTableProps {
   totalPages: number;
   totalFiltered: number;
   onRowClick: (line: EnrichedOrderLine) => void;
+  sortKey: SortKey;
+  sortDir: SortDir;
+  toggleSort: (key: SortKey) => void;
 }
 
 function SeverityBar({ severity }: { severity: string }) {
