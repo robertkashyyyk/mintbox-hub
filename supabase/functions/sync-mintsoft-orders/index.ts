@@ -77,13 +77,14 @@ Deno.serve(async (req) => {
       const body = await req.json();
       fromDate = body.fromDate;
     } catch {
-      // Default to 1 day ago if no body provided
-      const yesterday = new Date();
-      yesterday.setDate(yesterday.getDate() - 1);
-      fromDate = yesterday.toISOString().split('T')[0];
+      // Default to 2 days ago if no body provided
+      const twoDaysAgo = new Date();
+      twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+      fromDate = twoDaysAgo.toISOString().split('T')[0];
     }
 
-    console.log(`Fetching orders from ${fromDate}...`);
+    const fromDateObj = new Date(`${fromDate}T00:00:00Z`);
+    console.log(`Fetching orders, filtering for dates since ${fromDate}...`);
 
     // Fetch brands for SKU resolution
     const { data: brands, error: brandsError } = await supabase
@@ -96,6 +97,8 @@ Deno.serve(async (req) => {
     }
 
     // Fetch orders from Mintsoft for each dispatched status ID
+    // NOTE: /api/Order/List does NOT support SinceDate filtering server-side
+    // We fetch all orders with the given status and filter by date client-side
     let allOrders: MintsoftOrder[] = [];
     
     for (const statusId of dispatchedStatusIds) {
@@ -103,8 +106,8 @@ Deno.serve(async (req) => {
       let statusTotal = 0;
       
       while (true) {
-        const ordersUrl = `${settings.base_url}/api/Order/List?OrderStatusId=${statusId}&SinceDate=${fromDate}T00:00:00Z&IncludeOrderItems=true&Limit=250&PageNo=${pageNo}`;
-        
+        const ordersUrl = `${settings.base_url}/api/Order/List?OrderStatusId=${statusId}&IncludeOrderItems=true&Limit=250&PageNo=${pageNo}`;
+
         console.log(`Fetching orders with status ${statusId}, page ${pageNo}`);
         
         const ordersResponse = await fetch(ordersUrl, {
