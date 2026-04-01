@@ -201,8 +201,8 @@ Deno.serve(async (req) => {
         for (const item of items) {
           linesProcessed++;
           const brandId = resolveBrandFromSKU(item.SKU, brands);
-          if (!brandId) { linesSkipped++; lineIndex++; continue; }
-          newSkus.push({ sku: item.SKU, brand_id: brandId });
+          const dirty = isDirtySku(item.SKU);
+          newSkus.push({ sku: item.SKU, brand_id: brandId, quarantined: dirty });
 
           upsertPayloads.push({
             mintsoft_order_id: order.ID,
@@ -227,15 +227,22 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Auto-create products
+      // Auto-create products (including dirty/unresolvable SKUs)
       const uniqueSkus = [...new Map(newSkus.map(s => [s.sku, s])).values()];
       if (uniqueSkus.length > 0) {
         const { data: ep } = await supabase.from("products_cache").select("sku").in("sku", uniqueSkus.map(s => s.sku));
         const existSet = new Set((ep || []).map(p => p.sku));
-        const np = uniqueSkus.filter(s => !existSet.has(s.sku)).map(s => ({ sku: s.sku, name: s.sku, brand_id: s.brand_id, discovery_source: 'order' }));
+        const np = uniqueSkus.filter(s => !existSet.has(s.sku)).map(s => ({
+          sku: s.sku,
+          name: s.sku,
+          brand_id: s.brand_id,
+          discovery_source: s.quarantined ? 'order_dirty' : 'order',
+          quarantined: s.quarantined,
+        }));
         if (np.length > 0) {
           const { error } = await supabase.from("products_cache").upsert(np, { onConflict: 'sku', ignoreDuplicates: true });
           if (!error) productsCreated += np.length;
+          else console.error("Product create error:", error);
         }
       }
 
