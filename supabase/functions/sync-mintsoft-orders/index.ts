@@ -224,11 +224,14 @@ Deno.serve(async (req) => {
     const CONCURRENCY = 10;
     const CHUNK = 50;
 
+    let earlyExit = false;
     for (let c = 0; c < newOrders.length; c += CHUNK) {
+      if (isTimeRunningOut()) { earlyExit = true; console.log("Time limit approaching, saving progress..."); break; }
       const chunk = newOrders.slice(c, c + CHUNK);
 
       const itemsMap = new Map<number, MintsoftOrderItem[]>();
       for (let i = 0; i < chunk.length; i += CONCURRENCY) {
+        if (isTimeRunningOut()) { earlyExit = true; break; }
         const batch = chunk.slice(i, i + CONCURRENCY);
         const results = await Promise.all(batch.map(async o => ({
           id: o.ID,
@@ -236,6 +239,7 @@ Deno.serve(async (req) => {
         })));
         for (const r of results) itemsMap.set(r.id, r.items);
       }
+      if (earlyExit) break;
 
       const upsertPayloads: Record<string, unknown>[] = [];
       const newSkus: { sku: string; brand_id: string | null; quarantined: boolean }[] = [];
