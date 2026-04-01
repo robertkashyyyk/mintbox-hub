@@ -357,6 +357,16 @@ export function useOrderTelemetry() {
     refetchIssues();
   };
 
+  const toggleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir(d => d === "asc" ? "desc" : "asc");
+    } else {
+      setSortKey(key);
+      setSortDir("desc");
+    }
+    setPage(1);
+  };
+
   return {
     filters,
     setFilters,
@@ -372,5 +382,8 @@ export function useOrderTelemetry() {
     filterOptions,
     isLoading: isLoadingOrders || isLoadingIssues,
     refetch,
+    sortKey,
+    sortDir,
+    toggleSort,
   };
 }
