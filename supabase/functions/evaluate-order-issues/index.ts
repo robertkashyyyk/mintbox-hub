@@ -237,6 +237,7 @@ Deno.serve(async (req) => {
           mintsoft_order_id: c.mintsoft_order_id, line_index: c.line_index, sku: c.sku,
           brand_id: c.brand_id, problem_type: c.problem_type, severity: c.severity,
           reason: c.reason, last_problem_seen_at: now, first_problem_seen_at: now, issue_status: "open",
+          suggested_action: c.suggested_action,
         });
       }
     }
