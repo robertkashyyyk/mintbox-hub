@@ -90,10 +90,15 @@ export interface EnrichedOrderLine {
   } | null;
 }
 
+export type SortKey = "order" | "age" | "status" | "sku" | "product" | "qty" | "problem" | "severity" | "reason" | "issue" | "assigned" | "brand" | "channel";
+export type SortDir = "asc" | "desc";
+
 export function useOrderTelemetry() {
   const [filters, setFilters] = useState<OrderFiltersState>(defaultFilters);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(100);
+  const [sortKey, setSortKey] = useState<SortKey>("severity");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
 
   const { data: orderLines, isLoading: isLoadingOrders, refetch: refetchOrders } = useQuery({
     queryKey: ["order-lines-telemetry"],
