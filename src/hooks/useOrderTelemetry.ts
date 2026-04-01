@@ -87,6 +87,7 @@ export interface EnrichedOrderLine {
     internal_notes: string | null;
     first_problem_seen_at: string | null;
     last_problem_seen_at: string | null;
+    suggested_action: string | null;
   } | null;
 }
 
