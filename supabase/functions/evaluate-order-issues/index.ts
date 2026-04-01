@@ -153,7 +153,8 @@ Deno.serve(async (req) => {
 
     for (const line of activeLines) {
       const orderAge = hoursAgo(line.order_date);
-      const statusAge = hoursAgo(line.last_status_change_at);
+      // Fall back to order_date if last_status_change_at is null
+      const statusAge = line.last_status_change_at ? hoursAgo(line.last_status_change_at) : orderAge;
       const timesSeen = line.times_seen || 1;
       const recentChange = statusAge < 8;
 
