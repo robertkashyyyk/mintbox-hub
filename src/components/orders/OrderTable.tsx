@@ -44,7 +44,9 @@ function OrderStatusBadge({ status }: { status: string | null }) {
   const normalized = status.toUpperCase();
   const styles: Record<string, string> = {
     NEW: "bg-blue-500/15 text-blue-400 border-blue-500/30",
+    AWAITINGPICKING: "bg-amber-500/15 text-amber-400 border-amber-500/30",
     "AWAITING PICKING": "bg-amber-500/15 text-amber-400 border-amber-500/30",
+    ONBACKORDER: "bg-purple-500/15 text-purple-400 border-purple-500/30",
     "ON BACK ORDER": "bg-purple-500/15 text-purple-400 border-purple-500/30",
     DESPATCHED: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
     DISPATCHED: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
