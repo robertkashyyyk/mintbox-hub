@@ -145,7 +145,7 @@ Deno.serve(async (req) => {
         allOrders = allOrders.concat(filteredOrders);
         statusTotal += filteredOrders.length;
 
-        if (orders.length < 250) break;
+        if (orders.length < 100) break;
         if (pageNo >= 20) {
           console.log(`Reached page cap (20) for status ${statusId}, stopping`);
           break;
