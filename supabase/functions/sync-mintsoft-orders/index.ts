@@ -9,11 +9,26 @@ interface MintsoftOrder {
   ID: number;
   OrderDate: string;
   OrderStatusId?: number;
-  OrderStatus?: string;
+  OrderStatus?: string | { ID: number; ExternalName: string } | null;
   CustomerName?: string;
   Channel: { Name: string } | null;
   ExternalOrderReference: string;
   WarehouseId?: number;
+}
+
+// Extract status name from the Mintsoft order object — handles both flat string and nested object
+function extractStatusName(order: MintsoftOrder, statusLookup: Map<number, string>): string | null {
+  // If OrderStatus is a string, use it directly
+  if (typeof order.OrderStatus === 'string' && order.OrderStatus) return order.OrderStatus;
+  // If OrderStatus is an object with ExternalName
+  if (order.OrderStatus && typeof order.OrderStatus === 'object' && 'ExternalName' in order.OrderStatus) {
+    return order.OrderStatus.ExternalName;
+  }
+  // Fall back to lookup by OrderStatusId
+  if (order.OrderStatusId && statusLookup.has(order.OrderStatusId)) {
+    return statusLookup.get(order.OrderStatusId)!;
+  }
+  return null;
 }
 
 interface MintsoftOrderItem {

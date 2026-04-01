@@ -194,7 +194,7 @@ export default function OrderTable({
                     {new Date(line.order_date).toLocaleDateString()}
                   </TableCell>
                   <TableCell className="font-mono text-xs">{line.age_hours}</TableCell>
-                  <TableCell className="text-xs">{line.order_status || "—"}</TableCell>
+                  <TableCell><OrderStatusBadge status={line.order_status} /></TableCell>
                   <TableCell className="text-xs">{line.brands?.name || "—"}</TableCell>
                   <TableCell className="font-mono text-xs">{line.sku}</TableCell>
                   <TableCell className="text-xs max-w-[160px] truncate">
