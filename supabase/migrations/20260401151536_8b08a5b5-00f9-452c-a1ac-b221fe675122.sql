@@ -1,0 +1,1 @@
+ALTER TABLE public.order_issues ADD COLUMN IF NOT EXISTS suggested_action text;

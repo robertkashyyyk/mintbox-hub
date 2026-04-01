@@ -153,7 +153,8 @@ Deno.serve(async (req) => {
 
     for (const line of activeLines) {
       const orderAge = hoursAgo(line.order_date);
-      const statusAge = hoursAgo(line.last_status_change_at);
+      // Fall back to order_date if last_status_change_at is null
+      const statusAge = line.last_status_change_at ? hoursAgo(line.last_status_change_at) : orderAge;
       const timesSeen = line.times_seen || 1;
       const recentChange = statusAge < 8;
 
@@ -229,7 +230,7 @@ Deno.serve(async (req) => {
       if (existing) {
         if (existing.is_suppressed) continue;
         if (["auto_resolved", "resolved", "ignored"].includes(existing.issue_status)) continue;
-        const payload: Record<string, unknown> = { last_problem_seen_at: now, reason: c.reason };
+        const payload: Record<string, unknown> = { last_problem_seen_at: now, reason: c.reason, suggested_action: c.suggested_action };
         if ((sevRank[c.severity] || 0) > (sevRank[existing.severity] || 0)) payload.severity = c.severity;
         toUpdate.push({ id: existing.id, payload });
       } else {
@@ -237,6 +238,7 @@ Deno.serve(async (req) => {
           mintsoft_order_id: c.mintsoft_order_id, line_index: c.line_index, sku: c.sku,
           brand_id: c.brand_id, problem_type: c.problem_type, severity: c.severity,
           reason: c.reason, last_problem_seen_at: now, first_problem_seen_at: now, issue_status: "open",
+          suggested_action: c.suggested_action,
         });
       }
     }

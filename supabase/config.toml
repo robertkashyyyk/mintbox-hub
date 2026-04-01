@@ -38,3 +38,6 @@ verify_jwt = false
 
 [functions.sync-mintsoft-orders]
 verify_jwt = false
+
+[functions.evaluate-order-issues]
+verify_jwt = false

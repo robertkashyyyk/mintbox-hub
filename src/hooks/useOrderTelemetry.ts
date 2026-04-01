@@ -87,6 +87,7 @@ export interface EnrichedOrderLine {
     internal_notes: string | null;
     first_problem_seen_at: string | null;
     last_problem_seen_at: string | null;
+    suggested_action: string | null;
   } | null;
 }
 
@@ -112,6 +113,7 @@ export function useOrderTelemetry() {
         const { data, error } = await supabase
           .from("order_lines")
           .select(`*, brands (name)`)
+          .gte("order_date", "2026-01-01T00:00:00Z")
           .order("order_date", { ascending: false })
           .range(from, from + PAGE_SIZE - 1);
         if (error) throw error;
@@ -195,6 +197,7 @@ export function useOrderTelemetry() {
               internal_notes: topIssue.internal_notes,
               first_problem_seen_at: topIssue.first_problem_seen_at,
               last_problem_seen_at: topIssue.last_problem_seen_at,
+              suggested_action: topIssue.suggested_action || null,
             }
           : null,
       };
