@@ -37,6 +37,12 @@ function resolveBrandFromSKU(sku: string, brands: Brand[]): string | null {
   return null;
 }
 
+// A "clean" SKU has 2-4 alpha chars followed by - or /
+// Anything else is a "dirty" SKU that gets quarantined
+function isDirtySku(sku: string): boolean {
+  return !/^[A-Za-z]{2,4}[-\/]/.test(sku);
+}
+
 async function fetchOrderItems(baseUrl: string, apiKey: string, orderId: number): Promise<MintsoftOrderItem[]> {
   const resp = await fetch(`${baseUrl}/api/Order/${orderId}/Items`, {
     headers: { "ms-apikey": apiKey, "Content-Type": "application/json" },
@@ -187,7 +193,7 @@ Deno.serve(async (req) => {
       }
 
       const upsertPayloads: Record<string, unknown>[] = [];
-      const newSkus: { sku: string; brand_id: string }[] = [];
+      const newSkus: { sku: string; brand_id: string | null; quarantined: boolean }[] = [];
 
       for (const order of chunk) {
         const items = itemsMap.get(order.ID) || [];
@@ -195,8 +201,8 @@ Deno.serve(async (req) => {
         for (const item of items) {
           linesProcessed++;
           const brandId = resolveBrandFromSKU(item.SKU, brands);
-          if (!brandId) { linesSkipped++; lineIndex++; continue; }
-          newSkus.push({ sku: item.SKU, brand_id: brandId });
+          const dirty = isDirtySku(item.SKU);
+          newSkus.push({ sku: item.SKU, brand_id: brandId, quarantined: dirty });
 
           upsertPayloads.push({
             mintsoft_order_id: order.ID,
@@ -221,15 +227,22 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Auto-create products
+      // Auto-create products (including dirty/unresolvable SKUs)
       const uniqueSkus = [...new Map(newSkus.map(s => [s.sku, s])).values()];
       if (uniqueSkus.length > 0) {
         const { data: ep } = await supabase.from("products_cache").select("sku").in("sku", uniqueSkus.map(s => s.sku));
         const existSet = new Set((ep || []).map(p => p.sku));
-        const np = uniqueSkus.filter(s => !existSet.has(s.sku)).map(s => ({ sku: s.sku, name: s.sku, brand_id: s.brand_id, discovery_source: 'order' }));
+        const np = uniqueSkus.filter(s => !existSet.has(s.sku)).map(s => ({
+          sku: s.sku,
+          name: s.sku,
+          brand_id: s.brand_id,
+          discovery_source: s.quarantined ? 'order_dirty' : 'order',
+          quarantined: s.quarantined,
+        }));
         if (np.length > 0) {
           const { error } = await supabase.from("products_cache").upsert(np, { onConflict: 'sku', ignoreDuplicates: true });
           if (!error) productsCreated += np.length;
+          else console.error("Product create error:", error);
         }
       }
 

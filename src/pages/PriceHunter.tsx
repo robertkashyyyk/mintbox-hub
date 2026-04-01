@@ -87,6 +87,7 @@ export default function PriceHunter() {
       let query = supabase
         .from("products_cache")
         .select("*")
+        .eq("quarantined", false)
         .order("sku");
 
       if (brandFilter !== "all") {

@@ -125,6 +125,9 @@ export const useSkuDatabase = () => {
         `, { count: 'exact' })
         .eq("product_images.is_primary", true);
 
+      // Exclude quarantined products from general view
+      query = query.eq("quarantined", false);
+
       // Apply text search
       if (filters.search) {
         query = query.or(`sku.ilike.%${filters.search}%,name.ilike.%${filters.search}%,barcode.ilike.%${filters.search}%`);
