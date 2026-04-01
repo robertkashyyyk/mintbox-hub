@@ -119,7 +119,7 @@ Deno.serve(async (req) => {
     // 2. Cancelled orders
     const cancelledLines = orderLines.filter((l) => isTerminalStatus(l.order_status));
     for (const line of cancelledLines) {
-      const resType = l.order_status?.toLowerCase().includes("cancel") ? "cancelled" : "condition_cleared";
+      const resType = line.order_status?.toLowerCase().includes("cancel") ? "cancelled" : "condition_cleared";
       await supabase
         .from("order_issues")
         .update({ issue_status: "auto_resolved", resolved_at: now, resolution_type: resType })
