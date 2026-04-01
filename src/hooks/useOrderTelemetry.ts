@@ -274,9 +274,40 @@ export function useOrderTelemetry() {
       result = result.filter(l => l.issue?.problem_type === "new_stuck" && l.age_hours >= 24);
     }
 
-    // Default sort: severity desc, then age desc
+    // Sort
+    const sevRank: Record<string, number> = { critical: 3, problem: 2, watch: 1 };
+    const issueStatusRank: Record<string, number> = { open: 3, in_review: 2, waiting_stock: 1 };
+    const dir = sortDir === "asc" ? 1 : -1;
+
     result = [...result].sort((a, b) => {
-      const sevRank: Record<string, number> = { critical: 3, problem: 2, watch: 1 };
+      let cmp = 0;
+      switch (sortKey) {
+        case "order": cmp = a.mintsoft_order_id - b.mintsoft_order_id; break;
+        case "age": cmp = a.age_hours - b.age_hours; break;
+        case "status": cmp = (a.order_status || "").localeCompare(b.order_status || ""); break;
+        case "sku": cmp = a.sku.localeCompare(b.sku); break;
+        case "product": cmp = (a.product_name || "").localeCompare(b.product_name || ""); break;
+        case "qty": cmp = a.qty - b.qty; break;
+        case "problem": cmp = (a.issue?.problem_type || "").localeCompare(b.issue?.problem_type || ""); break;
+        case "severity": {
+          const aSev = a.issue ? (sevRank[a.issue.severity] || 0) : 0;
+          const bSev = b.issue ? (sevRank[b.issue.severity] || 0) : 0;
+          cmp = aSev - bSev;
+          break;
+        }
+        case "reason": cmp = (a.issue?.reason || "").localeCompare(b.issue?.reason || ""); break;
+        case "issue": {
+          const aR = a.issue ? (issueStatusRank[a.issue.issue_status] || 0) : 0;
+          const bR = b.issue ? (issueStatusRank[b.issue.issue_status] || 0) : 0;
+          cmp = aR - bR;
+          break;
+        }
+        case "assigned": cmp = (a.issue?.assigned_to || "").localeCompare(b.issue?.assigned_to || ""); break;
+        case "brand": cmp = (a.brands?.name || "").localeCompare(b.brands?.name || ""); break;
+        case "channel": cmp = (a.channel || "").localeCompare(b.channel || ""); break;
+      }
+      if (cmp !== 0) return cmp * dir;
+      // Secondary sort: severity desc, then age desc
       const aSev = a.issue ? (sevRank[a.issue.severity] || 0) : 0;
       const bSev = b.issue ? (sevRank[b.issue.severity] || 0) : 0;
       if (bSev !== aSev) return bSev - aSev;
@@ -284,7 +315,7 @@ export function useOrderTelemetry() {
     });
 
     return result;
-  }, [enrichedLines, filters]);
+  }, [enrichedLines, filters, sortKey, sortDir]);
 
   const totalPages = Math.max(1, Math.ceil(filteredLines.length / pageSize));
   const paginatedLines = filteredLines.slice((page - 1) * pageSize, page * pageSize);
