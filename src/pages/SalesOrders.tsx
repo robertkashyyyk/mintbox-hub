@@ -54,7 +54,7 @@ const SalesOrders = () => {
           )
         `)
         .order("order_date", { ascending: false })
-        .limit(100);
+        .limit(1000);
 
       if (error) throw error;
       return data;
