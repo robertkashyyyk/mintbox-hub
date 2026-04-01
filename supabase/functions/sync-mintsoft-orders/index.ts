@@ -114,27 +114,29 @@ Deno.serve(async (req) => {
     let allOrders: MintsoftOrder[] = [];
     const seenOrderIds = new Set<number>();
     
-    for (const statusId of statusIdsToFetch) {
-      let pageNo = 1;
-      while (true) {
-        const resp = await fetch(`${settings.base_url}/api/Order/List?OrderStatusId=${statusId}&Limit=100&PageNo=${pageNo}`, {
-          headers: { "ms-apikey": mintsoftApiKey, "Content-Type": "application/json" },
-        });
-        if (!resp.ok) break;
-        const orders: MintsoftOrder[] = await resp.json();
-        if (orders.length === 0) break;
-        const filtered = orders.filter(o => {
-          if (seenOrderIds.has(o.ID)) return false;
-          if (new Date(o.OrderDate) < fromDateObj) return false;
-          seenOrderIds.add(o.ID);
-          return true;
-        });
-        allOrders = allOrders.concat(filtered);
-        if (orders.length < 100 || pageNo >= 50) break;
-        pageNo++;
+      let timedOut = false;
+      for (const statusId of statusIdsToFetch) {
+        if (isTimeRunningOut()) { timedOut = true; break; }
+        let pageNo = 1;
+        while (true) {
+          const resp = await fetch(`${settings.base_url}/api/Order/List?OrderStatusId=${statusId}&Limit=100&PageNo=${pageNo}`, {
+            headers: { "ms-apikey": mintsoftApiKey, "Content-Type": "application/json" },
+          });
+          if (!resp.ok) break;
+          const orders: MintsoftOrder[] = await resp.json();
+          if (orders.length === 0) break;
+          const filtered = orders.filter(o => {
+            if (seenOrderIds.has(o.ID)) return false;
+            if (new Date(o.OrderDate) < fromDateObj) return false;
+            seenOrderIds.add(o.ID);
+            return true;
+          });
+          allOrders = allOrders.concat(filtered);
+          if (orders.length < 100 || pageNo >= 50) break;
+          pageNo++;
+        }
       }
-    }
-    console.log(`Fetched ${allOrders.length} order headers across ${statusIdsToFetch.length} statuses`);
+      console.log(`Fetched ${allOrders.length} order headers across ${statusIdsToFetch.length} statuses${timedOut ? ' (partial - timed out)' : ''}`);
 
     // 2. Find which orders we already have lines for
     const orderIds = [...new Set(allOrders.map(o => o.ID))];
