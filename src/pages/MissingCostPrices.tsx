@@ -15,6 +15,7 @@ const MissingCostPrices = () => {
         .select("id, sku, name, suppliers, current_stock, discontinued")
         .is("cost_price", null)
         .eq("discontinued", false)
+        .eq("quarantined", false)
         .order("sku");
 
       if (error) throw error;
