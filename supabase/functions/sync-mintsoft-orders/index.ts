@@ -13,7 +13,6 @@ interface MintsoftOrder {
   } | null;
   ExternalOrderReference: string;
   WarehouseId?: number;
-  OrderItems: MintsoftOrderItem[];
 }
 
 interface MintsoftOrderItem {
@@ -31,12 +30,28 @@ function resolveBrandFromSKU(sku: string, brands: Brand[]): string | null {
   for (const brand of brands) {
     const separator = brand.prefix_style === "slash" ? "/" : "-";
     const pattern = `${brand.prefix}${separator}`;
-    
     if (sku.toUpperCase().startsWith(pattern.toUpperCase())) {
       return brand.id;
     }
   }
   return null;
+}
+
+async function fetchOrderItems(
+  baseUrl: string,
+  apiKey: string,
+  orderId: number
+): Promise<MintsoftOrderItem[]> {
+  const url = `${baseUrl}/api/Order/${orderId}/Items`;
+  const response = await fetch(url, {
+    method: "GET",
+    headers: { "ms-apikey": apiKey, "Content-Type": "application/json" },
+  });
+  if (!response.ok) {
+    console.error(`Failed to fetch items for order ${orderId}: ${response.status}`);
+    return [];
+  }
+  return await response.json();
 }
 
 Deno.serve(async (req) => {
@@ -59,17 +74,14 @@ Deno.serve(async (req) => {
       .limit(1)
       .single();
 
-    if (!settings) {
-      throw new Error("Mintsoft settings not found");
-    }
+    if (!settings) throw new Error("Mintsoft settings not found");
 
     const dispatchedStatusIds = settings.dispatched_status_ids || [40];
     console.log(`Using dispatched status IDs: ${dispatchedStatusIds.join(', ')}`);
 
     const mintsoftApiKey = Deno.env.get("MINTSOFT_API_KEY");
-    if (!mintsoftApiKey) {
-      throw new Error("MINTSOFT_API_KEY not configured");
-    }
+    if (!mintsoftApiKey) throw new Error("MINTSOFT_API_KEY not configured");
+    if (!mintsoftApiKey) throw new Error("MINTSOFT_API_KEY not configured");
 
     // Parse request body for optional fromDate
     let fromDate: string;
@@ -77,13 +89,13 @@ Deno.serve(async (req) => {
       const body = await req.json();
       fromDate = body.fromDate;
     } catch {
-      // Default to 1 day ago if no body provided
-      const yesterday = new Date();
-      yesterday.setDate(yesterday.getDate() - 1);
-      fromDate = yesterday.toISOString().split('T')[0];
+      const twoDaysAgo = new Date();
+      twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+      fromDate = twoDaysAgo.toISOString().split('T')[0];
     }
 
-    console.log(`Fetching orders from ${fromDate}...`);
+    const fromDateObj = new Date(`${fromDate}T00:00:00Z`);
+    console.log(`Fetching orders, filtering for dates since ${fromDate}...`);
 
     // Fetch brands for SKU resolution
     const { data: brands, error: brandsError } = await supabase
@@ -96,71 +108,76 @@ Deno.serve(async (req) => {
     }
 
     // Fetch orders from Mintsoft for each dispatched status ID
+    // NOTE: /api/Order/List does NOT support IncludeOrderItems or SinceDate
+    // We fetch orders, filter by date client-side, then fetch items per order
     let allOrders: MintsoftOrder[] = [];
-    
+
     for (const statusId of dispatchedStatusIds) {
       let pageNo = 1;
       let statusTotal = 0;
-      
+
       while (true) {
-        const ordersUrl = `${settings.base_url}/api/Order/List?OrderStatusId=${statusId}&SinceDate=${fromDate}T00:00:00Z&IncludeOrderItems=true&Limit=250&PageNo=${pageNo}`;
-        
-        console.log(`Fetching orders with status ${statusId}, page ${pageNo}`);
-        
+        const ordersUrl = `${settings.base_url}/api/Order/List?OrderStatusId=${statusId}&Limit=100&PageNo=${pageNo}`;
+        console.log(`Fetching: ${ordersUrl}`);
+
         const ordersResponse = await fetch(ordersUrl, {
           method: "GET",
-          headers: {
-            "ms-apikey": mintsoftApiKey,
-            "Content-Type": "application/json",
-          },
+          headers: { "ms-apikey": mintsoftApiKey, "Content-Type": "application/json" },
         });
+
+        console.log(`Response status: ${ordersResponse.status}`);
 
         if (!ordersResponse.ok) {
           const errorBody = await ordersResponse.text();
-          console.error(`Mintsoft error for status ${statusId} page ${pageNo}: ${errorBody}`);
+          console.error(`Mintsoft error ${ordersResponse.status}: ${errorBody}`);
           break;
         }
 
         const orders: MintsoftOrder[] = await ordersResponse.json();
-        console.log(`Page ${pageNo}: received ${orders.length} orders with status ${statusId}`);
-        
+
+        // Filter orders by date client-side
+        const filteredOrders = orders.filter(o => new Date(o.OrderDate) >= fromDateObj);
+
+        console.log(`Page ${pageNo}: ${orders.length} orders, ${filteredOrders.length} after date filter (status ${statusId})`);
+
         if (orders.length === 0) break;
-        
-        allOrders = allOrders.concat(orders);
-        statusTotal += orders.length;
-        
-        if (orders.length < 250) break;
-        
+
+        allOrders = allOrders.concat(filteredOrders);
+        statusTotal += filteredOrders.length;
+
+        if (orders.length < 100) break;
+        if (pageNo >= 20) {
+          console.log(`Reached page cap (20) for status ${statusId}, stopping`);
+          break;
+        }
         pageNo++;
       }
-      
+
       console.log(`Status ${statusId} total: ${statusTotal} orders across ${pageNo} page(s)`);
     }
 
-    console.log(`Total orders fetched across all statuses: ${allOrders.length}`);
+    console.log(`Total orders to process: ${allOrders.length}`);
 
     let linesProcessed = 0;
     let linesInserted = 0;
     let linesSkipped = 0;
     let productsCreated = 0;
 
-    // Process each order
+    // Process each order — fetch items separately
     for (const order of allOrders) {
+      const items = await fetchOrderItems(settings.base_url, mintsoftApiKey, order.ID);
       let lineIndex = 1;
 
-      for (const item of order.OrderItems || []) {
+      for (const item of items) {
         linesProcessed++;
 
-        // Resolve brand_id from SKU
         const brandId = resolveBrandFromSKU(item.SKU, brands);
-
         if (!brandId) {
-          console.log(`Skipping line: SKU ${item.SKU} - no brand match`);
           linesSkipped++;
           continue;
         }
 
-        // Check if product exists in products_cache
+        // Auto-create product if missing
         const { data: existingProduct } = await supabase
           .from("products_cache")
           .select("id")
@@ -168,24 +185,15 @@ Deno.serve(async (req) => {
           .maybeSingle();
 
         if (!existingProduct) {
-          // Auto-create minimal product record with discovery tracking
           const { error: productError } = await supabase
             .from("products_cache")
-            .upsert({
-              sku: item.SKU,
-              name: item.SKU,
-              brand_id: brandId,
-              discovery_source: 'order',
-            }, {
-              onConflict: 'sku',
-              ignoreDuplicates: true
-            });
-          
-          if (productError) {
-            console.log(`Could not auto-create product for SKU ${item.SKU}:`, productError);
-          } else {
+            .upsert(
+              { sku: item.SKU, name: item.SKU, brand_id: brandId, discovery_source: 'order' },
+              { onConflict: 'sku', ignoreDuplicates: true }
+            );
+          if (!productError) {
             productsCreated++;
-            console.log(`Auto-created product for SKU: ${item.SKU} (brand: ${brandId})`);
+            console.log(`Auto-created product: ${item.SKU}`);
           }
         }
 
@@ -208,16 +216,15 @@ Deno.serve(async (req) => {
           );
 
         if (upsertError) {
-          console.error(`Error upserting line for order ${order.ID}, line ${lineIndex}:`, upsertError);
+          console.error(`Error upserting order ${order.ID} line ${lineIndex}:`, upsertError);
         } else {
           linesInserted++;
         }
-
         lineIndex++;
       }
     }
 
-    console.log(`Orders sync complete. Processed: ${linesProcessed}, Inserted: ${linesInserted}, Skipped: ${linesSkipped}`);
+    console.log(`Sync complete. Processed: ${linesProcessed}, Inserted: ${linesInserted}, Skipped: ${linesSkipped}, Products created: ${productsCreated}`);
 
     return new Response(
       JSON.stringify({
@@ -228,22 +235,15 @@ Deno.serve(async (req) => {
         lines_skipped: linesSkipped,
         products_created: productsCreated,
         status_ids_used: dispatchedStatusIds,
-        message: `Successfully synced ${allOrders.length} orders with ${linesInserted} lines using status IDs: ${dispatchedStatusIds.join(', ')}`,
+        message: `Synced ${allOrders.length} orders with ${linesInserted} lines using status IDs: ${dispatchedStatusIds.join(', ')}`,
       }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
     console.error("Orders sync error:", error);
     return new Response(
-      JSON.stringify({
-        error: error instanceof Error ? error.message : "Unknown error",
-      }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });
