@@ -306,17 +306,21 @@ Deno.serve(async (req) => {
 
     console.log(`Done. Lines: ${linesInserted}, Skipped: ${linesSkipped}, Products: ${productsCreated}`);
 
-    // Trigger evaluate-order-issues
-    try {
-      await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/evaluate-order-issues`, {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ triggered_by: "sync-mintsoft-orders" }),
-      });
-    } catch (e) { console.error("eval trigger failed:", e); }
+    // Only trigger issue evaluation if we didn't time out
+    if (!earlyExit) {
+      try {
+        await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/evaluate-order-issues`, {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ triggered_by: "sync-mintsoft-orders" }),
+        });
+      } catch (e) { console.error("eval trigger failed:", e); }
+    }
 
+    const partial = earlyExit ? " (partial — run again to continue)" : "";
     return new Response(JSON.stringify({
       success: true,
+      partial: earlyExit,
       orders_fetched: allOrders.length,
       new_orders: newOrders.length,
       existing_orders_updated: existingOrders.length,
@@ -324,7 +328,7 @@ Deno.serve(async (req) => {
       lines_skipped: linesSkipped,
       products_created: productsCreated,
       statuses_queried: statusIdsToFetch.length,
-      message: `Synced ${allOrders.length} orders across ${statusIdsToFetch.length} statuses (${newOrders.length} new, ${existingOrders.length} updated)`,
+      message: `Synced ${allOrders.length} orders across ${statusIdsToFetch.length} statuses (${newOrders.length} new, ${existingOrders.length} updated)${partial}`,
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (error) {
     console.error("Orders sync error:", error);
