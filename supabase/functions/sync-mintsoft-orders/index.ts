@@ -2,8 +2,12 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.80.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
+
+const START_TIME = Date.now();
+const MAX_RUNTIME_MS = 50_000; // 50s safety margin (edge functions timeout at 60s)
+function isTimeRunningOut() { return Date.now() - START_TIME > MAX_RUNTIME_MS; }
 
 interface MintsoftOrder {
   ID: number;
@@ -88,7 +92,8 @@ Deno.serve(async (req) => {
 
     // Fetch ALL Mintsoft statuses for lookup AND to know which status IDs to query
     const statusLookup = new Map<number, string>();
-    const allStatusIds: number[] = [];
+    const activeStatusIds: number[] = [];
+    const terminalNames = ['despatched', 'dispatched', 'cancelled', 'completed', 'delivered', 'refunded', 'returned', 'closed'];
     try {
       const statusResp = await fetch(`${settings.base_url}/api/Order/Statuses`, {
         headers: { "ms-apikey": mintsoftApiKey, "Content-Type": "application/json" },
@@ -97,40 +102,44 @@ Deno.serve(async (req) => {
         const statuses = await statusResp.json();
         for (const s of statuses) {
           if (s.ID && s.ExternalName) statusLookup.set(s.ID, s.ExternalName);
-          if (s.ID && s.Active !== false) allStatusIds.push(s.ID);
+          // Only fetch headers for non-terminal statuses to avoid timeout
+          const isTerminal = terminalNames.some(t => (s.ExternalName || '').toLowerCase().includes(t));
+          if (s.ID && s.Active !== false && !isTerminal) activeStatusIds.push(s.ID);
         }
-        console.log(`Loaded ${statusLookup.size} status names, ${allStatusIds.length} active status IDs`);
+        console.log(`Loaded ${statusLookup.size} status names, fetching ${activeStatusIds.length} non-terminal statuses`);
       }
     } catch (e) { console.error("Failed to fetch status names:", e); }
 
     // If we couldn't fetch statuses, fall back to configured IDs
-    const statusIdsToFetch = allStatusIds.length > 0 ? allStatusIds : dispatchedStatusIds;
+    const statusIdsToFetch = activeStatusIds.length > 0 ? activeStatusIds : dispatchedStatusIds;
 
     // 1. Fetch order headers across ALL statuses
     let allOrders: MintsoftOrder[] = [];
     const seenOrderIds = new Set<number>();
     
-    for (const statusId of statusIdsToFetch) {
-      let pageNo = 1;
-      while (true) {
-        const resp = await fetch(`${settings.base_url}/api/Order/List?OrderStatusId=${statusId}&Limit=100&PageNo=${pageNo}`, {
-          headers: { "ms-apikey": mintsoftApiKey, "Content-Type": "application/json" },
-        });
-        if (!resp.ok) break;
-        const orders: MintsoftOrder[] = await resp.json();
-        if (orders.length === 0) break;
-        const filtered = orders.filter(o => {
-          if (seenOrderIds.has(o.ID)) return false;
-          if (new Date(o.OrderDate) < fromDateObj) return false;
-          seenOrderIds.add(o.ID);
-          return true;
-        });
-        allOrders = allOrders.concat(filtered);
-        if (orders.length < 100 || pageNo >= 50) break;
-        pageNo++;
+      let timedOut = false;
+      for (const statusId of statusIdsToFetch) {
+        if (isTimeRunningOut()) { timedOut = true; break; }
+        let pageNo = 1;
+        while (true) {
+          const resp = await fetch(`${settings.base_url}/api/Order/List?OrderStatusId=${statusId}&Limit=100&PageNo=${pageNo}`, {
+            headers: { "ms-apikey": mintsoftApiKey, "Content-Type": "application/json" },
+          });
+          if (!resp.ok) break;
+          const orders: MintsoftOrder[] = await resp.json();
+          if (orders.length === 0) break;
+          const filtered = orders.filter(o => {
+            if (seenOrderIds.has(o.ID)) return false;
+            if (new Date(o.OrderDate) < fromDateObj) return false;
+            seenOrderIds.add(o.ID);
+            return true;
+          });
+          allOrders = allOrders.concat(filtered);
+          if (orders.length < 100 || pageNo >= 50) break;
+          pageNo++;
+        }
       }
-    }
-    console.log(`Fetched ${allOrders.length} order headers across ${statusIdsToFetch.length} statuses`);
+      console.log(`Fetched ${allOrders.length} order headers across ${statusIdsToFetch.length} statuses${timedOut ? ' (partial - timed out)' : ''}`);
 
     // 2. Find which orders we already have lines for
     const orderIds = [...new Set(allOrders.map(o => o.ID))];
@@ -215,14 +224,17 @@ Deno.serve(async (req) => {
     }
 
     // 4. For NEW orders — fetch items and create lines
-    const CONCURRENCY = 10;
+    const CONCURRENCY = 25;
     const CHUNK = 50;
 
+    let earlyExit = false;
     for (let c = 0; c < newOrders.length; c += CHUNK) {
+      if (isTimeRunningOut()) { earlyExit = true; console.log("Time limit approaching, saving progress..."); break; }
       const chunk = newOrders.slice(c, c + CHUNK);
 
       const itemsMap = new Map<number, MintsoftOrderItem[]>();
       for (let i = 0; i < chunk.length; i += CONCURRENCY) {
+        if (isTimeRunningOut()) { earlyExit = true; break; }
         const batch = chunk.slice(i, i + CONCURRENCY);
         const results = await Promise.all(batch.map(async o => ({
           id: o.ID,
@@ -230,6 +242,7 @@ Deno.serve(async (req) => {
         })));
         for (const r of results) itemsMap.set(r.id, r.items);
       }
+      if (earlyExit) break;
 
       const upsertPayloads: Record<string, unknown>[] = [];
       const newSkus: { sku: string; brand_id: string | null; quarantined: boolean }[] = [];
@@ -296,17 +309,21 @@ Deno.serve(async (req) => {
 
     console.log(`Done. Lines: ${linesInserted}, Skipped: ${linesSkipped}, Products: ${productsCreated}`);
 
-    // Trigger evaluate-order-issues
-    try {
-      await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/evaluate-order-issues`, {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ triggered_by: "sync-mintsoft-orders" }),
-      });
-    } catch (e) { console.error("eval trigger failed:", e); }
+    // Only trigger issue evaluation if we didn't time out
+    if (!earlyExit) {
+      try {
+        await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/evaluate-order-issues`, {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ triggered_by: "sync-mintsoft-orders" }),
+        });
+      } catch (e) { console.error("eval trigger failed:", e); }
+    }
 
+    const partial = earlyExit ? " (partial — run again to continue)" : "";
     return new Response(JSON.stringify({
       success: true,
+      partial: earlyExit,
       orders_fetched: allOrders.length,
       new_orders: newOrders.length,
       existing_orders_updated: existingOrders.length,
@@ -314,7 +331,7 @@ Deno.serve(async (req) => {
       lines_skipped: linesSkipped,
       products_created: productsCreated,
       statuses_queried: statusIdsToFetch.length,
-      message: `Synced ${allOrders.length} orders across ${statusIdsToFetch.length} statuses (${newOrders.length} new, ${existingOrders.length} updated)`,
+      message: `Synced ${allOrders.length} orders across ${statusIdsToFetch.length} statuses (${newOrders.length} new, ${existingOrders.length} updated)${partial}`,
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (error) {
     console.error("Orders sync error:", error);
