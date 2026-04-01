@@ -196,19 +196,32 @@ export default function OrderTable({
           <TableHeader>
             <TableRow>
               <TableHead className="w-2 p-0"></TableHead>
-              <TableHead className="w-20">Order</TableHead>
-              <TableHead className="w-16">Age</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>SKU</TableHead>
-              <TableHead>Product</TableHead>
-              <TableHead className="w-12 text-right">Qty</TableHead>
-              <TableHead>Problem</TableHead>
-              <TableHead>Severity</TableHead>
-              <TableHead>Reason</TableHead>
-              <TableHead>Issue</TableHead>
-              <TableHead>Assigned</TableHead>
-              <TableHead>Brand</TableHead>
-              <TableHead>Channel</TableHead>
+              {([
+                ["order", "Order", "w-20"],
+                ["age", "Age", "w-16"],
+                ["status", "Status", ""],
+                ["sku", "SKU", ""],
+                ["product", "Product", ""],
+                ["qty", "Qty", "w-12 text-right"],
+                ["problem", "Problem", ""],
+                ["severity", "Severity", ""],
+                ["reason", "Reason", ""],
+                ["issue", "Issue", ""],
+                ["assigned", "Assigned", ""],
+                ["brand", "Brand", ""],
+                ["channel", "Channel", ""],
+              ] as [SortKey, string, string][]).map(([key, label, cls]) => (
+                <TableHead
+                  key={key}
+                  className={`${cls} cursor-pointer select-none hover:text-foreground transition-colors`}
+                  onClick={() => toggleSort(key)}
+                >
+                  <span className="inline-flex items-center">
+                    {label}
+                    <SortIcon columnKey={key} sortKey={sortKey} sortDir={sortDir} />
+                  </span>
+                </TableHead>
+              ))}
             </TableRow>
           </TableHeader>
           <TableBody>
