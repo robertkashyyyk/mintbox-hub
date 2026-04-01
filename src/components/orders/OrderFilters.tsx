@@ -97,6 +97,37 @@ export default function OrderFilters({
         ))}
       </div>
 
+      {/* Status quick-filter chips */}
+      <div className="flex flex-wrap gap-1.5">
+        <span className="text-xs text-muted-foreground self-center mr-1">Status:</span>
+        {statusChips.map((status) => {
+          const isActive = filters.orderStatus === status;
+          const statusColors: Record<string, string> = {
+            New: "bg-blue-500/15 text-blue-400 border-blue-500/30",
+            "Awaiting Picking": "bg-amber-500/15 text-amber-400 border-amber-500/30",
+            "On Back Order": "bg-purple-500/15 text-purple-400 border-purple-500/30",
+            Despatched: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
+            Cancelled: "bg-muted text-muted-foreground border-border",
+          };
+          return (
+            <Badge
+              key={status}
+              variant="outline"
+              className={`cursor-pointer px-3 py-1 text-xs transition-colors ${
+                isActive
+                  ? statusColors[status] + " ring-1 ring-primary"
+                  : "hover:bg-accent"
+              }`}
+              onClick={() =>
+                updateFilter("orderStatus", isActive ? "" : status)
+              }
+            >
+              {status}
+            </Badge>
+          );
+        })}
+      </div>
+
       {/* Search + expand */}
       <div className="flex gap-2 items-center">
         <div className="relative flex-1 max-w-md">
