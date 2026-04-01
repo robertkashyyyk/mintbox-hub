@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import {
   Select,
@@ -16,8 +17,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { ChevronLeft, ChevronRight, AlertTriangle } from "lucide-react";
-import type { EnrichedOrderLine } from "@/hooks/useOrderTelemetry";
+import { ChevronLeft, ChevronRight, AlertTriangle, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
+import type { EnrichedOrderLine, SortKey, SortDir } from "@/hooks/useOrderTelemetry";
 
 interface OrderTableProps {
   lines: EnrichedOrderLine[];
@@ -28,6 +29,9 @@ interface OrderTableProps {
   totalPages: number;
   totalFiltered: number;
   onRowClick: (line: EnrichedOrderLine) => void;
+  sortKey: SortKey;
+  sortDir: SortDir;
+  toggleSort: (key: SortKey) => void;
 }
 
 function SeverityBar({ severity }: { severity: string }) {
@@ -130,6 +134,13 @@ function SkuSignal({ count }: { count: number }) {
   );
 }
 
+function SortIcon({ columnKey, sortKey, sortDir }: { columnKey: SortKey; sortKey: SortKey; sortDir: SortDir }) {
+  if (columnKey !== sortKey) return <ArrowUpDown className="h-3 w-3 ml-1 opacity-30" />;
+  return sortDir === "asc"
+    ? <ArrowUp className="h-3 w-3 ml-1 text-primary" />
+    : <ArrowDown className="h-3 w-3 ml-1 text-primary" />;
+}
+
 export default function OrderTable({
   lines,
   page,
@@ -139,6 +150,9 @@ export default function OrderTable({
   totalPages,
   totalFiltered,
   onRowClick,
+  sortKey,
+  sortDir,
+  toggleSort,
 }: OrderTableProps) {
   return (
     <div className="space-y-2">
@@ -182,19 +196,32 @@ export default function OrderTable({
           <TableHeader>
             <TableRow>
               <TableHead className="w-2 p-0"></TableHead>
-              <TableHead className="w-20">Order</TableHead>
-              <TableHead className="w-16">Age</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>SKU</TableHead>
-              <TableHead>Product</TableHead>
-              <TableHead className="w-12 text-right">Qty</TableHead>
-              <TableHead>Problem</TableHead>
-              <TableHead>Severity</TableHead>
-              <TableHead>Reason</TableHead>
-              <TableHead>Issue</TableHead>
-              <TableHead>Assigned</TableHead>
-              <TableHead>Brand</TableHead>
-              <TableHead>Channel</TableHead>
+              {([
+                ["order", "Order", "w-20"],
+                ["age", "Age", "w-16"],
+                ["status", "Status", ""],
+                ["sku", "SKU", ""],
+                ["product", "Product", ""],
+                ["qty", "Qty", "w-12 text-right"],
+                ["problem", "Problem", ""],
+                ["severity", "Severity", ""],
+                ["reason", "Reason", ""],
+                ["issue", "Issue", ""],
+                ["assigned", "Assigned", ""],
+                ["brand", "Brand", ""],
+                ["channel", "Channel", ""],
+              ] as [SortKey, string, string][]).map(([key, label, cls]) => (
+                <TableHead
+                  key={key}
+                  className={`${cls} cursor-pointer select-none hover:text-foreground transition-colors`}
+                  onClick={() => toggleSort(key)}
+                >
+                  <span className="inline-flex items-center">
+                    {label}
+                    <SortIcon columnKey={key} sortKey={sortKey} sortDir={sortDir} />
+                  </span>
+                </TableHead>
+              ))}
             </TableRow>
           </TableHeader>
           <TableBody>
