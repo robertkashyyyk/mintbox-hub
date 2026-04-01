@@ -2,8 +2,12 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.80.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
+
+const START_TIME = Date.now();
+const MAX_RUNTIME_MS = 50_000; // 50s safety margin (edge functions timeout at 60s)
+function isTimeRunningOut() { return Date.now() - START_TIME > MAX_RUNTIME_MS; }
 
 interface MintsoftOrder {
   ID: number;
