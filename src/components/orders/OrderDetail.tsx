@@ -242,7 +242,7 @@ export default function OrderDetail({ line, onClose }: OrderDetailProps) {
                 <div className="text-sm">
                   <p className="font-semibold text-blue-400">Suggested Action</p>
                   <p className="text-muted-foreground text-xs mt-0.5">
-                    {SUGGESTED_ACTIONS[line.issue.problem_type] || "Review order and take appropriate action."}
+                    {line.issue.suggested_action || SUGGESTED_ACTIONS[line.issue.problem_type] || "Review order and take appropriate action."}
                   </p>
                 </div>
               </div>
