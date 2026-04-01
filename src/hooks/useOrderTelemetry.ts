@@ -3,10 +3,10 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
 export type SavedView =
+  | "needs_action"
   | "all"
   | "problems"
   | "critical"
-  | "needs_action"
   | "repeated"
   | "new_12h"
   | "new_24h"
@@ -22,7 +22,6 @@ export interface OrderFiltersState {
   problemType: string;
   issueStatus: string;
   assignedTo: string;
-  // Toggles
   problemOnly: boolean;
   openOnly: boolean;
   criticalOnly: boolean;
@@ -30,7 +29,6 @@ export interface OrderFiltersState {
   newStuckOnly: boolean;
   unassignedOnly: boolean;
   stockIssueOnly: boolean;
-  // Saved view
   savedView: SavedView;
 }
 
@@ -51,7 +49,7 @@ const defaultFilters: OrderFiltersState = {
   newStuckOnly: false,
   unassignedOnly: false,
   stockIssueOnly: false,
-  savedView: "all",
+  savedView: "needs_action", // Default to Needs Action Now
 };
 
 export interface EnrichedOrderLine {
@@ -74,9 +72,9 @@ export interface EnrichedOrderLine {
   times_seen: number | null;
   last_status_change_at: string | null;
   brands: { name: string } | null;
-  // Derived
   age_hours: number;
-  // Joined issue data
+  status_age_hours: number;
+  sku_problem_count: number;
   issue?: {
     id: string;
     problem_type: string;
@@ -100,7 +98,6 @@ export function useOrderTelemetry() {
   const { data: orderLines, isLoading: isLoadingOrders, refetch: refetchOrders } = useQuery({
     queryKey: ["order-lines-telemetry"],
     queryFn: async () => {
-      // Supabase caps at 1000 rows per request — paginate to get all
       const PAGE_SIZE = 1000;
       let allData: any[] = [];
       let from = 0;
@@ -139,14 +136,27 @@ export function useOrderTelemetry() {
     },
   });
 
-  // Enrich order lines with issues and derived fields
+  // Build SKU problem count map
+  const skuProblemCountMap = useMemo(() => {
+    const map: Record<string, number> = {};
+    if (!orderIssues) return map;
+    for (const issue of orderIssues) {
+      if (issue.issue_status === "open" || issue.issue_status === "in_review") {
+        map[issue.sku] = (map[issue.sku] || 0) + 1;
+      }
+    }
+    return map;
+  }, [orderIssues]);
+
   const enrichedLines = useMemo((): EnrichedOrderLine[] => {
     if (!orderLines) return [];
 
     return orderLines.map((line: any) => {
       const ageHours = (Date.now() - new Date(line.order_date).getTime()) / (1000 * 60 * 60);
+      const statusAgeHours = line.last_status_change_at
+        ? (Date.now() - new Date(line.last_status_change_at).getTime()) / (1000 * 60 * 60)
+        : ageHours;
 
-      // Find the highest-severity open issue for this line
       const lineIssues = (orderIssues || [])
         .filter(
           (i: any) =>
@@ -163,6 +173,8 @@ export function useOrderTelemetry() {
       return {
         ...line,
         age_hours: Math.round(ageHours),
+        status_age_hours: Math.round(statusAgeHours),
+        sku_problem_count: skuProblemCountMap[line.sku] || 0,
         issue: topIssue
           ? {
               id: topIssue.id,
@@ -180,9 +192,8 @@ export function useOrderTelemetry() {
           : null,
       };
     });
-  }, [orderLines, orderIssues]);
+  }, [orderLines, orderIssues, skuProblemCountMap]);
 
-  // Apply saved view presets
   const applySavedView = (view: SavedView) => {
     const base = { ...defaultFilters, savedView: view };
     switch (view) {
@@ -193,8 +204,7 @@ export function useOrderTelemetry() {
         base.criticalOnly = true;
         break;
       case "needs_action":
-        base.problemOnly = true;
-        base.openOnly = true;
+        // Handled in filter logic below
         break;
       case "repeated":
         base.repeatedOnly = true;
@@ -213,15 +223,24 @@ export function useOrderTelemetry() {
     setPage(1);
   };
 
-  // Filter enriched lines
   const filteredLines = useMemo(() => {
     let result = enrichedLines;
 
-    // Search filter
+    // Needs Action Now — primary working view
+    if (filters.savedView === "needs_action") {
+      result = result.filter(
+        l =>
+          l.issue &&
+          !l.issue.is_suppressed &&
+          (l.issue.issue_status === "open" || l.issue.issue_status === "in_review") &&
+          (l.issue.severity === "problem" || l.issue.severity === "critical")
+      );
+    }
+
     if (filters.search) {
       const s = filters.search.toLowerCase();
       result = result.filter(
-        (l) =>
+        l =>
           l.mintsoft_order_id.toString().includes(s) ||
           l.sku.toLowerCase().includes(s) ||
           (l.channel_order_ref || "").toLowerCase().includes(s) ||
@@ -229,64 +248,63 @@ export function useOrderTelemetry() {
       );
     }
 
-    // Dropdown filters
-    if (filters.brand) result = result.filter((l) => l.brands?.name === filters.brand);
-    if (filters.channel) result = result.filter((l) => l.channel === filters.channel);
-    if (filters.warehouse) result = result.filter((l) => l.warehouse_id === filters.warehouse);
-    if (filters.orderStatus) result = result.filter((l) => l.order_status === filters.orderStatus);
-    if (filters.severity) result = result.filter((l) => l.issue?.severity === filters.severity);
-    if (filters.problemType) result = result.filter((l) => l.issue?.problem_type === filters.problemType);
-    if (filters.issueStatus) result = result.filter((l) => l.issue?.issue_status === filters.issueStatus);
-    if (filters.assignedTo) result = result.filter((l) => l.issue?.assigned_to === filters.assignedTo);
+    if (filters.brand) result = result.filter(l => l.brands?.name === filters.brand);
+    if (filters.channel) result = result.filter(l => l.channel === filters.channel);
+    if (filters.warehouse) result = result.filter(l => l.warehouse_id === filters.warehouse);
+    if (filters.orderStatus) result = result.filter(l => l.order_status === filters.orderStatus);
+    if (filters.severity) result = result.filter(l => l.issue?.severity === filters.severity);
+    if (filters.problemType) result = result.filter(l => l.issue?.problem_type === filters.problemType);
+    if (filters.issueStatus) result = result.filter(l => l.issue?.issue_status === filters.issueStatus);
+    if (filters.assignedTo) result = result.filter(l => l.issue?.assigned_to === filters.assignedTo);
 
-    // Toggle filters
-    if (filters.problemOnly) result = result.filter((l) => l.issue && l.issue.issue_status !== "auto_resolved" && l.issue.issue_status !== "resolved");
-    if (filters.openOnly) result = result.filter((l) => l.issue?.issue_status === "open" || l.issue?.issue_status === "in_review");
-    if (filters.criticalOnly) result = result.filter((l) => l.issue?.severity === "critical");
-    if (filters.repeatedOnly) result = result.filter((l) => l.issue?.problem_type === "repeated_snapshot");
-    if (filters.newStuckOnly) result = result.filter((l) => l.issue?.problem_type === "new_stuck");
-    if (filters.unassignedOnly) result = result.filter((l) => l.issue && !l.issue.assigned_to && (l.issue.issue_status === "open" || l.issue.issue_status === "in_review"));
-    if (filters.stockIssueOnly) result = result.filter((l) => l.issue?.problem_type === "stock_discrepancy_suspected");
+    if (filters.problemOnly) result = result.filter(l => l.issue && !["auto_resolved", "resolved"].includes(l.issue.issue_status));
+    if (filters.openOnly) result = result.filter(l => l.issue?.issue_status === "open" || l.issue?.issue_status === "in_review");
+    if (filters.criticalOnly) result = result.filter(l => l.issue?.severity === "critical");
+    if (filters.repeatedOnly) result = result.filter(l => l.issue?.problem_type === "repeated_snapshot");
+    if (filters.newStuckOnly) result = result.filter(l => l.issue?.problem_type === "new_stuck");
+    if (filters.unassignedOnly) result = result.filter(l => l.issue && !l.issue.assigned_to && (l.issue.issue_status === "open" || l.issue.issue_status === "in_review"));
+    if (filters.stockIssueOnly) result = result.filter(l => l.issue?.problem_type === "stock_discrepancy_suspected");
 
-    // Additional saved view logic
-    if (filters.savedView === "needs_action") {
-      result = result.filter(
-        (l) =>
-          l.issue &&
-          !l.issue.is_suppressed &&
-          (l.issue.issue_status === "open" || l.issue.issue_status === "in_review") &&
-          (l.issue.severity === "problem" || l.issue.severity === "critical")
-      );
-    }
     if (filters.savedView === "new_24h") {
-      result = result.filter((l) => l.issue?.problem_type === "new_stuck" && l.age_hours >= 24);
+      result = result.filter(l => l.issue?.problem_type === "new_stuck" && l.age_hours >= 24);
     }
+
+    // Default sort: severity desc, then age desc
+    result = [...result].sort((a, b) => {
+      const sevRank: Record<string, number> = { critical: 3, problem: 2, watch: 1 };
+      const aSev = a.issue ? (sevRank[a.issue.severity] || 0) : 0;
+      const bSev = b.issue ? (sevRank[b.issue.severity] || 0) : 0;
+      if (bSev !== aSev) return bSev - aSev;
+      return b.age_hours - a.age_hours;
+    });
 
     return result;
   }, [enrichedLines, filters]);
 
-  // Pagination
   const totalPages = Math.max(1, Math.ceil(filteredLines.length / pageSize));
   const paginatedLines = filteredLines.slice((page - 1) * pageSize, page * pageSize);
 
-  // Extract unique values for dropdown filters
   const filterOptions = useMemo(() => {
-    const brands = [...new Set(enrichedLines.map((l) => l.brands?.name).filter(Boolean))].sort();
-    const channels = [...new Set(enrichedLines.map((l) => l.channel).filter(Boolean))].sort();
-    const warehouses = [...new Set(enrichedLines.map((l) => l.warehouse_id).filter(Boolean))].sort();
-    const statuses = [...new Set(enrichedLines.map((l) => l.order_status).filter(Boolean))].sort();
+    const brands = [...new Set(enrichedLines.map(l => l.brands?.name).filter(Boolean))].sort();
+    const channels = [...new Set(enrichedLines.map(l => l.channel).filter(Boolean))].sort();
+    const warehouses = [...new Set(enrichedLines.map(l => l.warehouse_id).filter(Boolean))].sort();
+    const statuses = [...new Set(enrichedLines.map(l => l.order_status).filter(Boolean))].sort();
     return { brands, channels, warehouses, statuses };
   }, [enrichedLines]);
 
-  // Stats
   const stats = useMemo(() => {
-    const totalOrders = new Set(enrichedLines.map((l) => l.mintsoft_order_id)).size;
+    const totalOrders = new Set(enrichedLines.map(l => l.mintsoft_order_id)).size;
     const problemLines = enrichedLines.filter(
-      (l) => l.issue && l.issue.issue_status !== "auto_resolved" && l.issue.issue_status !== "resolved"
+      l => l.issue && !["auto_resolved", "resolved"].includes(l.issue.issue_status)
     );
-    const criticalLines = enrichedLines.filter((l) => l.issue?.severity === "critical");
+    const criticalLines = enrichedLines.filter(l => l.issue?.severity === "critical" && l.issue?.issue_status === "open");
     const openIssues = enrichedLines.filter(
-      (l) => l.issue?.issue_status === "open" || l.issue?.issue_status === "in_review"
+      l => (l.issue?.issue_status === "open" || l.issue?.issue_status === "in_review") && !l.issue?.is_suppressed
+    );
+    const needsAction = enrichedLines.filter(
+      l => l.issue && !l.issue.is_suppressed &&
+        (l.issue.issue_status === "open" || l.issue.issue_status === "in_review") &&
+        (l.issue.severity === "problem" || l.issue.severity === "critical")
     );
     return {
       totalLines: enrichedLines.length,
@@ -294,6 +312,7 @@ export function useOrderTelemetry() {
       problemCount: problemLines.length,
       criticalCount: criticalLines.length,
       openIssueCount: openIssues.length,
+      needsActionCount: needsAction.length,
     };
   }, [enrichedLines]);
 
