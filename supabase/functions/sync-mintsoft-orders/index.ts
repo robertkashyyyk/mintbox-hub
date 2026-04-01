@@ -185,7 +185,7 @@ Deno.serve(async (req) => {
             product_name: existing.product_name,
             last_seen_at: now,
             times_seen: (existing.times_seen || 1) + 1,
-            order_status: order.OrderStatus || null,
+            order_status: extractStatusName(order, statusLookup),
             order_status_id: order.OrderStatusId ?? null,
             customer_name: order.CustomerName || null,
           };
