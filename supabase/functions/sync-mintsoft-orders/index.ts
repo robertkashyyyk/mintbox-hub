@@ -117,7 +117,7 @@ Deno.serve(async (req) => {
       let statusTotal = 0;
 
       while (true) {
-        const ordersUrl = `${settings.base_url}/api/Order/List?OrderStatusId=${statusId}&Limit=250&PageNo=${pageNo}`;
+        const ordersUrl = `${settings.base_url}/api/Order/List?OrderStatusId=${statusId}&Limit=100&PageNo=${pageNo}`;
         console.log(`Fetching: ${ordersUrl}`);
 
         const ordersResponse = await fetch(ordersUrl, {
