@@ -117,7 +117,8 @@ Deno.serve(async (req) => {
 
         if (!ordersResponse.ok) {
           const errorBody = await ordersResponse.text();
-          console.error(`Mintsoft error for status ${statusId} page ${pageNo}: ${errorBody}`);
+          console.error(`Mintsoft error ${ordersResponse.status} for status ${statusId} page ${pageNo}: ${errorBody}`);
+          console.error(`URL was: ${ordersUrl}`);
           break;
         }
 
