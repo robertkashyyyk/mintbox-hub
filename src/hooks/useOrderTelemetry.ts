@@ -196,6 +196,7 @@ export function useOrderTelemetry() {
               internal_notes: topIssue.internal_notes,
               first_problem_seen_at: topIssue.first_problem_seen_at,
               last_problem_seen_at: topIssue.last_problem_seen_at,
+              suggested_action: topIssue.suggested_action || null,
             }
           : null,
       };
