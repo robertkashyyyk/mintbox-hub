@@ -102,6 +102,8 @@ export function useOrderTelemetry() {
 
   const { data: orderLines, isLoading: isLoadingOrders, refetch: refetchOrders } = useQuery({
     queryKey: ["order-lines-telemetry"],
+    refetchOnWindowFocus: true,
+    staleTime: 30_000,
     queryFn: async () => {
       const PAGE_SIZE = 1000;
       let allData: any[] = [];
