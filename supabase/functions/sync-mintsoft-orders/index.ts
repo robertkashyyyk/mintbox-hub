@@ -78,13 +78,45 @@ Deno.serve(async (req) => {
     const mintsoftApiKey = Deno.env.get("MINTSOFT_API_KEY");
     if (!mintsoftApiKey) throw new Error("MINTSOFT_API_KEY not configured");
 
+    const MIN_DATE = new Date('2026-01-01T00:00:00Z');
+    let isBackfill = false;
     let fromDate: string;
-    try { const body = await req.json(); fromDate = body.fromDate; } catch {
+    let backfillLimit = 0;
+    try {
+      const body = await req.json();
+      fromDate = body.fromDate;
+      isBackfill = body.backfill === true;
+      backfillLimit = body.backfillLimit || 50;
+    } catch {
       const d = new Date(); d.setDate(d.getDate() - 7);
       fromDate = d.toISOString().split('T')[0];
     }
-    const fromDateObj = new Date(`${fromDate}T00:00:00Z`);
-    console.log(`Filtering orders since ${fromDate}`);
+
+    // Backfill mode: read cursor from ingest_run_state, work backward
+    if (isBackfill) {
+      const { data: cursorRow } = await supabase
+        .from("ingest_run_state")
+        .select("last_status")
+        .eq("id", "order_backfill_cursor")
+        .single();
+
+      const cursorDate = cursorRow?.last_status ? new Date(cursorRow.last_status) : new Date();
+      if (cursorDate <= MIN_DATE) {
+        console.log("Backfill complete — cursor has reached 2026-01-01");
+        return new Response(JSON.stringify({ success: true, backfill_complete: true, message: "Backfill already complete" }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      // Go back 6 hours per run
+      const backfillFrom = new Date(cursorDate.getTime() - 6 * 60 * 60 * 1000);
+      const clampedFrom = backfillFrom < MIN_DATE ? MIN_DATE : backfillFrom;
+      fromDate = clampedFrom.toISOString().split('T')[0];
+      console.log(`Backfill mode: ${clampedFrom.toISOString()} → ${cursorDate.toISOString()} (limit ${backfillLimit})`);
+    }
+
+    let fromDateObj = new Date(`${fromDate}T00:00:00Z`);
+    // Enforce hard boundary
+    if (fromDateObj < MIN_DATE) fromDateObj = MIN_DATE;
+    console.log(`Filtering orders since ${fromDateObj.toISOString().split('T')[0]}`);
 
     const { data: brands, error: brandsError } = await supabase.from("brands").select("id, prefix, prefix_style");
     if (brandsError) throw brandsError;
