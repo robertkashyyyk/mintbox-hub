@@ -1,0 +1,1 @@
+ALTER TABLE public.products_cache ADD COLUMN quarantined boolean NOT NULL DEFAULT false;

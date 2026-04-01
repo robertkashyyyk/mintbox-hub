@@ -1356,6 +1356,7 @@ export type Database = {
           ph_plain_best_seller: string | null
           ph_search_term: string | null
           ph_status: string | null
+          quarantined: boolean
           sku: string
           suppliers: string | null
           updated_at: string | null
@@ -1398,6 +1399,7 @@ export type Database = {
           ph_plain_best_seller?: string | null
           ph_search_term?: string | null
           ph_status?: string | null
+          quarantined?: boolean
           sku: string
           suppliers?: string | null
           updated_at?: string | null
@@ -1440,6 +1442,7 @@ export type Database = {
           ph_plain_best_seller?: string | null
           ph_search_term?: string | null
           ph_status?: string | null
+          quarantined?: boolean
           sku?: string
           suppliers?: string | null
           updated_at?: string | null
