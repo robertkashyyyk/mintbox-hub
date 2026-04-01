@@ -80,6 +80,7 @@ Deno.serve(async (req) => {
     console.log(`Using dispatched status IDs: ${dispatchedStatusIds.join(', ')}`);
 
     const mintsoftApiKey = Deno.env.get("MINTSOFT_API_KEY");
+    console.log(`API key length: ${mintsoftApiKey?.length}, starts with: ${mintsoftApiKey?.substring(0, 4)}`);
     if (!mintsoftApiKey) throw new Error("MINTSOFT_API_KEY not configured");
 
     // Parse request body for optional fromDate
