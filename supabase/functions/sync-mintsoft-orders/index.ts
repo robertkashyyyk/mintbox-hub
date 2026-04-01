@@ -93,19 +93,27 @@ Deno.serve(async (req) => {
     // 2. Find which orders we already have lines for
     const orderIds = [...new Set(allOrders.map(o => o.ID))];
     const knownOrderIds = new Set<number>();
-    const existingLineMap = new Map<string, { order_status_id: number | null; times_seen: number }>();
+    const existingLineMap = new Map<string, { order_status_id: number | null; times_seen: number; sku: string; qty: number; order_date: string; channel: string | null; channel_order_ref: string | null; warehouse_id: string | null; brand_id: string | null; product_name: string | null }>();
     
     for (let i = 0; i < orderIds.length; i += 500) {
       const batch = orderIds.slice(i, i + 500);
       const { data: existing } = await supabase
         .from("order_lines")
-        .select("mintsoft_order_id, line_index, order_status_id, times_seen")
+        .select("mintsoft_order_id, line_index, order_status_id, times_seen, sku, qty, order_date, channel, channel_order_ref, warehouse_id, brand_id, product_name")
         .in("mintsoft_order_id", batch);
       for (const line of existing || []) {
         knownOrderIds.add(line.mintsoft_order_id);
         existingLineMap.set(`${line.mintsoft_order_id}-${line.line_index}`, {
           order_status_id: line.order_status_id,
           times_seen: line.times_seen || 1,
+          sku: line.sku,
+          qty: line.qty,
+          order_date: line.order_date,
+          channel: line.channel,
+          channel_order_ref: line.channel_order_ref,
+          warehouse_id: line.warehouse_id,
+          brand_id: line.brand_id,
+          product_name: line.product_name,
         });
       }
     }
