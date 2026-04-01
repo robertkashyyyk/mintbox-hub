@@ -37,6 +37,12 @@ function resolveBrandFromSKU(sku: string, brands: Brand[]): string | null {
   return null;
 }
 
+// A "clean" SKU has 2-4 alpha chars followed by - or /
+// Anything else is a "dirty" SKU that gets quarantined
+function isDirtySku(sku: string): boolean {
+  return !/^[A-Za-z]{2,4}[-\/]/.test(sku);
+}
+
 async function fetchOrderItems(baseUrl: string, apiKey: string, orderId: number): Promise<MintsoftOrderItem[]> {
   const resp = await fetch(`${baseUrl}/api/Order/${orderId}/Items`, {
     headers: { "ms-apikey": apiKey, "Content-Type": "application/json" },
