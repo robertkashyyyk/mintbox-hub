@@ -45,6 +45,8 @@ const toggleChips: { key: keyof OrderFiltersState; label: string }[] = [
   { key: "stockIssueOnly", label: "Likely Stock Issue" },
 ];
 
+const statusChips = ["New", "Awaiting Picking", "On Back Order", "Despatched", "Cancelled"];
+
 export default function OrderFilters({
   filters,
   setFilters,
