@@ -309,15 +309,13 @@ Deno.serve(async (req) => {
 
     console.log(`Done. Lines: ${linesInserted}, Skipped: ${linesSkipped}, Products: ${productsCreated}`);
 
-    // Only trigger issue evaluation if we didn't time out
+    // Fire-and-forget: trigger issue evaluation without awaiting (prevents sync timeout)
     if (!earlyExit) {
-      try {
-        await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/evaluate-order-issues`, {
-          method: "POST",
-          headers: { "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ triggered_by: "sync-mintsoft-orders" }),
-        });
-      } catch (e) { console.error("eval trigger failed:", e); }
+      fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/evaluate-order-issues`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ triggered_by: "sync-mintsoft-orders" }),
+      }).catch(e => console.error("eval trigger failed:", e));
     }
 
     const partial = earlyExit ? " (partial — run again to continue)" : "";
