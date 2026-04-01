@@ -122,12 +122,20 @@ export function useOrderTelemetry() {
   const { data: orderIssues, isLoading: isLoadingIssues, refetch: refetchIssues } = useQuery({
     queryKey: ["order-issues"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("order_issues")
-        .select("*")
-        .limit(5000);
-      if (error) throw error;
-      return data;
+      const PAGE_SIZE = 1000;
+      let allData: any[] = [];
+      let from = 0;
+      while (true) {
+        const { data, error } = await supabase
+          .from("order_issues")
+          .select("*")
+          .range(from, from + PAGE_SIZE - 1);
+        if (error) throw error;
+        allData = allData.concat(data || []);
+        if (!data || data.length < PAGE_SIZE) break;
+        from += PAGE_SIZE;
+      }
+      return allData;
     },
   });
 
