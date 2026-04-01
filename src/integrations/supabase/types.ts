@@ -714,6 +714,7 @@ export type Database = {
           resolved_at: string | null
           severity: string
           sku: string
+          suggested_action: string | null
           suppressed_until: string | null
           suppression_reason: string | null
           updated_at: string
@@ -736,6 +737,7 @@ export type Database = {
           resolved_at?: string | null
           severity?: string
           sku: string
+          suggested_action?: string | null
           suppressed_until?: string | null
           suppression_reason?: string | null
           updated_at?: string
@@ -758,6 +760,7 @@ export type Database = {
           resolved_at?: string | null
           severity?: string
           sku?: string
+          suggested_action?: string | null
           suppressed_until?: string | null
           suppression_reason?: string | null
           updated_at?: string
