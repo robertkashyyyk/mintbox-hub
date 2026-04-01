@@ -86,19 +86,35 @@ const SalesOrders = () => {
 
   const syncMutation = useMutation({
     mutationFn: async () => {
-      const { data, error } = await supabase.functions.invoke("sync-mintsoft-orders", {
-        body: {
-          fromDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
-        },
-      });
-      if (error) throw error;
-      return data;
+      const fromDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+      let totalLines = 0;
+      let totalProducts = 0;
+      let runs = 0;
+      const MAX_RUNS = 5;
+      
+      while (runs < MAX_RUNS) {
+        runs++;
+        const { data, error } = await supabase.functions.invoke("sync-mintsoft-orders", {
+          body: { fromDate },
+        });
+        if (error) throw error;
+        totalLines += data.lines_inserted || 0;
+        totalProducts += data.products_created || 0;
+        
+        if (!data.partial) {
+          return { ...data, lines_inserted: totalLines, products_created: totalProducts, runs };
+        }
+        // Partial result — run again to continue
+        toast({ title: `Sync pass ${runs} complete`, description: `${totalLines} lines so far, continuing...` });
+      }
+      return { orders_fetched: 0, statuses_queried: 0, lines_inserted: totalLines, products_created: totalProducts, runs, partial: true };
     },
     onSuccess: (data) => {
       const msg = data.products_created > 0 ? ` ${data.products_created} new products discovered.` : "";
+      const partial = data.partial ? " (may need another sync for remaining orders)" : "";
       toast({
         title: "Sync Complete",
-        description: `Synced ${data.orders_fetched} orders across ${data.statuses_queried || "?"} statuses. ${data.lines_inserted} lines.${msg}`,
+        description: `${data.lines_inserted} lines synced in ${data.runs} pass(es).${msg}${partial}`,
       });
       refetch();
     },
