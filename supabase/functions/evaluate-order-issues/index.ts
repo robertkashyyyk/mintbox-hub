@@ -140,7 +140,7 @@ Deno.serve(async (req) => {
     }
 
     // 2. Cancelled orders
-    const cancelledLines = orderLines.filter((l) => isTerminalStatus(l.order_status));
+    const cancelledLines = orderLines.filter((l) => isTerminalStatus(l.order_status, l.order_status_id, dispatchedStatusIds));
     for (const line of cancelledLines) {
       const resType = line.order_status?.toLowerCase().includes("cancel") ? "cancelled" : "condition_cleared";
       await supabase
