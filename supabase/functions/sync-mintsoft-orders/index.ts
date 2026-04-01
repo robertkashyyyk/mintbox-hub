@@ -58,35 +58,6 @@ async function fetchOrderItems(
   return await response.json();
 }
 
-// Fetch items for multiple orders with concurrency control
-async function fetchItemsBatch(
-  baseUrl: string,
-  apiKey: string,
-  orders: MintsoftOrder[],
-  concurrency: number = 5
-): Promise<Map<number, MintsoftOrderItem[]>> {
-  const results = new Map<number, MintsoftOrderItem[]>();
-  
-  for (let i = 0; i < orders.length; i += concurrency) {
-    const batch = orders.slice(i, i + concurrency);
-    const promises = batch.map(async (order) => {
-      const items = await fetchOrderItems(baseUrl, apiKey, order.ID);
-      return { orderId: order.ID, items };
-    });
-    
-    const batchResults = await Promise.all(promises);
-    for (const { orderId, items } of batchResults) {
-      results.set(orderId, items);
-    }
-    
-    if (i % 50 === 0 && i > 0) {
-      console.log(`Fetched items for ${i}/${orders.length} orders...`);
-    }
-  }
-  
-  return results;
-}
-
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -114,7 +85,6 @@ Deno.serve(async (req) => {
     const mintsoftApiKey = Deno.env.get("MINTSOFT_API_KEY");
     if (!mintsoftApiKey) throw new Error("MINTSOFT_API_KEY not configured");
 
-    // Parse request body for optional fromDate — default to 7 days ago
     let fromDate: string;
     try {
       const body = await req.json();
@@ -137,7 +107,7 @@ Deno.serve(async (req) => {
       throw new Error("No brands found for SKU resolution");
     }
 
-    // Fetch orders from Mintsoft — increased page cap to 50
+    // Fetch all order headers first (this is fast)
     let allOrders: MintsoftOrder[] = [];
 
     for (const statusId of dispatchedStatusIds) {
@@ -146,14 +116,10 @@ Deno.serve(async (req) => {
 
       while (true) {
         const ordersUrl = `${settings.base_url}/api/Order/List?OrderStatusId=${statusId}&Limit=100&PageNo=${pageNo}`;
-        console.log(`Fetching: ${ordersUrl}`);
-
         const ordersResponse = await fetch(ordersUrl, {
           method: "GET",
           headers: { "ms-apikey": mintsoftApiKey, "Content-Type": "application/json" },
         });
-
-        console.log(`Response status: ${ordersResponse.status}`);
 
         if (!ordersResponse.ok) {
           const errorBody = await ordersResponse.text();
@@ -164,155 +130,162 @@ Deno.serve(async (req) => {
         const orders: MintsoftOrder[] = await ordersResponse.json();
         const filteredOrders = orders.filter(o => new Date(o.OrderDate) >= fromDateObj);
 
-        console.log(`Page ${pageNo}: ${orders.length} orders, ${filteredOrders.length} after date filter (status ${statusId})`);
-
         if (orders.length === 0) break;
 
         allOrders = allOrders.concat(filteredOrders);
         statusTotal += filteredOrders.length;
 
-        // If no orders pass the date filter, we've gone past our date window
         if (filteredOrders.length === 0) {
           console.log(`No orders in date range on page ${pageNo}, stopping status ${statusId}`);
           break;
         }
 
         if (orders.length < 100) break;
-        if (pageNo >= 50) {
-          console.log(`Reached page cap (50) for status ${statusId}, stopping`);
-          break;
-        }
+        if (pageNo >= 50) break;
         pageNo++;
       }
-
-      console.log(`Status ${statusId} total: ${statusTotal} orders across ${pageNo} page(s)`);
+      console.log(`Status ${statusId}: ${statusTotal} orders across ${pageNo} page(s)`);
     }
 
     console.log(`Total orders to process: ${allOrders.length}`);
 
-    // Batch-fetch all order items with concurrency of 10
-    console.log("Fetching order items in parallel batches...");
-    const orderItemsMap = await fetchItemsBatch(settings.base_url, mintsoftApiKey, allOrders, 10);
-    console.log(`Fetched items for ${orderItemsMap.size} orders`);
-
-    // Pre-fetch existing order lines for status change detection (batch query)
+    // Pre-fetch existing order lines for status change detection
     const orderIds = [...new Set(allOrders.map(o => o.ID))];
-    const { data: existingLines } = await supabase
-      .from("order_lines")
-      .select("mintsoft_order_id, line_index, order_status_id, times_seen")
-      .in("mintsoft_order_id", orderIds);
-
+    
+    // Batch the .in() query to avoid URL length limits
     const existingLineMap = new Map<string, { order_status_id: number | null; times_seen: number }>();
-    for (const line of existingLines || []) {
-      existingLineMap.set(`${line.mintsoft_order_id}-${line.line_index}`, {
-        order_status_id: line.order_status_id,
-        times_seen: line.times_seen || 1,
-      });
+    for (let i = 0; i < orderIds.length; i += 500) {
+      const batch = orderIds.slice(i, i + 500);
+      const { data: existingLines } = await supabase
+        .from("order_lines")
+        .select("mintsoft_order_id, line_index, order_status_id, times_seen")
+        .in("mintsoft_order_id", batch);
+
+      for (const line of existingLines || []) {
+        existingLineMap.set(`${line.mintsoft_order_id}-${line.line_index}`, {
+          order_status_id: line.order_status_id,
+          times_seen: line.times_seen || 1,
+        });
+      }
     }
 
     let linesProcessed = 0;
     let linesInserted = 0;
     let linesSkipped = 0;
     let productsCreated = 0;
-
-    // Build all upsert payloads in memory, then batch-upsert
-    const upsertPayloads: Record<string, unknown>[] = [];
-    const newSkus: { sku: string; brand_id: string }[] = [];
     const now = new Date().toISOString();
 
-    for (const order of allOrders) {
-      const items = orderItemsMap.get(order.ID) || [];
-      let lineIndex = 1;
+    // Process orders in chunks of 50 — fetch items + upsert progressively
+    const CHUNK_SIZE = 50;
+    const CONCURRENCY = 10;
 
-      for (const item of items) {
-        linesProcessed++;
+    for (let chunkStart = 0; chunkStart < allOrders.length; chunkStart += CHUNK_SIZE) {
+      const chunk = allOrders.slice(chunkStart, chunkStart + CHUNK_SIZE);
+      
+      // Fetch items for this chunk in parallel
+      const itemsMap = new Map<number, MintsoftOrderItem[]>();
+      for (let i = 0; i < chunk.length; i += CONCURRENCY) {
+        const batch = chunk.slice(i, i + CONCURRENCY);
+        const promises = batch.map(async (order) => {
+          const items = await fetchOrderItems(settings.base_url, mintsoftApiKey, order.ID);
+          return { orderId: order.ID, items };
+        });
+        const results = await Promise.all(promises);
+        for (const { orderId, items } of results) {
+          itemsMap.set(orderId, items);
+        }
+      }
 
-        const brandId = resolveBrandFromSKU(item.SKU, brands);
-        if (!brandId) {
-          linesSkipped++;
+      // Build upsert payloads for this chunk
+      const upsertPayloads: Record<string, unknown>[] = [];
+      const newSkus: { sku: string; brand_id: string }[] = [];
+
+      for (const order of chunk) {
+        const items = itemsMap.get(order.ID) || [];
+        let lineIndex = 1;
+
+        for (const item of items) {
+          linesProcessed++;
+          const brandId = resolveBrandFromSKU(item.SKU, brands);
+          if (!brandId) { linesSkipped++; lineIndex++; continue; }
+
+          newSkus.push({ sku: item.SKU, brand_id: brandId });
+
+          const key = `${order.ID}-${lineIndex}`;
+          const existing = existingLineMap.get(key);
+          const statusChanged = existing && existing.order_status_id !== (order.OrderStatusId ?? null);
+          const currentTimesSeen = existing ? (existing.times_seen || 1) + 1 : 1;
+
+          const payload: Record<string, unknown> = {
+            mintsoft_order_id: order.ID,
+            line_index: lineIndex,
+            sku: item.SKU,
+            qty: item.Quantity,
+            order_date: order.OrderDate,
+            channel: order.Channel?.Name || null,
+            channel_order_ref: order.ExternalOrderReference || null,
+            warehouse_id: order.WarehouseId?.toString() || null,
+            brand_id: brandId,
+            order_status: order.OrderStatus || null,
+            order_status_id: order.OrderStatusId ?? null,
+            product_name: item.Name || null,
+            customer_name: order.CustomerName || null,
+            last_seen_at: now,
+            times_seen: currentTimesSeen,
+          };
+
+          if (statusChanged) payload.last_status_change_at = now;
+          if (!existing) {
+            payload.first_seen_at = now;
+            payload.last_status_change_at = now;
+          }
+
+          upsertPayloads.push(payload);
           lineIndex++;
-          continue;
         }
-
-        // Track new SKUs for auto-creation
-        newSkus.push({ sku: item.SKU, brand_id: brandId });
-
-        const key = `${order.ID}-${lineIndex}`;
-        const existing = existingLineMap.get(key);
-        const statusChanged = existing && existing.order_status_id !== (order.OrderStatusId ?? null);
-        const currentTimesSeen = existing ? (existing.times_seen || 1) + 1 : 1;
-
-        const payload: Record<string, unknown> = {
-          mintsoft_order_id: order.ID,
-          line_index: lineIndex,
-          sku: item.SKU,
-          qty: item.Quantity,
-          order_date: order.OrderDate,
-          channel: order.Channel?.Name || null,
-          channel_order_ref: order.ExternalOrderReference || null,
-          warehouse_id: order.WarehouseId?.toString() || null,
-          brand_id: brandId,
-          order_status: order.OrderStatus || null,
-          order_status_id: order.OrderStatusId ?? null,
-          product_name: item.Name || null,
-          customer_name: order.CustomerName || null,
-          last_seen_at: now,
-          times_seen: currentTimesSeen,
-        };
-
-        if (statusChanged) {
-          payload.last_status_change_at = now;
-        }
-
-        if (!existing) {
-          payload.first_seen_at = now;
-          payload.last_status_change_at = now;
-        }
-
-        upsertPayloads.push(payload);
-        lineIndex++;
       }
-    }
 
-    // Batch auto-create products (deduplicated)
-    const uniqueSkus = [...new Map(newSkus.map(s => [s.sku, s])).values()];
-    const { data: existingProducts } = await supabase
-      .from("products_cache")
-      .select("sku")
-      .in("sku", uniqueSkus.map(s => s.sku));
-
-    const existingSkuSet = new Set((existingProducts || []).map(p => p.sku));
-    const newProducts = uniqueSkus
-      .filter(s => !existingSkuSet.has(s.sku))
-      .map(s => ({ sku: s.sku, name: s.sku, brand_id: s.brand_id, discovery_source: 'order' }));
-
-    if (newProducts.length > 0) {
-      for (let i = 0; i < newProducts.length; i += 500) {
-        const batch = newProducts.slice(i, i + 500);
-        const { error: prodErr } = await supabase
+      // Auto-create products for this chunk
+      const uniqueSkus = [...new Map(newSkus.map(s => [s.sku, s])).values()];
+      if (uniqueSkus.length > 0) {
+        const { data: existingProducts } = await supabase
           .from("products_cache")
-          .upsert(batch, { onConflict: 'sku', ignoreDuplicates: true });
-        if (prodErr) console.error("Product upsert error:", prodErr);
-        else productsCreated += batch.length;
+          .select("sku")
+          .in("sku", uniqueSkus.map(s => s.sku));
+
+        const existingSkuSet = new Set((existingProducts || []).map(p => p.sku));
+        const newProducts = uniqueSkus
+          .filter(s => !existingSkuSet.has(s.sku))
+          .map(s => ({ sku: s.sku, name: s.sku, brand_id: s.brand_id, discovery_source: 'order' }));
+
+        if (newProducts.length > 0) {
+          const { error: prodErr } = await supabase
+            .from("products_cache")
+            .upsert(newProducts, { onConflict: 'sku', ignoreDuplicates: true });
+          if (prodErr) console.error("Product upsert error:", prodErr);
+          else productsCreated += newProducts.length;
+        }
       }
-      console.log(`Auto-created ${productsCreated} products`);
+
+      // Upsert order lines for this chunk
+      if (upsertPayloads.length > 0) {
+        const { error: upsertError } = await supabase
+          .from("order_lines")
+          .upsert(upsertPayloads, { onConflict: "mintsoft_order_id,line_index" });
+
+        if (upsertError) {
+          console.error(`Upsert error at chunk ${chunkStart}:`, upsertError);
+        } else {
+          linesInserted += upsertPayloads.length;
+        }
+      }
+
+      if ((chunkStart + CHUNK_SIZE) % 200 === 0 || chunkStart + CHUNK_SIZE >= allOrders.length) {
+        console.log(`Progress: ${Math.min(chunkStart + CHUNK_SIZE, allOrders.length)}/${allOrders.length} orders, ${linesInserted} lines saved`);
+      }
     }
 
-    // Batch upsert order lines in chunks of 500
-    for (let i = 0; i < upsertPayloads.length; i += 500) {
-      const batch = upsertPayloads.slice(i, i + 500);
-      const { error: upsertError } = await supabase
-        .from("order_lines")
-        .upsert(batch, { onConflict: "mintsoft_order_id,line_index" });
-
-      if (upsertError) {
-        console.error(`Error upserting batch ${Math.floor(i / 500) + 1}:`, upsertError);
-      } else {
-        linesInserted += batch.length;
-      }
-    }
-
-    console.log(`Sync complete. Processed: ${linesProcessed}, Inserted: ${linesInserted}, Skipped: ${linesSkipped}, Products created: ${productsCreated}`);
+    console.log(`Sync complete. Processed: ${linesProcessed}, Inserted: ${linesInserted}, Skipped: ${linesSkipped}, Products: ${productsCreated}`);
 
     // Trigger evaluate-order-issues
     try {
@@ -339,7 +312,7 @@ Deno.serve(async (req) => {
         lines_skipped: linesSkipped,
         products_created: productsCreated,
         status_ids_used: dispatchedStatusIds,
-        message: `Synced ${allOrders.length} orders with ${linesInserted} lines using status IDs: ${dispatchedStatusIds.join(', ')}`,
+        message: `Synced ${allOrders.length} orders with ${linesInserted} lines`,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
