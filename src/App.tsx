@@ -180,9 +180,12 @@ const App = () => (
 
             {/* Operations Sub-Routes */}
             <Route path="/operations/dashboard" element={<OpsDashboard />} />
+            <Route path="/operations/order-telemetry" element={<SalesOrders />} />
             <Route path="/operations/reports" element={<OpsReports />} />
             <Route path="/operations/monitoring" element={<OrderMonitoring />} />
             <Route path="/operations/order-monitoring" element={<Navigate to="/operations/monitoring" replace />} />
+            {/* Legacy redirect: Order Telemetry was under Discovery */}
+            <Route path="/discovery/order-telemetry" element={<Navigate to="/operations/order-telemetry" replace />} />
 
             {/* Dashboards Sub-Routes */}
             <Route path="/dashboards/warehouse" element={<WarehousePerformance />} />
