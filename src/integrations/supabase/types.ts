@@ -791,6 +791,7 @@ export type Database = {
           customer_name: string | null
           first_seen_at: string | null
           id: number
+          last_backordered_at: string | null
           last_seen_at: string | null
           last_status_change_at: string | null
           line_index: number
@@ -804,6 +805,7 @@ export type Database = {
           times_seen: number | null
           updated_at: string
           warehouse_id: string | null
+          was_backordered: boolean
         }
         Insert: {
           brand_id?: string | null
@@ -813,6 +815,7 @@ export type Database = {
           customer_name?: string | null
           first_seen_at?: string | null
           id?: number
+          last_backordered_at?: string | null
           last_seen_at?: string | null
           last_status_change_at?: string | null
           line_index: number
@@ -826,6 +829,7 @@ export type Database = {
           times_seen?: number | null
           updated_at?: string
           warehouse_id?: string | null
+          was_backordered?: boolean
         }
         Update: {
           brand_id?: string | null
@@ -835,6 +839,7 @@ export type Database = {
           customer_name?: string | null
           first_seen_at?: string | null
           id?: number
+          last_backordered_at?: string | null
           last_seen_at?: string | null
           last_status_change_at?: string | null
           line_index?: number
@@ -848,6 +853,7 @@ export type Database = {
           times_seen?: number | null
           updated_at?: string
           warehouse_id?: string | null
+          was_backordered?: boolean
         }
         Relationships: [
           {

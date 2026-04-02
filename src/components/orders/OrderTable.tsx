@@ -254,7 +254,17 @@ export default function OrderTable({
                       {line.age_hours}h
                     </span>
                   </TableCell>
-                  <TableCell><OrderStatusBadge status={line.order_status} /></TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      <OrderStatusBadge status={line.order_status} />
+                      {(line as any).was_backordered && (line as any).last_backordered_at &&
+                        (Date.now() - new Date((line as any).last_backordered_at).getTime()) < 24 * 3600000 && (
+                        <Badge variant="outline" className="text-[10px] px-1 py-0 bg-purple-500/10 text-purple-400 border-purple-500/20">
+                          Recovered from BO
+                        </Badge>
+                      )}
+                    </div>
+                  </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1">
                       <span className="font-mono text-xs">{line.sku}</span>

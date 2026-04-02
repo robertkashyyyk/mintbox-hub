@@ -85,14 +85,14 @@ Deno.serve(async (req) => {
       .lt("suppressed_until", now)
       .eq("is_suppressed", true);
 
-    // Fetch order lines from last 14 days (paginated)
+  // Fetch order lines from last 14 days (paginated)
     const lookback = new Date(Date.now() - 14 * 86_400_000).toISOString();
-    let orderLines: OrderLine[] = [];
+    let orderLines: (OrderLine & { was_backordered?: boolean; last_backordered_at?: string | null })[] = [];
     let from = 0;
     while (true) {
       const { data, error } = await supabase
         .from("order_lines")
-        .select("mintsoft_order_id, line_index, sku, brand_id, order_date, order_status, order_status_id, first_seen_at, last_seen_at, times_seen, last_status_change_at")
+        .select("mintsoft_order_id, line_index, sku, brand_id, order_date, order_status, order_status_id, first_seen_at, last_seen_at, times_seen, last_status_change_at, was_backordered, last_backordered_at")
         .gte("order_date", lookback)
         .range(from, from + 999);
       if (error) throw error;
@@ -158,9 +158,10 @@ Deno.serve(async (req) => {
       const timesSeen = line.times_seen || 1;
       const recentChange = statusAge < 8;
 
-      // Rule 1: New Stuck
-      if (isNewStatus(line.order_status) && !recentChange) {
-        const sev = getSeverity(orderAge, [4, 12, 24]);
+      // Rule 1: New Stuck (with backorder grace period)
+      const recentlyRecoveredFromBO = line.was_backordered && line.last_backordered_at && hoursAgo(line.last_backordered_at) < 8;
+      if (isNewStatus(line.order_status) && !recentChange && !recentlyRecoveredFromBO) {
+        const sev = getSeverity(orderAge, [24, 36, 48]);
         if (sev) {
           candidates.push({
             mintsoft_order_id: line.mintsoft_order_id, line_index: line.line_index,
