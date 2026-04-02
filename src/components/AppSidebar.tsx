@@ -78,7 +78,6 @@ export function AppSidebar() {
         { title: "Products", url: "/discovery/products", icon: Database },
         { title: "Brands", url: "/discovery/brands", icon: Tag },
         { title: "Discovery Queue", url: "/discovery/discovery-queue", icon: AlertCircle },
-        { title: "Order Telemetry", url: "/discovery/order-telemetry", icon: Activity, superOnly: true },
         { title: "Feed Imports", url: "/discovery/feed-imports", icon: FileText },
         { title: "Bulk Image Upload", url: "/discovery/bulk-images", icon: Images },
         { title: "Pending Images", url: "/discovery/pending-images", icon: Clock },
@@ -126,6 +125,7 @@ export function AppSidebar() {
       requireSenior: true,
       items: [
         { title: "Dashboard", url: "/operations/dashboard", icon: LayoutDashboard },
+        { title: "Order Telemetry", url: "/operations/order-telemetry", icon: Activity, superOnly: true },
         { title: "Reports", url: "/operations/reports", icon: FileText, superOnly: true },
         { title: "Monitoring", url: "/operations/monitoring", icon: Activity },
       ],

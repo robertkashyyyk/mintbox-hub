@@ -30,6 +30,7 @@ const MainMenu = () => {
     { title: "Decisions", description: "AI-driven buying, pricing and liquidation recommendations.", icon: Sparkles, path: "/decisions", show: isSeniorUser || isSuperUser },
     { title: "Execution", description: "Execute purchase, pricing and listing actions.", icon: PlayCircle, path: "/execution", show: isSeniorUser || isSuperUser },
     { title: "Operations", description: "Order monitoring, sync status, and system health.", icon: Activity, path: "/operations", show: isSeniorUser || isSuperUser },
+    { title: "Dashboards", description: "Warehouse performance, packing area and weekly summary.", icon: BarChart3, path: "/dashboards", show: isSeniorUser || isSuperUser },
     { title: "Administration", description: "User management, API keys and billing.", icon: Users, path: "/admin", show: isSuperUser },
   ];
 

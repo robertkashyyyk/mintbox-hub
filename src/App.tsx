@@ -142,7 +142,6 @@ const App = () => (
             <Route path="/discovery/products/:id" element={<ProductDetail />} />
             <Route path="/discovery/brands" element={<Brands />} />
             <Route path="/discovery/discovery-queue" element={<DiscoveryQueue />} />
-            <Route path="/discovery/order-telemetry" element={<SalesOrders />} />
             <Route path="/discovery/feed-imports" element={<Importing />} />
             <Route path="/discovery/bulk-images" element={<BulkImageUpload />} />
             <Route path="/discovery/pending-images" element={<PendingImages />} />
@@ -181,9 +180,12 @@ const App = () => (
 
             {/* Operations Sub-Routes */}
             <Route path="/operations/dashboard" element={<OpsDashboard />} />
+            <Route path="/operations/order-telemetry" element={<SalesOrders />} />
             <Route path="/operations/reports" element={<OpsReports />} />
             <Route path="/operations/monitoring" element={<OrderMonitoring />} />
             <Route path="/operations/order-monitoring" element={<Navigate to="/operations/monitoring" replace />} />
+            {/* Legacy redirect: Order Telemetry was under Discovery */}
+            <Route path="/discovery/order-telemetry" element={<Navigate to="/operations/order-telemetry" replace />} />
 
             {/* Dashboards Sub-Routes */}
             <Route path="/dashboards/warehouse" element={<WarehousePerformance />} />
@@ -194,10 +196,10 @@ const App = () => (
             <Route path="/settings" element={<Settings />} />
             <Route path="/profile" element={<Profile />} />
 
-            {/* Legacy Pages (Still Accessible) */}
-            <Route path="/ebay-admin" element={<EbayAdmin />} />
-            <Route path="/missing-cost-prices" element={<MissingCostPrices />} />
-            <Route path="/problematic-orders" element={<ProblematicOrders />} />
+            {/* Archived legacy pages — redirect to appropriate modules */}
+            <Route path="/ebay-admin" element={<Navigate to="/admin/integrations" replace />} />
+            <Route path="/missing-cost-prices" element={<Navigate to="/intelligence/stock-health" replace />} />
+            <Route path="/problematic-orders" element={<Navigate to="/operations/order-telemetry" replace />} />
           </Route>
 
           {/* Legacy Redirects */}
@@ -206,7 +208,7 @@ const App = () => (
           <Route path="/product/:id" element={<Navigate to="/discovery/products/:id" replace />} />
           <Route path="/brands" element={<Navigate to="/discovery/brands" replace />} />
           <Route path="/importing" element={<Navigate to="/discovery/feed-imports" replace />} />
-          <Route path="/sales-orders" element={<Navigate to="/discovery/order-telemetry" replace />} />
+          <Route path="/sales-orders" element={<Navigate to="/operations/order-telemetry" replace />} />
           <Route path="/price-hunter" element={<Navigate to="/execution/price-hunter" replace />} />
           <Route path="/ignored-sellers" element={<Navigate to="/execution/price-push/ignored-sellers" replace />} />
           <Route path="/ignored-listings" element={<Navigate to="/execution/price-push/ignored-listings" replace />} />
