@@ -226,7 +226,7 @@ export default function OrderTable({
           <TableBody>
             {lines.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={14} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={13} className="text-center py-8 text-muted-foreground">
                   No order lines match the current filters
                 </TableCell>
               </TableRow>
