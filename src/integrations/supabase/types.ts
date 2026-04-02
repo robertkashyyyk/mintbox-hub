@@ -2261,6 +2261,24 @@ export type Database = {
         Args: { c: Database["public"]["Enums"]["app_capability"] }
         Returns: number
       }
+      get_despatch_performance: {
+        Args: { from_date: string; to_date: string }
+        Returns: {
+          total_despatched: number
+          within_24h: number
+          within_48h: number
+          within_72h: number
+        }[]
+      }
+      get_ops_queue_counts: {
+        Args: never
+        Returns: {
+          awaiting_picking_count: number
+          despatched_today_count: number
+          new_count: number
+          onbackorder_count: number
+        }[]
+      }
       has_any_role: {
         Args: {
           _roles: Database["public"]["Enums"]["app_role"][]
