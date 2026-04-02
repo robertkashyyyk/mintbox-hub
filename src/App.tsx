@@ -45,9 +45,10 @@ import OperationsIndex from "./pages/OperationsIndex";
 import DashboardsIndex from "./pages/DashboardsIndex";
 
 // Operations Pages
-import OrderMonitoring from "./pages/operations/OrderMonitoring";
 import OpsDashboard from "./pages/operations/OpsDashboard";
 import OpsReports from "./pages/operations/OpsReports";
+import OpsTrends from "./pages/operations/OpsTrends";
+import OpsSkuAnalysis from "./pages/operations/OpsSkuAnalysis";
 
 // Discovery Pages
 import DiscoveryQueue from "./pages/discovery/DiscoveryQueue";
