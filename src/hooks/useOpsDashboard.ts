@@ -1,6 +1,19 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
+export interface StageAgeing {
+  status: string;
+  order_count: number;
+  avg_age_hours: number;
+  median_age_hours: number;
+}
+
+export interface HourlyFlow {
+  hour: number;
+  new_orders: number;
+  despatched: number;
+}
+
 export interface OpsDashboardData {
   // Today's Reality
   newOrdersToday: number;
@@ -13,7 +26,7 @@ export interface OpsDashboardData {
   queueAwaitingPicking: number;
   queueOnBackorder: number;
   totalActive: number;
-  // Start-of-day deltas (from first snapshot)
+  // Start-of-day deltas
   deltaNew: number;
   deltaAwaitingPicking: number;
   deltaBackorder: number;
@@ -38,6 +51,10 @@ export interface OpsDashboardData {
   newStuck: number;
   repeatedSnapshot: number;
   stockDiscrepancy: number;
+  // Stage ageing
+  stageAgeing: StageAgeing[];
+  // Hourly flow
+  hourlyFlow: HourlyFlow[];
   // Metadata
   lastSyncAt: string | null;
 }
@@ -62,6 +79,8 @@ export const useOpsDashboard = () => {
         problemPressure,
         lastSync,
         startOfDay,
+        stageAgeingResult,
+        hourlyFlowResult,
       ] = await Promise.all([
         // Today's new orders (placed today)
         supabase
@@ -106,7 +125,7 @@ export const useOpsDashboard = () => {
           .limit(1)
           .maybeSingle(),
 
-        // Start of day snapshot for delta calculation
+        // Start of day snapshot for delta calculation (use archived snapshots if available)
         supabase
           .from("order_status_snapshots")
           .select("new_count, onbackorder_count, awaitingpicking_count")
@@ -114,6 +133,12 @@ export const useOpsDashboard = () => {
           .order("captured_at", { ascending: true })
           .limit(1)
           .maybeSingle(),
+
+        // Stage ageing
+        supabase.rpc("get_ops_stage_ageing" as any),
+
+        // Hourly flow
+        supabase.rpc("get_ops_hourly_flow" as any),
       ]);
 
       // Parse queue counts from RPC
@@ -161,6 +186,25 @@ export const useOpsDashboard = () => {
         (i) => i.problem_type === "stock_discrepancy_suspected"
       ).length;
 
+      // Stage ageing
+      const stageAgeing: StageAgeing[] = ((stageAgeingResult.data as any[]) || []).map(
+        (r: any) => ({
+          status: r.status,
+          order_count: Number(r.order_count) || 0,
+          avg_age_hours: Number(r.avg_age_hours) || 0,
+          median_age_hours: Number(r.median_age_hours) || 0,
+        })
+      );
+
+      // Hourly flow
+      const hourlyFlow: HourlyFlow[] = ((hourlyFlowResult.data as any[]) || []).map(
+        (r: any) => ({
+          hour: Number(r.hour_of_day),
+          new_orders: Number(r.new_orders) || 0,
+          despatched: Number(r.despatched) || 0,
+        })
+      );
+
       return {
         newOrdersToday: newTodayCount,
         despatchedToday: despatchedTodayCount,
@@ -191,6 +235,8 @@ export const useOpsDashboard = () => {
         newStuck,
         repeatedSnapshot,
         stockDiscrepancy,
+        stageAgeing,
+        hourlyFlow,
         lastSyncAt: lastSync.data?.last_seen_at || null,
       };
     },

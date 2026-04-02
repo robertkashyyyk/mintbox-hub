@@ -45,9 +45,10 @@ import OperationsIndex from "./pages/OperationsIndex";
 import DashboardsIndex from "./pages/DashboardsIndex";
 
 // Operations Pages
-import OrderMonitoring from "./pages/operations/OrderMonitoring";
 import OpsDashboard from "./pages/operations/OpsDashboard";
 import OpsReports from "./pages/operations/OpsReports";
+import OpsTrends from "./pages/operations/OpsTrends";
+import OpsSkuAnalysis from "./pages/operations/OpsSkuAnalysis";
 
 // Discovery Pages
 import DiscoveryQueue from "./pages/discovery/DiscoveryQueue";
@@ -182,8 +183,9 @@ const App = () => (
             <Route path="/operations/dashboard" element={<OpsDashboard />} />
             <Route path="/operations/order-telemetry" element={<SalesOrders />} />
             <Route path="/operations/reports" element={<OpsReports />} />
-            <Route path="/operations/monitoring" element={<OrderMonitoring />} />
-            <Route path="/operations/order-monitoring" element={<Navigate to="/operations/monitoring" replace />} />
+            <Route path="/operations/trends" element={<OpsTrends />} />
+            <Route path="/operations/sku-analysis" element={<OpsSkuAnalysis />} />
+            <Route path="/operations/monitoring" element={<Navigate to="/operations/dashboard" replace />} />
             {/* Legacy redirect: Order Telemetry was under Discovery */}
             <Route path="/discovery/order-telemetry" element={<Navigate to="/operations/order-telemetry" replace />} />
 

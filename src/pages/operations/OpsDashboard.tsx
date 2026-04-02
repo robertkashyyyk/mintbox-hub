@@ -24,7 +24,19 @@ import {
   Package,
   BarChart3,
   ShieldAlert,
+  Timer,
+  Zap,
 } from "lucide-react";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Legend,
+} from "recharts";
 
 const StatCard = ({
   title,
@@ -33,6 +45,7 @@ const StatCard = ({
   delta,
   deltaLabel,
   variant = "default",
+  onClick,
 }: {
   title: string;
   value: number | string;
@@ -40,6 +53,7 @@ const StatCard = ({
   delta?: number;
   deltaLabel?: string;
   variant?: "default" | "success" | "warning" | "danger";
+  onClick?: () => void;
 }) => {
   const variantStyles = {
     default: "border-border",
@@ -49,7 +63,10 @@ const StatCard = ({
   };
 
   return (
-    <Card className={variantStyles[variant]}>
+    <Card
+      className={`${variantStyles[variant]} ${onClick ? "cursor-pointer hover:border-primary/50 transition-all" : ""}`}
+      onClick={onClick}
+    >
       <CardContent className="p-4">
         <div className="flex items-center justify-between">
           <div className="space-y-1">
@@ -181,6 +198,59 @@ const KpiRow = ({
   );
 };
 
+// Winning / Holding / Losing indicator
+const OverallStatus = ({ data }: { data: any }) => {
+  const clearanceRate =
+    data.newOrdersToday > 0
+      ? data.despatchedToday / data.newOrdersToday
+      : data.despatchedToday > 0
+        ? 2
+        : 1;
+
+  const backorderTrend = data.deltaBackorder;
+  const problemCount = data.criticalIssues;
+
+  let status: "winning" | "holding" | "losing";
+  let statusLabel: string;
+  let statusColor: string;
+  let statusIcon: any;
+
+  if (clearanceRate >= 1 && backorderTrend <= 0 && problemCount <= 2) {
+    status = "winning";
+    statusLabel = "Winning";
+    statusColor = "bg-[hsl(var(--success))]";
+    statusIcon = TrendingUp;
+  } else if (clearanceRate < 0.7 || backorderTrend > 10 || problemCount > 5) {
+    status = "losing";
+    statusLabel = "Falling Behind";
+    statusColor = "bg-destructive";
+    statusIcon = TrendingDown;
+  } else {
+    status = "holding";
+    statusLabel = "Holding";
+    statusColor = "bg-[hsl(41,90%,56%)]";
+    statusIcon = Minus;
+  }
+
+  const StatusIcon = statusIcon;
+
+  return (
+    <div className={`flex items-center gap-3 px-4 py-3 rounded-lg ${statusColor}/10 border`}>
+      <div className={`h-10 w-10 rounded-full ${statusColor} flex items-center justify-center`}>
+        <StatusIcon className="h-5 w-5 text-white" />
+      </div>
+      <div>
+        <p className="text-lg font-bold">{statusLabel}</p>
+        <p className="text-xs text-muted-foreground">
+          Clearance {(clearanceRate * 100).toFixed(0)}% · BO Δ{" "}
+          {backorderTrend > 0 ? "+" : ""}
+          {backorderTrend} · {problemCount} critical
+        </p>
+      </div>
+    </div>
+  );
+};
+
 const OpsDashboard = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -268,6 +338,9 @@ const OpsDashboard = () => {
         </div>
       </div>
 
+      {/* Overall Status Indicator */}
+      <OverallStatus data={data} />
+
       {/* Section 1: Today's Reality */}
       <div>
         <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">
@@ -278,6 +351,7 @@ const OpsDashboard = () => {
             title="New Orders Today"
             value={data.newOrdersToday}
             icon={ShoppingCart}
+            onClick={() => navigate("/operations/order-telemetry?status=NEW")}
           />
           <StatCard
             title="Despatched Today"
@@ -291,12 +365,14 @@ const OpsDashboard = () => {
             icon={AlertTriangle}
             delta={data.deltaBackorder}
             variant={data.currentBackorders > 0 ? "warning" : "default"}
+            onClick={() => navigate("/operations/order-telemetry?status=ONBACKORDER")}
           />
           <StatCard
             title="Awaiting Picking"
             value={data.awaitingPicking}
             icon={Clock}
             delta={data.deltaAwaitingPicking}
+            onClick={() => navigate("/operations/order-telemetry?status=AWAITINGPICKING")}
           />
           <StatCard
             title="Net Flow"
@@ -318,7 +394,7 @@ const OpsDashboard = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Section 2: Flow Health */}
+        {/* Flow Health */}
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
@@ -353,7 +429,7 @@ const OpsDashboard = () => {
           </CardContent>
         </Card>
 
-        {/* Section 3: Queue Pressure */}
+        {/* Queue Pressure */}
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
@@ -389,7 +465,94 @@ const OpsDashboard = () => {
           </CardContent>
         </Card>
 
-        {/* Section 4: Despatch Performance */}
+        {/* Hourly Flow */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Zap className="h-4 w-4" />
+              Hourly Flow Today
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {data.hourlyFlow && data.hourlyFlow.length > 0 ? (
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={data.hourlyFlow}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                  <XAxis
+                    dataKey="hour"
+                    tick={{ fontSize: 10 }}
+                    tickFormatter={(h) => `${h}:00`}
+                  />
+                  <YAxis tick={{ fontSize: 10 }} />
+                  <Tooltip labelFormatter={(h) => `${h}:00`} />
+                  <Legend />
+                  <Bar dataKey="new_orders" name="New" fill="hsl(var(--chart-1))" radius={[2, 2, 0, 0]} />
+                  <Bar dataKey="despatched" name="Despatched" fill="hsl(var(--success))" radius={[2, 2, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="text-sm text-muted-foreground text-center py-8">
+                No hourly data yet today
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Stage Ageing */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Timer className="h-4 w-4" />
+              Stage Ageing
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {data.stageAgeing && data.stageAgeing.length > 0 ? (
+              <div className="space-y-4">
+                {data.stageAgeing.map((stage) => {
+                  const formatAge = (hours: number) => {
+                    if (hours < 24) return `${hours.toFixed(0)}h`;
+                    return `${(hours / 24).toFixed(1)}d`;
+                  };
+                  const statusLabel =
+                    stage.status === "NEW"
+                      ? "New"
+                      : stage.status === "AWAITINGPICKING"
+                        ? "Awaiting Picking"
+                        : "On Back Order";
+
+                  return (
+                    <div
+                      key={stage.status}
+                      className="flex items-center justify-between py-3 border-b last:border-0"
+                    >
+                      <div>
+                        <p className="font-medium text-sm">{statusLabel}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {stage.order_count} orders
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-semibold">
+                          {formatAge(stage.median_age_hours)} median
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {formatAge(stage.avg_age_hours)} avg
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground text-center py-8">
+                No ageing data available
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Despatch Performance */}
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
@@ -445,7 +608,7 @@ const OpsDashboard = () => {
           </CardContent>
         </Card>
 
-        {/* Section 5: Problem Pressure */}
+        {/* Problem Pressure */}
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
@@ -497,6 +660,26 @@ const OpsDashboard = () => {
             </Button>
           </CardContent>
         </Card>
+      </div>
+
+      {/* Quick Links */}
+      <div className="flex gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => navigate("/operations/trends")}
+        >
+          <TrendingUp className="h-4 w-4 mr-2" />
+          View Trends
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => navigate("/operations/sku-analysis")}
+        >
+          <Package className="h-4 w-4 mr-2" />
+          SKU Analysis
+        </Button>
       </div>
     </div>
   );
