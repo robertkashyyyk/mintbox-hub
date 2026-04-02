@@ -205,11 +205,10 @@ export default function OrderTable({
                 ["qty", "Qty", "w-12 text-right"],
                 ["problem", "Problem", ""],
                 ["severity", "Severity", ""],
-                ["reason", "Reason", ""],
+                ["reason", "Reason", "min-w-[220px]"],
                 ["issue", "Issue", ""],
                 ["assigned", "Assigned", ""],
                 ["brand", "Brand", ""],
-                ["channel", "Channel", ""],
               ] as [SortKey, string, string][]).map(([key, label, cls]) => (
                 <TableHead
                   key={key}
