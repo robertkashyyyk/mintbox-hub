@@ -160,7 +160,7 @@ Deno.serve(async (req) => {
 
       // Rule 1: New Stuck
       if (isNewStatus(line.order_status) && !recentChange) {
-        const sev = getSeverity(orderAge, [4, 12, 24]);
+        const sev = getSeverity(orderAge, [24, 36, 48]);
         if (sev) {
           candidates.push({
             mintsoft_order_id: line.mintsoft_order_id, line_index: line.line_index,
