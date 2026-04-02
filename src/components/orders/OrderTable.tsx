@@ -205,11 +205,10 @@ export default function OrderTable({
                 ["qty", "Qty", "w-12 text-right"],
                 ["problem", "Problem", ""],
                 ["severity", "Severity", ""],
-                ["reason", "Reason", ""],
+                ["reason", "Reason", "min-w-[220px]"],
                 ["issue", "Issue", ""],
                 ["assigned", "Assigned", ""],
                 ["brand", "Brand", ""],
-                ["channel", "Channel", ""],
               ] as [SortKey, string, string][]).map(([key, label, cls]) => (
                 <TableHead
                   key={key}
@@ -227,7 +226,7 @@ export default function OrderTable({
           <TableBody>
             {lines.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={14} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={13} className="text-center py-8 text-muted-foreground">
                   No order lines match the current filters
                 </TableCell>
               </TableRow>
@@ -281,7 +280,7 @@ export default function OrderTable({
                   <TableCell>
                     {line.issue ? <SeverityBadge severity={line.issue.severity} /> : null}
                   </TableCell>
-                  <TableCell className="text-xs max-w-[200px] truncate text-muted-foreground">
+                  <TableCell className="text-xs max-w-[260px] text-muted-foreground whitespace-normal leading-snug">
                     {line.issue?.reason || ""}
                   </TableCell>
                   <TableCell>
@@ -289,7 +288,6 @@ export default function OrderTable({
                   </TableCell>
                   <TableCell className="text-xs">{line.issue?.assigned_to || ""}</TableCell>
                   <TableCell className="text-xs">{line.brands?.name || "—"}</TableCell>
-                  <TableCell className="text-xs">{line.channel || "—"}</TableCell>
                 </TableRow>
               ))
             )}
