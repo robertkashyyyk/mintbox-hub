@@ -36,11 +36,16 @@ const OpsSkuAnalysis = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">SKU & Issue Analysis</h1>
-        <p className="text-sm text-muted-foreground">
-          Deeper diagnostics — top problem SKUs, backorder concentration, brand and channel breakdown
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">SKU & Issue Analysis</h1>
+          <p className="text-sm text-muted-foreground">
+            Deeper diagnostics — top problem SKUs, backorder concentration, brand and channel breakdown
+          </p>
+        </div>
+        <span className="text-xs text-muted-foreground">
+          Data as of: {format(new Date(), "dd MMM HH:mm")}
+        </span>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
