@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import Auth from "./pages/Auth";
+import ResetPassword from "./pages/ResetPassword";
 import PublicLayout from "./components/public/PublicLayout";
 import PublicHome from "./pages/PublicHome";
 import PublicAbout from "./pages/PublicAbout";
@@ -122,6 +123,7 @@ const App = () => (
             <Route path="/faq" element={<PublicFAQ />} />
           </Route>
           <Route path="/auth" element={<Auth />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/access-denied" element={<AccessDenied />} />
           
           {/* All authenticated routes wrapped in DashboardLayout for sidebar visibility */}
