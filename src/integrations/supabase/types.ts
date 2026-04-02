@@ -2270,6 +2270,24 @@ export type Database = {
           within_72h: number
         }[]
       }
+      get_ops_daily_trend: {
+        Args: { from_date: string; to_date: string }
+        Returns: {
+          awaiting_picking: number
+          backorders: number
+          day: string
+          despatched: number
+          new_orders: number
+        }[]
+      }
+      get_ops_hourly_flow: {
+        Args: never
+        Returns: {
+          despatched: number
+          hour_of_day: number
+          new_orders: number
+        }[]
+      }
       get_ops_queue_counts: {
         Args: never
         Returns: {
@@ -2277,6 +2295,26 @@ export type Database = {
           despatched_today_count: number
           new_count: number
           onbackorder_count: number
+        }[]
+      }
+      get_ops_sku_issues: {
+        Args: { lim?: number }
+        Returns: {
+          brand_id: string
+          critical_count: number
+          latest_issue: string
+          problem_types: string[]
+          sku: string
+          total_issues: number
+        }[]
+      }
+      get_ops_stage_ageing: {
+        Args: never
+        Returns: {
+          avg_age_hours: number
+          median_age_hours: number
+          order_count: number
+          status: string
         }[]
       }
       has_any_role: {
