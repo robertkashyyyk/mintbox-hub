@@ -280,7 +280,7 @@ export default function OrderTable({
                   <TableCell>
                     {line.issue ? <SeverityBadge severity={line.issue.severity} /> : null}
                   </TableCell>
-                  <TableCell className="text-xs max-w-[200px] truncate text-muted-foreground">
+                  <TableCell className="text-xs max-w-[260px] text-muted-foreground whitespace-normal leading-snug">
                     {line.issue?.reason || ""}
                   </TableCell>
                   <TableCell>
