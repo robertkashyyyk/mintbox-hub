@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import Auth from "./pages/Auth";
+import ResetPassword from "./pages/ResetPassword";
 import PublicLayout from "./components/public/PublicLayout";
 import PublicHome from "./pages/PublicHome";
 import PublicAbout from "./pages/PublicAbout";
