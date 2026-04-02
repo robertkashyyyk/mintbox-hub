@@ -123,6 +123,7 @@ const App = () => (
             <Route path="/faq" element={<PublicFAQ />} />
           </Route>
           <Route path="/auth" element={<Auth />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/access-denied" element={<AccessDenied />} />
           
           {/* All authenticated routes wrapped in DashboardLayout for sidebar visibility */}

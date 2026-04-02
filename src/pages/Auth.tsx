@@ -77,7 +77,7 @@ const Auth = () => {
               },
             }}
             providers={[]}
-            redirectTo={`${window.location.origin}/menu`}
+            redirectTo={`${window.location.origin}/reset-password`}
             onlyThirdPartyProviders={false}
             showLinks={true}
             magicLink={false}
