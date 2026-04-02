@@ -288,7 +288,6 @@ export default function OrderTable({
                   </TableCell>
                   <TableCell className="text-xs">{line.issue?.assigned_to || ""}</TableCell>
                   <TableCell className="text-xs">{line.brands?.name || "—"}</TableCell>
-                  <TableCell className="text-xs">{line.channel || "—"}</TableCell>
                 </TableRow>
               ))
             )}
