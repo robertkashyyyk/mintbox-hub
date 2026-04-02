@@ -1,88 +1,81 @@
 
 
-# Order Telemetry — Operational Handoff & Historical Backfill
+# Order Telemetry — Refinement & Calibration
 
-## Summary
+## 1. Status Filter Fix (Blocking)
 
-Three workstreams: (1) set up cron jobs and backfill logic, (2) clean up old data and enforce date boundary, (3) complete the operational action loop with suggested actions, resolve outcomes, and run the issue evaluator.
+**Root cause:** The filter chips use human-readable labels (`"New"`, `"Awaiting Picking"`, `"On Back Order"`) but the database stores Mintsoft's raw values (`NEW`, `AWAITINGPICKING`, `ONBACKORDER`, `DESPATCHED`, `PICKED`).
 
----
+Line 264 in `useOrderTelemetry.ts` does an exact match: `l.order_status === filters.orderStatus`, which never matches.
 
-## 1. Cron Jobs & Backfill Sync
+**Fix:**
+- Update the `statusChips` array in `OrderFilters.tsx` to use actual DB values as the filter value, with a display label mapping
+- Update the chip rendering to show friendly names but filter on raw values
+- Values: `NEW`, `AWAITINGPICKING`, `ONBACKORDER`, `DESPATCHED`, `CANCELLED`, `PICKED`
 
-**Hourly sync (on the hour):** Create a cron job calling `sync-mintsoft-orders` every hour with a 7-day lookback. This keeps current orders fresh.
-
-**Half-hour backfill cron:** Create a second cron job at `:30` calling `sync-mintsoft-orders` with a special `backfill: true` mode. The function will:
-- Accept `backfill: true` in the request body
-- Use a new `backfill_cursor` row in `ingest_run_state` to track progress (starting from today, working backward to 2026-01-01)
-- Fetch only 50 orders per run (small batch to avoid timeouts)
-- Move the cursor backward each run until it reaches 2026-01-01, then stop
-- This will progressively fill the gap over ~hours without manual intervention
-
-**Files modified:** `sync-mintsoft-orders/index.ts`, plus two `cron.schedule` SQL inserts.
+**Files:** `src/components/orders/OrderFilters.tsx`
 
 ---
 
-## 2. Data Cleanup & Date Boundary
+## 2. New Stuck Threshold Adjustment
 
-**Delete pre-2026 data:** Remove the 85 order lines with `order_date < 2026-01-01` (via insert tool SQL).
+Current thresholds in `evaluate-order-issues/index.ts` line 163: `[4, 12, 24]` (watch/problem/critical).
 
-**Enforce boundary in sync:** Update `sync-mintsoft-orders` to hard-code `2026-01-01` as the earliest allowed date — any order older than this is skipped regardless of the `fromDate` parameter.
+**Change to:** `[24, 36, 48]`
+- < 24h → no flag
+- 24–36h → Watch
+- 36–48h → Problem
+- 48h+ → Critical
 
-**Enforce boundary in UI:** Update `useOrderTelemetry` to filter `order_date >= 2026-01-01` in the query.
+Also update the `recentChange` grace window (line 159, currently 8h) — this still makes sense as the backorder recovery grace period.
 
----
-
-## 3. Operational Action Loop (Detect → Understand → Act → Resolve)
-
-### 3a. Add `suggested_action` column to `order_issues`
-Migration to add a `text` column `suggested_action` to `order_issues`. The evaluate function already computes this — it just needs to persist it.
-
-### 3b. Update `evaluate-order-issues` to store `suggested_action`
-Include `suggested_action` in both insert and update payloads so it's saved in the database.
-
-### 3c. Expand resolve outcomes in `OrderDetail.tsx`
-Update the resolve button options to match the operational vocabulary:
-- Stock Adjusted
-- Moved to Backorder
-- Supplier Ordered
-- Found and Picked
-- False Positive
-- Order Cancelled
-
-### 3d. Display `suggested_action` from database in detail panel
-Read `suggested_action` from the issue record instead of the hardcoded map (fall back to map if not stored).
-
-### 3e. Add `suggested_action` to the enriched line type
-Expose it through `useOrderTelemetry` so the table can show a truncated version inline.
+**Files:** `supabase/functions/evaluate-order-issues/index.ts`
 
 ---
 
-## 4. Run the Issue Evaluator
+## 3. Backorder Awareness
 
-After deploying, manually trigger `evaluate-order-issues` to populate the `order_issues` table (currently 0 rows). This will immediately populate the "Needs Action Now" view.
+**Database migration:** Add two columns to `order_lines`:
+- `was_backordered boolean NOT NULL DEFAULT false`
+- `last_backordered_at timestamptz`
 
-Add `evaluate-order-issues` to `config.toml` with `verify_jwt = false` so crons can call it.
+**Sync function (`sync-mintsoft-orders`):** When upserting an order line, if the previous status was `ONBACKORDER` and the new status is not, set `was_backordered = true` and `last_backordered_at = now()`.
 
-Set up a cron to run evaluation every hour at `:05` (5 minutes after the sync).
+**Evaluation function:** Before applying `new_stuck` rule, check if `was_backordered = true` and `last_backordered_at` is within the last 8 hours. If so, skip flagging (grace period).
+
+**UI (`OrderTable.tsx`):** Show a small "Recovered from BO" badge next to the status when `was_backordered` is true and `last_backordered_at` is recent.
+
+**Files:** Migration, `sync-mintsoft-orders/index.ts`, `evaluate-order-issues/index.ts`, `src/components/orders/OrderTable.tsx`, `src/hooks/useOrderTelemetry.ts` (add fields to type)
 
 ---
 
-## 5. Status Visibility Fix
+## 4. times_seen Reset
 
-159 order lines have `NULL` status. The evaluate function already excludes terminal/backorder statuses correctly. The `ONBACKORDER` and `AWAITINGPICKING` values (no spaces) are already handled by the `OrderStatusBadge` component. No further changes needed — statuses are working.
+Run a data update (via insert tool) to reset `times_seen = 1` for all order lines. This clears the inflated counts from bulk import. Future hourly syncs will increment accurately.
+
+```sql
+UPDATE order_lines SET times_seen = 1;
+```
+
+**Files:** Data operation only (insert tool)
 
 ---
 
-## Files Changed
+## 5. Minor UI Improvements (included)
 
-| File | Change |
-|---|---|
-| `sync-mintsoft-orders/index.ts` | Add backfill mode, enforce 2026-01-01 boundary |
-| `evaluate-order-issues/index.ts` | Persist `suggested_action` in DB |
-| `src/hooks/useOrderTelemetry.ts` | Add `suggested_action` to enriched type, filter ≥ 2026-01-01 |
-| `src/components/orders/OrderDetail.tsx` | Use DB `suggested_action`, update resolve outcomes |
-| `supabase/config.toml` | Add `evaluate-order-issues` with `verify_jwt = false` |
-| Migration | Add `suggested_action` text column to `order_issues` |
-| SQL inserts | 3 cron jobs (hourly sync, half-hour backfill, evaluation at :05), delete pre-2026 data |
+- Show truncated `reason` column in the table (already partially there, will verify)
+- Ensure `suggested_action` is always populated via the evaluation function (already implemented, just needs the re-run after threshold changes)
+
+---
+
+## Execution Order
+
+1. Migration: add `was_backordered` + `last_backordered_at` to `order_lines`
+2. Data fix: reset `times_seen = 1`
+3. Update `OrderFilters.tsx` — fix status chip values
+4. Update `evaluate-order-issues/index.ts` — new thresholds + backorder grace
+5. Update `sync-mintsoft-orders/index.ts` — track backorder history
+6. Update `OrderTable.tsx` — "Recovered from BO" badge
+7. Update `useOrderTelemetry.ts` — add new fields to type
+8. Deploy edge functions and re-run evaluation
 
