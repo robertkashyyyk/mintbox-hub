@@ -196,10 +196,10 @@ const App = () => (
             <Route path="/settings" element={<Settings />} />
             <Route path="/profile" element={<Profile />} />
 
-            {/* Legacy Pages (Still Accessible) */}
-            <Route path="/ebay-admin" element={<EbayAdmin />} />
-            <Route path="/missing-cost-prices" element={<MissingCostPrices />} />
-            <Route path="/problematic-orders" element={<ProblematicOrders />} />
+            {/* Archived legacy pages — redirect to appropriate modules */}
+            <Route path="/ebay-admin" element={<Navigate to="/admin/integrations" replace />} />
+            <Route path="/missing-cost-prices" element={<Navigate to="/intelligence/stock-health" replace />} />
+            <Route path="/problematic-orders" element={<Navigate to="/operations/order-telemetry" replace />} />
           </Route>
 
           {/* Legacy Redirects */}
