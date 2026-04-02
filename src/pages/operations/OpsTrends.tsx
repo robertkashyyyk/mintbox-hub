@@ -74,17 +74,22 @@ const OpsTrends = () => {
             Historical performance analysis — replaces KPI spreadsheet
           </p>
         </div>
-        <div className="flex gap-1">
-          {rangeOptions.map((opt) => (
-            <Button
-              key={opt.value}
-              variant={range === opt.value ? "default" : "outline"}
-              size="sm"
-              onClick={() => setRange(opt.value)}
-            >
-              {opt.label}
-            </Button>
-          ))}
+        <div className="flex items-center gap-4">
+          <span className="text-xs text-muted-foreground">
+            Data to: {format(new Date(), "dd MMM HH:mm")}
+          </span>
+          <div className="flex gap-1">
+            {rangeOptions.map((opt) => (
+              <Button
+                key={opt.value}
+                variant={range === opt.value ? "default" : "outline"}
+                size="sm"
+                onClick={() => setRange(opt.value)}
+              >
+                {opt.label}
+              </Button>
+            ))}
+          </div>
         </div>
       </div>
 
