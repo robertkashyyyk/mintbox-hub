@@ -8,10 +8,11 @@ const OperationsIndex = () => {
   const navigate = useNavigate();
 
   const options = [
-    { title: "Dashboard", description: "Operational health at a glance - backorders, throughput, exceptions", icon: LayoutDashboard, onClick: () => navigate("/operations/dashboard"), primary: true },
+    { title: "Dashboard", description: "Live operational control panel — orders, flow, KPIs", icon: LayoutDashboard, onClick: () => navigate("/operations/dashboard"), primary: true },
+    { title: "Trends", description: "Historical performance analysis — daily, weekly, rolling averages", icon: Gauge, onClick: () => navigate("/operations/trends") },
+    { title: "SKU Analysis", description: "Top problem SKUs, backorder concentration, brand breakdown", icon: RefreshCw, onClick: () => navigate("/operations/sku-analysis") },
     { title: "Order Telemetry", description: "Order issue detection, problem tracking and operational actions", icon: Activity, onClick: () => navigate("/operations/order-telemetry") },
     { title: "Reports", description: "Weekly ops reports and subscriber management", icon: FileText, onClick: () => navigate("/operations/reports") },
-    { title: "Monitoring", description: "Track order status snapshots and daily progress", icon: Activity, onClick: () => navigate("/operations/monitoring") },
   ];
 
   return (
