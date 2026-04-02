@@ -210,8 +210,8 @@ const App = () => (
           <Route path="/importing" element={<Navigate to="/discovery/feed-imports" replace />} />
           <Route path="/sales-orders" element={<Navigate to="/operations/order-telemetry" replace />} />
           <Route path="/price-hunter" element={<Navigate to="/execution/price-hunter" replace />} />
-          <Route path="/ignored-sellers" element={<Navigate to="/execution/price-push/ignored-sellers" replace />} />
-          <Route path="/ignored-listings" element={<Navigate to="/execution/price-push/ignored-listings" replace />} />
+          <Route path="/ignored-sellers" element={<Navigate to="/execution/price-hunter/ignored-sellers" replace />} />
+            <Route path="/ignored-listings" element={<Navigate to="/execution/price-hunter/ignored-listings" replace />} />
           <Route path="/remote-stock-updates" element={<Navigate to="/execution/remote-stock-updates" replace />} />
           <Route path="/ebay-clone" element={<Navigate to="/execution/listing-cloner" replace />} />
           <Route path="/user-management" element={<Navigate to="/admin/users" replace />} />
