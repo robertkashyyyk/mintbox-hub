@@ -82,10 +82,10 @@ export const useOpsDashboard = () => {
         stageAgeingResult,
         hourlyFlowResult,
       ] = await Promise.all([
-        // Today's new orders (placed today)
+        // Today's new orders (placed today) — count distinct via RPC-style query
         supabase
           .from("order_lines")
-          .select("mintsoft_order_id", { count: "exact", head: true })
+          .select("mintsoft_order_id")
           .gte("order_date", `${todayStr}T00:00:00`)
           .lt("order_date", `${todayStr}T23:59:59.999`),
 
