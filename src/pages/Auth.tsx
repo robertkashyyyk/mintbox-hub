@@ -80,7 +80,7 @@ const Auth = () => {
             redirectTo={`${window.location.origin}/reset-password`}
             onlyThirdPartyProviders={false}
             showLinks={true}
-            magicLink={false}
+            magicLink={true}
             view="sign_in"
             localization={{
               variables: {
