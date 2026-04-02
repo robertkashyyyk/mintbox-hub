@@ -9,8 +9,9 @@ const OperationsIndex = () => {
 
   const options = [
     { title: "Dashboard", description: "Operational health at a glance - backorders, throughput, exceptions", icon: LayoutDashboard, onClick: () => navigate("/operations/dashboard"), primary: true },
+    { title: "Order Telemetry", description: "Order issue detection, problem tracking and operational actions", icon: Activity, onClick: () => navigate("/operations/order-telemetry") },
     { title: "Reports", description: "Weekly ops reports and subscriber management", icon: FileText, onClick: () => navigate("/operations/reports") },
-    { title: "Monitoring", description: "Track order status snapshots and daily progress", icon: Activity, onClick: () => navigate("/operations/order-monitoring") },
+    { title: "Monitoring", description: "Track order status snapshots and daily progress", icon: Activity, onClick: () => navigate("/operations/monitoring") },
   ];
 
   return (

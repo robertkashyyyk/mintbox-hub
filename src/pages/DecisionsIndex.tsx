@@ -8,7 +8,7 @@ const DecisionsIndex = () => {
   const navigate = useNavigate();
 
   const options = [
-    { title: "Buy Recommendations", description: "AI-driven purchase order suggestions based on velocity", icon: ShoppingBag, onClick: () => navigate("/decisions/buy") },
+    { title: "Buy Recommendations", description: "AI-driven purchase order suggestions based on velocity", icon: ShoppingBag, onClick: () => navigate("/decisions/buying") },
     { title: "Liquidation Candidates", description: "Products recommended for clearance or fire sale", icon: Flame, onClick: () => navigate("/decisions/liquidation") },
     { title: "Price Moves", description: "Suggested pricing adjustments for competitiveness", icon: TrendingDown, onClick: () => navigate("/decisions/price-moves") },
     { title: "Bundle Suggestions", description: "Product combinations for bundling opportunities", icon: Package, onClick: () => navigate("/decisions/bundles") },

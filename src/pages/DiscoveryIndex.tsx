@@ -30,7 +30,6 @@ const DiscoveryIndex = () => {
     { title: "Products", description: "Browse and manage your product database", icon: Database, onClick: () => navigate("/discovery/products"), show: true },
     { title: "Brands", description: "Manage brand information and settings", icon: Tag, onClick: () => navigate("/discovery/brands"), show: true },
     { title: "Product Discovery Queue", description: "Products discovered from orders that need enrichment", icon: AlertCircle, onClick: () => navigate("/discovery/discovery-queue"), show: true },
-    { title: "Order Telemetry", description: "Diagnostic view of order lines for troubleshooting", icon: Activity, onClick: () => navigate("/discovery/order-telemetry"), show: isSuperUser },
     { title: "Feed Imports", description: "Upload product data and configure import rules", icon: FileText, onClick: () => navigate("/discovery/feed-imports"), show: true },
     { title: "Bulk Image Upload", description: "Upload images in bulk, matched to products by SKU filename", icon: Images, onClick: () => navigate("/discovery/bulk-images"), show: true },
     { title: "Pending Images", description: "Review unmatched images and promote them to product records", icon: Clock, onClick: () => navigate("/discovery/pending-images"), show: true },

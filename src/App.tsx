@@ -208,7 +208,7 @@ const App = () => (
           <Route path="/product/:id" element={<Navigate to="/discovery/products/:id" replace />} />
           <Route path="/brands" element={<Navigate to="/discovery/brands" replace />} />
           <Route path="/importing" element={<Navigate to="/discovery/feed-imports" replace />} />
-          <Route path="/sales-orders" element={<Navigate to="/discovery/order-telemetry" replace />} />
+          <Route path="/sales-orders" element={<Navigate to="/operations/order-telemetry" replace />} />
           <Route path="/price-hunter" element={<Navigate to="/execution/price-hunter" replace />} />
           <Route path="/ignored-sellers" element={<Navigate to="/execution/price-push/ignored-sellers" replace />} />
           <Route path="/ignored-listings" element={<Navigate to="/execution/price-push/ignored-listings" replace />} />

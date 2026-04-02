@@ -125,6 +125,7 @@ export function AppSidebar() {
       requireSenior: true,
       items: [
         { title: "Dashboard", url: "/operations/dashboard", icon: LayoutDashboard },
+        { title: "Order Telemetry", url: "/operations/order-telemetry", icon: Activity, superOnly: true },
         { title: "Reports", url: "/operations/reports", icon: FileText, superOnly: true },
         { title: "Monitoring", url: "/operations/monitoring", icon: Activity },
       ],
