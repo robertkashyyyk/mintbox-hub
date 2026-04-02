@@ -158,8 +158,9 @@ Deno.serve(async (req) => {
       const timesSeen = line.times_seen || 1;
       const recentChange = statusAge < 8;
 
-      // Rule 1: New Stuck
-      if (isNewStatus(line.order_status) && !recentChange) {
+      // Rule 1: New Stuck (with backorder grace period)
+      const recentlyRecoveredFromBO = line.was_backordered && line.last_backordered_at && hoursAgo(line.last_backordered_at) < 8;
+      if (isNewStatus(line.order_status) && !recentChange && !recentlyRecoveredFromBO) {
         const sev = getSeverity(orderAge, [24, 36, 48]);
         if (sev) {
           candidates.push({

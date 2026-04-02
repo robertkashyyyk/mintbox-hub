@@ -241,7 +241,14 @@ Deno.serve(async (req) => {
             order_status_id: order.OrderStatusId ?? null,
             customer_name: order.CustomerName || null,
           };
-          if (statusChanged) payload.last_status_change_at = now;
+          if (statusChanged) {
+            payload.last_status_change_at = now;
+            // Track backorder recovery
+            if (oldStatus && oldStatus.toUpperCase().includes('BACKORDER') && newStatusName && !newStatusName.toUpperCase().includes('BACKORDER')) {
+              payload.was_backordered = true;
+              payload.last_backordered_at = now;
+            }
+          }
           updatePayloads.push(payload);
         }
       }

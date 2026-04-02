@@ -126,25 +126,26 @@ export default function OrderFilters({
       {/* Status quick-filter chips */}
       <div className="flex flex-wrap gap-1 items-center">
         <span className="text-xs text-muted-foreground mr-1">Status:</span>
-        {statusChips.map(status => {
-          const isActive = filters.orderStatus === status;
+        {statusChips.map(chip => {
+          const isActive = filters.orderStatus === chip.value;
           const statusColors: Record<string, string> = {
-            New: "bg-blue-500/15 text-blue-400 border-blue-500/30",
-            "Awaiting Picking": "bg-amber-500/15 text-amber-400 border-amber-500/30",
-            "On Back Order": "bg-purple-500/15 text-purple-400 border-purple-500/30",
-            Despatched: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
-            Cancelled: "bg-muted text-muted-foreground border-border",
+            NEW: "bg-blue-500/15 text-blue-400 border-blue-500/30",
+            AWAITINGPICKING: "bg-amber-500/15 text-amber-400 border-amber-500/30",
+            ONBACKORDER: "bg-purple-500/15 text-purple-400 border-purple-500/30",
+            DESPATCHED: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
+            CANCELLED: "bg-muted text-muted-foreground border-border",
+            PICKED: "bg-teal-500/15 text-teal-400 border-teal-500/30",
           };
           return (
             <Badge
-              key={status}
+              key={chip.value}
               variant="outline"
               className={`cursor-pointer px-2 py-0.5 text-xs transition-colors ${
-                isActive ? statusColors[status] + " ring-1 ring-primary" : "hover:bg-accent"
+                isActive ? (statusColors[chip.value] || "") + " ring-1 ring-primary" : "hover:bg-accent"
               }`}
-              onClick={() => updateFilter("orderStatus", isActive ? "" : status)}
+              onClick={() => updateFilter("orderStatus", isActive ? "" : chip.value)}
             >
-              {status}
+              {chip.label}
             </Badge>
           );
         })}
