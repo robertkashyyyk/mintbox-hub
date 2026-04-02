@@ -153,7 +153,11 @@ export const useOpsDashboard = () => {
       const queueAwaitingPicking = Number(queues.awaiting_picking_count) || 0;
       const queueOnBackorder = Number(queues.onbackorder_count) || 0;
       const despatchedTodayCount = Number(queues.despatched_today_count) || 0;
-      const newTodayCount = todayReality.count || 0;
+      // Count distinct orders for today's new
+      const todayOrderIds = new Set(
+        ((todayReality.data as any[]) || []).map((r: any) => r.mintsoft_order_id)
+      );
+      const newTodayCount = todayOrderIds.size;
 
       // Deltas from start of day
       const sod = startOfDay.data;
