@@ -142,7 +142,6 @@ const App = () => (
             <Route path="/discovery/products/:id" element={<ProductDetail />} />
             <Route path="/discovery/brands" element={<Brands />} />
             <Route path="/discovery/discovery-queue" element={<DiscoveryQueue />} />
-            <Route path="/discovery/order-telemetry" element={<SalesOrders />} />
             <Route path="/discovery/feed-imports" element={<Importing />} />
             <Route path="/discovery/bulk-images" element={<BulkImageUpload />} />
             <Route path="/discovery/pending-images" element={<PendingImages />} />
