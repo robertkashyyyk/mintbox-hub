@@ -128,8 +128,10 @@ export const useSkuDatabase = () => {
       // Exclude quarantined products from general view
       query = query.eq("quarantined", false);
 
-      // Apply text search
-      if (filters.search) {
+      // Server-side has-images filter
+      if (filters.hasImages) {
+        query = query.not("product_images", "is", null);
+      }
         query = query.or(`sku.ilike.%${filters.search}%,name.ilike.%${filters.search}%,barcode.ilike.%${filters.search}%`);
       }
 
