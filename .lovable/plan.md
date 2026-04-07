@@ -1,50 +1,44 @@
 
 
-## Issues Found
+## Problem
 
-### 1. RLS Error — Missing Storage UPDATE Policy
+The "Has Images" filter returns zero results due to two bugs:
 
-The `product-images` bucket has INSERT, SELECT, and DELETE policies but **no UPDATE policy**. The upload code uses `upsert: true`, which requires UPDATE permission. This is the direct cause of the error.
+### Bug 1 — `is_primary` mismatch
+The query joins `product_images` with `.eq("product_images.is_primary", true)`, but 93 of 101 images have `is_primary = false`. The join returns empty arrays for most products, so no thumbnails appear and the filter finds nothing.
 
-**Fix**: Add an UPDATE policy on `storage.objects` for the `product-images` bucket for authenticated users.
+### Bug 2 — Client-side filtering after pagination
+The "Has Images" check runs in JavaScript after fetching a page of 100 products from 183,000+. Even if images existed, the filter would only find matches within the current page — it cannot surface products with images from elsewhere in the dataset.
+
+### Secondary issue — no images marked primary
+Only 8 images are primary (all pending-path ones). The 93 clean images aren't marked primary, so thumbnails never show in the table even without the filter.
+
+---
+
+## Fix
+
+### 1. Mark all existing images as primary where a product has only one image
+Run a migration to set `is_primary = true` for all single-image products. This fixes thumbnails and the join filter.
 
 ```sql
-CREATE POLICY "Authenticated users can update product images"
-ON storage.objects FOR UPDATE
-TO authenticated
-USING (bucket_id = 'product-images')
-WITH CHECK (bucket_id = 'product-images');
+UPDATE product_images
+SET is_primary = true
+WHERE product_id IN (
+  SELECT product_id FROM product_images
+  GROUP BY product_id HAVING count(*) = 1
+);
 ```
 
-### 2. Simplified, Predictable Image URLs
+### 2. Move "Has Images" filter server-side
+Instead of filtering client-side, use an `INNER JOIN` approach: when `hasImages` is true, add `.not("product_images", "is", "null")` to the query so only products with at least one image row are returned from the database. This ensures pagination works correctly with the filter.
 
-Currently images are stored as `{sku}/{sku}.{ext}`, producing URLs like:
-```
-https://.../storage/v1/object/public/product-images/FA1-KF100015/FA1-KF100015.png
-```
-
-To make URLs maximally predictable ("just add the SKU"), we can flatten to `{sku}.webp` (or keep original extension). The URL becomes:
-```
-https://.../storage/v1/object/public/product-images/FA1-KF100015.png
-```
-
-You'd always know the URL if you know the SKU + extension. However, extensions can vary (png, jpg, webp).
-
-**Recommendation**: Keep the current `{sku}/{sku}.{ext}` structure (subfolder allows multiple images per SKU), but add a helper constant so you never have to think about it:
-
-```typescript
-const imageUrl = (sku: string, ext = 'png') =>
-  `${SUPABASE_URL}/storage/v1/object/public/product-images/${sku}/${sku}.${ext}`;
-```
-
-This gets exposed as a reusable utility across the app.
+### 3. Remove the `is_primary` constraint from the join (or make it conditional)
+Change the join to not filter by `is_primary` for the purpose of detecting whether images exist. For thumbnail display, pick the first image (primary preferred, fallback to any).
 
 ### Files Changed
 
 | File | Change |
 |------|--------|
-| Migration SQL | Add UPDATE policy on `storage.objects` |
-| `src/lib/imageUrl.ts` | New helper: `getProductImageUrl(sku, ext?)` |
-| `BulkImageUpload.tsx` | Use helper for URL generation |
-| `ProductImageUpload.tsx` | Use helper for URL generation |
+| Migration SQL | Set `is_primary = true` for single-image products |
+| `src/hooks/useSkuDatabase.ts` | Remove `.eq("product_images.is_primary", true)`, move hasImages filter server-side using `.not("product_images", "is", "null")` |
 
