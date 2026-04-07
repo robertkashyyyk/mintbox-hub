@@ -24,13 +24,13 @@ Deno.serve(async (req) => {
 
     if (fetchErr) throw fetchErr;
 
-    // Find dirty images (not matching {sku}/{sku}.ext pattern)
+    // Find dirty images (not matching flat {sku}.ext or {sku}-N.ext pattern)
     const dirty = (images || []).filter((img: any) => {
       const sku = img.products_cache?.sku;
       if (!sku) return false;
-      // Clean pattern: {sku}/{sku}.ext or {sku}/{sku}-N.ext
+      // Clean pattern: {sku}.ext or {sku}-N.ext (flat, no subfolder)
       const cleanRegex = new RegExp(
-        `^${sku.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/${sku.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(-\\d+)?\\.[a-zA-Z]+$`
+        `^${sku.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(-\\d+)?\\.[a-zA-Z]+$`
       );
       return !cleanRegex.test(img.file_path);
     });
@@ -75,10 +75,11 @@ Deno.serve(async (req) => {
         const img = dirtyImgs[i];
         const ext = img.file_path.split(".").pop() || "png";
         const index = existingCleanCount + i;
+        // Flat path: {sku}.ext or {sku}-N.ext
         const newPath =
           index === 0
-            ? `${sku}/${sku}.${ext}`
-            : `${sku}/${sku}-${index + 1}.${ext}`;
+            ? `${sku}.${ext}`
+            : `${sku}-${index + 1}.${ext}`;
 
         try {
           // Copy to new path
@@ -87,7 +88,6 @@ Deno.serve(async (req) => {
             .copy(img.file_path, newPath);
 
           if (copyErr) {
-            // If copy fails because destination exists, try with next index
             console.error(`Copy failed for ${img.file_path} -> ${newPath}:`, copyErr.message);
             details.push(`ERR ${img.file_path}: ${copyErr.message}`);
             errors++;
