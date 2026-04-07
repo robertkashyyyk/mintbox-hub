@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { getProductImagePath, getProductImageUrl } from "@/lib/imageUrl";
 
 interface FileMatch {
   file: File;
@@ -126,10 +127,10 @@ const BulkImageUpload = () => {
       updated[idx] = { ...updated[idx], status: "uploading" };
       setFiles([...updated]);
 
-      const ext = item.file.name.split(".").pop();
+      const ext = item.file.name.split(".").pop() || "png";
       const isMatched = item.productId !== null;
       const filePath = isMatched
-        ? `${item.sku}/${item.sku}.${ext}`
+        ? getProductImagePath(item.sku, ext)
         : `pending/${item.sku}.${ext}`;
 
       const { error: uploadError } = await supabase.storage

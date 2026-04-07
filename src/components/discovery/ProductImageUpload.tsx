@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Upload, Trash2, Copy, Star, Loader2, ImageIcon } from "lucide-react";
+import { getProductImagePath } from "@/lib/imageUrl";
 
 interface ProductImageUploadProps {
   productId: string;
