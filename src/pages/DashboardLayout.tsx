@@ -90,7 +90,7 @@ const DashboardLayout = () => {
             </div>
           </header>
 
-          <main className="flex-1 container mx-auto px-4 py-8">
+          <main className="flex-1 px-4 py-8 max-w-full overflow-hidden">
             <Outlet />
           </main>
         </div>
