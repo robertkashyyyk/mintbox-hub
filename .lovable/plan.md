@@ -1,26 +1,50 @@
 
 
-## Problem
+## Issues Found
 
-The SKU Database table has 15 columns. When the sidebar is open, the content area is constrained by `container mx-auto` (max-width ~1280px), but the table overflows that width. The white gaps on the right appear because:
+### 1. RLS Error — Missing Storage UPDATE Policy
 
-1. The `<main>` uses `container mx-auto` which caps content width, but the table naturally exceeds it
-2. The table wrapper `div.rounded-md.border` lacks `overflow-x-auto`, so horizontal scroll doesn't contain properly within the card
-3. The Card itself doesn't fill the available width on wider viewports when the table overflows
+The `product-images` bucket has INSERT, SELECT, and DELETE policies but **no UPDATE policy**. The upload code uses `upsert: true`, which requires UPDATE permission. This is the direct cause of the error.
 
-## Fix
+**Fix**: Add an UPDATE policy on `storage.objects` for the `product-images` bucket for authenticated users.
 
-Two changes:
-
-### 1. DashboardLayout — remove container constraint for full-width pages
-Change `<main className="flex-1 container mx-auto px-4 py-8">` to `<main className="flex-1 px-4 py-8 max-w-full overflow-hidden">` so the content fills the available space rather than being capped at the container breakpoint.
-
-### 2. SkuDatabase — add horizontal scroll to table wrapper
-Wrap the table's `div.rounded-md.border` with `overflow-x-auto` so the table scrolls cleanly within the card boundary instead of bleeding into white space.
-
-```
-<div className="rounded-md border overflow-x-auto">
+```sql
+CREATE POLICY "Authenticated users can update product images"
+ON storage.objects FOR UPDATE
+TO authenticated
+USING (bucket_id = 'product-images')
+WITH CHECK (bucket_id = 'product-images');
 ```
 
-These two changes ensure the page background extends fully and the table scrolls horizontally within its card container without exposing white gutters.
+### 2. Simplified, Predictable Image URLs
+
+Currently images are stored as `{sku}/{sku}.{ext}`, producing URLs like:
+```
+https://.../storage/v1/object/public/product-images/FA1-KF100015/FA1-KF100015.png
+```
+
+To make URLs maximally predictable ("just add the SKU"), we can flatten to `{sku}.webp` (or keep original extension). The URL becomes:
+```
+https://.../storage/v1/object/public/product-images/FA1-KF100015.png
+```
+
+You'd always know the URL if you know the SKU + extension. However, extensions can vary (png, jpg, webp).
+
+**Recommendation**: Keep the current `{sku}/{sku}.{ext}` structure (subfolder allows multiple images per SKU), but add a helper constant so you never have to think about it:
+
+```typescript
+const imageUrl = (sku: string, ext = 'png') =>
+  `${SUPABASE_URL}/storage/v1/object/public/product-images/${sku}/${sku}.${ext}`;
+```
+
+This gets exposed as a reusable utility across the app.
+
+### Files Changed
+
+| File | Change |
+|------|--------|
+| Migration SQL | Add UPDATE policy on `storage.objects` |
+| `src/lib/imageUrl.ts` | New helper: `getProductImageUrl(sku, ext?)` |
+| `BulkImageUpload.tsx` | Use helper for URL generation |
+| `ProductImageUpload.tsx` | Use helper for URL generation |
 
