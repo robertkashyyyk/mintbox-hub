@@ -120,13 +120,18 @@ export const useSkuDatabase = () => {
             product_categories (name)
           ),
           product_images!product_images_product_id_fkey (
-            public_url
+            public_url,
+            is_primary
           )
-        `, { count: 'exact' })
-        .eq("product_images.is_primary", true);
+        `, { count: 'exact' });
 
       // Exclude quarantined products from general view
       query = query.eq("quarantined", false);
+
+      // Server-side has-images filter
+      if (filters.hasImages) {
+        query = query.not("product_images", "is", null);
+      }
 
       // Apply text search
       if (filters.search) {
@@ -185,14 +190,6 @@ export const useSkuDatabase = () => {
       if (error) throw error;
 
       let filteredData = data || [];
-
-      // Client-side has-images filter (checks joined product_images array)
-      if (filters.hasImages) {
-        filteredData = filteredData.filter((product: any) => {
-          const images = product.product_images;
-          return Array.isArray(images) && images.length > 0;
-        });
-      }
 
       // Client-side brand sort (display purposes)
       if (sort.field === "brand" && brands) {
