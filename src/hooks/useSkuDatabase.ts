@@ -120,10 +120,10 @@ export const useSkuDatabase = () => {
             product_categories (name)
           ),
           product_images!product_images_product_id_fkey (
-            public_url
+            public_url,
+            is_primary
           )
-        `, { count: 'exact' })
-        .eq("product_images.is_primary", true);
+        `, { count: 'exact' });
 
       // Exclude quarantined products from general view
       query = query.eq("quarantined", false);
