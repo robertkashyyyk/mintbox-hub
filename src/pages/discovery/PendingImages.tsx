@@ -44,7 +44,7 @@ const PendingImages = () => {
 
       // Move the file in storage from pending/ to {sku}/ folder
       const ext = filePath.split(".").pop() || "png";
-      const newFilePath = `${sku}/${sku}.${ext}`;
+      const newFilePath = `${sku}.${ext}`;
 
       const { error: moveError } = await supabase.storage
         .from("product-images")

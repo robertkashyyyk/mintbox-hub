@@ -74,7 +74,7 @@ export default function ProductImageUpload({ productId, productSku }: ProductIma
           const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
           const imgIndex = currentCount + i;
           const fileName = imgIndex === 0 ? `${productSku}.${ext}` : `${productSku}-${imgIndex + 1}.${ext}`;
-          const filePath = `${productSku}/${fileName}`;
+          const filePath = fileName;
 
           const { error: uploadError } = await supabase.storage
             .from("product-images")
