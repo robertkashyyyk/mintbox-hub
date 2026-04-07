@@ -132,6 +132,9 @@ export const useSkuDatabase = () => {
       if (filters.hasImages) {
         query = query.not("product_images", "is", null);
       }
+
+      // Apply text search
+      if (filters.search) {
         query = query.or(`sku.ilike.%${filters.search}%,name.ilike.%${filters.search}%,barcode.ilike.%${filters.search}%`);
       }
 
@@ -187,14 +190,6 @@ export const useSkuDatabase = () => {
       if (error) throw error;
 
       let filteredData = data || [];
-
-      // Client-side has-images filter (checks joined product_images array)
-      if (filters.hasImages) {
-        filteredData = filteredData.filter((product: any) => {
-          const images = product.product_images;
-          return Array.isArray(images) && images.length > 0;
-        });
-      }
 
       // Client-side brand sort (display purposes)
       if (sort.field === "brand" && brands) {
