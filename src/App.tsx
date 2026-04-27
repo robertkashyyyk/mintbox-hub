@@ -73,6 +73,8 @@ import BillingUsage from "./pages/admin/BillingUsage";
 import LogsDiagnostics from "./pages/admin/LogsDiagnostics";
 import SystemSettings from "./pages/admin/SystemSettings";
 import Integrations from "./pages/admin/Integrations";
+import CatalogueLibrary from "./pages/admin/CatalogueLibrary";
+import CatalogueBuilder from "./pages/admin/CatalogueBuilder";
 
 // Dashboard Pages
 import WarehousePerformance from "./pages/dashboards/WarehousePerformance";
@@ -180,6 +182,8 @@ const App = () => (
             <Route path="/admin/logs" element={<LogsDiagnostics />} />
             <Route path="/admin/settings" element={<SystemSettings />} />
             <Route path="/admin/integrations" element={<Integrations />} />
+            <Route path="/admin/catalogues" element={<CatalogueLibrary />} />
+            <Route path="/admin/catalogues/:id" element={<CatalogueBuilder />} />
 
             {/* Operations Sub-Routes */}
             <Route path="/operations/dashboard" element={<OpsDashboard />} />
