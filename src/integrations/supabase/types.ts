@@ -211,6 +211,150 @@ export type Database = {
         }
         Relationships: []
       }
+      catalogue_items: {
+        Row: {
+          catalogue_id: string
+          created_at: string
+          custom_description: string | null
+          custom_title: string | null
+          display_order: number
+          featured: boolean
+          id: string
+          product_id: string
+          updated_at: string
+        }
+        Insert: {
+          catalogue_id: string
+          created_at?: string
+          custom_description?: string | null
+          custom_title?: string | null
+          display_order?: number
+          featured?: boolean
+          id?: string
+          product_id: string
+          updated_at?: string
+        }
+        Update: {
+          catalogue_id?: string
+          created_at?: string
+          custom_description?: string | null
+          custom_title?: string | null
+          display_order?: number
+          featured?: boolean
+          id?: string
+          product_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "catalogue_items_catalogue_id_fkey"
+            columns: ["catalogue_id"]
+            isOneToOne: false
+            referencedRelation: "catalogues"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "catalogue_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products_cache"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "catalogue_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products_need_ordering"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "catalogue_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products_needs_enrichment"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      catalogues: {
+        Row: {
+          brand_id: string | null
+          category_id: string | null
+          cover_image_url: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          pdf_generated_at: string | null
+          pdf_url: string | null
+          public_visible: boolean
+          published_at: string | null
+          slug: string
+          status: Database["public"]["Enums"]["catalogue_status"]
+          theme: Json
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          brand_id?: string | null
+          category_id?: string | null
+          cover_image_url?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          pdf_generated_at?: string | null
+          pdf_url?: string | null
+          public_visible?: boolean
+          published_at?: string | null
+          slug: string
+          status?: Database["public"]["Enums"]["catalogue_status"]
+          theme?: Json
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          brand_id?: string | null
+          category_id?: string | null
+          cover_image_url?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          pdf_generated_at?: string | null
+          pdf_url?: string | null
+          public_visible?: boolean
+          published_at?: string | null
+          slug?: string
+          status?: Database["public"]["Enums"]["catalogue_status"]
+          theme?: Json
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "catalogues_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "catalogues_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands_missing_base_multiplier"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "catalogues_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "product_categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       download_history: {
         Row: {
           brand_id: string
@@ -1344,9 +1488,12 @@ export type Database = {
           handling_time: number | null
           height: number | null
           id: string
+          key_features: string[] | null
           last_stock_sync: string | null
           length: number | null
           low_stock_alert_level: number | null
+          marketing_description: string | null
+          marketing_title: string | null
           mintsoft_product_id: number | null
           name: string
           on_order: number | null
@@ -1365,9 +1512,13 @@ export type Database = {
           ph_plain_best_seller: string | null
           ph_search_term: string | null
           ph_status: string | null
+          public_visible: boolean
           quarantined: boolean
+          rrp: number | null
           sku: string
+          spec_sheet_url: string | null
           suppliers: string | null
+          trade_price: number | null
           updated_at: string | null
           weight: number | null
         }
@@ -1387,9 +1538,12 @@ export type Database = {
           handling_time?: number | null
           height?: number | null
           id?: string
+          key_features?: string[] | null
           last_stock_sync?: string | null
           length?: number | null
           low_stock_alert_level?: number | null
+          marketing_description?: string | null
+          marketing_title?: string | null
           mintsoft_product_id?: number | null
           name: string
           on_order?: number | null
@@ -1408,9 +1562,13 @@ export type Database = {
           ph_plain_best_seller?: string | null
           ph_search_term?: string | null
           ph_status?: string | null
+          public_visible?: boolean
           quarantined?: boolean
+          rrp?: number | null
           sku: string
+          spec_sheet_url?: string | null
           suppliers?: string | null
+          trade_price?: number | null
           updated_at?: string | null
           weight?: number | null
         }
@@ -1430,9 +1588,12 @@ export type Database = {
           handling_time?: number | null
           height?: number | null
           id?: string
+          key_features?: string[] | null
           last_stock_sync?: string | null
           length?: number | null
           low_stock_alert_level?: number | null
+          marketing_description?: string | null
+          marketing_title?: string | null
           mintsoft_product_id?: number | null
           name?: string
           on_order?: number | null
@@ -1451,9 +1612,13 @@ export type Database = {
           ph_plain_best_seller?: string | null
           ph_search_term?: string | null
           ph_status?: string | null
+          public_visible?: boolean
           quarantined?: boolean
+          rrp?: number | null
           sku?: string
+          spec_sheet_url?: string | null
           suppliers?: string | null
+          trade_price?: number | null
           updated_at?: string | null
           weight?: number | null
         }
@@ -2348,6 +2513,7 @@ export type Database = {
       alert_type: "LowStock" | "RemoteStock" | "BackOrders" | "Inventory"
       app_capability: "none" | "read" | "propose" | "execute" | "admin"
       app_role: "super_user" | "senior_user" | "simple_user"
+      catalogue_status: "draft" | "published" | "archived"
       prefix_style: "hyphen" | "slash"
       rbac_role:
         | "systems_controller"
@@ -2496,6 +2662,7 @@ export const Constants = {
       alert_type: ["LowStock", "RemoteStock", "BackOrders", "Inventory"],
       app_capability: ["none", "read", "propose", "execute", "admin"],
       app_role: ["super_user", "senior_user", "simple_user"],
+      catalogue_status: ["draft", "published", "archived"],
       prefix_style: ["hyphen", "slash"],
       rbac_role: [
         "systems_controller",
