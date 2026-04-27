@@ -141,7 +141,8 @@ export default function CatalogueBuilder() {
 
   const updateCatalogue = useMutation({
     mutationFn: async (patch: Partial<Catalogue>) => {
-      const { error } = await supabase.from("catalogues").update(patch).eq("id", id!);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await supabase.from("catalogues").update(patch as any).eq("id", id!);
       if (error) throw error;
     },
     onSuccess: () => {
