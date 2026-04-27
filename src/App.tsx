@@ -182,6 +182,8 @@ const App = () => (
             <Route path="/admin/logs" element={<LogsDiagnostics />} />
             <Route path="/admin/settings" element={<SystemSettings />} />
             <Route path="/admin/integrations" element={<Integrations />} />
+            <Route path="/admin/catalogues" element={<CatalogueLibrary />} />
+            <Route path="/admin/catalogues/:id" element={<CatalogueBuilder />} />
 
             {/* Operations Sub-Routes */}
             <Route path="/operations/dashboard" element={<OpsDashboard />} />
