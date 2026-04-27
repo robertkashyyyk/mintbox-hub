@@ -73,6 +73,8 @@ import BillingUsage from "./pages/admin/BillingUsage";
 import LogsDiagnostics from "./pages/admin/LogsDiagnostics";
 import SystemSettings from "./pages/admin/SystemSettings";
 import Integrations from "./pages/admin/Integrations";
+import CatalogueLibrary from "./pages/admin/CatalogueLibrary";
+import CatalogueBuilder from "./pages/admin/CatalogueBuilder";
 
 // Dashboard Pages
 import WarehousePerformance from "./pages/dashboards/WarehousePerformance";
