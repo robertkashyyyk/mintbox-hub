@@ -453,8 +453,9 @@ Deno.serve(async (req) => {
       lines_inserted: linesInserted,
       lines_skipped: linesSkipped,
       products_created: productsCreated,
+      ghosts_closed: ghostsClosed,
       statuses_queried: statusIdsToFetch.length,
-      message: `Synced ${allOrders.length} orders across ${statusIdsToFetch.length} statuses (${newOrders.length} new, ${existingOrders.length} updated)${partial}`,
+      message: `Synced ${allOrders.length} orders across ${statusIdsToFetch.length} statuses (${newOrders.length} new, ${existingOrders.length} updated, ${ghostsClosed} stale auto-closed)${partial}`,
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (error) {
     console.error("Orders sync error:", error);
