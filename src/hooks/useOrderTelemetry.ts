@@ -102,10 +102,11 @@ export function useOrderTelemetry() {
   const [sortKey, setSortKey] = useState<SortKey>("severity");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
 
-  const { data: orderLines, isLoading: isLoadingOrders, refetch: refetchOrders } = useQuery({
+  const { data: orderLines, isLoading: isLoadingOrders, error: ordersError, refetch: refetchOrders } = useQuery({
     queryKey: ["order-lines-telemetry"],
     refetchOnWindowFocus: true,
     staleTime: 30_000,
+    retry: 1,
     queryFn: async () => {
       const PAGE_SIZE = 1000;
       let allData: any[] = [];
@@ -117,17 +118,22 @@ export function useOrderTelemetry() {
           .gte("order_date", "2026-01-01T00:00:00Z")
           .order("order_date", { ascending: false })
           .range(from, from + PAGE_SIZE - 1);
-        if (error) throw error;
+        if (error) {
+          console.error("[useOrderTelemetry] order_lines fetch failed at offset", from, error);
+          throw error;
+        }
         allData = allData.concat(data || []);
         if (!data || data.length < PAGE_SIZE) break;
         from += PAGE_SIZE;
       }
+      console.info("[useOrderTelemetry] loaded order_lines:", allData.length);
       return allData;
     },
   });
 
-  const { data: orderIssues, isLoading: isLoadingIssues, refetch: refetchIssues } = useQuery({
+  const { data: orderIssues, isLoading: isLoadingIssues, error: issuesError, refetch: refetchIssues } = useQuery({
     queryKey: ["order-issues"],
+    retry: 1,
     queryFn: async () => {
       const PAGE_SIZE = 1000;
       let allData: any[] = [];
@@ -137,11 +143,15 @@ export function useOrderTelemetry() {
           .from("order_issues")
           .select("*")
           .range(from, from + PAGE_SIZE - 1);
-        if (error) throw error;
+        if (error) {
+          console.error("[useOrderTelemetry] order_issues fetch failed at offset", from, error);
+          throw error;
+        }
         allData = allData.concat(data || []);
         if (!data || data.length < PAGE_SIZE) break;
         from += PAGE_SIZE;
       }
+      console.info("[useOrderTelemetry] loaded order_issues:", allData.length);
       return allData;
     },
   });
