@@ -59,6 +59,7 @@ const SalesOrders = () => {
     stats,
     filterOptions,
     isLoading,
+    error: telemetryError,
     refetch,
     sortKey,
     sortDir,
