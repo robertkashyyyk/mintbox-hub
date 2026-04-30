@@ -202,20 +202,29 @@ Deno.serve(async (req) => {
 
     console.log(`Reconciliation done. Scanned ${scanned} rows, closed ${ghostsClosed} ghosts.`);
 
+    const summary = `Closed ${ghostsClosed} ghost order lines · scanned ${scanned} rows · ${openInMintsoft.size} live in Mintsoft`;
+    await logRun(supabase, "succeeded", summary, {
+      open_in_mintsoft: openInMintsoft.size,
+      rows_scanned: scanned,
+      ghosts_closed: ghostsClosed,
+    });
+
     return new Response(
       JSON.stringify({
         success: true,
         open_in_mintsoft: openInMintsoft.size,
         rows_scanned: scanned,
         ghosts_closed: ghostsClosed,
-        message: `Closed ${ghostsClosed} ghost order lines after sweeping ${openInMintsoft.size} live Mintsoft orders.`,
+        message: summary,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (error) {
     console.error("Reconcile error:", error);
+    const msg = error instanceof Error ? error.message : "Unknown error";
+    await logRun(supabase, "failed", msg);
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
+      JSON.stringify({ error: msg }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
