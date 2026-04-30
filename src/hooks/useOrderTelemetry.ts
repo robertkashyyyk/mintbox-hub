@@ -400,6 +400,7 @@ export function useOrderTelemetry() {
     stats,
     filterOptions,
     isLoading: isLoadingOrders || isLoadingIssues,
+    error: (ordersError as Error | null) || (issuesError as Error | null) || null,
     refetch,
     sortKey,
     sortDir,
