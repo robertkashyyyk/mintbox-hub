@@ -136,11 +136,13 @@ Deno.serve(async (req) => {
     // We refuse to mark anything if the sweep was incomplete — better to do
     // nothing than to mass-flag legitimately-open orders as despatched.
     if (timedOut) {
+      const msg = `Aborted: status sweep timed out after ${pagesFetched} pages. No rows updated.`;
+      await logRun(supabase, "partial", msg, { open_count: openInMintsoft.size, pages_fetched: pagesFetched });
       return new Response(
         JSON.stringify({
           success: false,
           partial: true,
-          message: `Aborted: status sweep timed out after ${pagesFetched} pages. No rows updated.`,
+          message: msg,
           open_count: openInMintsoft.size,
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
