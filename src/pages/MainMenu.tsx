@@ -62,7 +62,7 @@ const MainMenu = () => {
         {sections.filter(s => s.show).map((section) => (
           <Card
             key={section.title}
-            className="cursor-pointer bg-card hover:border-primary/50 transition-all hover:shadow-lg group"
+            className="cursor-pointer bg-card hover:bg-card/80 hover:border-pd-accent/60 transition-colors duration-150 group"
             onClick={() => navigate(section.path)}
           >
             <CardHeader className="pb-3">
