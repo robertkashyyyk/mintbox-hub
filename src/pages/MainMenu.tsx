@@ -56,6 +56,8 @@ const MainMenu = () => {
         </div>
       </div>
 
+      <SystemHealthStrip />
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {sections.filter(s => s.show).map((section) => (
           <Card
