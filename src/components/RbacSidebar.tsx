@@ -70,6 +70,8 @@ const getIcon = (iconName: string | null): LucideIcon => {
 export const RbacSidebar = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { state } = useSidebar();
+  const collapsed = state === "collapsed";
   const { data: menuGroups, isLoading } = useMenuForUser();
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
 
