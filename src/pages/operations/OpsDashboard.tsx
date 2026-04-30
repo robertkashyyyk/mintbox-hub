@@ -489,39 +489,6 @@ const OpsDashboard = () => {
           </CardContent>
         </Card>
 
-        {/* Hourly Flow */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Zap className="h-4 w-4" />
-              Hourly Flow Today
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {data.hourlyFlow && data.hourlyFlow.length > 0 ? (
-              <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={data.hourlyFlow}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                  <XAxis
-                    dataKey="hour"
-                    tick={{ fontSize: 10 }}
-                    tickFormatter={(h) => `${h}:00`}
-                  />
-                  <YAxis tick={{ fontSize: 10 }} />
-                  <Tooltip labelFormatter={(h) => `${h}:00`} />
-                  <Legend />
-                  <Bar dataKey="new_orders" name="New" fill="hsl(var(--chart-1))" radius={[2, 2, 0, 0]} />
-                  <Bar dataKey="despatched" name="Despatched" fill="hsl(var(--success))" radius={[2, 2, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <p className="text-sm text-muted-foreground text-center py-8">
-                No hourly data yet today
-              </p>
-            )}
-          </CardContent>
-        </Card>
-
         {/* Stage Ageing */}
         <Card>
           <CardHeader className="pb-2">
@@ -573,62 +540,6 @@ const OpsDashboard = () => {
                 No ageing data available
               </p>
             )}
-          </CardContent>
-        </Card>
-
-        {/* Despatch Performance */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <BarChart3 className="h-4 w-4" />
-              Despatch Performance
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left py-2 text-sm font-medium text-muted-foreground">
-                      Metric
-                    </th>
-                    <th className="text-right py-2 text-sm font-medium text-muted-foreground">
-                      Today
-                    </th>
-                    <th className="text-right py-2 text-sm font-medium text-muted-foreground">
-                      7-Day Avg
-                    </th>
-                    <th className="text-right py-2 text-sm font-medium text-muted-foreground">
-                      MTD
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <KpiRow
-                    label="Within 24 hours"
-                    todayPct={pct(data.despatch24h, data.totalDespatched)}
-                    avg7dPct={pct(data.despatch24h7d, data.totalDespatched7d)}
-                    mtdPct={pct(data.despatch24hMtd, data.totalDespatchedMtd)}
-                  />
-                  <KpiRow
-                    label="Within 48 hours"
-                    todayPct={pct(data.despatch48h, data.totalDespatched)}
-                    avg7dPct={pct(data.despatch48h7d, data.totalDespatched7d)}
-                    mtdPct={pct(data.despatch48hMtd, data.totalDespatchedMtd)}
-                  />
-                  <KpiRow
-                    label="Within 72 hours"
-                    todayPct={pct(data.despatch72h, data.totalDespatched)}
-                    avg7dPct={pct(data.despatch72h7d, data.totalDespatched7d)}
-                    mtdPct={pct(data.despatch72hMtd, data.totalDespatchedMtd)}
-                  />
-                </tbody>
-              </table>
-            </div>
-            <p className="text-xs text-muted-foreground mt-3">
-              Total despatched: Today {data.totalDespatched} · 7d{" "}
-              {data.totalDespatched7d} · MTD {data.totalDespatchedMtd}
-            </p>
           </CardContent>
         </Card>
 
@@ -684,6 +595,103 @@ const OpsDashboard = () => {
             </Button>
           </CardContent>
         </Card>
+      </div>
+
+      {/* Section: Analytics (lower priority, bottom of page) */}
+      <div>
+        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+          Analytics
+        </h2>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Hourly Flow */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Zap className="h-4 w-4" />
+                Hourly Flow Today
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {data.hourlyFlow && data.hourlyFlow.length > 0 ? (
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart data={data.hourlyFlow}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                    <XAxis
+                      dataKey="hour"
+                      tick={{ fontSize: 10 }}
+                      tickFormatter={(h) => `${h}:00`}
+                    />
+                    <YAxis tick={{ fontSize: 10 }} />
+                    <Tooltip labelFormatter={(h) => `${h}:00`} />
+                    <Legend />
+                    <Bar dataKey="new_orders" name="New" fill="hsl(var(--chart-1))" radius={[2, 2, 0, 0]} />
+                    <Bar dataKey="despatched" name="Despatched" fill="hsl(var(--success))" radius={[2, 2, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-8">
+                  No hourly data yet today
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Despatch Performance */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <BarChart3 className="h-4 w-4" />
+                Despatch Performance
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left py-2 text-sm font-medium text-muted-foreground">
+                        Metric
+                      </th>
+                      <th className="text-right py-2 text-sm font-medium text-muted-foreground">
+                        Today
+                      </th>
+                      <th className="text-right py-2 text-sm font-medium text-muted-foreground">
+                        7-Day Avg
+                      </th>
+                      <th className="text-right py-2 text-sm font-medium text-muted-foreground">
+                        MTD
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <KpiRow
+                      label="Within 24 hours"
+                      todayPct={pct(data.despatch24h, data.totalDespatched)}
+                      avg7dPct={pct(data.despatch24h7d, data.totalDespatched7d)}
+                      mtdPct={pct(data.despatch24hMtd, data.totalDespatchedMtd)}
+                    />
+                    <KpiRow
+                      label="Within 48 hours"
+                      todayPct={pct(data.despatch48h, data.totalDespatched)}
+                      avg7dPct={pct(data.despatch48h7d, data.totalDespatched7d)}
+                      mtdPct={pct(data.despatch48hMtd, data.totalDespatchedMtd)}
+                    />
+                    <KpiRow
+                      label="Within 72 hours"
+                      todayPct={pct(data.despatch72h, data.totalDespatched)}
+                      avg7dPct={pct(data.despatch72h7d, data.totalDespatched7d)}
+                      mtdPct={pct(data.despatch72hMtd, data.totalDespatchedMtd)}
+                    />
+                  </tbody>
+                </table>
+              </div>
+              <p className="text-xs text-muted-foreground mt-3">
+                Total despatched: Today {data.totalDespatched} · 7d{" "}
+                {data.totalDespatched7d} · MTD {data.totalDespatchedMtd}
+              </p>
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
       {/* Quick Links */}
