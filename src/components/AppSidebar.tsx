@@ -47,7 +47,8 @@ interface NavGroup {
 
 export function AppSidebar() {
   // ALL hooks must be called at the top, before any conditional returns
-  const { open } = useSidebar();
+  const { open, state } = useSidebar();
+  const collapsed = state === "collapsed";
   const location = useLocation();
   const navigate = useNavigate();
   const currentPath = location.pathname;
