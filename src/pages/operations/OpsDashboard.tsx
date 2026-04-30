@@ -338,6 +338,30 @@ const OpsDashboard = () => {
         </div>
       </div>
 
+      {/* Critical Alert Banner */}
+      {data.criticalIssues > 0 && (
+        <div className="w-full flex items-center gap-4 px-5 py-4 rounded-lg bg-destructive/10 border border-destructive text-destructive">
+          <ShieldAlert className="h-6 w-6 flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-2xl font-bold leading-tight">
+              {data.criticalIssues} critical
+            </p>
+            <p className="text-sm opacity-90">
+              Critical problems require action
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground flex-shrink-0"
+            onClick={() => navigate("/operations/order-telemetry?severity=critical")}
+          >
+            <ExternalLink className="h-3 w-3 mr-2" />
+            Review critical issues
+          </Button>
+        </div>
+      )}
+
       {/* Overall Status Indicator */}
       <OverallStatus data={data} />
 
