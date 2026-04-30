@@ -90,9 +90,10 @@ async function fetchOrderItems(baseUrl: string, apiKey: string, orderId: number)
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
+  const supabase = createClient(Deno.env.get("SUPABASE_URL") ?? "", Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "");
+
   try {
     console.log("Starting Mintsoft orders sync...");
-    const supabase = createClient(Deno.env.get("SUPABASE_URL") ?? "", Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "");
 
     const { data: settings } = await supabase.from("mintsoft_settings").select("base_url, dispatched_status_ids").limit(1).single();
     if (!settings) throw new Error("Mintsoft settings not found");
