@@ -278,7 +278,7 @@ const CarrierRemeasure = () => {
                 {skuGroups.length === 0 && !loading && (
                   <TableRow>
                     <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                      No remeasure tasks yet. Use “Resolve unresolved penalties” to link tracking numbers to SKUs.
+                      No remeasure tasks yet. Click "New remeasure task" to add one manually, or use "Resolve unresolved penalties" to auto-link from carrier penalty tracking numbers.
                     </TableCell>
                   </TableRow>
                 )}
