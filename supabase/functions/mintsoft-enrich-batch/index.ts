@@ -203,6 +203,22 @@ Deno.serve(async (req) => {
         // Resolve brand_id from SKU prefix
         const brandId = resolveBrandId(product.sku, brandList);
 
+        // Extract Mintsoft categories — API may return Categories: [{Name}] or [string]
+        let mintsoftCategories: string[] = [];
+        const rawCats = (productDetails as any).Categories ?? (productDetails as any).ProductCategories;
+        if (Array.isArray(rawCats)) {
+          mintsoftCategories = rawCats
+            .map((c: any) => {
+              if (typeof c === "string") return c;
+              if (c && typeof c === "object") return c.Name ?? c.CategoryName ?? c.name ?? null;
+              return null;
+            })
+            .filter((s: any): s is string => typeof s === "string" && s.trim().length > 0)
+            .map((s: string) => s.trim());
+          // de-duplicate, preserve order
+          mintsoftCategories = Array.from(new Set(mintsoftCategories));
+        }
+
         // Update product with enriched data
         const { error: updateError } = await supabase
           .from("products_cache")
@@ -222,6 +238,7 @@ Deno.serve(async (req) => {
             on_order: onOrder,
             back_order_qty: backOrderQty,
             brand_id: brandId,
+            mintsoft_categories: mintsoftCategories,
             last_stock_sync: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           })

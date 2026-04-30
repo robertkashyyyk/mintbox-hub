@@ -8,6 +8,7 @@ import { ArrowLeft, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import ProductImageUpload from "@/components/discovery/ProductImageUpload";
+import { MintsoftCategoriesEditor } from "@/components/MintsoftCategoriesEditor";
 
 export default function ProductDetail() {
   const { id } = useParams<{ id: string }>();
@@ -288,19 +289,10 @@ export default function ProductDetail() {
             <DetailRow label="Discovery Source" value={product.discovery_source || "—"} />
             <DetailRow label="Discovered At" value={product.discovered_at ? format(new Date(product.discovered_at), "dd MMM yyyy, HH:mm") : "—"} />
             <DetailRow label="Created" value={product.created_at ? format(new Date(product.created_at), "dd MMM yyyy") : "—"} />
-            <div className="flex justify-between items-start">
-              <span className="text-muted-foreground text-sm">Categories</span>
-              <div className="flex flex-wrap gap-1 justify-end">
-                {(product as any).product_category_links?.length > 0
-                  ? (product as any).product_category_links.map((link: any, i: number) => (
-                      <Badge key={i} variant="outline" className="text-xs">
-                        {link.product_categories?.name}
-                      </Badge>
-                    ))
-                  : <span className="text-sm text-muted-foreground">—</span>
-                }
-              </div>
-            </div>
+            <MintsoftCategoriesEditor
+              productId={product.id}
+              categories={(product as any).mintsoft_categories}
+            />
           </CardContent>
         </Card>
 
