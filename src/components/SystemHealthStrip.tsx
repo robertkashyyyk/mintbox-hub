@@ -35,6 +35,7 @@ type JobRun = {
 
 const JOB_META: Record<string, { label: string; expectedMaxAgeSec: number }> = {
   "sync-mintsoft-orders-live-tail": { label: "Order Sync", expectedMaxAgeSec: 20 * 60 },
+  "reconcile-order-ghosts-every-15min": { label: "Ghost Closure", expectedMaxAgeSec: 20 * 60 },
   "evaluate-order-issues-every-15min": { label: "Order Telemetry", expectedMaxAgeSec: 20 * 60 },
   "sync-mintsoft-orders-daily": { label: "Daily Catch-up", expectedMaxAgeSec: 25 * 60 * 60 },
   "poll-inventory-every-15min": { label: "Inventory Poll", expectedMaxAgeSec: 20 * 60 },
