@@ -6,8 +6,31 @@ const corsHeaders = {
 };
 
 const START_TIME = Date.now();
+const RUN_STARTED_AT = new Date().toISOString();
 const MAX_RUNTIME_MS = 50_000; // 50s safety margin (edge functions timeout at 60s)
 function isTimeRunningOut() { return Date.now() - START_TIME > MAX_RUNTIME_MS; }
+
+async function logRun(
+  supabase: ReturnType<typeof createClient>,
+  status: "succeeded" | "failed" | "partial",
+  message: string,
+  details?: Record<string, unknown>,
+) {
+  try {
+    const endedAt = new Date();
+    await supabase.from("edge_function_runs").insert({
+      function_name: "sync-mintsoft-orders",
+      started_at: RUN_STARTED_AT,
+      ended_at: endedAt.toISOString(),
+      duration_ms: Date.now() - START_TIME,
+      status,
+      message,
+      details: details ?? null,
+    });
+  } catch (e) {
+    console.error("logRun failed:", e);
+  }
+}
 
 interface MintsoftOrder {
   ID: number;
