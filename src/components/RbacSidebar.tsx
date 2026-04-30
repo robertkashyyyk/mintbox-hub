@@ -16,6 +16,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import {
   Collapsible,
@@ -69,6 +70,8 @@ const getIcon = (iconName: string | null): LucideIcon => {
 export const RbacSidebar = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { state } = useSidebar();
+  const collapsed = state === "collapsed";
   const { data: menuGroups, isLoading } = useMenuForUser();
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
 
@@ -119,13 +122,13 @@ export const RbacSidebar = () => {
   }
 
   return (
-    <Sidebar>
+    <Sidebar collapsible="icon">
       <SidebarContent>
         {/* Main Menu Link */}
         <SidebarGroup>
           <SidebarMenu>
             <SidebarMenuItem>
-              <SidebarMenuButton asChild>
+              <SidebarMenuButton asChild tooltip="Main Menu">
                 <NavLink
                   to="/menu"
                   end
@@ -141,100 +144,127 @@ export const RbacSidebar = () => {
         </SidebarGroup>
 
         {/* Dynamic Menu Groups from RBAC */}
-        {menuGroups?.map((group) => {
-          const GroupIcon = getIcon(group.iconName);
-          const isOpen = openGroups[group.key] ?? false;
-          
-          // If group has no children, render as direct link
-          if (group.items.length === 0 && group.routePath) {
+        {collapsed ? (
+          <SidebarGroup>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {menuGroups?.map((group) => {
+                  const GroupIcon = getIcon(group.iconName);
+                  const target = group.routePath || group.items.find(i => i.routePath)?.routePath || '#';
+                  return (
+                    <SidebarMenuItem key={group.key}>
+                      <SidebarMenuButton asChild tooltip={group.label}>
+                        <NavLink
+                          to={target}
+                          className="flex items-center gap-2"
+                          activeClassName="bg-accent text-accent-foreground"
+                        >
+                          <GroupIcon className="h-4 w-4" />
+                          <span>{group.label}</span>
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ) : (
+          menuGroups?.map((group) => {
+            const GroupIcon = getIcon(group.iconName);
+            const isOpen = openGroups[group.key] ?? false;
+
+            // If group has no children, render as direct link
+            if (group.items.length === 0 && group.routePath) {
+              return (
+                <SidebarGroup key={group.key}>
+                  <SidebarMenu>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild tooltip={group.label}>
+                        <NavLink
+                          to={group.routePath}
+                          className="flex items-center gap-2"
+                          activeClassName="bg-accent text-accent-foreground"
+                        >
+                          <GroupIcon className="h-4 w-4" />
+                          <span>{group.label}</span>
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  </SidebarMenu>
+                </SidebarGroup>
+              );
+            }
+
             return (
               <SidebarGroup key={group.key}>
-                <SidebarMenu>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
+                <Collapsible open={isOpen} onOpenChange={() => toggleGroup(group.key)}>
+                  {/* Group header: text is clickable link, chevron toggles collapse */}
+                  <SidebarGroupLabel className="flex items-center justify-between pr-2 hover:bg-accent/50 rounded-md transition-colors">
+                    {group.routePath ? (
                       <NavLink
                         to={group.routePath}
-                        className="flex items-center gap-2"
-                        activeClassName="bg-accent text-accent-foreground"
+                        className="flex items-center gap-2 flex-1 py-1"
+                        activeClassName="text-primary font-medium"
                       >
                         <GroupIcon className="h-4 w-4" />
                         <span>{group.label}</span>
                       </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </SidebarMenu>
+                    ) : (
+                      <span className="flex items-center gap-2 flex-1">
+                        <GroupIcon className="h-4 w-4" />
+                        {group.label}
+                      </span>
+                    )}
+                    <CollapsibleTrigger asChild>
+                      <button
+                        className="p-1 hover:bg-muted rounded transition-colors"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <ChevronRight
+                          className={cn(
+                            "h-4 w-4 transition-transform",
+                            isOpen && "rotate-90"
+                          )}
+                        />
+                      </button>
+                    </CollapsibleTrigger>
+                  </SidebarGroupLabel>
+                  <CollapsibleContent>
+                    <SidebarGroupContent>
+                      <SidebarMenu>
+                        {group.items.map((item) => {
+                          const ItemIcon = getIcon(item.iconName);
+
+                          return (
+                            <SidebarMenuItem key={item.key}>
+                              <SidebarMenuButton asChild tooltip={item.label}>
+                                <NavLink
+                                  to={item.routePath || '#'}
+                                  className="flex items-center gap-2"
+                                  activeClassName="bg-accent text-accent-foreground"
+                                >
+                                  <ItemIcon className="h-4 w-4" />
+                                  <span>{item.label}</span>
+                                </NavLink>
+                              </SidebarMenuButton>
+                            </SidebarMenuItem>
+                          );
+                        })}
+                      </SidebarMenu>
+                    </SidebarGroupContent>
+                  </CollapsibleContent>
+                </Collapsible>
               </SidebarGroup>
             );
-          }
-
-          return (
-            <SidebarGroup key={group.key}>
-              <Collapsible open={isOpen} onOpenChange={() => toggleGroup(group.key)}>
-                {/* Group header: text is clickable link, chevron toggles collapse */}
-                <SidebarGroupLabel className="flex items-center justify-between pr-2 hover:bg-accent/50 rounded-md transition-colors">
-                  {group.routePath ? (
-                    <NavLink
-                      to={group.routePath}
-                      className="flex items-center gap-2 flex-1 py-1"
-                      activeClassName="text-primary font-medium"
-                    >
-                      <GroupIcon className="h-4 w-4" />
-                      <span>{group.label}</span>
-                    </NavLink>
-                  ) : (
-                    <span className="flex items-center gap-2 flex-1">
-                      <GroupIcon className="h-4 w-4" />
-                      {group.label}
-                    </span>
-                  )}
-                  <CollapsibleTrigger asChild>
-                    <button 
-                      className="p-1 hover:bg-muted rounded transition-colors"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <ChevronRight 
-                        className={cn(
-                          "h-4 w-4 transition-transform",
-                          isOpen && "rotate-90"
-                        )} 
-                      />
-                    </button>
-                  </CollapsibleTrigger>
-                </SidebarGroupLabel>
-                <CollapsibleContent>
-                  <SidebarGroupContent>
-                    <SidebarMenu>
-                      {group.items.map((item) => {
-                        const ItemIcon = getIcon(item.iconName);
-                        
-                        return (
-                          <SidebarMenuItem key={item.key}>
-                            <SidebarMenuButton asChild>
-                              <NavLink
-                                to={item.routePath || '#'}
-                                className="flex items-center gap-2"
-                                activeClassName="bg-accent text-accent-foreground"
-                              >
-                                <ItemIcon className="h-4 w-4" />
-                                <span>{item.label}</span>
-                              </NavLink>
-                            </SidebarMenuButton>
-                          </SidebarMenuItem>
-                        );
-                      })}
-                    </SidebarMenu>
-                  </SidebarGroupContent>
-                </CollapsibleContent>
-              </Collapsible>
-            </SidebarGroup>
-          );
-        })}
+          })
+        )}
       </SidebarContent>
 
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild>
+            <SidebarMenuButton asChild tooltip="Profile">
               <NavLink
                 to="/profile"
                 className="flex items-center gap-2"
@@ -246,7 +276,7 @@ export const RbacSidebar = () => {
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild>
+            <SidebarMenuButton asChild tooltip="Settings">
               <NavLink
                 to="/settings"
                 className="flex items-center gap-2"
@@ -260,6 +290,7 @@ export const RbacSidebar = () => {
           <SidebarMenuItem>
             <SidebarMenuButton
               onClick={handleSignOut}
+              tooltip="Sign Out"
               className="flex items-center gap-2 text-destructive hover:text-destructive"
             >
               <LogOut className="h-4 w-4" />

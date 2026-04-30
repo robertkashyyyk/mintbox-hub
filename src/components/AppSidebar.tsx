@@ -47,7 +47,8 @@ interface NavGroup {
 
 export function AppSidebar() {
   // ALL hooks must be called at the top, before any conditional returns
-  const { open } = useSidebar();
+  const { open, state } = useSidebar();
+  const collapsed = state === "collapsed";
   const location = useLocation();
   const navigate = useNavigate();
   const currentPath = location.pathname;
@@ -219,12 +220,10 @@ export function AppSidebar() {
               <div className="h-8 w-8 rounded-lg bg-pd-accent flex items-center justify-center flex-shrink-0">
                 <span className="text-foreground font-bold text-sm">PD</span>
               </div>
-              {open && (
-                <div>
-                  <p className="text-sm font-semibold text-sidebar-foreground">PartsDoc</p>
-                  <p className="text-[10px] text-sidebar-foreground/50">Hub</p>
-                </div>
-              )}
+              <div className="group-data-[collapsible=icon]:hidden">
+                <p className="text-sm font-semibold text-sidebar-foreground">PartsDoc</p>
+                <p className="text-[10px] text-sidebar-foreground/50">Hub</p>
+              </div>
             </div>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -234,10 +233,10 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={currentPath === "/menu"}>
+                <SidebarMenuButton asChild isActive={currentPath === "/menu"} tooltip="Main Menu">
                   <NavLink to="/menu" end>
                     <Search className="h-4 w-4" />
-                    {open && <span>Main Menu</span>}
+                    <span>Main Menu</span>
                   </NavLink>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -246,70 +245,95 @@ export function AppSidebar() {
         </SidebarGroup>
 
         {/* Navigation Groups */}
-        {navGroups.filter(shouldShowGroup).map((group) => (
-          <SidebarGroup key={group.label}>
-            <Collapsible
-              open={openGroups.has(group.label)}
-              onOpenChange={() => toggleGroup(group.label)}
-            >
-              <CollapsibleTrigger asChild>
-                <SidebarGroupLabel className="cursor-pointer hover:bg-muted/50 rounded-md flex items-center justify-between pr-2">
-                  <div className="flex items-center gap-2">
-                    <group.icon className="h-4 w-4" />
-                    {open && <span>{group.label}</span>}
-                  </div>
-                  {open && (
-                    openGroups.has(group.label) 
-                      ? <ChevronDown className="h-4 w-4" />
-                      : <ChevronRight className="h-4 w-4" />
-                  )}
-                </SidebarGroupLabel>
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <SidebarGroupContent>
-                  <SidebarMenu>
-                    {group.items
-                      .filter(item => !item.superOnly || isSuperUser)
-                      .map((item) => (
-                        <SidebarMenuItem key={item.url}>
-                          <SidebarMenuButton asChild isActive={isActive(item.url)}>
-                            <NavLink to={item.url}>
-                              <item.icon className="h-4 w-4" />
-                              {open && <span>{item.title}</span>}
-                            </NavLink>
-                          </SidebarMenuButton>
-                        </SidebarMenuItem>
-                      ))}
-                  </SidebarMenu>
-                </SidebarGroupContent>
-              </CollapsibleContent>
-            </Collapsible>
+        {collapsed ? (
+          <SidebarGroup>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {navGroups.filter(shouldShowGroup).map((group) => {
+                  const firstItem = group.items.find(i => !i.superOnly || isSuperUser);
+                  const target = firstItem?.url ?? group.basePath;
+                  return (
+                    <SidebarMenuItem key={group.label}>
+                      <SidebarMenuButton
+                        asChild
+                        isActive={currentPath.startsWith(group.basePath)}
+                        tooltip={group.label}
+                      >
+                        <NavLink to={target}>
+                          <group.icon className="h-4 w-4" />
+                          <span>{group.label}</span>
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
           </SidebarGroup>
-        ))}
+        ) : (
+          navGroups.filter(shouldShowGroup).map((group) => (
+            <SidebarGroup key={group.label}>
+              <Collapsible
+                open={openGroups.has(group.label)}
+                onOpenChange={() => toggleGroup(group.label)}
+              >
+                <CollapsibleTrigger asChild>
+                  <SidebarGroupLabel className="cursor-pointer hover:bg-muted/50 rounded-md flex items-center justify-between pr-2">
+                    <div className="flex items-center gap-2">
+                      <group.icon className="h-4 w-4" />
+                      <span>{group.label}</span>
+                    </div>
+                    {openGroups.has(group.label)
+                      ? <ChevronDown className="h-4 w-4" />
+                      : <ChevronRight className="h-4 w-4" />}
+                  </SidebarGroupLabel>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <SidebarGroupContent>
+                    <SidebarMenu>
+                      {group.items
+                        .filter(item => !item.superOnly || isSuperUser)
+                        .map((item) => (
+                          <SidebarMenuItem key={item.url}>
+                            <SidebarMenuButton asChild isActive={isActive(item.url)} tooltip={item.title}>
+                              <NavLink to={item.url}>
+                                <item.icon className="h-4 w-4" />
+                                <span>{item.title}</span>
+                              </NavLink>
+                            </SidebarMenuButton>
+                          </SidebarMenuItem>
+                        ))}
+                    </SidebarMenu>
+                  </SidebarGroupContent>
+                </CollapsibleContent>
+              </Collapsible>
+            </SidebarGroup>
+          ))
+        )}
       </SidebarContent>
       
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive={isActive("/profile")}>
+            <SidebarMenuButton asChild isActive={isActive("/profile")} tooltip="Profile">
               <NavLink to="/profile">
                 <UserCircle className="h-4 w-4" />
-                {open && <span>Profile</span>}
+                <span>Profile</span>
               </NavLink>
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive={isActive("/settings")}>
+            <SidebarMenuButton asChild isActive={isActive("/settings")} tooltip="Settings">
               <NavLink to="/settings">
                 <Settings className="h-4 w-4" />
-                {open && <span>Settings</span>}
+                <span>Settings</span>
               </NavLink>
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton onClick={handleSignOut}>
+            <SidebarMenuButton onClick={handleSignOut} tooltip="Sign Out">
               <LogOut className="h-4 w-4" />
-              {open && <span>Sign Out</span>}
+              <span>Sign Out</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
