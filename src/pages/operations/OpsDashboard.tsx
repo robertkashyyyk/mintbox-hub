@@ -77,7 +77,7 @@ const StatCard = ({
                 {delta > 0 ? (
                   <ArrowUp className="h-3 w-3 text-warning" />
                 ) : delta < 0 ? (
-                  <ArrowDown className="h-3 w-3 text-[hsl(var(--success))]" />
+                  <ArrowDown className="h-3 w-3 text-success" />
                 ) : (
                   <Minus className="h-3 w-3 text-muted-foreground" />
                 )}
@@ -110,7 +110,7 @@ const FlowIndicator = ({
       <span className="font-semibold text-lg">{value}</span>
       {isGood !== null && (
         <div
-          className={`h-3 w-3 rounded-full ${isGood ? "bg-[hsl(var(--success))]" : "bg-destructive"}`}
+          className={`h-3 w-3 rounded-full ${isGood ? "bg-success" : "bg-destructive"}`}
         />
       )}
     </div>
@@ -140,7 +140,7 @@ const QueueBar = ({
           <span className="font-semibold">{count}</span>
           {delta !== 0 && (
             <span
-              className={`text-xs ${delta > 0 ? "text-warning" : "text-[hsl(var(--success))]"}`}
+              className={`text-xs ${delta > 0 ? "text-warning" : "text-success"}`}
             >
               {delta > 0 ? "+" : ""}
               {delta}
@@ -171,11 +171,11 @@ const KpiRow = ({
 }) => {
   const colorFor = (pct: number, threshold24?: boolean) => {
     if (threshold24) {
-      if (pct >= 90) return "text-[hsl(var(--success))] font-semibold";
+      if (pct >= 90) return "text-success font-semibold";
       if (pct >= 70) return "text-warning font-semibold";
       return "text-destructive font-semibold";
     }
-    if (pct >= 95) return "text-[hsl(var(--success))] font-semibold";
+    if (pct >= 95) return "text-success font-semibold";
     if (pct >= 80) return "text-warning font-semibold";
     return "text-destructive font-semibold";
   };
@@ -218,7 +218,7 @@ const OverallStatus = ({ data }: { data: any }) => {
   if (clearanceRate >= 1 && backorderTrend <= 0 && problemCount <= 2) {
     status = "winning";
     statusLabel = "Winning";
-    statusColor = "bg-[hsl(var(--success))]";
+    statusColor = "bg-success";
     statusIcon = TrendingUp;
   } else if (clearanceRate < 0.7 || backorderTrend > 10 || problemCount > 5) {
     status = "losing";

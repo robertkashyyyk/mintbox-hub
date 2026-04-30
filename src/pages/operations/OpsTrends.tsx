@@ -59,7 +59,7 @@ const OpsTrends = () => {
   const perf = data.periodPerformance;
 
   const colorFor = (pct: number) => {
-    if (pct >= 90) return "text-[hsl(var(--success))]";
+    if (pct >= 90) return "text-success";
     if (pct >= 70) return "text-warning";
     return "text-destructive";
   };
