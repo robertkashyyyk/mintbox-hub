@@ -229,6 +229,9 @@ export function useOrderTelemetry() {
       case "stock_issues":
         base.stockIssueOnly = true;
         break;
+      case "open_issues":
+        base.openOnly = true;
+        break;
     }
     setFilters(base);
     setPage(1);
