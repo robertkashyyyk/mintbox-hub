@@ -15,8 +15,30 @@ const corsHeaders = {
 };
 
 const START_TIME = Date.now();
+const RUN_STARTED_AT = new Date().toISOString();
 const MAX_RUNTIME_MS = 50_000;
 const isTimeRunningOut = () => Date.now() - START_TIME > MAX_RUNTIME_MS;
+
+async function logRun(
+  supabase: ReturnType<typeof createClient>,
+  status: "succeeded" | "failed" | "partial",
+  message: string,
+  details?: Record<string, unknown>,
+) {
+  try {
+    await supabase.from("edge_function_runs").insert({
+      function_name: "reconcile-order-ghosts",
+      started_at: RUN_STARTED_AT,
+      ended_at: new Date().toISOString(),
+      duration_ms: Date.now() - START_TIME,
+      status,
+      message,
+      details: details ?? null,
+    });
+  } catch (e) {
+    console.error("logRun failed:", e);
+  }
+}
 
 interface MintsoftStatus {
   ID: number;
