@@ -238,8 +238,9 @@ Deno.serve(async (req) => {
             last_seen_at: now,
             times_seen: (existing.times_seen || 1) + 1,
             order_status: newStatusName,
-            order_status_id: order.OrderStatusId ?? null,
+             order_status_id: order.OrderStatusId ?? null,
             customer_name: order.CustomerName || null,
+            tracking_number: (order as any).TrackingNo || (order as any).Consignment || (order as any).TrackingNumber || existing.tracking_number || null,
           };
           if (statusChanged) {
             payload.last_status_change_at = now;
@@ -307,8 +308,9 @@ Deno.serve(async (req) => {
             brand_id: brandId,
             order_status: extractStatusName(order, statusLookup),
             order_status_id: order.OrderStatusId ?? null,
-            product_name: item.Name || null,
+             product_name: item.Name || null,
             customer_name: order.CustomerName || null,
+            tracking_number: (order as any).TrackingNo || (order as any).Consignment || (order as any).TrackingNumber || null,
             first_seen_at: now,
             last_seen_at: now,
             last_status_change_at: now,
