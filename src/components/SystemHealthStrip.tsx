@@ -33,14 +33,14 @@ type JobRun = {
   command: string | null;
 };
 
-const JOB_META: Record<string, { label: string; expectedMaxAgeSec: number }> = {
-  "sync-mintsoft-orders-live-tail": { label: "Order Sync", expectedMaxAgeSec: 20 * 60 },
-  "reconcile-order-ghosts-every-15min": { label: "Ghost Closure", expectedMaxAgeSec: 20 * 60 },
-  "evaluate-order-issues-every-15min": { label: "Order Telemetry", expectedMaxAgeSec: 20 * 60 },
-  "sync-mintsoft-orders-daily": { label: "Daily Catch-up", expectedMaxAgeSec: 25 * 60 * 60 },
-  "poll-inventory-every-15min": { label: "Inventory Poll", expectedMaxAgeSec: 20 * 60 },
-  "poll-lowstock-every-15min": { label: "Low Stock Poll", expectedMaxAgeSec: 20 * 60 },
-  "mintsoft-enrich-batch-every-30min": { label: "Product Enrichment", expectedMaxAgeSec: 40 * 60 },
+const JOB_META: Record<string, { label: string; expectedMaxAgeSec: number; functionName?: string }> = {
+  "sync-mintsoft-orders-live-tail": { label: "Order Sync", expectedMaxAgeSec: 20 * 60, functionName: "sync-mintsoft-orders" },
+  "reconcile-order-ghosts-every-15min": { label: "Ghost Closure", expectedMaxAgeSec: 20 * 60, functionName: "reconcile-order-ghosts" },
+  "evaluate-order-issues-every-15min": { label: "Order Telemetry", expectedMaxAgeSec: 20 * 60, functionName: "evaluate-order-issues" },
+  "sync-mintsoft-orders-daily": { label: "Daily Catch-up", expectedMaxAgeSec: 25 * 60 * 60, functionName: "sync-mintsoft-orders" },
+  "poll-inventory-every-15min": { label: "Inventory Poll", expectedMaxAgeSec: 20 * 60, functionName: "poll-inventory" },
+  "poll-lowstock-every-15min": { label: "Low Stock Poll", expectedMaxAgeSec: 20 * 60, functionName: "poll-lowstock" },
+  "mintsoft-enrich-batch-every-30min": { label: "Product Enrichment", expectedMaxAgeSec: 40 * 60, functionName: "mintsoft-enrich-batch" },
   "refresh-sku-velocity-daily": { label: "Velocity Refresh", expectedMaxAgeSec: 25 * 60 * 60 },
 };
 
