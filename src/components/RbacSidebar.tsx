@@ -264,7 +264,7 @@ export const RbacSidebar = () => {
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild>
+            <SidebarMenuButton asChild tooltip="Profile">
               <NavLink
                 to="/profile"
                 className="flex items-center gap-2"
@@ -276,7 +276,7 @@ export const RbacSidebar = () => {
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild>
+            <SidebarMenuButton asChild tooltip="Settings">
               <NavLink
                 to="/settings"
                 className="flex items-center gap-2"
@@ -290,6 +290,7 @@ export const RbacSidebar = () => {
           <SidebarMenuItem>
             <SidebarMenuButton
               onClick={handleSignOut}
+              tooltip="Sign Out"
               className="flex items-center gap-2 text-destructive hover:text-destructive"
             >
               <LogOut className="h-4 w-4" />
