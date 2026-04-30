@@ -3122,6 +3122,19 @@ export type Database = {
           status: string
         }[]
       }
+      get_system_health_jobs: {
+        Args: never
+        Returns: {
+          active: boolean
+          jobname: string
+          last_duration_ms: number
+          last_end: string
+          last_start: string
+          last_status: string
+          schedule: string
+          seconds_since_last_run: number
+        }[]
+      }
       has_any_role: {
         Args: {
           _roles: Database["public"]["Enums"]["app_role"][]
