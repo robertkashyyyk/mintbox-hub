@@ -211,7 +211,11 @@ const CarrierRemeasure = () => {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button onClick={resolveUnresolved} disabled={resolving}>
+          <Button onClick={() => setCreating(true)} variant="default">
+            <Ruler className="h-4 w-4 mr-2" />
+            New remeasure task
+          </Button>
+          <Button onClick={resolveUnresolved} disabled={resolving} variant="secondary">
             {resolving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Search className="h-4 w-4 mr-2" />}
             Resolve unresolved penalties
           </Button>
