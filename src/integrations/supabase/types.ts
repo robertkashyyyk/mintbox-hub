@@ -248,9 +248,12 @@ export type Database = {
           doc_type: string
           document_date: string
           file_path: string
+          file_size_bytes: number | null
           file_url: string | null
           id: string
+          mime_type: string | null
           notes: string | null
+          original_filename: string | null
           parse_error: string | null
           parse_status: string
           parsed_at: string | null
@@ -266,9 +269,12 @@ export type Database = {
           doc_type: string
           document_date: string
           file_path: string
+          file_size_bytes?: number | null
           file_url?: string | null
           id?: string
+          mime_type?: string | null
           notes?: string | null
+          original_filename?: string | null
           parse_error?: string | null
           parse_status?: string
           parsed_at?: string | null
@@ -284,9 +290,12 @@ export type Database = {
           doc_type?: string
           document_date?: string
           file_path?: string
+          file_size_bytes?: number | null
           file_url?: string | null
           id?: string
+          mime_type?: string | null
           notes?: string | null
+          original_filename?: string | null
           parse_error?: string | null
           parse_status?: string
           parsed_at?: string | null
