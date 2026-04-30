@@ -123,7 +123,18 @@ Deno.serve(async (req) => {
     let fromDateObj = new Date(`${fromDate}T00:00:00Z`);
     // Enforce hard boundary
     if (fromDateObj < MIN_DATE) fromDateObj = MIN_DATE;
-    console.log(`Filtering orders since ${fromDateObj.toISOString().split('T')[0]}`);
+
+    // LIVE-TAIL MODE (default cron): ignore OrderDate filter entirely so we
+    // refresh ALL non-terminal orders regardless of age. This is the only way
+    // to detect orders that Mintsoft has since despatched / cancelled but were
+    // placed weeks ago. Backfill mode keeps the date filter so it can sweep
+    // a defined window.
+    const ignoreDateFilter = !isBackfill;
+    if (ignoreDateFilter) {
+      console.log(`Live-tail: pulling ALL non-terminal orders (ignoring OrderDate filter)`);
+    } else {
+      console.log(`Backfill mode: filtering orders since ${fromDateObj.toISOString().split('T')[0]}`);
+    }
 
     const { data: brands, error: brandsError } = await supabase.from("brands").select("id, prefix, prefix_style");
     if (brandsError) throw brandsError;
