@@ -8,6 +8,7 @@ import { ArrowLeft, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import ProductImageUpload from "@/components/discovery/ProductImageUpload";
+import { MintsoftCategoriesEditor } from "@/components/MintsoftCategoriesEditor";
 
 export default function ProductDetail() {
   const { id } = useParams<{ id: string }>();
