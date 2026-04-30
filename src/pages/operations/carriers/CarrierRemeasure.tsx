@@ -84,6 +84,36 @@ const CarrierRemeasure = () => {
   const [statusFilter, setStatusFilter] = useState<string>("open");
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<Task | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [newSku, setNewSku] = useState("");
+  const [newOrderId, setNewOrderId] = useState("");
+  const [newAssignee, setNewAssignee] = useState("");
+  const [newNotes, setNewNotes] = useState("");
+  const [savingNew, setSavingNew] = useState(false);
+
+  async function createTask() {
+    if (!newSku.trim()) {
+      toast.error("SKU is required");
+      return;
+    }
+    setSavingNew(true);
+    const { error } = await supabase.from("carrier_remeasure_tasks").insert({
+      sku: newSku.trim().toUpperCase(),
+      mintsoft_order_id: newOrderId ? parseInt(newOrderId, 10) || null : null,
+      assigned_to: newAssignee.trim() || null,
+      notes: newNotes.trim() || null,
+      status: "todo",
+    });
+    setSavingNew(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success("Remeasure task added");
+    setCreating(false);
+    setNewSku(""); setNewOrderId(""); setNewAssignee(""); setNewNotes("");
+    await load();
+  }
 
   useEffect(() => {
     void load();
