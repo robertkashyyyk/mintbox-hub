@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      agent_runs: {
+        Row: {
+          error: string | null
+          finished_at: string | null
+          id: string
+          run_type: string
+          started_at: string | null
+          status: string | null
+          summary: Json | null
+        }
+        Insert: {
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          run_type: string
+          started_at?: string | null
+          status?: string | null
+          summary?: Json | null
+        }
+        Update: {
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          run_type?: string
+          started_at?: string | null
+          status?: string | null
+          summary?: Json | null
+        }
+        Relationships: []
+      }
       alerts: {
         Row: {
           alert_type: Database["public"]["Enums"]["alert_type"]
@@ -781,6 +811,88 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      open_asn_items: {
+        Row: {
+          asn_id: number
+          expected_qty: number | null
+          id: string
+          mintsoft_product_id: number | null
+          received_qty: number | null
+          sku: string
+          synced_at: string | null
+        }
+        Insert: {
+          asn_id: number
+          expected_qty?: number | null
+          id?: string
+          mintsoft_product_id?: number | null
+          received_qty?: number | null
+          sku: string
+          synced_at?: string | null
+        }
+        Update: {
+          asn_id?: number
+          expected_qty?: number | null
+          id?: string
+          mintsoft_product_id?: number | null
+          received_qty?: number | null
+          sku?: string
+          synced_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "open_asn_items_asn_id_fkey"
+            columns: ["asn_id"]
+            isOneToOne: false
+            referencedRelation: "open_asns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      open_asns: {
+        Row: {
+          asn_status: string | null
+          booked_in_date: string | null
+          estimated_delivery: string | null
+          id: number
+          po_reference: string | null
+          supplier_id: string | null
+          supplier_name: string | null
+          synced_at: string | null
+          warehouse_id: number | null
+        }
+        Insert: {
+          asn_status?: string | null
+          booked_in_date?: string | null
+          estimated_delivery?: string | null
+          id: number
+          po_reference?: string | null
+          supplier_id?: string | null
+          supplier_name?: string | null
+          synced_at?: string | null
+          warehouse_id?: number | null
+        }
+        Update: {
+          asn_status?: string | null
+          booked_in_date?: string | null
+          estimated_delivery?: string | null
+          id?: number
+          po_reference?: string | null
+          supplier_id?: string | null
+          supplier_name?: string | null
+          synced_at?: string | null
+          warehouse_id?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "open_asns_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       ops_report_log: {
         Row: {
@@ -1673,6 +1785,97 @@ export type Database = {
         }
         Relationships: []
       }
+      purchase_order_lines: {
+        Row: {
+          created_at: string | null
+          id: string
+          mintsoft_asn_id: number | null
+          po_id: string
+          product_name: string | null
+          qty_ordered: number
+          sku: string
+          unit_cost: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          mintsoft_asn_id?: number | null
+          po_id: string
+          product_name?: string | null
+          qty_ordered?: number
+          sku: string
+          unit_cost?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          mintsoft_asn_id?: number | null
+          po_id?: string
+          product_name?: string | null
+          qty_ordered?: number
+          sku?: string
+          unit_cost?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_order_lines_po_id_fkey"
+            columns: ["po_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      purchase_orders: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          created_at: string | null
+          created_by: string | null
+          id: string
+          notes: string | null
+          sent_at: string | null
+          status: string | null
+          supplier_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          sent_at?: string | null
+          status?: string | null
+          supplier_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          sent_at?: string | null
+          status?: string | null
+          supplier_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_orders_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       role_area_permissions: {
         Row: {
           area_key: string
@@ -1721,6 +1924,74 @@ export type Database = {
           reason?: string
           role_a?: Database["public"]["Enums"]["rbac_role"]
           role_b?: Database["public"]["Enums"]["rbac_role"]
+        }
+        Relationships: []
+      }
+      sku_prefixes: {
+        Row: {
+          notes: string | null
+          prefix: string
+          prefix_style: string | null
+          supplier_id: string | null
+        }
+        Insert: {
+          notes?: string | null
+          prefix: string
+          prefix_style?: string | null
+          supplier_id?: string | null
+        }
+        Update: {
+          notes?: string | null
+          prefix?: string
+          prefix_style?: string | null
+          supplier_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sku_prefixes_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      suppliers: {
+        Row: {
+          active: boolean | null
+          contact_email: string | null
+          contact_name: string | null
+          contact_phone: string | null
+          created_at: string | null
+          id: string
+          name: string
+          notes: string | null
+          ordering_method: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          active?: boolean | null
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string | null
+          id: string
+          name: string
+          notes?: string | null
+          ordering_method?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          active?: boolean | null
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          ordering_method?: string | null
+          updated_at?: string | null
         }
         Relationships: []
       }
@@ -2367,6 +2638,38 @@ export type Database = {
           },
         ]
       }
+      purchasing_requirements: {
+        Row: {
+          back_order_qty: number | null
+          cost_price: number | null
+          current_stock: number | null
+          lsa: number | null
+          name: string | null
+          on_order_qty: number | null
+          open_asn_qty: number | null
+          prefix: string | null
+          reorder_qty: number | null
+          sku: string | null
+          supplier_id: string | null
+          supplier_name: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "products_cache_brand_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "products_cache_brand_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "brands_missing_base_multiplier"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sku_stock_health: {
         Row: {
           avg_weekly_units: number | null
@@ -2414,6 +2717,31 @@ export type Database = {
           {
             foreignKeyName: "order_lines_brand_id_fkey"
             columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands_missing_base_multiplier"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      supplier_order_summary: {
+        Row: {
+          estimated_cost: number | null
+          sku_count: number | null
+          supplier_id: string | null
+          supplier_name: string | null
+          total_units: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "products_cache_brand_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "products_cache_brand_id_fkey"
+            columns: ["supplier_id"]
             isOneToOne: false
             referencedRelation: "brands_missing_base_multiplier"
             referencedColumns: ["id"]
