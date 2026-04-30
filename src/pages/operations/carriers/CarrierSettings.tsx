@@ -31,8 +31,8 @@ const CarrierSettings = () => {
       supabase.from("carrier_packers" as any).select("*").order("name"),
     ]);
     if (c.data) setCarriers(c.data as Carrier[]);
-    if (r.data) setReasons(r.data as ReasonCode[]);
-    if (p.data) setPackers(p.data as Packer[]);
+    if (r.data) setReasons(r.data as unknown as ReasonCode[]);
+    if (p.data) setPackers(p.data as unknown as Packer[]);
     setLoading(false);
   };
 
