@@ -65,12 +65,13 @@ const TERMINAL_NAMES = [
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
+  const supabase = createClient(
+    Deno.env.get("SUPABASE_URL") ?? "",
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+  );
+
   try {
     console.log("Starting ghost-closure reconciliation...");
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-    );
 
     const apiKey = Deno.env.get("MINTSOFT_API_KEY");
     if (!apiKey) throw new Error("MINTSOFT_API_KEY not configured");
