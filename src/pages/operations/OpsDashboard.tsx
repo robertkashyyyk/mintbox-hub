@@ -446,7 +446,7 @@ const OpsDashboard = () => {
               count={data.queueNew}
               total={data.totalActive}
               delta={data.deltaNew}
-              color="bg-[hsl(var(--chart-1))]"
+              color="bg-chart-1"
             />
             <QueueBar
               label="AWAITING PICKING"
