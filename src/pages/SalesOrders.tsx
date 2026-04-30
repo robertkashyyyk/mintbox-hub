@@ -22,7 +22,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { RefreshCw, Settings, Eye, AlertTriangle, ShieldAlert, CircleAlert, Inbox, Zap } from "lucide-react";
+import { RefreshCw, Settings, Eye, AlertTriangle, ShieldAlert, CircleAlert, Inbox, Zap, Loader2, Inbox as InboxEmpty } from "lucide-react";
 import DiagnosticBanner from "@/components/DiagnosticBanner";
 import OrderFilters from "@/components/orders/OrderFilters";
 import OrderTable from "@/components/orders/OrderTable";
