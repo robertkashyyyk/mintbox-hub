@@ -306,6 +306,36 @@ export type Database = {
           },
         ]
       }
+      carrier_packers: {
+        Row: {
+          active: boolean
+          created_at: string
+          email: string | null
+          id: string
+          name: string
+          notes: string | null
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          email?: string | null
+          id?: string
+          name: string
+          notes?: string | null
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          email?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       carrier_penalties: {
         Row: {
           actual_format: string | null
@@ -377,6 +407,47 @@ export type Database = {
             columns: ["document_id"]
             isOneToOne: false
             referencedRelation: "carrier_documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      carrier_reason_codes: {
+        Row: {
+          active: boolean
+          carrier_id: string | null
+          code: string
+          created_at: string
+          description: string | null
+          id: string
+          label: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          carrier_id?: string | null
+          code: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          label: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          carrier_id?: string | null
+          code?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          label?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "carrier_reason_codes_carrier_id_fkey"
+            columns: ["carrier_id"]
+            isOneToOne: false
+            referencedRelation: "carriers"
             referencedColumns: ["id"]
           },
         ]
