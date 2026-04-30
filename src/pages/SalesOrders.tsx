@@ -192,11 +192,16 @@ const SalesOrders = () => {
 
       <DiagnosticBanner />
 
-      {/* Summary Cards */}
+      {/* Summary Cards — each is a one-click filter */}
       <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
         <Card
-          className={`cursor-pointer transition-colors ${filters.savedView === "needs_action" ? "ring-2 ring-orange-500/50" : "hover:bg-muted/50"}`}
+          role="button"
+          tabIndex={0}
+          aria-pressed={filters.savedView === "needs_action"}
+          title="Open or in-review issues with severity 'problem' or 'critical', excluding suppressed lines."
+          className={`cursor-pointer transition-colors ${filters.savedView === "needs_action" ? "ring-2 ring-orange-500/50 bg-card/80" : "hover:bg-card/80 hover:border-pd-accent/60"}`}
           onClick={() => applySavedView("needs_action")}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); applySavedView("needs_action"); } }}
         >
           <CardContent className="pt-4 pb-3">
             <div className="flex items-center gap-2">
@@ -208,7 +213,15 @@ const SalesOrders = () => {
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card
+          role="button"
+          tabIndex={0}
+          aria-pressed={filters.savedView === "all"}
+          title="Show every order line currently loaded — no filters applied."
+          className={`cursor-pointer transition-colors ${filters.savedView === "all" ? "ring-2 ring-pd-accent/50 bg-card/80" : "hover:bg-card/80 hover:border-pd-accent/60"}`}
+          onClick={() => applySavedView("all")}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); applySavedView("all"); } }}
+        >
           <CardContent className="pt-4 pb-3">
             <div className="flex items-center gap-2">
               <Inbox className="h-4 w-4 text-muted-foreground" />
@@ -219,7 +232,15 @@ const SalesOrders = () => {
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card
+          role="button"
+          tabIndex={0}
+          aria-pressed={filters.savedView === "all"}
+          title="Total order lines across all loaded orders."
+          className={`cursor-pointer transition-colors ${filters.savedView === "all" ? "ring-2 ring-pd-accent/50 bg-card/80" : "hover:bg-card/80 hover:border-pd-accent/60"}`}
+          onClick={() => applySavedView("all")}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); applySavedView("all"); } }}
+        >
           <CardContent className="pt-4 pb-3">
             <div className="flex items-center gap-2">
               <Inbox className="h-4 w-4 text-muted-foreground" />
@@ -230,7 +251,15 @@ const SalesOrders = () => {
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card
+          role="button"
+          tabIndex={0}
+          aria-pressed={filters.savedView === "problems"}
+          title="Lines with any unresolved issue (excludes auto_resolved and resolved)."
+          className={`cursor-pointer transition-colors ${filters.savedView === "problems" ? "ring-2 ring-orange-500/50 bg-card/80" : "hover:bg-card/80 hover:border-pd-accent/60"}`}
+          onClick={() => applySavedView("problems")}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); applySavedView("problems"); } }}
+        >
           <CardContent className="pt-4 pb-3">
             <div className="flex items-center gap-2">
               <AlertTriangle className="h-4 w-4 text-orange-400" />
@@ -241,7 +270,15 @@ const SalesOrders = () => {
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card
+          role="button"
+          tabIndex={0}
+          aria-pressed={filters.savedView === "critical"}
+          title="Open issues with severity 'critical'."
+          className={`cursor-pointer transition-colors ${filters.savedView === "critical" ? "ring-2 ring-red-500/50 bg-card/80" : "hover:bg-card/80 hover:border-pd-accent/60"}`}
+          onClick={() => applySavedView("critical")}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); applySavedView("critical"); } }}
+        >
           <CardContent className="pt-4 pb-3">
             <div className="flex items-center gap-2">
               <ShieldAlert className="h-4 w-4 text-red-400" />
@@ -252,7 +289,15 @@ const SalesOrders = () => {
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card
+          role="button"
+          tabIndex={0}
+          aria-pressed={filters.savedView === "open_issues"}
+          title="Issues with status 'open' or 'in_review' (any severity, not suppressed)."
+          className={`cursor-pointer transition-colors ${filters.savedView === "open_issues" ? "ring-2 ring-amber-500/50 bg-card/80" : "hover:bg-card/80 hover:border-pd-accent/60"}`}
+          onClick={() => applySavedView("open_issues")}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); applySavedView("open_issues"); } }}
+        >
           <CardContent className="pt-4 pb-3">
             <div className="flex items-center gap-2">
               <CircleAlert className="h-4 w-4 text-amber-400" />
@@ -264,6 +309,25 @@ const SalesOrders = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Definition helper for the active view */}
+      <p className="text-xs text-muted-foreground -mt-1">
+        {filters.savedView === "needs_action" && (
+          <>Showing <span className="text-foreground font-medium">{stats.needsActionCount.toLocaleString()}</span> lines that need action — open/in-review issues with severity <em>problem</em> or <em>critical</em>, suppressed lines excluded. Click another card to change filter.</>
+        )}
+        {filters.savedView === "all" && (
+          <>Showing all <span className="text-foreground font-medium">{stats.totalLines.toLocaleString()}</span> loaded lines across <span className="text-foreground font-medium">{stats.totalOrders.toLocaleString()}</span> orders. Click a card to filter.</>
+        )}
+        {filters.savedView === "problems" && (
+          <>Showing <span className="text-foreground font-medium">{stats.problemCount.toLocaleString()}</span> lines with unresolved issues (auto-resolved and resolved excluded).</>
+        )}
+        {filters.savedView === "critical" && (
+          <>Showing <span className="text-foreground font-medium">{stats.criticalCount.toLocaleString()}</span> open critical-severity lines.</>
+        )}
+        {filters.savedView === "open_issues" && (
+          <>Showing <span className="text-foreground font-medium">{stats.openIssueCount.toLocaleString()}</span> lines with open or in-review issues (any severity).</>
+        )}
+      </p>
 
       {/* Filters */}
       <Card>
