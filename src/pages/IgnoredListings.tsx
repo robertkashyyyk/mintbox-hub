@@ -56,8 +56,8 @@ export default function IgnoredListings() {
             Back to Tools
           </Button>
           <div>
-            <h1 className="text-3xl font-bold text-white">Ignored Listings</h1>
-            <p className="text-white/60">
+            <h1 className="text-3xl font-bold text-foreground">Ignored Listings</h1>
+            <p className="text-foreground/60">
               Manage eBay listings ignored in Price Hunter
             </p>
           </div>

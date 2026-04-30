@@ -41,7 +41,7 @@ const CarrierSettings = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight text-white">Carrier Settings</h1>
+        <h1 className="text-3xl font-bold tracking-tight text-foreground">Carrier Settings</h1>
         <p className="text-muted-foreground mt-1">
           Manage carriers, reason code labels, and the packer roster used for remeasure assignments.
         </p>

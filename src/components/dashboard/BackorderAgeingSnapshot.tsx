@@ -22,7 +22,7 @@ const BUCKET_CONFIG = [
   { key: 'bo_rotten_30_plus', label: 'ROTTEN', days: '30+', variant: 'destructive' as const, className: '' },
   { key: 'bo_serious_14_29', label: 'SERIOUS', days: '14-29', variant: 'default' as const, className: 'bg-orange-500 hover:bg-orange-600' },
   { key: 'bo_urgent_7_13', label: 'URGENT', days: '7-13', variant: 'default' as const, className: 'bg-amber-500 hover:bg-amber-600' },
-  { key: 'bo_pressure_2_6', label: 'PRESSURE', days: '2-6', variant: 'default' as const, className: 'bg-yellow-500 hover:bg-yellow-600 text-black' },
+  { key: 'bo_pressure_2_6', label: 'PRESSURE', days: '2-6', variant: 'default' as const, className: 'bg-yellow-500 hover:bg-yellow-600 text-foreground' },
   { key: 'bo_fresh_0_1', label: 'FRESH', days: '0-1', variant: 'default' as const, className: 'bg-green-500 hover:bg-green-600' },
 ];
 

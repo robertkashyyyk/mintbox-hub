@@ -36,7 +36,7 @@ const CarriersIndex = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight text-white flex items-center gap-3">
+        <h1 className="text-3xl font-bold tracking-tight text-foreground flex items-center gap-3">
           <Truck className="h-7 w-7 text-primary" />
           Carriers
         </h1>

@@ -60,7 +60,7 @@ const OpsTrends = () => {
 
   const colorFor = (pct: number) => {
     if (pct >= 90) return "text-[hsl(var(--success))]";
-    if (pct >= 70) return "text-[hsl(41,90%,56%)]";
+    if (pct >= 70) return "text-warning";
     return "text-destructive";
   };
 

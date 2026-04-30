@@ -36,8 +36,8 @@ const ModuleHeader = ({ title, description, icon: Icon, backgroundImage }: Modul
               <Icon className="h-6 w-6 text-[hsl(var(--pd-accent))]" />
             </div>
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">{title}</h1>
-              <p className="text-sm md:text-base text-white/60 mt-1">{description}</p>
+              <h1 className="text-2xl md:text-3xl font-bold text-foreground tracking-tight">{title}</h1>
+              <p className="text-sm md:text-base text-foreground/60 mt-1">{description}</p>
             </div>
           </div>
         </div>

@@ -184,7 +184,7 @@ export default function CatalogueBuilder() {
 
   if (loadingCat || !catalogue) {
     return (
-      <div className="flex items-center justify-center py-20 text-white/60">
+      <div className="flex items-center justify-center py-20 text-foreground/60">
         <Loader2 className="h-6 w-6 animate-spin" />
       </div>
     );
@@ -204,8 +204,8 @@ export default function CatalogueBuilder() {
           </Button>
           <div className="h-8 w-1 rounded-full bg-pd-accent" />
           <div>
-            <h1 className="text-xl font-bold text-white">{current?.title}</h1>
-            <p className="text-xs text-white/50 font-mono">{current?.slug}</p>
+            <h1 className="text-xl font-bold text-foreground">{current?.title}</h1>
+            <p className="text-xs text-foreground/50 font-mono">{current?.slug}</p>
           </div>
           <Badge>{current?.status}</Badge>
         </div>
@@ -238,7 +238,7 @@ export default function CatalogueBuilder() {
             </TabsList>
 
             <TabsContent value="details" className="space-y-4 mt-4">
-              <Card className="bg-card/60 border-white/10">
+              <Card className="bg-card/60 border-foreground/10">
                 <CardContent className="p-5 space-y-4">
                   <div className="space-y-2">
                     <Label>Title</Label>
@@ -289,11 +289,11 @@ export default function CatalogueBuilder() {
             </TabsContent>
 
             <TabsContent value="products" className="space-y-4 mt-4">
-              <Card className="bg-card/60 border-white/10">
+              <Card className="bg-card/60 border-foreground/10">
                 <CardContent className="p-5 space-y-3">
                   <Label>Add products</Label>
                   <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-foreground/40" />
                     <Input
                       className="pl-9"
                       placeholder="Search by SKU or name…"
@@ -302,9 +302,9 @@ export default function CatalogueBuilder() {
                     />
                   </div>
                   {search.trim().length >= 2 && (
-                    <div className="border border-white/10 rounded-md max-h-64 overflow-auto divide-y divide-white/5">
+                    <div className="border border-foreground/10 rounded-md max-h-64 overflow-auto divide-y divide-white/5">
                       {searchResults?.length === 0 && (
-                        <div className="p-3 text-sm text-white/50">No matches.</div>
+                        <div className="p-3 text-sm text-foreground/50">No matches.</div>
                       )}
                       {searchResults?.map((p) => {
                         const already = itemIds.has(p.id);
@@ -314,8 +314,8 @@ export default function CatalogueBuilder() {
                             className="flex items-center justify-between gap-3 p-2"
                           >
                             <div className="min-w-0">
-                              <div className="text-sm text-white truncate">{p.name}</div>
-                              <div className="text-xs text-white/50 font-mono">{p.sku}</div>
+                              <div className="text-sm text-foreground truncate">{p.name}</div>
+                              <div className="text-xs text-foreground/50 font-mono">{p.sku}</div>
                             </div>
                             <Button
                               size="sm"
@@ -333,13 +333,13 @@ export default function CatalogueBuilder() {
                 </CardContent>
               </Card>
 
-              <Card className="bg-card/60 border-white/10">
+              <Card className="bg-card/60 border-foreground/10">
                 <CardContent className="p-5">
-                  <div className="text-sm text-white/70 mb-3">
+                  <div className="text-sm text-foreground/70 mb-3">
                     {orderedItems.length} item{orderedItems.length === 1 ? "" : "s"}
                   </div>
                   {orderedItems.length === 0 ? (
-                    <p className="text-sm text-white/50 py-6 text-center">
+                    <p className="text-sm text-foreground/50 py-6 text-center">
                       No products yet. Search above to add some.
                     </p>
                   ) : (
@@ -349,15 +349,15 @@ export default function CatalogueBuilder() {
                         return (
                           <li
                             key={item.id}
-                            className="flex items-center gap-3 p-2 rounded-md border border-white/5 bg-background/40"
+                            className="flex items-center gap-3 p-2 rounded-md border border-foreground/5 bg-background/40"
                           >
-                            <GripVertical className="h-4 w-4 text-white/30" />
-                            <span className="text-xs text-white/40 w-6">{idx + 1}</span>
+                            <GripVertical className="h-4 w-4 text-foreground/30" />
+                            <span className="text-xs text-foreground/40 w-6">{idx + 1}</span>
                             <div className="flex-1 min-w-0">
-                              <div className="text-sm text-white truncate">
+                              <div className="text-sm text-foreground truncate">
                                 {p?.marketing_title || p?.name || "Loading…"}
                               </div>
-                              <div className="text-xs text-white/50 font-mono">{p?.sku}</div>
+                              <div className="text-xs text-foreground/50 font-mono">{p?.sku}</div>
                             </div>
                             <Button
                               size="sm"
@@ -377,7 +377,7 @@ export default function CatalogueBuilder() {
             </TabsContent>
 
             <TabsContent value="publish" className="space-y-4 mt-4">
-              <Card className="bg-card/60 border-white/10">
+              <Card className="bg-card/60 border-foreground/10">
                 <CardContent className="p-5 space-y-4">
                   <div className="space-y-2">
                     <Label>Status</Label>
@@ -397,10 +397,10 @@ export default function CatalogueBuilder() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="flex items-center justify-between rounded-md border border-white/10 p-3">
+                  <div className="flex items-center justify-between rounded-md border border-foreground/10 p-3">
                     <div>
                       <Label>Public visibility</Label>
-                      <p className="text-xs text-white/50">
+                      <p className="text-xs text-foreground/50">
                         When on, published catalogues are visible to unauthenticated visitors.
                         Phase 2 will expose the public page.
                       </p>
@@ -410,7 +410,7 @@ export default function CatalogueBuilder() {
                       onCheckedChange={(v) => setDraft({ ...draft, public_visible: v })}
                     />
                   </div>
-                  <p className="text-xs text-white/40">
+                  <p className="text-xs text-foreground/40">
                     PDF generation arrives in Phase 3. For now, this is the live HTML preview.
                   </p>
                 </CardContent>
@@ -422,11 +422,11 @@ export default function CatalogueBuilder() {
         {/* Right column: live preview */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-white/80 uppercase tracking-wider">
+            <h2 className="text-sm font-semibold text-foreground/80 uppercase tracking-wider">
               Live preview
             </h2>
           </div>
-          <div className="rounded-lg overflow-hidden border border-white/10 bg-[#0b0f17] max-h-[80vh] overflow-y-auto">
+          <div className="rounded-lg overflow-hidden border border-foreground/10 bg-background max-h-[80vh] overflow-y-auto">
             <CataloguePreview
               catalogue={current!}
               items={orderedItems}
@@ -449,10 +449,10 @@ function CataloguePreview({
   productsById: Map<string, Product>;
 }) {
   return (
-    <div className="text-white">
+    <div className="text-foreground">
       {/* Cover */}
       <div
-        className="relative px-8 py-16 border-b border-white/10"
+        className="relative px-8 py-16 border-b border-foreground/10"
         style={{
           backgroundImage: catalogue.cover_image_url
             ? `linear-gradient(180deg, rgba(11,15,23,0.55), rgba(11,15,23,0.95)), url(${catalogue.cover_image_url})`
@@ -466,9 +466,9 @@ function CataloguePreview({
         </div>
         <h1 className="text-4xl font-bold tracking-tight">{catalogue.title || "Untitled"}</h1>
         {catalogue.description && (
-          <p className="mt-3 text-white/70 max-w-xl">{catalogue.description}</p>
+          <p className="mt-3 text-foreground/70 max-w-xl">{catalogue.description}</p>
         )}
-        <div className="mt-6 text-xs text-white/40">
+        <div className="mt-6 text-xs text-foreground/40">
           {items.length} product{items.length === 1 ? "" : "s"}
         </div>
       </div>
@@ -476,7 +476,7 @@ function CataloguePreview({
       {/* Items */}
       <div className="divide-y divide-white/5">
         {items.length === 0 && (
-          <div className="p-8 text-sm text-white/50">
+          <div className="p-8 text-sm text-foreground/50">
             Add products from the panel on the left to see them appear here.
           </div>
         )}
@@ -488,7 +488,7 @@ function CataloguePreview({
           const imgUrl = getProductImageUrl(p.sku);
           return (
             <div key={item.id} className="grid grid-cols-[120px_1fr_auto] gap-5 p-5 items-start">
-              <div className="aspect-square rounded-md bg-white/5 overflow-hidden flex items-center justify-center">
+              <div className="aspect-square rounded-md bg-foreground/5 overflow-hidden flex items-center justify-center">
                 {imgUrl ? (
                   <img
                     src={imgUrl}
@@ -499,17 +499,17 @@ function CataloguePreview({
                     }}
                   />
                 ) : (
-                  <span className="text-white/30 text-xs">No image</span>
+                  <span className="text-foreground/30 text-xs">No image</span>
                 )}
               </div>
               <div className="min-w-0">
-                <div className="text-xs text-white/40 font-mono mb-1">
+                <div className="text-xs text-foreground/40 font-mono mb-1">
                   #{idx + 1} · {p.sku}
                 </div>
                 <h3 className="text-lg font-semibold leading-tight">{title}</h3>
-                {desc && <p className="mt-2 text-sm text-white/70 line-clamp-3">{desc}</p>}
+                {desc && <p className="mt-2 text-sm text-foreground/70 line-clamp-3">{desc}</p>}
                 {p.key_features && p.key_features.length > 0 && (
-                  <ul className="mt-2 text-xs text-white/60 list-disc pl-4 space-y-0.5">
+                  <ul className="mt-2 text-xs text-foreground/60 list-disc pl-4 space-y-0.5">
                     {p.key_features.slice(0, 3).map((f, i) => (
                       <li key={i}>{f}</li>
                     ))}
@@ -518,7 +518,7 @@ function CataloguePreview({
               </div>
               <div className="text-right">
                 {p.trade_price != null && (
-                  <div className="text-xs text-white/50">Trade</div>
+                  <div className="text-xs text-foreground/50">Trade</div>
                 )}
                 {p.trade_price != null && (
                   <div className="text-lg font-bold text-pd-accent">
@@ -526,7 +526,7 @@ function CataloguePreview({
                   </div>
                 )}
                 {p.rrp != null && (
-                  <div className="text-xs text-white/50 mt-1">
+                  <div className="text-xs text-foreground/50 mt-1">
                     RRP £{Number(p.rrp).toFixed(2)}
                   </div>
                 )}

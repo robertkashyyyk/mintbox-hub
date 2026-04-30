@@ -152,8 +152,8 @@ const SkuDatabase = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-white">SKU Database</h1>
-          <p className="text-white/60 mt-2">
+          <h1 className="text-3xl font-bold text-foreground">SKU Database</h1>
+          <p className="text-foreground/60 mt-2">
             Showing {filteredCount} of {totalCount} products
           </p>
         </div>

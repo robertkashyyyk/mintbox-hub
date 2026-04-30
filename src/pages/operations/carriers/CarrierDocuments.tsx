@@ -268,7 +268,7 @@ const CarrierDocuments = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight text-white">Carrier Documents</h1>
+        <h1 className="text-3xl font-bold tracking-tight text-foreground">Carrier Documents</h1>
         <p className="text-muted-foreground mt-1">
           Upload courier invoices and penalty notices. AI extracts every penalty line automatically.
         </p>

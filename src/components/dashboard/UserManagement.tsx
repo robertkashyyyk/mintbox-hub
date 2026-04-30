@@ -267,8 +267,8 @@ const UserManagement = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-white">User Management</h1>
-        <p className="text-white/60 mt-2">
+        <h1 className="text-3xl font-bold text-foreground">User Management</h1>
+        <p className="text-foreground/60 mt-2">
           Manage user invitations and roles
         </p>
       </div>

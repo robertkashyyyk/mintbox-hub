@@ -12,8 +12,8 @@ const PublicAbout = () => (
     <section className="bg-pd-charcoal py-20 md:py-24">
       <div className="container mx-auto px-4 max-w-3xl text-center">
         <p className="text-pd-accent text-sm font-semibold uppercase tracking-wider mb-3">Our Story</p>
-        <h1 className="text-3xl md:text-5xl font-bold text-white mb-5">About PartsDoc</h1>
-        <p className="text-white/75 text-lg leading-relaxed">
+        <h1 className="text-3xl md:text-5xl font-bold text-foreground mb-5">About PartsDoc</h1>
+        <p className="text-foreground/75 text-lg leading-relaxed">
           A practical, dependable motor parts business based in Coleraine, Northern Ireland —
           supplying trade and retail customers with the right parts and real support.
         </p>
@@ -42,16 +42,16 @@ const PublicAbout = () => (
       <div className="container mx-auto px-4 py-20">
         <div className="text-center mb-14">
           <p className="text-pd-accent text-sm font-semibold uppercase tracking-wider mb-2">Our Values</p>
-          <h2 className="text-3xl font-bold text-white">What We Stand For</h2>
+          <h2 className="text-3xl font-bold text-foreground">What We Stand For</h2>
         </div>
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {values.map((v) => (
-            <div key={v.title} className="bg-pd-graphite rounded-xl p-6 border border-white/10">
+            <div key={v.title} className="bg-pd-graphite rounded-xl p-6 border border-foreground/10">
               <div className="w-12 h-12 rounded-lg bg-pd-accent/10 flex items-center justify-center text-pd-accent mb-5">
                 <v.icon className="h-6 w-6" />
               </div>
-              <h3 className="font-bold text-white mb-2">{v.title}</h3>
-              <p className="text-sm text-white/70 leading-relaxed">{v.desc}</p>
+              <h3 className="font-bold text-foreground mb-2">{v.title}</h3>
+              <p className="text-sm text-foreground/70 leading-relaxed">{v.desc}</p>
             </div>
           ))}
         </div>

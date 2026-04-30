@@ -39,7 +39,7 @@ interface SkuFiltersProps {
   categories: string[];
 }
 
-const inputClasses = "text-white placeholder:text-white/40";
+const inputClasses = "text-foreground placeholder:text-foreground/40";
 
 export const SkuFilters = ({
   filters,
@@ -93,7 +93,7 @@ export const SkuFilters = ({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Filter className="h-4 w-4 text-pd-accent" />
-          <h3 className="text-sm font-medium text-white">Filters</h3>
+          <h3 className="text-sm font-medium text-foreground">Filters</h3>
           {activeFilterCount > 0 && (
             <Badge variant="secondary" className="ml-2">
               {activeFilterCount} active
@@ -192,7 +192,7 @@ export const SkuFilters = ({
               onChange={(e) => updateFilter("stockMin", Number(e.target.value))}
               className={`w-20 ${inputClasses}`}
             />
-            <span className="text-white/70">to</span>
+            <span className="text-foreground/70">to</span>
             <Input
               type="number"
               placeholder="Max"
@@ -214,7 +214,7 @@ export const SkuFilters = ({
               onChange={(e) => updateFilter("backOrderMin", Number(e.target.value))}
               className={`w-20 ${inputClasses}`}
             />
-            <span className="text-white/70">to</span>
+            <span className="text-foreground/70">to</span>
             <Input
               type="number"
               placeholder="Max"
@@ -236,7 +236,7 @@ export const SkuFilters = ({
               onChange={(e) => updateFilter("costPriceMin", Number(e.target.value))}
               className={`w-20 ${inputClasses}`}
             />
-            <span className="text-white/70">to</span>
+            <span className="text-foreground/70">to</span>
             <Input
               type="number"
               placeholder="Max"

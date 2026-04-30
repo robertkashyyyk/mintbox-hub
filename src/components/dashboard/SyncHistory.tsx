@@ -89,7 +89,7 @@ export const SyncHistory = () => {
       case 'processing':
         return <Loader2 className="h-4 w-4 text-blue-500 animate-spin" />;
       default:
-        return <Clock className="h-4 w-4 text-gray-500" />;
+        return <Clock className="h-4 w-4 text-muted-foreground" />;
     }
   };
 

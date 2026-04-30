@@ -175,7 +175,7 @@ const CarrierRemeasure = () => {
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-white">Remeasure Queue</h1>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">Remeasure Queue</h1>
           <p className="text-muted-foreground mt-1">
             Packer worklist — re-measure SKUs flagged by carrier penalties and update Mintsoft.
           </p>

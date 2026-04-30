@@ -33,8 +33,8 @@ const ProblematicOrders = () => {
       <div className="flex items-center gap-3">
         <AlertTriangle className="h-8 w-8 text-red-500" />
         <div>
-          <h1 className="text-3xl font-bold text-white">Problematic Orders</h1>
-          <p className="text-white/60">Orders that have not been placed</p>
+          <h1 className="text-3xl font-bold text-foreground">Problematic Orders</h1>
+          <p className="text-foreground/60">Orders that have not been placed</p>
         </div>
       </div>
 

@@ -154,7 +154,7 @@ export default function ProductDetail() {
                 {showIgnore && (
                   <Button
                     size="sm"
-                    className="h-8 text-xs bg-red-600 hover:bg-red-700 text-white font-bold"
+                    className="h-8 text-xs bg-red-600 hover:bg-red-700 text-foreground font-bold"
                     onClick={() =>
                       ignoreSeller.mutate({
                         seller,
@@ -183,7 +183,7 @@ export default function ProductDetail() {
                 {showIgnore && (
                   <Button
                     size="sm"
-                    className="h-8 text-xs bg-orange-600 hover:bg-orange-700 text-black font-bold"
+                    className="h-8 text-xs bg-orange-600 hover:bg-orange-700 text-foreground font-bold"
                     onClick={() =>
                       ignoreListing.mutate({
                         itemId,
@@ -230,12 +230,12 @@ export default function ProductDetail() {
       </div>
 
       <div className="space-y-2">
-        <h1 className="text-3xl font-bold text-white">{product.name}</h1>
+        <h1 className="text-3xl font-bold text-foreground">{product.name}</h1>
         <div className="flex items-center gap-4 flex-wrap">
           <div className="font-mono text-lg text-pd-accent">{product.sku}</div>
           {brand && <Badge variant="secondary">{brand.name}</Badge>}
           {product.discontinued && <Badge variant="destructive">Discontinued</Badge>}
-          {product.fire_sale && <Badge className="bg-orange-500 text-white">Fire Sale</Badge>}
+          {product.fire_sale && <Badge className="bg-orange-500 text-foreground">Fire Sale</Badge>}
         </div>
       </div>
 

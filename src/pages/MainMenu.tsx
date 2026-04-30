@@ -46,11 +46,11 @@ const MainMenu = () => {
             <div>
               <div className="flex items-center gap-3 mb-2">
                 <div className="h-10 w-10 rounded-lg bg-[hsl(var(--pd-accent))] flex items-center justify-center">
-                  <span className="text-white font-bold text-lg">PD</span>
+                  <span className="text-foreground font-bold text-lg">PD</span>
                 </div>
-                <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">PartsDoc Hub</h1>
+                <h1 className="text-2xl md:text-3xl font-bold text-foreground tracking-tight">PartsDoc Hub</h1>
               </div>
-              <p className="text-sm md:text-base text-white/60">Select a module to get started</p>
+              <p className="text-sm md:text-base text-foreground/60">Select a module to get started</p>
             </div>
           </div>
         </div>

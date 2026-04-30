@@ -75,7 +75,7 @@ const StatCard = ({
             {delta !== undefined && (
               <div className="flex items-center gap-1 text-xs">
                 {delta > 0 ? (
-                  <ArrowUp className="h-3 w-3 text-[hsl(41,90%,56%)]" />
+                  <ArrowUp className="h-3 w-3 text-warning" />
                 ) : delta < 0 ? (
                   <ArrowDown className="h-3 w-3 text-[hsl(var(--success))]" />
                 ) : (
@@ -140,7 +140,7 @@ const QueueBar = ({
           <span className="font-semibold">{count}</span>
           {delta !== 0 && (
             <span
-              className={`text-xs ${delta > 0 ? "text-[hsl(41,90%,56%)]" : "text-[hsl(var(--success))]"}`}
+              className={`text-xs ${delta > 0 ? "text-warning" : "text-[hsl(var(--success))]"}`}
             >
               {delta > 0 ? "+" : ""}
               {delta}
@@ -172,11 +172,11 @@ const KpiRow = ({
   const colorFor = (pct: number, threshold24?: boolean) => {
     if (threshold24) {
       if (pct >= 90) return "text-[hsl(var(--success))] font-semibold";
-      if (pct >= 70) return "text-[hsl(41,90%,56%)] font-semibold";
+      if (pct >= 70) return "text-warning font-semibold";
       return "text-destructive font-semibold";
     }
     if (pct >= 95) return "text-[hsl(var(--success))] font-semibold";
-    if (pct >= 80) return "text-[hsl(41,90%,56%)] font-semibold";
+    if (pct >= 80) return "text-warning font-semibold";
     return "text-destructive font-semibold";
   };
 
@@ -228,7 +228,7 @@ const OverallStatus = ({ data }: { data: any }) => {
   } else {
     status = "holding";
     statusLabel = "Holding";
-    statusColor = "bg-[hsl(41,90%,56%)]";
+    statusColor = "bg-warning";
     statusIcon = Minus;
   }
 
@@ -237,7 +237,7 @@ const OverallStatus = ({ data }: { data: any }) => {
   return (
     <div className={`flex items-center gap-3 px-4 py-3 rounded-lg ${statusColor}/10 border`}>
       <div className={`h-10 w-10 rounded-full ${statusColor} flex items-center justify-center`}>
-        <StatusIcon className="h-5 w-5 text-white" />
+        <StatusIcon className="h-5 w-5 text-foreground" />
       </div>
       <div>
         <p className="text-lg font-bold">{statusLabel}</p>
@@ -453,7 +453,7 @@ const OpsDashboard = () => {
               count={data.queueAwaitingPicking}
               total={data.totalActive}
               delta={data.deltaAwaitingPicking}
-              color="bg-[hsl(41,90%,56%)]"
+              color="bg-warning"
             />
             <QueueBar
               label="ON BACK ORDER"
