@@ -315,25 +315,25 @@ export function AppSidebar() {
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive={isActive("/profile")}>
+            <SidebarMenuButton asChild isActive={isActive("/profile")} tooltip="Profile">
               <NavLink to="/profile">
                 <UserCircle className="h-4 w-4" />
-                {open && <span>Profile</span>}
+                <span>Profile</span>
               </NavLink>
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive={isActive("/settings")}>
+            <SidebarMenuButton asChild isActive={isActive("/settings")} tooltip="Settings">
               <NavLink to="/settings">
                 <Settings className="h-4 w-4" />
-                {open && <span>Settings</span>}
+                <span>Settings</span>
               </NavLink>
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton onClick={handleSignOut}>
+            <SidebarMenuButton onClick={handleSignOut} tooltip="Sign Out">
               <LogOut className="h-4 w-4" />
-              {open && <span>Sign Out</span>}
+              <span>Sign Out</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
