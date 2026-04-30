@@ -10,7 +10,8 @@ export type SavedView =
   | "repeated"
   | "new_12h"
   | "new_24h"
-  | "stock_issues";
+  | "stock_issues"
+  | "open_issues";
 
 export interface OrderFiltersState {
   search: string;
