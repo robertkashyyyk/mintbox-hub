@@ -374,6 +374,67 @@ const CarrierRemeasure = () => {
           void load();
         }}
       />
+
+      {/* Create new task */}
+      <Dialog open={creating} onOpenChange={setCreating}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>New remeasure task</DialogTitle>
+            <DialogDescription>
+              Add a SKU to the packer worklist for re-measuring. Order ID is optional.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="rm-sku">SKU *</Label>
+              <Input
+                id="rm-sku"
+                placeholder="e.g. ABC-12345"
+                value={newSku}
+                onChange={(e) => setNewSku(e.target.value)}
+                className="font-mono"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="rm-order">Mintsoft order ID</Label>
+                <Input
+                  id="rm-order"
+                  placeholder="optional"
+                  value={newOrderId}
+                  onChange={(e) => setNewOrderId(e.target.value.replace(/\D/g, ""))}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="rm-assignee">Assigned to</Label>
+                <Input
+                  id="rm-assignee"
+                  placeholder="packer name"
+                  value={newAssignee}
+                  onChange={(e) => setNewAssignee(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="rm-notes">Notes</Label>
+              <Textarea
+                id="rm-notes"
+                placeholder="What needs checking?"
+                value={newNotes}
+                onChange={(e) => setNewNotes(e.target.value)}
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreating(false)}>Cancel</Button>
+            <Button onClick={createTask} disabled={savingNew || !newSku.trim()}>
+              {savingNew ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Ruler className="h-4 w-4 mr-2" />}
+              Add task
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
