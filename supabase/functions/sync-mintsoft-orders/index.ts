@@ -180,7 +180,10 @@ Deno.serve(async (req) => {
           if (orders.length === 0) break;
           const filtered = orders.filter(o => {
             if (seenOrderIds.has(o.ID)) return false;
-            if (new Date(o.OrderDate) < fromDateObj) return false;
+            // Honor MIN_DATE always; honor fromDate only in backfill mode
+            const orderDateObj = new Date(o.OrderDate);
+            if (orderDateObj < MIN_DATE) return false;
+            if (!ignoreDateFilter && orderDateObj < fromDateObj) return false;
             seenOrderIds.add(o.ID);
             return true;
           });
