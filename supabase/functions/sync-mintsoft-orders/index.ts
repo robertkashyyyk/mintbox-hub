@@ -424,6 +424,17 @@ Deno.serve(async (req) => {
     }
 
     const partial = earlyExit ? " (partial — run again to continue)" : "";
+    const summary = `Synced ${allOrders.length} orders across ${statusIdsToFetch.length} statuses · ${linesInserted} lines saved · ${productsCreated} new products${partial}`;
+    await logRun(supabase, earlyExit ? "partial" : "succeeded", summary, {
+      orders_fetched: allOrders.length,
+      new_orders: newOrders.length,
+      existing_orders_updated: existingOrders.length,
+      lines_inserted: linesInserted,
+      lines_skipped: linesSkipped,
+      products_created: productsCreated,
+      statuses_queried: statusIdsToFetch.length,
+      backfill: isBackfill,
+    });
     return new Response(JSON.stringify({
       success: true,
       partial: earlyExit,
@@ -436,11 +447,13 @@ Deno.serve(async (req) => {
       products_created: productsCreated,
       ghosts_closed: ghostsClosed,
       statuses_queried: statusIdsToFetch.length,
-      message: `Synced ${allOrders.length} orders across ${statusIdsToFetch.length} statuses (${newOrders.length} new, ${existingOrders.length} updated, ${ghostsClosed} stale auto-closed)${partial}`,
+      message: summary,
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (error) {
     console.error("Orders sync error:", error);
-    return new Response(JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
+    const msg = error instanceof Error ? error.message : "Unknown error";
+    await logRun(supabase, "failed", msg);
+    return new Response(JSON.stringify({ error: msg }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
 });
