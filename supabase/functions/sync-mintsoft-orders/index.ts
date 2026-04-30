@@ -371,54 +371,11 @@ Deno.serve(async (req) => {
 
     console.log(`Done. Lines: ${linesInserted}, Skipped: ${linesSkipped}, Products: ${productsCreated}`);
 
-    // RECONCILIATION PASS — only if this was a complete live-tail run.
-    // Any order_lines row currently in NEW/AWAITINGPICKING/ONBACKORDER that
-    // was NOT returned by Mintsoft this pass is presumed despatched/closed.
-    // We mark it as DESPATCHED so dashboards reflect reality.
-    let ghostsClosed = 0;
-    if (ignoreDateFilter && !isBackfill && !timedOut && !earlyExit && seenOrderIds.size > 0) {
-      const seenIds = [...seenOrderIds];
-      // Page through DB in chunks — IDs not in the latest sync get auto-closed
-      const PAGE = 1000;
-      let offset = 0;
-      while (true) {
-        const { data: openRows, error: openErr } = await supabase
-          .from("order_lines")
-          .select("id, mintsoft_order_id, order_status")
-          .in("order_status", ["NEW", "AWAITINGPICKING", "ONBACKORDER"])
-          .gte("order_date", "2026-01-01T00:00:00Z")
-          .order("id", { ascending: true })
-          .range(offset, offset + PAGE - 1);
-        if (openErr) { console.error("Reconcile fetch error:", openErr); break; }
-        if (!openRows || openRows.length === 0) break;
-
-        const seenSet = new Set(seenIds);
-        const ghostIds = openRows
-          .filter(r => !seenSet.has(r.mintsoft_order_id))
-          .map(r => r.id);
-
-        if (ghostIds.length > 0) {
-          for (let i = 0; i < ghostIds.length; i += 500) {
-            const batch = ghostIds.slice(i, i + 500);
-            const { error: upErr } = await supabase
-              .from("order_lines")
-              .update({
-                order_status: "DESPATCHED",
-                last_status_change_at: now,
-                last_seen_at: now,
-              })
-              .in("id", batch);
-            if (upErr) console.error("Reconcile update error:", upErr);
-            else ghostsClosed += batch.length;
-          }
-        }
-
-        if (openRows.length < PAGE) break;
-        offset += PAGE;
-        if (isTimeRunningOut()) { console.log("Reconcile pass timed out"); break; }
-      }
-      console.log(`Reconciliation: closed ${ghostsClosed} ghost order lines`);
-    }
+    // Ghost-closure (marking missing-from-Mintsoft orders as DESPATCHED) is handled
+    // by the dedicated `reconcile-order-ghosts` edge function which has its own
+    // 60s budget. Don't try to do it inline — the live-tail sweep itself can
+    // exceed 50s and we need a clean separation.
+    const ghostsClosed = 0;
 
     // Fire-and-forget: trigger issue evaluation without awaiting (prevents sync timeout)
     if (!earlyExit) {
