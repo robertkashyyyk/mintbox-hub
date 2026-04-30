@@ -21,7 +21,7 @@ const OperationsIndex = () => {
       <ModuleHeader title="Operations" description="Dashboard, reports, monitoring, and system health." icon={Activity} backgroundImage={operationsBanner} />
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {options.map((option) => (
-          <Card key={option.title} className={`cursor-pointer bg-card hover:border-primary/50 transition-all hover:shadow-lg group ${option.primary ? 'border-primary/30' : ''}`} onClick={option.onClick}>
+          <Card key={option.title} className={`cursor-pointer bg-card hover:bg-card/80 hover:border-pd-accent/60 transition-colors duration-150 group ${option.primary ? 'border-primary/30' : ''}`} onClick={option.onClick}>
             <CardHeader className="pb-3">
               <div className="flex items-center gap-3">
                 <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
