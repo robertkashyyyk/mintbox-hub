@@ -57,8 +57,8 @@ const StatCard = ({
 }) => {
   const variantStyles = {
     default: "border-border",
-    success: "border-l-4 border-l-[hsl(var(--success))]",
-    warning: "border-l-4 border-l-[hsl(41,90%,56%)]",
+    success: "border-l-4 border-l-success",
+    warning: "border-l-4 border-l-warning",
     danger: "border-l-4 border-l-destructive",
   };
 
