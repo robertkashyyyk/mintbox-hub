@@ -139,7 +139,21 @@ All colors MUST be HSL.
     @apply border-border;
   }
 
-  body {
-    @apply bg-background text-foreground;
+  html {
+    /* Bump base size for warehouse readability — 14px floor, 15px default */
+    font-size: 15px;
   }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "cv11", "ss01", "ss03";
+  }
+
+  /* Heavier headings for clearer hierarchy */
+  h1 { @apply font-bold tracking-tight; }
+  h2 { @apply font-semibold tracking-tight; }
+  h3, h4 { @apply font-semibold; }
+
+  /* Right-align numeric table cells when marked */
+  td.numeric, th.numeric, .tabular-nums { font-variant-numeric: tabular-nums; }
 }
