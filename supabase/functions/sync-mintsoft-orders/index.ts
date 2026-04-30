@@ -82,14 +82,21 @@ Deno.serve(async (req) => {
     let isBackfill = false;
     let fromDate: string;
     let backfillLimit = 0;
+    // Default for cron live-tail: last 1 day (Mintsoft API only filters by date, not time)
+    const defaultLiveTailFromDate = () => {
+      const d = new Date(); d.setUTCDate(d.getUTCDate() - 1);
+      return d.toISOString().split('T')[0];
+    };
     try {
       const body = await req.json();
-      fromDate = body.fromDate;
+      // Treat null / "null" / missing fromDate as live-tail default
+      fromDate = (body && body.fromDate && body.fromDate !== 'null')
+        ? body.fromDate
+        : defaultLiveTailFromDate();
       isBackfill = body.backfill === true;
       backfillLimit = body.backfillLimit || 50;
     } catch {
-      const d = new Date(); d.setDate(d.getDate() - 7);
-      fromDate = d.toISOString().split('T')[0];
+      fromDate = defaultLiveTailFromDate();
     }
 
     // Backfill mode: read cursor from ingest_run_state, work backward
