@@ -35,11 +35,11 @@ const Auth = () => {
   }, [navigate]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4" style={{ background: 'hsl(222, 47%, 11%)' }}>
-      <Card className="w-full max-w-md border-foreground/10" style={{ background: 'hsl(217, 33%, 17%)' }}>
+    <div className="min-h-screen flex items-center justify-center p-4 bg-background">
+      <Card className="w-full max-w-md border-border bg-card">
         <CardHeader className="space-y-1 text-center">
           <div className="flex justify-center mb-4">
-            <div className="h-12 w-12 rounded-xl flex items-center justify-center" style={{ background: 'hsl(174, 58%, 37%)' }}>
+            <div className="h-12 w-12 rounded-xl flex items-center justify-center bg-pd-accent">
               <span className="text-foreground font-bold text-xl">PD</span>
             </div>
           </div>
