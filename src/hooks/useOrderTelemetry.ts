@@ -10,7 +10,8 @@ export type SavedView =
   | "repeated"
   | "new_12h"
   | "new_24h"
-  | "stock_issues";
+  | "stock_issues"
+  | "open_issues";
 
 export interface OrderFiltersState {
   search: string;
@@ -227,6 +228,9 @@ export function useOrderTelemetry() {
         break;
       case "stock_issues":
         base.stockIssueOnly = true;
+        break;
+      case "open_issues":
+        base.openOnly = true;
         break;
     }
     setFilters(base);
