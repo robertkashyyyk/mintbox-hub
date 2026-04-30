@@ -84,6 +84,36 @@ const CarrierRemeasure = () => {
   const [statusFilter, setStatusFilter] = useState<string>("open");
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<Task | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [newSku, setNewSku] = useState("");
+  const [newOrderId, setNewOrderId] = useState("");
+  const [newAssignee, setNewAssignee] = useState("");
+  const [newNotes, setNewNotes] = useState("");
+  const [savingNew, setSavingNew] = useState(false);
+
+  async function createTask() {
+    if (!newSku.trim()) {
+      toast.error("SKU is required");
+      return;
+    }
+    setSavingNew(true);
+    const { error } = await supabase.from("carrier_remeasure_tasks").insert({
+      sku: newSku.trim().toUpperCase(),
+      mintsoft_order_id: newOrderId ? parseInt(newOrderId, 10) || null : null,
+      assigned_to: newAssignee.trim() || null,
+      notes: newNotes.trim() || null,
+      status: "todo",
+    });
+    setSavingNew(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success("Remeasure task added");
+    setCreating(false);
+    setNewSku(""); setNewOrderId(""); setNewAssignee(""); setNewNotes("");
+    await load();
+  }
 
   useEffect(() => {
     void load();
@@ -181,7 +211,11 @@ const CarrierRemeasure = () => {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button onClick={resolveUnresolved} disabled={resolving}>
+          <Button onClick={() => setCreating(true)} variant="default">
+            <Ruler className="h-4 w-4 mr-2" />
+            New remeasure task
+          </Button>
+          <Button onClick={resolveUnresolved} disabled={resolving} variant="secondary">
             {resolving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Search className="h-4 w-4 mr-2" />}
             Resolve unresolved penalties
           </Button>
@@ -244,7 +278,7 @@ const CarrierRemeasure = () => {
                 {skuGroups.length === 0 && !loading && (
                   <TableRow>
                     <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                      No remeasure tasks yet. Use “Resolve unresolved penalties” to link tracking numbers to SKUs.
+                      No remeasure tasks yet. Click "New remeasure task" to add one manually, or use "Resolve unresolved penalties" to auto-link from carrier penalty tracking numbers.
                     </TableCell>
                   </TableRow>
                 )}
@@ -340,6 +374,67 @@ const CarrierRemeasure = () => {
           void load();
         }}
       />
+
+      {/* Create new task */}
+      <Dialog open={creating} onOpenChange={setCreating}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>New remeasure task</DialogTitle>
+            <DialogDescription>
+              Add a SKU to the packer worklist for re-measuring. Order ID is optional.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="rm-sku">SKU *</Label>
+              <Input
+                id="rm-sku"
+                placeholder="e.g. ABC-12345"
+                value={newSku}
+                onChange={(e) => setNewSku(e.target.value)}
+                className="font-mono"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="rm-order">Mintsoft order ID</Label>
+                <Input
+                  id="rm-order"
+                  placeholder="optional"
+                  value={newOrderId}
+                  onChange={(e) => setNewOrderId(e.target.value.replace(/\D/g, ""))}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="rm-assignee">Assigned to</Label>
+                <Input
+                  id="rm-assignee"
+                  placeholder="packer name"
+                  value={newAssignee}
+                  onChange={(e) => setNewAssignee(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="rm-notes">Notes</Label>
+              <Textarea
+                id="rm-notes"
+                placeholder="What needs checking?"
+                value={newNotes}
+                onChange={(e) => setNewNotes(e.target.value)}
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreating(false)}>Cancel</Button>
+            <Button onClick={createTask} disabled={savingNew || !newSku.trim()}>
+              {savingNew ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Ruler className="h-4 w-4 mr-2" />}
+              Add task
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
