@@ -3122,6 +3122,21 @@ export type Database = {
           status: string
         }[]
       }
+      get_system_health_job_runs: {
+        Args: { _jobname: string; _limit?: number }
+        Returns: {
+          command: string
+          database: string
+          duration_ms: number
+          end_time: string
+          job_pid: number
+          return_message: string
+          runid: number
+          start_time: string
+          status: string
+          username: string
+        }[]
+      }
       get_system_health_jobs: {
         Args: never
         Returns: {
