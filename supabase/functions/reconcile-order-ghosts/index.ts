@@ -15,8 +15,30 @@ const corsHeaders = {
 };
 
 const START_TIME = Date.now();
+const RUN_STARTED_AT = new Date().toISOString();
 const MAX_RUNTIME_MS = 50_000;
 const isTimeRunningOut = () => Date.now() - START_TIME > MAX_RUNTIME_MS;
+
+async function logRun(
+  supabase: ReturnType<typeof createClient>,
+  status: "succeeded" | "failed" | "partial",
+  message: string,
+  details?: Record<string, unknown>,
+) {
+  try {
+    await supabase.from("edge_function_runs").insert({
+      function_name: "reconcile-order-ghosts",
+      started_at: RUN_STARTED_AT,
+      ended_at: new Date().toISOString(),
+      duration_ms: Date.now() - START_TIME,
+      status,
+      message,
+      details: details ?? null,
+    });
+  } catch (e) {
+    console.error("logRun failed:", e);
+  }
+}
 
 interface MintsoftStatus {
   ID: number;
@@ -43,12 +65,13 @@ const TERMINAL_NAMES = [
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
+  const supabase = createClient(
+    Deno.env.get("SUPABASE_URL") ?? "",
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+  );
+
   try {
     console.log("Starting ghost-closure reconciliation...");
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-    );
 
     const apiKey = Deno.env.get("MINTSOFT_API_KEY");
     if (!apiKey) throw new Error("MINTSOFT_API_KEY not configured");
@@ -113,11 +136,13 @@ Deno.serve(async (req) => {
     // We refuse to mark anything if the sweep was incomplete — better to do
     // nothing than to mass-flag legitimately-open orders as despatched.
     if (timedOut) {
+      const msg = `Aborted: status sweep timed out after ${pagesFetched} pages. No rows updated.`;
+      await logRun(supabase, "partial", msg, { open_count: openInMintsoft.size, pages_fetched: pagesFetched });
       return new Response(
         JSON.stringify({
           success: false,
           partial: true,
-          message: `Aborted: status sweep timed out after ${pagesFetched} pages. No rows updated.`,
+          message: msg,
           open_count: openInMintsoft.size,
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
@@ -177,20 +202,29 @@ Deno.serve(async (req) => {
 
     console.log(`Reconciliation done. Scanned ${scanned} rows, closed ${ghostsClosed} ghosts.`);
 
+    const summary = `Closed ${ghostsClosed} ghost order lines · scanned ${scanned} rows · ${openInMintsoft.size} live in Mintsoft`;
+    await logRun(supabase, "succeeded", summary, {
+      open_in_mintsoft: openInMintsoft.size,
+      rows_scanned: scanned,
+      ghosts_closed: ghostsClosed,
+    });
+
     return new Response(
       JSON.stringify({
         success: true,
         open_in_mintsoft: openInMintsoft.size,
         rows_scanned: scanned,
         ghosts_closed: ghostsClosed,
-        message: `Closed ${ghostsClosed} ghost order lines after sweeping ${openInMintsoft.size} live Mintsoft orders.`,
+        message: summary,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (error) {
     console.error("Reconcile error:", error);
+    const msg = error instanceof Error ? error.message : "Unknown error";
+    await logRun(supabase, "failed", msg);
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
+      JSON.stringify({ error: msg }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }

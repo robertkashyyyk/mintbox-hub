@@ -821,6 +821,42 @@ export type Database = {
         }
         Relationships: []
       }
+      edge_function_runs: {
+        Row: {
+          created_at: string
+          details: Json | null
+          duration_ms: number | null
+          ended_at: string | null
+          function_name: string
+          id: number
+          message: string | null
+          started_at: string
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          details?: Json | null
+          duration_ms?: number | null
+          ended_at?: string | null
+          function_name: string
+          id?: number
+          message?: string | null
+          started_at?: string
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          details?: Json | null
+          duration_ms?: number | null
+          ended_at?: string | null
+          function_name?: string
+          id?: number
+          message?: string | null
+          started_at?: string
+          status?: string
+        }
+        Relationships: []
+      }
       emails: {
         Row: {
           body: string | null
@@ -3073,6 +3109,19 @@ export type Database = {
           within_24h: number
           within_48h: number
           within_72h: number
+        }[]
+      }
+      get_edge_function_runs: {
+        Args: { _function_name: string; _limit?: number }
+        Returns: {
+          details: Json
+          duration_ms: number
+          ended_at: string
+          function_name: string
+          id: number
+          message: string
+          started_at: string
+          status: string
         }[]
       }
       get_ops_daily_trend: {

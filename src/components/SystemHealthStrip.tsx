@@ -33,14 +33,24 @@ type JobRun = {
   command: string | null;
 };
 
-const JOB_META: Record<string, { label: string; expectedMaxAgeSec: number }> = {
-  "sync-mintsoft-orders-live-tail": { label: "Order Sync", expectedMaxAgeSec: 20 * 60 },
-  "reconcile-order-ghosts-every-15min": { label: "Ghost Closure", expectedMaxAgeSec: 20 * 60 },
-  "evaluate-order-issues-every-15min": { label: "Order Telemetry", expectedMaxAgeSec: 20 * 60 },
-  "sync-mintsoft-orders-daily": { label: "Daily Catch-up", expectedMaxAgeSec: 25 * 60 * 60 },
-  "poll-inventory-every-15min": { label: "Inventory Poll", expectedMaxAgeSec: 20 * 60 },
-  "poll-lowstock-every-15min": { label: "Low Stock Poll", expectedMaxAgeSec: 20 * 60 },
-  "mintsoft-enrich-batch-every-30min": { label: "Product Enrichment", expectedMaxAgeSec: 40 * 60 },
+type EdgeRun = {
+  id: number;
+  function_name: string;
+  started_at: string;
+  ended_at: string | null;
+  duration_ms: number | null;
+  status: string;
+  message: string | null;
+};
+
+const JOB_META: Record<string, { label: string; expectedMaxAgeSec: number; functionName?: string }> = {
+  "sync-mintsoft-orders-live-tail": { label: "Order Sync", expectedMaxAgeSec: 20 * 60, functionName: "sync-mintsoft-orders" },
+  "reconcile-order-ghosts-every-15min": { label: "Ghost Closure", expectedMaxAgeSec: 20 * 60, functionName: "reconcile-order-ghosts" },
+  "evaluate-order-issues-every-15min": { label: "Order Telemetry", expectedMaxAgeSec: 20 * 60, functionName: "evaluate-order-issues" },
+  "sync-mintsoft-orders-daily": { label: "Daily Catch-up", expectedMaxAgeSec: 25 * 60 * 60, functionName: "sync-mintsoft-orders" },
+  "poll-inventory-every-15min": { label: "Inventory Poll", expectedMaxAgeSec: 20 * 60, functionName: "poll-inventory" },
+  "poll-lowstock-every-15min": { label: "Low Stock Poll", expectedMaxAgeSec: 20 * 60, functionName: "poll-lowstock" },
+  "mintsoft-enrich-batch-every-30min": { label: "Product Enrichment", expectedMaxAgeSec: 40 * 60, functionName: "mintsoft-enrich-batch" },
   "refresh-sku-velocity-daily": { label: "Velocity Refresh", expectedMaxAgeSec: 25 * 60 * 60 },
 };
 
@@ -109,8 +119,9 @@ const JobRunsDialog = ({
   onOpenChange: (v: boolean) => void;
 }) => {
   const meta = jobname ? JOB_META[jobname] : null;
+  const functionName = meta?.functionName;
 
-  const { data, isLoading, error } = useQuery({
+  const { data: cronRuns, isLoading: cronLoading, error: cronError } = useQuery({
     queryKey: ["system-health-job-runs", jobname],
     queryFn: async () => {
       if (!jobname) return [];
@@ -125,12 +136,53 @@ const JobRunsDialog = ({
     refetchInterval: open ? 15_000 : false,
   });
 
+  const { data: edgeRuns } = useQuery({
+    queryKey: ["edge-function-runs", functionName],
+    queryFn: async () => {
+      if (!functionName) return [];
+      const { data, error } = await supabase.rpc("get_edge_function_runs", {
+        _function_name: functionName,
+        _limit: 60,
+      });
+      if (error) throw error;
+      return data as EdgeRun[];
+    },
+    enabled: !!functionName && open,
+    refetchInterval: open ? 15_000 : false,
+  });
+
+  // For each cron run, find the closest edge-function run that started within
+  // 90s of the cron's start_time (cron fires HTTP, edge starts ~immediately).
+  const matchEdge = (cronStart: string | null): EdgeRun | undefined => {
+    if (!cronStart || !edgeRuns?.length) return undefined;
+    const t = new Date(cronStart).getTime();
+    let best: EdgeRun | undefined;
+    let bestDelta = Infinity;
+    for (const er of edgeRuns) {
+      const delta = Math.abs(new Date(er.started_at).getTime() - t);
+      if (delta < bestDelta && delta <= 90_000) {
+        best = er;
+        bestDelta = delta;
+      }
+    }
+    return best;
+  };
+
+  const isLoading = cronLoading;
+  const error = cronError;
+  const data = cronRuns;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl">
         <DialogHeader>
           <DialogTitle>{meta?.label ?? jobname} — recent runs</DialogTitle>
-          <DialogDescription className="font-mono text-xs">{jobname}</DialogDescription>
+          <DialogDescription className="font-mono text-xs">
+            {jobname}
+            {functionName && (
+              <span className="ml-2 text-muted-foreground/70">→ {functionName}</span>
+            )}
+          </DialogDescription>
         </DialogHeader>
 
         {isLoading ? (
@@ -149,28 +201,36 @@ const JobRunsDialog = ({
                   <th className="px-3 py-2 text-left font-medium">Status</th>
                   <th className="px-3 py-2 text-left font-medium">Started</th>
                   <th className="px-3 py-2 text-left font-medium">Duration</th>
-                  <th className="px-3 py-2 text-left font-medium">Message</th>
+                  <th className="px-3 py-2 text-left font-medium">Result</th>
                 </tr>
               </thead>
               <tbody>
                 {data.map((run) => {
-                  const variant = RUN_STATUS_VARIANT[run.status ?? ""] ?? "outline";
+                  const edge = matchEdge(run.start_time);
+                  // Prefer the edge function's own status & duration when available.
+                  const effectiveStatus = edge?.status ?? run.status;
+                  const variant = RUN_STATUS_VARIANT[effectiveStatus ?? ""] ?? "outline";
+                  const effectiveDuration = edge?.duration_ms ?? run.duration_ms;
+                  const message = edge?.message
+                    ?? (functionName
+                      ? "Dispatched — no edge log captured (function may not yet write to log table)"
+                      : run.return_message ?? "—");
                   return (
                     <tr key={run.runid} className="border-t border-border/60 align-top">
                       <td className="px-3 py-2">
                         <Badge variant={variant} className="capitalize">
-                          {run.status ?? "—"}
+                          {effectiveStatus ?? "—"}
                         </Badge>
                       </td>
                       <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">
                         {formatTime(run.start_time)}
                       </td>
                       <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">
-                        {formatDuration(run.duration_ms)}
+                        {formatDuration(effectiveDuration)}
                       </td>
                       <td className="px-3 py-2 text-xs text-muted-foreground">
-                        <span className="line-clamp-2 break-all" title={run.return_message ?? ""}>
-                          {run.return_message ?? "—"}
+                        <span className="line-clamp-2 break-all" title={message}>
+                          {message}
                         </span>
                       </td>
                     </tr>
@@ -181,7 +241,10 @@ const JobRunsDialog = ({
           </div>
         )}
 
-        <p className="text-[11px] text-muted-foreground">Auto-refreshes every 15s while open.</p>
+        <p className="text-[11px] text-muted-foreground">
+          Auto-refreshes every 15s while open.
+          {functionName && " Status, duration and result come from the edge function's own log when available."}
+        </p>
       </DialogContent>
     </Dialog>
   );
