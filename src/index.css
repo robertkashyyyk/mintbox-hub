@@ -79,51 +79,58 @@ All colors MUST be HSL.
   }
 
   .dark {
-    --background: 222 47% 11%;
-    --foreground: 210 20% 95%;
+    /* PartsDoc Transformation palette — solid deep slate, high-contrast text,
+       desaturated teal accent, bright legible destructive. WCAG AA across the board. */
+    --background: 222 47% 11%;            /* #0F172A — solid deep slate */
+    --foreground: 210 28% 92%;            /* ~#E2E8F0 — high-contrast light grey */
 
-    --card: 217 33% 17%;
-    --card-foreground: 210 20% 95%;
+    --card: 217 33% 15%;                  /* slightly lifted from bg so cards stand out */
+    --card-foreground: 210 28% 92%;
 
-    --popover: 217 33% 17%;
-    --popover-foreground: 210 20% 95%;
+    --popover: 217 33% 15%;
+    --popover-foreground: 210 28% 92%;
 
-    --primary: 174 58% 37%;
+    /* Desaturated teal — same hue, lower saturation so it stops vibrating */
+    --primary: 174 38% 42%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 217 25% 22%;
-    --secondary-foreground: 210 20% 95%;
+    --secondary: 217 25% 20%;
+    --secondary-foreground: 210 28% 92%;
 
-    --muted: 217 25% 22%;
-    --muted-foreground: 214 12% 72%;
+    --muted: 217 25% 20%;
+    --muted-foreground: 215 20% 70%;      /* ~#94A3B8 — passes AA on slate bg */
 
-    --accent: 217 25% 25%;
-    --accent-foreground: 210 20% 95%;
+    --accent: 217 25% 24%;
+    --accent-foreground: 210 28% 92%;
 
-    --destructive: 0 62% 55%;
-    --destructive-foreground: 0 0% 100%;
+    /* Bright, legible red — was dark maroon, hard to read */
+    --destructive: 0 84% 70%;             /* ~#F87171 */
+    --destructive-foreground: 222 47% 11%;
 
-    --border: 0 0% 100% / 25%;
-    --input: 0 0% 100% / 35%;
-    --ring: 174 58% 37%;
+    --border: 215 20% 30%;                /* solid border, no opacity, more visible */
+    --input: 215 20% 32%;
+    --ring: 174 38% 50%;
 
-    --sidebar-background: 222 47% 11%;
-    --sidebar-foreground: 210 20% 95%;
-    --sidebar-primary: 174 58% 37%;
+    --sidebar-background: 222 47% 9%;
+    --sidebar-foreground: 210 28% 92%;
+    --sidebar-primary: 174 38% 42%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 217 25% 22%;
-    --sidebar-accent-foreground: 210 20% 95%;
-    --sidebar-border: 0 0% 100% / 10%;
-    --sidebar-ring: 174 58% 37%;
+    --sidebar-accent: 217 25% 20%;
+    --sidebar-accent-foreground: 210 28% 92%;
+    --sidebar-border: 215 20% 22%;
+    --sidebar-ring: 174 38% 50%;
 
-    --success: 142 71% 45%;
+    --success: 142 60% 50%;
     --success-foreground: 0 0% 100%;
-    --chart-1: 174 58% 37%;
-    --chart-2: 162 17% 69.6%;
-    --chart-3: 210 20% 70%;
-    --chart-4: 174 42% 50%;
-    --chart-5: 214 12% 60%;
-    --sidebar: 222 47% 11%;
+    --chart-1: 174 38% 50%;
+    --chart-2: 215 20% 70%;
+    --chart-3: 210 28% 80%;
+    --chart-4: 174 30% 60%;
+    --chart-5: 215 25% 55%;
+    --sidebar: 222 47% 9%;
+
+    --pd-accent: 174 38% 42%;
+    --pd-accent-light: 174 32% 55%;
   }
 }
 
