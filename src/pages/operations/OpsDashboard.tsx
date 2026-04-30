@@ -57,8 +57,8 @@ const StatCard = ({
 }) => {
   const variantStyles = {
     default: "border-border",
-    success: "border-l-4 border-l-[hsl(var(--success))]",
-    warning: "border-l-4 border-l-[hsl(41,90%,56%)]",
+    success: "border-l-4 border-l-success",
+    warning: "border-l-4 border-l-warning",
     danger: "border-l-4 border-l-destructive",
   };
 
@@ -338,6 +338,30 @@ const OpsDashboard = () => {
         </div>
       </div>
 
+      {/* Critical Alert Banner */}
+      {data.criticalIssues > 0 && (
+        <div className="w-full flex items-center gap-4 px-5 py-4 rounded-lg bg-destructive/10 border border-destructive text-destructive">
+          <ShieldAlert className="h-6 w-6 flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-2xl font-bold leading-tight">
+              {data.criticalIssues} critical
+            </p>
+            <p className="text-sm opacity-90">
+              Critical problems require action
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground flex-shrink-0"
+            onClick={() => navigate("/operations/order-telemetry?severity=critical")}
+          >
+            <ExternalLink className="h-3 w-3 mr-2" />
+            Review critical issues
+          </Button>
+        </div>
+      )}
+
       {/* Overall Status Indicator */}
       <OverallStatus data={data} />
 
@@ -465,39 +489,6 @@ const OpsDashboard = () => {
           </CardContent>
         </Card>
 
-        {/* Hourly Flow */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Zap className="h-4 w-4" />
-              Hourly Flow Today
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {data.hourlyFlow && data.hourlyFlow.length > 0 ? (
-              <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={data.hourlyFlow}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                  <XAxis
-                    dataKey="hour"
-                    tick={{ fontSize: 10 }}
-                    tickFormatter={(h) => `${h}:00`}
-                  />
-                  <YAxis tick={{ fontSize: 10 }} />
-                  <Tooltip labelFormatter={(h) => `${h}:00`} />
-                  <Legend />
-                  <Bar dataKey="new_orders" name="New" fill="hsl(var(--chart-1))" radius={[2, 2, 0, 0]} />
-                  <Bar dataKey="despatched" name="Despatched" fill="hsl(var(--success))" radius={[2, 2, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <p className="text-sm text-muted-foreground text-center py-8">
-                No hourly data yet today
-              </p>
-            )}
-          </CardContent>
-        </Card>
-
         {/* Stage Ageing */}
         <Card>
           <CardHeader className="pb-2">
@@ -549,62 +540,6 @@ const OpsDashboard = () => {
                 No ageing data available
               </p>
             )}
-          </CardContent>
-        </Card>
-
-        {/* Despatch Performance */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <BarChart3 className="h-4 w-4" />
-              Despatch Performance
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left py-2 text-sm font-medium text-muted-foreground">
-                      Metric
-                    </th>
-                    <th className="text-right py-2 text-sm font-medium text-muted-foreground">
-                      Today
-                    </th>
-                    <th className="text-right py-2 text-sm font-medium text-muted-foreground">
-                      7-Day Avg
-                    </th>
-                    <th className="text-right py-2 text-sm font-medium text-muted-foreground">
-                      MTD
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <KpiRow
-                    label="Within 24 hours"
-                    todayPct={pct(data.despatch24h, data.totalDespatched)}
-                    avg7dPct={pct(data.despatch24h7d, data.totalDespatched7d)}
-                    mtdPct={pct(data.despatch24hMtd, data.totalDespatchedMtd)}
-                  />
-                  <KpiRow
-                    label="Within 48 hours"
-                    todayPct={pct(data.despatch48h, data.totalDespatched)}
-                    avg7dPct={pct(data.despatch48h7d, data.totalDespatched7d)}
-                    mtdPct={pct(data.despatch48hMtd, data.totalDespatchedMtd)}
-                  />
-                  <KpiRow
-                    label="Within 72 hours"
-                    todayPct={pct(data.despatch72h, data.totalDespatched)}
-                    avg7dPct={pct(data.despatch72h7d, data.totalDespatched7d)}
-                    mtdPct={pct(data.despatch72hMtd, data.totalDespatchedMtd)}
-                  />
-                </tbody>
-              </table>
-            </div>
-            <p className="text-xs text-muted-foreground mt-3">
-              Total despatched: Today {data.totalDespatched} · 7d{" "}
-              {data.totalDespatched7d} · MTD {data.totalDespatchedMtd}
-            </p>
           </CardContent>
         </Card>
 
@@ -660,6 +595,103 @@ const OpsDashboard = () => {
             </Button>
           </CardContent>
         </Card>
+      </div>
+
+      {/* Section: Analytics (lower priority, bottom of page) */}
+      <div>
+        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+          Analytics
+        </h2>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Hourly Flow */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Zap className="h-4 w-4" />
+                Hourly Flow Today
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {data.hourlyFlow && data.hourlyFlow.length > 0 ? (
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart data={data.hourlyFlow}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                    <XAxis
+                      dataKey="hour"
+                      tick={{ fontSize: 10 }}
+                      tickFormatter={(h) => `${h}:00`}
+                    />
+                    <YAxis tick={{ fontSize: 10 }} />
+                    <Tooltip labelFormatter={(h) => `${h}:00`} />
+                    <Legend />
+                    <Bar dataKey="new_orders" name="New" fill="hsl(var(--chart-1))" radius={[2, 2, 0, 0]} />
+                    <Bar dataKey="despatched" name="Despatched" fill="hsl(var(--success))" radius={[2, 2, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-8">
+                  No hourly data yet today
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Despatch Performance */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <BarChart3 className="h-4 w-4" />
+                Despatch Performance
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left py-2 text-sm font-medium text-muted-foreground">
+                        Metric
+                      </th>
+                      <th className="text-right py-2 text-sm font-medium text-muted-foreground">
+                        Today
+                      </th>
+                      <th className="text-right py-2 text-sm font-medium text-muted-foreground">
+                        7-Day Avg
+                      </th>
+                      <th className="text-right py-2 text-sm font-medium text-muted-foreground">
+                        MTD
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <KpiRow
+                      label="Within 24 hours"
+                      todayPct={pct(data.despatch24h, data.totalDespatched)}
+                      avg7dPct={pct(data.despatch24h7d, data.totalDespatched7d)}
+                      mtdPct={pct(data.despatch24hMtd, data.totalDespatchedMtd)}
+                    />
+                    <KpiRow
+                      label="Within 48 hours"
+                      todayPct={pct(data.despatch48h, data.totalDespatched)}
+                      avg7dPct={pct(data.despatch48h7d, data.totalDespatched7d)}
+                      mtdPct={pct(data.despatch48hMtd, data.totalDespatchedMtd)}
+                    />
+                    <KpiRow
+                      label="Within 72 hours"
+                      todayPct={pct(data.despatch72h, data.totalDespatched)}
+                      avg7dPct={pct(data.despatch72h7d, data.totalDespatched7d)}
+                      mtdPct={pct(data.despatch72hMtd, data.totalDespatchedMtd)}
+                    />
+                  </tbody>
+                </table>
+              </div>
+              <p className="text-xs text-muted-foreground mt-3">
+                Total despatched: Today {data.totalDespatched} · 7d{" "}
+                {data.totalDespatched7d} · MTD {data.totalDespatchedMtd}
+              </p>
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
       {/* Quick Links */}
