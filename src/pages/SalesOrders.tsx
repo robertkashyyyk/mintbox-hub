@@ -281,10 +281,26 @@ const SalesOrders = () => {
       <Card>
         <CardContent className="pt-4">
           {isLoading ? (
-            <div className="space-y-2">
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
+            <div className="flex flex-col items-center justify-center py-16 gap-3">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">Loading order telemetry — this may take a moment for large datasets…</p>
+            </div>
+          ) : filteredLines.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
+              <InboxEmpty className="h-8 w-8 text-muted-foreground" />
+              <div>
+                <p className="text-sm font-medium text-foreground">No order lines match the current filters</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {stats.totalLines > 0
+                    ? `${stats.totalLines.toLocaleString()} lines loaded — try clearing filters or switching saved view.`
+                    : "No order lines have been synced yet. Click Sync Orders to fetch from Mintsoft."}
+                </p>
+              </div>
+              {filters.savedView !== "all" && (
+                <Button variant="outline" size="sm" onClick={() => applySavedView("all")}>
+                  Show all orders
+                </Button>
+              )}
             </div>
           ) : (
             <OrderTable
