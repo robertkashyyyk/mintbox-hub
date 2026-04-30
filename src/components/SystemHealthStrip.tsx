@@ -33,6 +33,16 @@ type JobRun = {
   command: string | null;
 };
 
+type EdgeRun = {
+  id: number;
+  function_name: string;
+  started_at: string;
+  ended_at: string | null;
+  duration_ms: number | null;
+  status: string;
+  message: string | null;
+};
+
 const JOB_META: Record<string, { label: string; expectedMaxAgeSec: number; functionName?: string }> = {
   "sync-mintsoft-orders-live-tail": { label: "Order Sync", expectedMaxAgeSec: 20 * 60, functionName: "sync-mintsoft-orders" },
   "reconcile-order-ghosts-every-15min": { label: "Ghost Closure", expectedMaxAgeSec: 20 * 60, functionName: "reconcile-order-ghosts" },
