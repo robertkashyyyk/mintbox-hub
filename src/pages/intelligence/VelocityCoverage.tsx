@@ -63,7 +63,7 @@ const VelocityCoverage = () => {
             brands={brands}
           />
 
-          <div className="rounded-md border [&>div]:overflow-x-auto [&>div]:overflow-y-visible">
+          <div className="rounded-md border [&>div]:max-h-[70vh] [&>div]:overflow-auto">
             <Table>
               <TableHeader className="sticky top-0 z-20 bg-card shadow-[0_1px_0_0_hsl(var(--border))]">
                 <TableRow>
