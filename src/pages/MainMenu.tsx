@@ -3,6 +3,7 @@ import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/ca
 import { Search, BarChart3, Sparkles, PlayCircle, Users, Activity } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
+import { SystemHealthStrip } from "@/components/SystemHealthStrip";
 
 const MainMenu = () => {
   const navigate = useNavigate();
