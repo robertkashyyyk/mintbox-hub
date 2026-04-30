@@ -51,6 +51,13 @@ import OpsReports from "./pages/operations/OpsReports";
 import OpsTrends from "./pages/operations/OpsTrends";
 import OpsSkuAnalysis from "./pages/operations/OpsSkuAnalysis";
 
+// Operations / Carriers Pages
+import CarriersIndex from "./pages/operations/carriers/CarriersIndex";
+import CarrierDocuments from "./pages/operations/carriers/CarrierDocuments";
+import CarrierPenalties from "./pages/operations/carriers/CarrierPenalties";
+import CarrierRemeasure from "./pages/operations/carriers/CarrierRemeasure";
+import CarrierSettings from "./pages/operations/carriers/CarrierSettings";
+
 // Discovery Pages
 import DiscoveryQueue from "./pages/discovery/DiscoveryQueue";
 import BulkImageUpload from "./pages/discovery/BulkImageUpload";
@@ -191,6 +198,11 @@ const App = () => (
             <Route path="/operations/reports" element={<OpsReports />} />
             <Route path="/operations/trends" element={<OpsTrends />} />
             <Route path="/operations/sku-analysis" element={<OpsSkuAnalysis />} />
+            <Route path="/operations/carriers" element={<CarriersIndex />} />
+            <Route path="/operations/carriers/documents" element={<CarrierDocuments />} />
+            <Route path="/operations/carriers/penalties" element={<CarrierPenalties />} />
+            <Route path="/operations/carriers/remeasure" element={<CarrierRemeasure />} />
+            <Route path="/operations/carriers/settings" element={<CarrierSettings />} />
             <Route path="/operations/monitoring" element={<Navigate to="/operations/dashboard" replace />} />
             {/* Legacy redirect: Order Telemetry was under Discovery */}
             <Route path="/discovery/order-telemetry" element={<Navigate to="/operations/order-telemetry" replace />} />
