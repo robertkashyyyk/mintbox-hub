@@ -350,6 +350,16 @@ const SalesOrders = () => {
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               <p className="text-sm text-muted-foreground">Loading order telemetry — this may take a moment for large datasets…</p>
             </div>
+          ) : telemetryError ? (
+            <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
+              <p className="text-sm font-medium text-destructive">Failed to load order telemetry</p>
+              <p className="text-xs text-muted-foreground max-w-md break-words">
+                {telemetryError.message || String(telemetryError)}
+              </p>
+              <Button variant="outline" size="sm" onClick={() => refetch()}>
+                Retry
+              </Button>
+            </div>
           ) : filteredLines.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
               <InboxEmpty className="h-8 w-8 text-muted-foreground" />
