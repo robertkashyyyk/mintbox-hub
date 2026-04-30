@@ -34,6 +34,11 @@
 | **Operations** | *Index* | `/operations` | `operations` |
 | | Dashboard | `/operations/dashboard` | `operations.dashboard` |
 | | Order Telemetry | `/operations/order-telemetry` | `operations.order_telemetry` |
+| | Carriers | `/operations/carriers` | `operations.carriers` |
+| | — Documents | `/operations/carriers/documents` | `operations.carriers.documents` |
+| | — Penalties | `/operations/carriers/penalties` | `operations.carriers.penalties` |
+| | — Remeasure Queue | `/operations/carriers/remeasure` | `operations.carriers.remeasure` |
+| | — Settings | `/operations/carriers/settings` | `operations.carriers.settings` |
 | | Reports | `/operations/reports` | `operations.reports` |
 | | Monitoring | `/operations/monitoring` | `operations.monitoring` |
 | **Dashboards** | *Index* | `/dashboards` | `dashboards` |

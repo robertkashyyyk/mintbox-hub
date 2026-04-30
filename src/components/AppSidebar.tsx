@@ -6,7 +6,7 @@ import {
   ShoppingCart, RefreshCw, Copy,
   Users, Key, CreditCard, LogOut, UserCircle, Gauge,
   ChevronDown, ChevronRight, LayoutDashboard, Settings,
-  Images, Clock, Plug
+  Images, Clock, Plug, Truck
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -128,6 +128,7 @@ export function AppSidebar() {
         { title: "Trends", url: "/operations/trends", icon: TrendingUp },
         { title: "SKU Analysis", url: "/operations/sku-analysis", icon: Package },
         { title: "Order Telemetry", url: "/operations/order-telemetry", icon: Activity, superOnly: true },
+        { title: "Carriers", url: "/operations/carriers", icon: Truck },
         { title: "Reports", url: "/operations/reports", icon: FileText, superOnly: true },
       ],
     },

@@ -241,6 +241,232 @@ export type Database = {
         }
         Relationships: []
       }
+      carrier_documents: {
+        Row: {
+          carrier_id: string
+          created_at: string
+          doc_type: string
+          document_date: string
+          file_path: string
+          file_url: string | null
+          id: string
+          notes: string | null
+          parse_error: string | null
+          parse_status: string
+          parsed_at: string | null
+          period_end: string | null
+          period_start: string | null
+          total_amount: number | null
+          updated_at: string
+          uploaded_by: string | null
+        }
+        Insert: {
+          carrier_id: string
+          created_at?: string
+          doc_type: string
+          document_date: string
+          file_path: string
+          file_url?: string | null
+          id?: string
+          notes?: string | null
+          parse_error?: string | null
+          parse_status?: string
+          parsed_at?: string | null
+          period_end?: string | null
+          period_start?: string | null
+          total_amount?: number | null
+          updated_at?: string
+          uploaded_by?: string | null
+        }
+        Update: {
+          carrier_id?: string
+          created_at?: string
+          doc_type?: string
+          document_date?: string
+          file_path?: string
+          file_url?: string | null
+          id?: string
+          notes?: string | null
+          parse_error?: string | null
+          parse_status?: string
+          parsed_at?: string | null
+          period_end?: string | null
+          period_start?: string | null
+          total_amount?: number | null
+          updated_at?: string
+          uploaded_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "carrier_documents_carrier_id_fkey"
+            columns: ["carrier_id"]
+            isOneToOne: false
+            referencedRelation: "carriers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      carrier_penalties: {
+        Row: {
+          actual_format: string | null
+          carrier_id: string
+          created_at: string
+          declared_format: string | null
+          document_id: string | null
+          id: string
+          mintsoft_order_id: number | null
+          notes: string | null
+          penalty_amount: number
+          penalty_date: string | null
+          reason_code: string | null
+          reason_text: string | null
+          resolution_status: string
+          resolved_at: string | null
+          sku: string | null
+          tracking_number: string | null
+          updated_at: string
+        }
+        Insert: {
+          actual_format?: string | null
+          carrier_id: string
+          created_at?: string
+          declared_format?: string | null
+          document_id?: string | null
+          id?: string
+          mintsoft_order_id?: number | null
+          notes?: string | null
+          penalty_amount?: number
+          penalty_date?: string | null
+          reason_code?: string | null
+          reason_text?: string | null
+          resolution_status?: string
+          resolved_at?: string | null
+          sku?: string | null
+          tracking_number?: string | null
+          updated_at?: string
+        }
+        Update: {
+          actual_format?: string | null
+          carrier_id?: string
+          created_at?: string
+          declared_format?: string | null
+          document_id?: string | null
+          id?: string
+          mintsoft_order_id?: number | null
+          notes?: string | null
+          penalty_amount?: number
+          penalty_date?: string | null
+          reason_code?: string | null
+          reason_text?: string | null
+          resolution_status?: string
+          resolved_at?: string | null
+          sku?: string | null
+          tracking_number?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "carrier_penalties_carrier_id_fkey"
+            columns: ["carrier_id"]
+            isOneToOne: false
+            referencedRelation: "carriers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "carrier_penalties_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "carrier_documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      carrier_remeasure_tasks: {
+        Row: {
+          assigned_to: string | null
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          id: string
+          mintsoft_order_id: number | null
+          new_category: string | null
+          new_dimensions: Json | null
+          notes: string | null
+          old_category: string | null
+          old_dimensions: Json | null
+          penalty_id: string | null
+          sku: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          id?: string
+          mintsoft_order_id?: number | null
+          new_category?: string | null
+          new_dimensions?: Json | null
+          notes?: string | null
+          old_category?: string | null
+          old_dimensions?: Json | null
+          penalty_id?: string | null
+          sku: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_to?: string | null
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          id?: string
+          mintsoft_order_id?: number | null
+          new_category?: string | null
+          new_dimensions?: Json | null
+          notes?: string | null
+          old_category?: string | null
+          old_dimensions?: Json | null
+          penalty_id?: string | null
+          sku?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "carrier_remeasure_tasks_penalty_id_fkey"
+            columns: ["penalty_id"]
+            isOneToOne: false
+            referencedRelation: "carrier_penalties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      carriers: {
+        Row: {
+          active: boolean
+          created_at: string
+          id: string
+          name: string
+          slug: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          name: string
+          slug: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          name?: string
+          slug?: string
+        }
+        Relationships: []
+      }
       catalogue_items: {
         Row: {
           catalogue_id: string
@@ -1059,6 +1285,7 @@ export type Database = {
           qty: number
           sku: string
           times_seen: number | null
+          tracking_number: string | null
           updated_at: string
           warehouse_id: string | null
           was_backordered: boolean
@@ -1083,6 +1310,7 @@ export type Database = {
           qty: number
           sku: string
           times_seen?: number | null
+          tracking_number?: string | null
           updated_at?: string
           warehouse_id?: string | null
           was_backordered?: boolean
@@ -1107,6 +1335,7 @@ export type Database = {
           qty?: number
           sku?: string
           times_seen?: number | null
+          tracking_number?: string | null
           updated_at?: string
           warehouse_id?: string | null
           was_backordered?: boolean
