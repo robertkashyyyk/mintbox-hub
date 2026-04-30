@@ -3,6 +3,7 @@ import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/ca
 import { Search, BarChart3, Sparkles, PlayCircle, Users, Activity } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
+import { SystemHealthStrip } from "@/components/SystemHealthStrip";
 
 const MainMenu = () => {
   const navigate = useNavigate();
@@ -54,6 +55,8 @@ const MainMenu = () => {
           </div>
         </div>
       </div>
+
+      <SystemHealthStrip />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {sections.filter(s => s.show).map((section) => (
