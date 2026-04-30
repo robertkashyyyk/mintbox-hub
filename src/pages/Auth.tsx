@@ -35,23 +35,23 @@ const Auth = () => {
   }, [navigate]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4" style={{ background: 'hsl(222, 47%, 11%)' }}>
-      <Card className="w-full max-w-md border-white/10" style={{ background: 'hsl(217, 33%, 17%)' }}>
+    <div className="min-h-screen flex items-center justify-center p-4 bg-background">
+      <Card className="w-full max-w-md border-border bg-card">
         <CardHeader className="space-y-1 text-center">
           <div className="flex justify-center mb-4">
-            <div className="h-12 w-12 rounded-xl flex items-center justify-center" style={{ background: 'hsl(174, 58%, 37%)' }}>
-              <span className="text-white font-bold text-xl">PD</span>
+            <div className="h-12 w-12 rounded-xl flex items-center justify-center bg-pd-accent">
+              <span className="text-foreground font-bold text-xl">PD</span>
             </div>
           </div>
-          <CardTitle className="text-2xl font-bold text-white">PartsDoc Hub</CardTitle>
-          <CardDescription className="text-white/60">
+          <CardTitle className="text-2xl font-bold text-foreground">PartsDoc Hub</CardTitle>
+          <CardDescription className="text-foreground/60">
             Sign in to your account or sign up with an invitation
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Alert className="mb-4 border-white/10 bg-white/5">
-            <Info className="h-4 w-4 text-white/70" />
-            <AlertDescription className="text-white/60">
+          <Alert className="mb-4 border-foreground/10 bg-foreground/5">
+            <Info className="h-4 w-4 text-foreground/70" />
+            <AlertDescription className="text-foreground/60">
               This is an invite-only system. Please contact an administrator if you need access.
             </AlertDescription>
           </Alert>

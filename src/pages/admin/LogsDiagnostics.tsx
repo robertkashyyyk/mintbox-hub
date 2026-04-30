@@ -6,8 +6,8 @@ const LogsDiagnostics = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-3xl font-bold tracking-tight text-white">Logs / Diagnostics</h2>
-        <p className="text-white/60">
+        <h2 className="text-3xl font-bold tracking-tight text-foreground">Logs / Diagnostics</h2>
+        <p className="text-foreground/60">
           System logs and diagnostic information.
         </p>
       </div>
@@ -17,7 +17,7 @@ const LogsDiagnostics = () => {
       <Card>
         <CardHeader>
           <div className="flex items-center gap-2">
-            <FileText className="h-5 w-5 text-slate-500" />
+            <FileText className="h-5 w-5 text-muted-foreground" />
             <CardTitle>Coming Soon</CardTitle>
           </div>
           <CardDescription>

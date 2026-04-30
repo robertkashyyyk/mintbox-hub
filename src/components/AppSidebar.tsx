@@ -216,8 +216,8 @@ export function AppSidebar() {
         <SidebarGroup>
           <SidebarGroupContent>
             <div className="flex items-center gap-3 px-2 py-3">
-              <div className="h-8 w-8 rounded-lg bg-[hsl(174,58%,37%)] flex items-center justify-center flex-shrink-0">
-                <span className="text-white font-bold text-sm">PD</span>
+              <div className="h-8 w-8 rounded-lg bg-pd-accent flex items-center justify-center flex-shrink-0">
+                <span className="text-foreground font-bold text-sm">PD</span>
               </div>
               {open && (
                 <div>

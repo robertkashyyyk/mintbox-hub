@@ -76,8 +76,8 @@ const DiscoveryQueue = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-3xl font-bold tracking-tight text-white">Product Discovery Queue</h2>
-        <p className="text-white/60">
+        <h2 className="text-3xl font-bold tracking-tight text-foreground">Product Discovery Queue</h2>
+        <p className="text-foreground/60">
           Products discovered from orders or catalog imports that need enrichment (cost price, stock info, or categories).
         </p>
       </div>

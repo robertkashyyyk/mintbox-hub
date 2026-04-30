@@ -23,8 +23,8 @@ const PublicProducts = () => (
     <section className="bg-pd-charcoal py-20 md:py-24">
       <div className="container mx-auto px-4 text-center max-w-3xl">
         <p className="text-pd-accent text-sm font-semibold uppercase tracking-wider mb-3">Our Range</p>
-        <h1 className="text-3xl md:text-5xl font-bold text-white mb-5">Products &amp; Categories</h1>
-        <p className="text-white/75 text-lg leading-relaxed">
+        <h1 className="text-3xl md:text-5xl font-bold text-foreground mb-5">Products &amp; Categories</h1>
+        <p className="text-foreground/75 text-lg leading-relaxed">
           Browse our range of motor parts and accessories. Need help finding the right part?
           Just ask — our team knows what fits.
         </p>
@@ -45,8 +45,8 @@ const PublicProducts = () => (
             />
             <div className="absolute inset-0 bg-gradient-to-t from-pd-charcoal via-pd-charcoal/40 to-transparent" />
             <div className="absolute bottom-0 left-0 right-0 p-5">
-              <h3 className="text-lg font-bold text-white">{c.label}</h3>
-              <p className="text-sm text-white/70 mt-0.5">{c.desc}</p>
+              <h3 className="text-lg font-bold text-foreground">{c.label}</h3>
+              <p className="text-sm text-foreground/70 mt-0.5">{c.desc}</p>
             </div>
           </div>
         ))}
@@ -58,12 +58,12 @@ const PublicProducts = () => (
       <div className="absolute inset-0 bg-gradient-to-r from-pd-accent/20 to-pd-charcoal" />
       <div className="absolute inset-0 bg-pd-charcoal/90" />
       <div className="container mx-auto px-4 py-20 text-center max-w-2xl relative z-10">
-        <h2 className="text-3xl font-bold text-white mb-4">Need Help Finding the Right Part?</h2>
-        <p className="text-white/70 mb-8 text-lg">
+        <h2 className="text-3xl font-bold text-foreground mb-4">Need Help Finding the Right Part?</h2>
+        <p className="text-foreground/70 mb-8 text-lg">
           Tell us your vehicle and what you need — we'll get back to you with availability and pricing.
         </p>
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
-          <Button asChild size="lg" className="bg-pd-accent hover:bg-pd-accent-light text-white font-semibold">
+          <Button asChild size="lg" className="bg-pd-accent hover:bg-pd-accent-light text-foreground font-semibold">
             <Link to="/contact">Send an Enquiry <ArrowRight className="h-4 w-4 ml-1" /></Link>
           </Button>
           <Button asChild size="lg" variant="outlineDark">

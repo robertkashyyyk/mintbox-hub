@@ -29,15 +29,15 @@ const ModuleHeader = ({ title, description, icon: Icon, backgroundImage }: Modul
       <div className="relative h-full flex items-center px-8 md:px-12">
         <div className="flex items-center gap-5">
           {/* Teal accent bar */}
-          <div className="hidden md:block h-16 w-1 rounded-full bg-[hsl(var(--pd-accent))]" />
+          <div className="hidden md:block h-16 w-1 rounded-full bg-pd-accent" />
           
           <div className="flex items-center gap-4">
-            <div className="h-12 w-12 rounded-xl bg-[hsl(var(--pd-accent))]/20 border border-[hsl(var(--pd-accent))]/30 flex items-center justify-center">
-              <Icon className="h-6 w-6 text-[hsl(var(--pd-accent))]" />
+            <div className="h-12 w-12 rounded-xl bg-pd-accent/20 border border-pd-accent/30 flex items-center justify-center">
+              <Icon className="h-6 w-6 text-pd-accent" />
             </div>
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">{title}</h1>
-              <p className="text-sm md:text-base text-white/60 mt-1">{description}</p>
+              <h1 className="text-2xl md:text-3xl font-bold text-foreground tracking-tight">{title}</h1>
+              <p className="text-sm md:text-base text-foreground/60 mt-1">{description}</p>
             </div>
           </div>
         </div>

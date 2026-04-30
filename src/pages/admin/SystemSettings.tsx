@@ -39,8 +39,8 @@ const SystemSettings = () => {
           <div className="flex items-center gap-3">
             <Settings className="h-6 w-6 text-pd-accent" />
             <div>
-              <h1 className="text-2xl font-bold text-white">System Settings</h1>
-              <p className="text-sm text-white/60">Application-wide configuration and feature flags</p>
+              <h1 className="text-2xl font-bold text-foreground">System Settings</h1>
+              <p className="text-sm text-foreground/60">Application-wide configuration and feature flags</p>
             </div>
           </div>
         </div>

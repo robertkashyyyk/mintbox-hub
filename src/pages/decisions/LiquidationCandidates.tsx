@@ -5,8 +5,8 @@ const LiquidationCandidates = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-3xl font-bold tracking-tight text-white">Liquidation Candidates</h2>
-        <p className="text-white/60">
+        <h2 className="text-3xl font-bold tracking-tight text-foreground">Liquidation Candidates</h2>
+        <p className="text-foreground/60">
           Products recommended for clearance or fire sale.
         </p>
       </div>

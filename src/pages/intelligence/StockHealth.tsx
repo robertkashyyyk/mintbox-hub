@@ -15,8 +15,8 @@ const getHealthBadgeVariant = (category: string) => {
     "Healthy": { bg: "bg-green-100 dark:bg-green-900/30", text: "text-green-800 dark:text-green-300" },
     "Low Stock": { bg: "bg-orange-100 dark:bg-orange-900/30", text: "text-orange-800 dark:text-orange-300" },
     "Critical": { bg: "bg-red-100 dark:bg-red-900/30", text: "text-red-800 dark:text-red-300" },
-    "Dead Stock": { bg: "bg-gray-100 dark:bg-gray-900/30", text: "text-gray-800 dark:text-gray-300" },
-    "Out of Stock": { bg: "bg-gray-200 dark:bg-gray-800/50", text: "text-gray-900 dark:text-gray-400" },
+    "Dead Stock": { bg: "bg-muted dark:bg-card/30", text: "text-foreground dark:text-muted-foreground" },
+    "Out of Stock": { bg: "bg-muted dark:bg-card/50", text: "text-foreground dark:text-muted-foreground" },
     "Missing Baseline": { bg: "bg-background", text: "text-red-600 dark:text-red-400", border: "border-red-600 dark:border-red-400" },
   };
 
@@ -63,8 +63,8 @@ const StockHealth = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-3xl font-bold tracking-tight text-white">Stock Health</h2>
-        <p className="text-white/60">
+        <h2 className="text-3xl font-bold tracking-tight text-foreground">Stock Health</h2>
+        <p className="text-foreground/60">
           Stock levels, overstock, and shortage analysis powered by sales velocity.
         </p>
       </div>

@@ -9,8 +9,8 @@ const PublicContact = () => (
     <section className="bg-pd-charcoal py-20 md:py-24">
       <div className="container mx-auto px-4 text-center max-w-3xl">
         <p className="text-pd-accent text-sm font-semibold uppercase tracking-wider mb-3">Get in Touch</p>
-        <h1 className="text-3xl md:text-5xl font-bold text-white mb-5">Contact Us</h1>
-        <p className="text-white/75 text-lg leading-relaxed">
+        <h1 className="text-3xl md:text-5xl font-bold text-foreground mb-5">Contact Us</h1>
+        <p className="text-foreground/75 text-lg leading-relaxed">
           Get in touch by phone, email, or visit our counter in Coleraine. We're here to help.
         </p>
       </div>
@@ -20,7 +20,7 @@ const PublicContact = () => (
       <div className="grid lg:grid-cols-2 gap-12">
         {/* Contact Info */}
         <div className="space-y-6">
-          <div className="bg-white rounded-xl p-7 border border-pd-steel-light/20">
+          <div className="bg-pd-offwhite rounded-xl p-7 border border-pd-steel-light/20">
             <h2 className="text-lg font-bold text-pd-charcoal mb-5">Get in Touch</h2>
             <div className="space-y-4 text-sm">
               <a href="tel:+442870344344" className="flex items-center gap-4 group">
@@ -53,7 +53,7 @@ const PublicContact = () => (
             </div>
           </div>
 
-          <div className="bg-white rounded-xl p-7 border border-pd-steel-light/20">
+          <div className="bg-pd-offwhite rounded-xl p-7 border border-pd-steel-light/20">
             <h2 className="text-lg font-bold text-pd-charcoal mb-4 flex items-center gap-2">
               <Clock className="h-4 w-4 text-pd-accent" /> Opening Hours
             </h2>
@@ -86,7 +86,7 @@ const PublicContact = () => (
         </div>
 
         {/* Enquiry Form */}
-        <div className="bg-white rounded-xl p-8 border border-pd-steel-light/20 h-fit">
+        <div className="bg-pd-offwhite rounded-xl p-8 border border-pd-steel-light/20 h-fit">
           <h2 className="text-xl font-bold text-pd-charcoal mb-1">Send an Enquiry</h2>
           <p className="text-sm text-pd-steel-light mb-7">
             Tell us what you need and we'll get back to you as quickly as we can.
@@ -95,22 +95,22 @@ const PublicContact = () => (
             <div className="grid sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="name" className="text-xs uppercase tracking-wider text-pd-steel">Name</Label>
-                <Input id="name" placeholder="Your name" className="h-11 bg-white border-pd-steel-light/30 text-pd-charcoal placeholder:text-pd-steel-light" />
+                <Input id="name" placeholder="Your name" className="h-11 bg-pd-offwhite border-pd-steel-light/30 text-pd-charcoal placeholder:text-pd-steel-light" />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="phone" className="text-xs uppercase tracking-wider text-pd-steel">Phone</Label>
-                <Input id="phone" placeholder="Your phone number" className="h-11 bg-white border-pd-steel-light/30 text-pd-charcoal placeholder:text-pd-steel-light" />
+                <Input id="phone" placeholder="Your phone number" className="h-11 bg-pd-offwhite border-pd-steel-light/30 text-pd-charcoal placeholder:text-pd-steel-light" />
               </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="email" className="text-xs uppercase tracking-wider text-pd-steel">Email</Label>
-              <Input id="email" type="email" placeholder="your@email.com" className="h-11 bg-white border-pd-steel-light/30 text-pd-charcoal placeholder:text-pd-steel-light" />
+              <Input id="email" type="email" placeholder="your@email.com" className="h-11 bg-pd-offwhite border-pd-steel-light/30 text-pd-charcoal placeholder:text-pd-steel-light" />
             </div>
             <div className="space-y-2">
               <Label htmlFor="message" className="text-xs uppercase tracking-wider text-pd-steel">Message</Label>
-              <Textarea id="message" rows={5} placeholder="What parts do you need? Include vehicle details if possible." className="bg-white border-pd-steel-light/30 text-pd-charcoal placeholder:text-pd-steel-light" />
+              <Textarea id="message" rows={5} placeholder="What parts do you need? Include vehicle details if possible." className="bg-pd-offwhite border-pd-steel-light/30 text-pd-charcoal placeholder:text-pd-steel-light" />
             </div>
-            <Button type="submit" className="w-full bg-pd-accent hover:bg-pd-accent-light text-white font-semibold h-11">
+            <Button type="submit" className="w-full bg-pd-accent hover:bg-pd-accent-light text-foreground font-semibold h-11">
               Send Enquiry <ArrowRight className="h-4 w-4 ml-1" />
             </Button>
           </form>

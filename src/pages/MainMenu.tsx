@@ -42,15 +42,15 @@ const MainMenu = () => {
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,hsl(var(--pd-accent)/0.15),transparent_70%)]" />
         <div className="relative h-full flex items-center px-8 md:px-12">
           <div className="flex items-center gap-5">
-            <div className="hidden md:block h-16 w-1 rounded-full bg-[hsl(var(--pd-accent))]" />
+            <div className="hidden md:block h-16 w-1 rounded-full bg-pd-accent" />
             <div>
               <div className="flex items-center gap-3 mb-2">
-                <div className="h-10 w-10 rounded-lg bg-[hsl(var(--pd-accent))] flex items-center justify-center">
-                  <span className="text-white font-bold text-lg">PD</span>
+                <div className="h-10 w-10 rounded-lg bg-pd-accent flex items-center justify-center">
+                  <span className="text-foreground font-bold text-lg">PD</span>
                 </div>
-                <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">PartsDoc Hub</h1>
+                <h1 className="text-2xl md:text-3xl font-bold text-foreground tracking-tight">PartsDoc Hub</h1>
               </div>
-              <p className="text-sm md:text-base text-white/60">Select a module to get started</p>
+              <p className="text-sm md:text-base text-foreground/60">Select a module to get started</p>
             </div>
           </div>
         </div>

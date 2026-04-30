@@ -99,8 +99,8 @@ const OpsReports = () => {
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
-            <h1 className="text-2xl font-bold text-white">Operations Reports</h1>
-            <p className="text-sm text-white/60">Manage weekly report subscribers and view send history</p>
+            <h1 className="text-2xl font-bold text-foreground">Operations Reports</h1>
+            <p className="text-sm text-foreground/60">Manage weekly report subscribers and view send history</p>
           </div>
         </div>
         <Button variant="outlineDark" onClick={() => sendTestReport.mutate()} disabled={sendTestReport.isPending}>

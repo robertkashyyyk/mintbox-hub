@@ -5,8 +5,8 @@ const PricingSignals = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-3xl font-bold tracking-tight text-white">Pricing Signals</h2>
-        <p className="text-white/60">
+        <h2 className="text-3xl font-bold tracking-tight text-foreground">Pricing Signals</h2>
+        <p className="text-foreground/60">
           Market pricing trends and competitor intelligence.
         </p>
       </div>

@@ -52,10 +52,10 @@ const getStatusBadge = (row: PurchasingRequirementRow) => {
     return <Badge variant="destructive">Critical</Badge>;
   }
   if (row.back_order_qty > 0) {
-    return <Badge className="bg-orange-500 hover:bg-orange-600 text-white">Backorder</Badge>;
+    return <Badge className="bg-orange-500 hover:bg-orange-600 text-foreground">Backorder</Badge>;
   }
   if (row.current_stock < row.lsa) {
-    return <Badge className="bg-yellow-500 hover:bg-yellow-600 text-black">Low Stock</Badge>;
+    return <Badge className="bg-yellow-500 hover:bg-yellow-600 text-foreground">Low Stock</Badge>;
   }
   return <Badge variant="secondary">OK</Badge>;
 };
@@ -144,17 +144,17 @@ const BuyRecommendations = () => {
         {/* Header */}
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <h2 className="text-3xl font-bold tracking-tight text-white">
+            <h2 className="text-3xl font-bold tracking-tight text-foreground">
               Buy Recommendations
             </h2>
-            <p className="text-white/60">
+            <p className="text-foreground/60">
               Suggested purchase orders grouped by supplier. Advisory only.
             </p>
           </div>
           {lastSynced && (
             <p className="text-sm text-muted-foreground">
               Stock last synced:{" "}
-              <span className="text-white/80">
+              <span className="text-foreground/80">
                 {new Date(lastSynced).toLocaleString("en-GB")}
               </span>
             </p>

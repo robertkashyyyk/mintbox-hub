@@ -72,15 +72,15 @@ const DashboardLayout = () => {
         <AppSidebar />
         
         <div className="flex-1 flex flex-col">
-          <header className="h-16 border-b border-white/10 bg-[hsl(222,47%,11%)] sticky top-0 z-10">
+          <header className="h-16 border-b border-foreground/10 bg-background sticky top-0 z-10">
             <div className="h-full px-4 flex items-center justify-between">
               <div className="flex items-center gap-4">
                 <SidebarTrigger className="text-pd-accent hover:text-pd-accent-light" />
                 <div className="flex items-center gap-3">
-                  <div className="h-8 w-1 rounded-full bg-[hsl(174,58%,37%)]" />
+                  <div className="h-8 w-1 rounded-full bg-pd-accent" />
                   <div>
-                    <h1 className="text-lg font-bold text-white tracking-tight">PartsDoc Hub</h1>
-                    <p className="text-xs text-white/50">{session.user.email}</p>
+                    <h1 className="text-lg font-bold text-foreground tracking-tight">PartsDoc Hub</h1>
+                    <p className="text-xs text-foreground/50">{session.user.email}</p>
                   </div>
                 </div>
               </div>

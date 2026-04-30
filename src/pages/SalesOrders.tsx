@@ -171,8 +171,8 @@ const SalesOrders = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-white">Order Telemetry</h1>
-          <p className="text-white/60 mt-1">Operational monitoring · Problem detection · Issue tracking</p>
+          <h1 className="text-3xl font-bold text-foreground">Order Telemetry</h1>
+          <p className="text-foreground/60 mt-1">Operational monitoring · Problem detection · Issue tracking</p>
         </div>
         <div className="flex gap-2">
           <Button onClick={handleOpenSettings} variant="outline" size="sm">

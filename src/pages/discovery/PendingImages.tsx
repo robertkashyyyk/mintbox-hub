@@ -122,8 +122,8 @@ const PendingImages = () => {
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back to Discovery
         </Button>
-        <h1 className="text-2xl font-bold text-white">Pending Images</h1>
-        <p className="text-sm text-white/60">
+        <h1 className="text-2xl font-bold text-foreground">Pending Images</h1>
+        <p className="text-sm text-foreground/60">
           Images uploaded without a matching product. Promote to create a product record, or dismiss.
         </p>
       </div>

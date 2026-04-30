@@ -43,8 +43,8 @@ const VelocityCoverage = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-3xl font-bold tracking-tight text-white">Velocity & Coverage</h2>
-        <p className="text-white/60">
+        <h2 className="text-3xl font-bold tracking-tight text-foreground">Velocity & Coverage</h2>
+        <p className="text-foreground/60">
           Sales velocity analysis showing product movement over 30, 60, and 90-day periods.
         </p>
       </div>

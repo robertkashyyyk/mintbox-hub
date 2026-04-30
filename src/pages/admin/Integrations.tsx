@@ -146,8 +146,8 @@ const Integrations = () => {
           <Button variant="ghost" size="sm" className="text-pd-accent hover:text-pd-accent-light mb-2" onClick={() => navigate("/admin")}>
             <ArrowLeft className="h-4 w-4 mr-2" />Back to Administration
           </Button>
-          <h1 className="text-2xl font-bold text-white">Integrations</h1>
-          <p className="text-sm text-white/60">Manage connections to external services</p>
+          <h1 className="text-2xl font-bold text-foreground">Integrations</h1>
+          <p className="text-sm text-foreground/60">Manage connections to external services</p>
         </div>
         <Button variant="outlineDark" size="sm" asChild>
           <a href="https://docs.lovable.dev/features/security" target="_blank" rel="noopener noreferrer">

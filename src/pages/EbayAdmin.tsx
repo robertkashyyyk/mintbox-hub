@@ -167,8 +167,8 @@ const EbayAdmin = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-white">eBay Admin</h1>
-        <p className="text-white/60 mt-2">
+        <h1 className="text-3xl font-bold text-foreground">eBay Admin</h1>
+        <p className="text-foreground/60 mt-2">
           Manage your eBay seller accounts for price comparison
         </p>
       </div>

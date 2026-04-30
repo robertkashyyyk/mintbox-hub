@@ -117,7 +117,7 @@ export default function CatalogueLibrary() {
   });
 
   const statusColor = (s: Catalogue["status"]) =>
-    s === "published" ? "bg-pd-accent text-white" : s === "archived" ? "bg-muted" : "bg-secondary";
+    s === "published" ? "bg-pd-accent text-foreground" : s === "archived" ? "bg-muted" : "bg-secondary";
 
   return (
     <div className="space-y-6">
@@ -125,8 +125,8 @@ export default function CatalogueLibrary() {
         <div className="flex items-center gap-3">
           <div className="h-10 w-1 rounded-full bg-pd-accent" />
           <div>
-            <h1 className="text-2xl font-bold text-white tracking-tight">Catalogue Library</h1>
-            <p className="text-sm text-white/60">
+            <h1 className="text-2xl font-bold text-foreground tracking-tight">Catalogue Library</h1>
+            <p className="text-sm text-foreground/60">
               Create and manage branded product catalogues for trade and public use.
             </p>
           </div>
@@ -180,15 +180,15 @@ export default function CatalogueLibrary() {
       </div>
 
       {isLoading ? (
-        <div className="flex items-center justify-center py-20 text-white/60">
+        <div className="flex items-center justify-center py-20 text-foreground/60">
           <Loader2 className="h-6 w-6 animate-spin" />
         </div>
       ) : !catalogues?.length ? (
-        <Card className="bg-card/40 border-white/10">
+        <Card className="bg-card/40 border-foreground/10">
           <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-            <BookOpen className="h-12 w-12 text-white/30 mb-4" />
-            <h3 className="text-lg font-semibold text-white">No catalogues yet</h3>
-            <p className="text-sm text-white/60 mt-1 mb-6 max-w-md">
+            <BookOpen className="h-12 w-12 text-foreground/30 mb-4" />
+            <h3 className="text-lg font-semibold text-foreground">No catalogues yet</h3>
+            <p className="text-sm text-foreground/60 mt-1 mb-6 max-w-md">
               Create your first catalogue to start grouping products into a branded, shareable
               document.
             </p>
@@ -202,7 +202,7 @@ export default function CatalogueLibrary() {
           {catalogues.map((c) => (
             <Card
               key={c.id}
-              className="bg-card/60 border-white/10 hover:border-pd-accent/50 transition-colors group"
+              className="bg-card/60 border-foreground/10 hover:border-pd-accent/50 transition-colors group"
             >
               <CardContent className="p-5 space-y-3">
                 <div className="flex items-start justify-between gap-2">
@@ -210,18 +210,18 @@ export default function CatalogueLibrary() {
                     onClick={() => navigate(`/admin/catalogues/${c.id}`)}
                     className="text-left flex-1"
                   >
-                    <h3 className="font-semibold text-white group-hover:text-pd-accent transition-colors">
+                    <h3 className="font-semibold text-foreground group-hover:text-pd-accent transition-colors">
                       {c.title}
                     </h3>
-                    <p className="text-xs text-white/50 mt-0.5 font-mono">{c.slug}</p>
+                    <p className="text-xs text-foreground/50 mt-0.5 font-mono">{c.slug}</p>
                   </button>
                   <Badge className={statusColor(c.status)}>{c.status}</Badge>
                 </div>
                 {c.description && (
-                  <p className="text-sm text-white/60 line-clamp-2">{c.description}</p>
+                  <p className="text-sm text-foreground/60 line-clamp-2">{c.description}</p>
                 )}
-                <div className="flex items-center justify-between pt-2 border-t border-white/5">
-                  <span className="text-xs text-white/40">
+                <div className="flex items-center justify-between pt-2 border-t border-foreground/5">
+                  <span className="text-xs text-foreground/40">
                     Updated {new Date(c.updated_at).toLocaleDateString()}
                   </span>
                   <div className="flex items-center gap-1">
