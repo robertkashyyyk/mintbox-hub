@@ -343,13 +343,19 @@ const ProfitDashboard = () => {
                   amazing:   { label: "Amazing",   tone: "border-band-amazing/70 bg-band-amazing/20" },
                 };
                 const m = meta[b];
+                const isActive = bandFilter === b;
                 return (
-                  <div key={b} className={`rounded-md border p-3 ${m.tone}`}>
+                  <button
+                    key={b}
+                    type="button"
+                    onClick={() => { setBandFilter(isActive ? "all" : b); setPage(1); }}
+                    className={`text-left rounded-md border p-3 transition hover:brightness-125 focus:outline-none focus:ring-2 focus:ring-pd-accent ${m.tone} ${isActive ? "ring-2 ring-pd-accent" : ""}`}
+                  >
                     <div className="text-xs uppercase tracking-wide text-foreground/60">{m.label}</div>
                     <div className="text-xl font-bold text-foreground mt-1">{fmtNum(row?.line_count ?? 0)}</div>
                     <div className="text-xs text-foreground/70 mt-0.5">{Number(row?.pct ?? 0).toFixed(1)}% of lines</div>
                     <div className="text-xs font-mono text-foreground/80 mt-1">{fmtGBP(row?.profit_total ?? 0)}</div>
-                  </div>
+                  </button>
                 );
               })}
             </div>
