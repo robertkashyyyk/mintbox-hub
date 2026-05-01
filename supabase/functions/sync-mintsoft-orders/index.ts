@@ -286,6 +286,7 @@ Deno.serve(async (req) => {
       for (const order of existingOrders) {
         const lineKeys = [...existingLineMap.keys()].filter(k => k.startsWith(`${order.ID}-`));
         const newStatusName = extractStatusName(order, statusLookup);
+        const courierService = extractCourierService(order);
         
         for (const key of lineKeys) {
           const existing = existingLineMap.get(key)!;
@@ -309,9 +310,10 @@ Deno.serve(async (req) => {
             last_seen_at: now,
             times_seen: (existing.times_seen || 1) + 1,
             order_status: newStatusName,
-             order_status_id: order.OrderStatusId ?? null,
+            order_status_id: order.OrderStatusId ?? null,
             customer_name: order.CustomerName || null,
             tracking_number: (order as any).TrackingNo || (order as any).Consignment || (order as any).TrackingNumber || existing.tracking_number || null,
+            courier_service: courierService,
           };
           if (statusChanged) {
             payload.last_status_change_at = now;
