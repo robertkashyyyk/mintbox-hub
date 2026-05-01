@@ -3517,6 +3517,15 @@ export type Database = {
         }
         Returns: boolean
       }
+      pick_stalest_brand_for_stock_sync: {
+        Args: never
+        Returns: {
+          id: string
+          name: string
+          oldest_sync: string
+          sku_count: number
+        }[]
+      }
       refresh_sku_health_now: { Args: never; Returns: undefined }
       user_area_capability: {
         Args: { area_key: string; uid?: string }
