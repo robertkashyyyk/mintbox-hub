@@ -6,7 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { TrendingUp, ChevronLeft, ChevronRight, AlertTriangle, RefreshCw } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { TrendingUp, ChevronLeft, ChevronRight, AlertTriangle, RefreshCw, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
 import { Link } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
 
@@ -84,20 +86,88 @@ const ProfitDashboard = () => {
     },
   });
 
+  // Fetch ALL lines for the week (paged through 1k limit), then sort/filter/page client-side
   const { data: lines, isLoading: linesLoading } = useQuery({
-    queryKey: ["profit-lines", year, week, refetchKey],
+    queryKey: ["profit-lines-all", year, week, refetchKey],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("order_line_economics")
-        .select("mintsoft_order_id, line_index, sku, product_name, channel, qty, price, order_value, cost_each, courier_cost, channel_fee, profit, por_pct, good_dirt, missing_cost, courier, fee_rule_name")
-        .eq("iso_year", year)
-        .eq("iso_week", week)
-        .order("profit", { ascending: true })
-        .limit(100);
-      if (error) throw error;
-      return data ?? [];
+      const pageSize = 1000;
+      let from = 0;
+      const all: any[] = [];
+      while (true) {
+        const { data, error } = await supabase
+          .from("order_line_economics")
+          .select("mintsoft_order_id, line_index, sku, product_name, channel, qty, price, order_value, cost_each, courier_cost, channel_fee, profit, por_pct, good_dirt, missing_cost, courier, fee_rule_name")
+          .eq("iso_year", year)
+          .eq("iso_week", week)
+          .order("mintsoft_order_id", { ascending: true })
+          .range(from, from + pageSize - 1);
+        if (error) throw error;
+        const batch = data ?? [];
+        all.push(...batch);
+        if (batch.length < pageSize) break;
+        from += pageSize;
+        if (from > 50000) break; // safety
+      }
+      return all;
     },
   });
+
+  // Filters + sorting + pagination state
+  const [search, setSearch] = useState("");
+  const [channelFilter, setChannelFilter] = useState<string>("all");
+  const [flagFilter, setFlagFilter] = useState<string>("all"); // all | loss | dirt | missing_cost | profitable
+  const [sortKey, setSortKey] = useState<string>("mintsoft_order_id");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(100);
+
+  const channelOptions = useMemo(() => {
+    const set = new Set<string>();
+    (lines ?? []).forEach((l: any) => { if (l.channel) set.add(l.channel); });
+    return Array.from(set).sort();
+  }, [lines]);
+
+  const filteredLines = useMemo(() => {
+    let rows = (lines ?? []) as any[];
+    if (channelFilter !== "all") rows = rows.filter(r => (r.channel ?? "") === channelFilter);
+    if (flagFilter === "loss") rows = rows.filter(r => Number(r.profit ?? 0) < 0);
+    else if (flagFilter === "profitable") rows = rows.filter(r => Number(r.profit ?? 0) >= 0);
+    else if (flagFilter === "dirt") rows = rows.filter(r => r.good_dirt === "Dirt");
+    else if (flagFilter === "missing_cost") rows = rows.filter(r => r.missing_cost === true);
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      rows = rows.filter(r =>
+        String(r.mintsoft_order_id ?? "").toLowerCase().includes(q) ||
+        String(r.sku ?? "").toLowerCase().includes(q) ||
+        String(r.product_name ?? "").toLowerCase().includes(q) ||
+        String(r.channel ?? "").toLowerCase().includes(q)
+      );
+    }
+    rows = [...rows].sort((a, b) => {
+      const av = a[sortKey]; const bv = b[sortKey];
+      if (av == null && bv == null) return 0;
+      if (av == null) return 1;
+      if (bv == null) return -1;
+      if (typeof av === "number" && typeof bv === "number") return sortDir === "asc" ? av - bv : bv - av;
+      const as = String(av).toLowerCase(); const bs = String(bv).toLowerCase();
+      if (as < bs) return sortDir === "asc" ? -1 : 1;
+      if (as > bs) return sortDir === "asc" ? 1 : -1;
+      return 0;
+    });
+    return rows;
+  }, [lines, channelFilter, flagFilter, search, sortKey, sortDir]);
+
+  const totalRows = filteredLines.length;
+  const totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const pagedLines = filteredLines.slice((safePage - 1) * pageSize, safePage * pageSize);
+
+  const toggleSort = (key: string) => {
+    if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc");
+    else { setSortKey(key); setSortDir("asc"); }
+    setPage(1);
+  };
+
 
   const isThisWeek = useMemo(() => year === initial.year && week === initial.week, [year, week, initial]);
 
@@ -246,64 +316,123 @@ const ProfitDashboard = () => {
       </Card>
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Lines this week — sorted by lowest profit</CardTitle>
-          <CardDescription>Top 100 worst-margin lines for {weekKey}.</CardDescription>
+          <CardTitle className="text-base">Order lines — {weekKey}</CardTitle>
+          <CardDescription>
+            All order lines for this week. Click any column header to sort. Use the filters to narrow down.
+          </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
+          {/* Filter bar */}
+          <div className="flex flex-wrap items-center gap-2">
+            <Input
+              placeholder="Search order ID, SKU, product, channel…"
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+              className="max-w-xs"
+            />
+            <Select value={channelFilter} onValueChange={(v) => { setChannelFilter(v); setPage(1); }}>
+              <SelectTrigger className="w-[180px]"><SelectValue placeholder="Channel" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All channels</SelectItem>
+                {channelOptions.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={flagFilter} onValueChange={(v) => { setFlagFilter(v); setPage(1); }}>
+              <SelectTrigger className="w-[180px]"><SelectValue placeholder="Flag" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All lines</SelectItem>
+                <SelectItem value="loss">Loss only</SelectItem>
+                <SelectItem value="profitable">Profitable only</SelectItem>
+                <SelectItem value="dirt">Dirt SKUs</SelectItem>
+                <SelectItem value="missing_cost">Missing cost</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={String(pageSize)} onValueChange={(v) => { setPageSize(Number(v)); setPage(1); }}>
+              <SelectTrigger className="w-[120px]"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {[25, 50, 100, 200, 500].map((n) => <SelectItem key={n} value={String(n)}>{n} / page</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <div className="text-xs text-foreground/60 ml-auto">
+              {fmtNum(totalRows)} lines • Page {safePage} of {totalPages}
+            </div>
+          </div>
+
           {linesLoading ? (
             <div className="space-y-2">
               {[...Array(6)].map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
             </div>
-          ) : (lines?.length ?? 0) === 0 ? (
+          ) : totalRows === 0 ? (
             <div className="text-sm text-foreground/60 py-6 text-center">
-              No order lines for this week yet. If this is recent data, run a backfill.
+              No order lines match the current filters.
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Order</TableHead>
-                    <TableHead>SKU</TableHead>
-                    <TableHead>Channel</TableHead>
-                    <TableHead className="text-right">Qty</TableHead>
-                    <TableHead className="text-right">Price</TableHead>
-                    <TableHead className="text-right">Cost</TableHead>
-                    <TableHead className="text-right">Courier</TableHead>
-                    <TableHead className="text-right">Fee</TableHead>
-                    <TableHead className="text-right">Profit</TableHead>
-                    <TableHead className="text-right">POR</TableHead>
-                    <TableHead>Flags</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {lines!.map((l: any, i: number) => (
-                    <TableRow key={`${l.mintsoft_order_id}-${l.line_index}-${i}`}>
-                      <TableCell className="font-mono text-xs">{l.mintsoft_order_id}</TableCell>
-                      <TableCell className="font-medium">{l.sku}</TableCell>
-                      <TableCell className="text-xs text-foreground/70">{l.channel ?? "—"}</TableCell>
-                      <TableCell className="text-right">{l.qty}</TableCell>
-                      <TableCell className="text-right">{fmtGBP(l.price)}</TableCell>
-                      <TableCell className="text-right">{fmtGBP(l.cost_each)}</TableCell>
-                      <TableCell className="text-right">{fmtGBP(l.courier_cost)}</TableCell>
-                      <TableCell className="text-right">{fmtGBP(l.channel_fee)}</TableCell>
-                      <TableCell className={`text-right font-semibold ${Number(l.profit) < 0 ? "text-destructive" : "text-foreground"}`}>
-                        {fmtGBP(l.profit)}
-                      </TableCell>
-                      <TableCell className="text-right">{fmtPct(l.por_pct)}</TableCell>
-                      <TableCell className="space-x-1">
-                        {l.missing_cost && <Badge variant="destructive" className="text-[10px]">no cost</Badge>}
-                        {l.good_dirt === "Dirt" && <Badge variant="outline" className="text-[10px] border-warning text-warning">dirt</Badge>}
-                        {Number(l.profit ?? 0) < 0 && <Badge variant="outline" className="text-[10px] border-destructive text-destructive">loss</Badge>}
-                      </TableCell>
+            <>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <SortableHead label="Order" col="mintsoft_order_id" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
+                      <SortableHead label="SKU" col="sku" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
+                      <SortableHead label="Channel" col="channel" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
+                      <SortableHead label="Qty" col="qty" align="right" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
+                      <SortableHead label="Price" col="price" align="right" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
+                      <SortableHead label="Cost" col="cost_each" align="right" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
+                      <SortableHead label="Courier" col="courier_cost" align="right" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
+                      <SortableHead label="Fee" col="channel_fee" align="right" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
+                      <SortableHead label="Profit" col="profit" align="right" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
+                      <SortableHead label="POR" col="por_pct" align="right" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
+                      <TableHead>Flags</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+                  </TableHeader>
+                  <TableBody>
+                    {pagedLines.map((l: any, i: number) => (
+                      <TableRow key={`${l.mintsoft_order_id}-${l.line_index}-${i}`}>
+                        <TableCell className="font-mono text-xs">{l.mintsoft_order_id}</TableCell>
+                        <TableCell className="font-medium">{l.sku}</TableCell>
+                        <TableCell className="text-xs text-foreground/70">{l.channel ?? "—"}</TableCell>
+                        <TableCell className="text-right">{l.qty}</TableCell>
+                        <TableCell className="text-right">{fmtGBP(l.price)}</TableCell>
+                        <TableCell className="text-right">{fmtGBP(l.cost_each)}</TableCell>
+                        <TableCell className="text-right">{fmtGBP(l.courier_cost)}</TableCell>
+                        <TableCell className="text-right">{fmtGBP(l.channel_fee)}</TableCell>
+                        <TableCell className={`text-right font-semibold ${Number(l.profit) < 0 ? "text-destructive" : "text-foreground"}`}>
+                          {fmtGBP(l.profit)}
+                        </TableCell>
+                        <TableCell className="text-right">{fmtPct(l.por_pct)}</TableCell>
+                        <TableCell className="space-x-1">
+                          {l.missing_cost && <Badge variant="destructive" className="text-[10px]">no cost</Badge>}
+                          {l.good_dirt === "Dirt" && <Badge variant="outline" className="text-[10px] border-warning text-warning">dirt</Badge>}
+                          {Number(l.profit ?? 0) < 0 && <Badge variant="outline" className="text-[10px] border-destructive text-destructive">loss</Badge>}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Pagination */}
+              <div className="flex items-center justify-between flex-wrap gap-2 pt-2">
+                <div className="text-xs text-foreground/60">
+                  Showing {(safePage - 1) * pageSize + 1}–{Math.min(safePage * pageSize, totalRows)} of {fmtNum(totalRows)}
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button variant="outline" size="sm" onClick={() => setPage(1)} disabled={safePage === 1}>« First</Button>
+                  <Button variant="outline" size="sm" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage === 1}>
+                    <ChevronLeft className="h-4 w-4" /> Prev
+                  </Button>
+                  <span className="text-xs px-2">Page {safePage} / {totalPages}</span>
+                  <Button variant="outline" size="sm" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}>
+                    Next <ChevronRight className="h-4 w-4" />
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => setPage(totalPages)} disabled={safePage === totalPages}>Last »</Button>
+                </div>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>
+
 
       {/* Snapshot history */}
       <Card>
@@ -398,6 +527,25 @@ const FlagCard = ({ label, value, accent, loading, link }: { label: string; valu
         )}
       </CardContent>
     </Card>
+  );
+};
+
+const SortableHead = ({ label, col, align, sortKey, sortDir, onClick }: {
+  label: string; col: string; align?: "right"; sortKey: string; sortDir: "asc" | "desc"; onClick: (col: string) => void;
+}) => {
+  const active = sortKey === col;
+  const Icon = active ? (sortDir === "asc" ? ArrowUp : ArrowDown) : ArrowUpDown;
+  return (
+    <TableHead className={align === "right" ? "text-right" : ""}>
+      <button
+        type="button"
+        onClick={() => onClick(col)}
+        className={`inline-flex items-center gap-1 hover:text-foreground transition-colors ${active ? "text-foreground" : "text-foreground/70"} ${align === "right" ? "ml-auto" : ""}`}
+      >
+        <span>{label}</span>
+        <Icon className="h-3 w-3" />
+      </button>
+    </TableHead>
   );
 };
 
