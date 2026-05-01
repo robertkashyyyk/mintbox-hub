@@ -47,3 +47,5 @@ verify_jwt = false
 
 [functions.pull-mintsoft-stock-ftp]
 verify_jwt = false
+[functions.sftp-pull-stock]
+verify_jwt = false
