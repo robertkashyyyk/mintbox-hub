@@ -342,15 +342,6 @@ const ProfitDashboard = () => {
             </div>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
-             {(() => {
-              // Single shared denominator across ALL bands (including unknown) so percentages sum to 100%.
-              const allLines = (lines ?? []) as any[];
-              const unknownLines = allLines.filter((l) => l.missing_cost === true || l.cost_each == null || Number(l.cost_each) === 0);
-              const knownBandsTotal = (bands ?? []).reduce((s: number, r: any) => s + Number(r?.line_count ?? 0), 0);
-              // Prefer allLines.length when available; fall back to known + unknown if lines weren't loaded.
-              const denominator = allLines.length > 0 ? allLines.length : (knownBandsTotal + unknownLines.length);
-              return null;
-             })()}
              {(["unknown","loss","breakeven","poor","average","good","great","amazing"] as const).map((b) => {
                 const allLines = (lines ?? []) as any[];
                 const unknownLines = allLines.filter((l) => l.missing_cost === true || l.cost_each == null || Number(l.cost_each) === 0);
