@@ -312,9 +312,16 @@ const ProfitDashboard = () => {
       {/* Loss / Profit segmentation */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Profitability segmentation (per line, by POR %)</CardTitle>
+          <CardTitle className="text-base flex items-center justify-between gap-2 flex-wrap">
+            <span>Profitability segmentation (per line, by POR %)</span>
+            {bandFilter !== "all" && (
+              <Button variant="ghost" size="sm" onClick={() => { setBandFilter("all"); setPage(1); }}>
+                Clear band filter ({bandFilter})
+              </Button>
+            )}
+          </CardTitle>
           <CardDescription>
-            Order lines bucketed by their POR % (profit ÷ GMV inc VAT). Thresholds editable in <Link to="/admin/profit-rules" className="underline text-pd-accent">Profit Rules</Link>.
+            Order lines bucketed by their POR % (profit ÷ GMV inc VAT). Click a card to filter the table below. Thresholds editable in <Link to="/admin/profit-rules" className="underline text-pd-accent">Profit Rules</Link>.
           </CardDescription>
         </CardHeader>
         <CardContent>
