@@ -21,7 +21,7 @@ const HousekeepingIndex = () => {
           .eq("good_dirt", "Dirt").gte("order_date", since),
         supabase.from("pending_images").select("id", { count: "exact", head: true }).is("reviewed_at", null),
         supabase.from("products_cache").select("id", { count: "exact", head: true })
-          .eq("discovery_source", "order_sync").eq("discontinued", false),
+          .eq("discovery_source", "order").eq("discontinued", false),
         supabase.from("products_cache").select("id", { count: "exact", head: true })
           .is("barcode", null).eq("discontinued", false).eq("quarantined", false),
       ]);
