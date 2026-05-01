@@ -52,14 +52,15 @@ export const StockHealthFilters = ({ filters, onFiltersChange }: StockHealthFilt
   }, []);
 
   const clearAllFilters = () => {
-    onFiltersChange({ search: "", brandId: "all", healthCategory: "all", onlyProblems: false });
+    onFiltersChange({ search: "", brandId: "all", healthCategory: "all", onlyProblems: false, excludeDirt: false });
   };
 
   const activeFilterCount = [
     filters.search,
-    filters.brandId,
-    filters.healthCategory,
+    filters.brandId !== "all" ? filters.brandId : "",
+    filters.healthCategory !== "all" ? filters.healthCategory : "",
     filters.onlyProblems,
+    filters.excludeDirt,
   ].filter(Boolean).length;
 
   return (
