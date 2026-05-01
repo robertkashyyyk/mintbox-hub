@@ -181,6 +181,10 @@ const ProfitDashboard = () => {
         <KpiCard label="AOV" value={fmtGBP(kpis?.aov)} loading={kpisLoading} />
       </div>
 
+      <p className="text-xs text-foreground/50 -mt-2">
+        Counts exclude cancelled, refunded and returned orders — only active &amp; despatched orders feed profit calculations. Mintsoft's raw weekly count will be higher.
+      </p>
+
       {/* Health flags */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <FlagCard label="Good lines" value={fmtNum(kpis?.good_count)} accent="good" loading={kpisLoading} />
