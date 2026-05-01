@@ -44,7 +44,7 @@ Deno.serve(async (req) => {
 
   let body: any = {};
   try { body = await req.json(); } catch { /* allow empty */ }
-  const weeksBack = Math.max(1, Math.min(12, Number(body.weeks_back ?? 4)));
+  const weeksBack = Math.max(1, Math.min(60, Number(body.weeks_back ?? 4)));
   const chunkSize = Math.max(10, Math.min(100, Number(body.chunk_size ?? 50)));
   const offset = Math.max(0, Number(body.offset ?? 0));
 
