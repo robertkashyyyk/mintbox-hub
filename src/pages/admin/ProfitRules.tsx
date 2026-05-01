@@ -193,11 +193,23 @@ const ProfitRules = () => {
 };
 
 interface LossBands {
-  big_loss_max: number;
-  small_loss_max: number;
-  breakeven_max: number;
-  small_profit_max: number;
+  mode?: string;
+  loss_max: number;       // POR % below this = Loss
+  breakeven_max: number;  // up to this = Breakeven
+  poor_max: number;       // up to this = Poor
+  average_max: number;    // up to this = Average
+  good_max: number;       // up to this = Good
+  great_max: number;      // up to this = Great; above = Amazing
 }
+
+const BAND_FIELDS: { key: keyof LossBands; label: string; hint: string }[] = [
+  { key: "loss_max",      label: "Loss <",         hint: "POR % below this is a Loss" },
+  { key: "breakeven_max", label: "Breakeven ≤",    hint: "Up to this POR % is Breakeven" },
+  { key: "poor_max",      label: "Poor ≤",         hint: "Up to this POR % is Poor" },
+  { key: "average_max",   label: "Average ≤",      hint: "Up to this POR % is Average" },
+  { key: "good_max",      label: "Good ≤",         hint: "Up to this POR % is Good" },
+  { key: "great_max",     label: "Great ≤",        hint: "Up to this POR % is Great; above is Amazing" },
+];
 
 const LossBandsCard = () => {
   const qc = useQueryClient();
