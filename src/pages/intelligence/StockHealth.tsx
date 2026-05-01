@@ -37,6 +37,8 @@ const StockHealth = () => {
     data,
     loading,
     totalCount,
+    summary,
+    dirtSkusCount,
     page,
     pageSize,
     setPage,
@@ -95,6 +97,90 @@ const StockHealth = () => {
           {refreshing ? "Refreshing…" : "Refresh now"}
         </Button>
       </div>
+
+      {/* Top-level KPI cards. Click a category card to filter the table below. */}
+      {summary && (() => {
+        const cat = summary.byCategory ?? {};
+        const healthy = cat["Healthy"] ?? 0;
+        const problemKeys = ["Unhealthy", "Low Stock", "Critical", "Out of Stock", "Dead Stock", "Missing Baseline"];
+        const overstockKeys = ["Overstock", "Extreme Overstock"];
+        const problems = problemKeys.reduce((s, k) => s + (cat[k] ?? 0), 0);
+        const overstock = overstockKeys.reduce((s, k) => s + (cat[k] ?? 0), 0);
+        const total = summary.totalSkus || 1;
+        const pct = (n: number) => `${((n / total) * 100).toFixed(1)}%`;
+
+        const tiles: Array<{
+          label: string;
+          value: string;
+          sub?: string;
+          tone: string;
+          onClick?: () => void;
+          active?: boolean;
+        }> = [
+          {
+            label: "SKUs in scope",
+            value: summary.totalSkus.toLocaleString(),
+            sub: filters.excludeDirt ? "DIRT excluded" : `${dirtSkusCount.toLocaleString()} DIRT in catalog`,
+            tone: "border-border bg-card",
+          },
+          {
+            label: "Healthy",
+            value: healthy.toLocaleString(),
+            sub: pct(healthy),
+            tone: "border-green-600/40 bg-green-500/10",
+            onClick: () => handleFiltersChange({ healthCategory: filters.healthCategory === "Healthy" ? "all" : "Healthy", onlyProblems: false }),
+            active: filters.healthCategory === "Healthy",
+          },
+          {
+            label: "Problems",
+            value: problems.toLocaleString(),
+            sub: pct(problems),
+            tone: "border-destructive/40 bg-destructive/10",
+            onClick: () => handleFiltersChange({ onlyProblems: !filters.onlyProblems, healthCategory: "all" }),
+            active: filters.onlyProblems,
+          },
+          {
+            label: "Overstock",
+            value: overstock.toLocaleString(),
+            sub: pct(overstock),
+            tone: "border-blue-500/40 bg-blue-500/10",
+          },
+          {
+            label: "DIRT in scope",
+            value: summary.dirtSkus.toLocaleString(),
+            sub: filters.excludeDirt ? "filter active" : "click to exclude",
+            tone: "border-warning/50 bg-warning/10",
+            onClick: () => handleFiltersChange({ excludeDirt: !filters.excludeDirt }),
+            active: filters.excludeDirt,
+          },
+          {
+            label: "Total on-hand units",
+            value: Math.round(summary.totalOnHand).toLocaleString(),
+            tone: "border-border bg-card",
+          },
+        ];
+
+        return (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+            {tiles.map((t) => {
+              const isButton = !!t.onClick;
+              const Comp: any = isButton ? "button" : "div";
+              return (
+                <Comp
+                  key={t.label}
+                  type={isButton ? "button" : undefined}
+                  onClick={t.onClick}
+                  className={`text-left rounded-md border-2 p-3 transition ${t.tone} ${isButton ? "hover:brightness-125 cursor-pointer focus:outline-none focus:ring-2 focus:ring-pd-accent" : ""} ${t.active ? "ring-2 ring-pd-accent" : ""}`}
+                >
+                  <div className="text-xs uppercase tracking-wide text-foreground/60">{t.label}</div>
+                  <div className="text-2xl font-bold mt-1 text-foreground">{t.value}</div>
+                  {t.sub && <div className="text-xs mt-0.5 text-foreground/70">{t.sub}</div>}
+                </Comp>
+              );
+            })}
+          </div>
+        );
+      })()}
 
       <Card>
         <CardHeader>
