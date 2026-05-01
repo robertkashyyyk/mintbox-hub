@@ -62,13 +62,14 @@ Deno.serve(async (req) => {
   fromDate.setUTCDate(fromDate.getUTCDate() - weeksBack * 7);
   const fromIso = fromDate.toISOString();
 
-  // Find DISTINCT order ids in the window where price is missing
+  // Find DISTINCT order ids in the window where price is missing.
+  // Prioritise MOST RECENT orders so the current/last week populates first.
   const { data: missingRows, error: qErr } = await supabase
     .from("order_lines")
-    .select("mintsoft_order_id")
+    .select("mintsoft_order_id, order_date")
     .gte("order_date", fromIso)
     .is("unit_price", null)
-    .order("mintsoft_order_id", { ascending: true })
+    .order("order_date", { ascending: false })
     .range(offset, offset + chunkSize * 50); // pull headroom; we'll dedupe
 
   if (qErr) {
