@@ -193,6 +193,7 @@ Deno.serve(async (req) => {
     // Fetch ALL Mintsoft statuses for lookup AND to know which status IDs to query
     const statusLookup = new Map<number, string>();
     const activeStatusIds: number[] = [];
+    const terminalStatusIds: number[] = [];
     const terminalNames = ['despatched', 'dispatched', 'cancelled', 'completed', 'delivered', 'refunded', 'returned', 'closed'];
     try {
       const statusResp = await fetch(`${settings.base_url}/api/Order/Statuses`, {
@@ -202,16 +203,22 @@ Deno.serve(async (req) => {
         const statuses = await statusResp.json();
         for (const s of statuses) {
           if (s.ID && s.ExternalName) statusLookup.set(s.ID, s.ExternalName);
-          // Only fetch headers for non-terminal statuses to avoid timeout
           const isTerminal = terminalNames.some(t => (s.ExternalName || '').toLowerCase().includes(t));
           if (s.ID && s.Active !== false && !isTerminal) activeStatusIds.push(s.ID);
+          if (s.ID && isTerminal) terminalStatusIds.push(s.ID);
         }
-        console.log(`Loaded ${statusLookup.size} status names, fetching ${activeStatusIds.length} non-terminal statuses`);
+        console.log(`Loaded ${statusLookup.size} status names, fetching ${activeStatusIds.length} non-terminal + ${terminalStatusIds.length} terminal statuses`);
       }
     } catch (e) { console.error("Failed to fetch status names:", e); }
 
     // If we couldn't fetch statuses, fall back to configured IDs
     const statusIdsToFetch = activeStatusIds.length > 0 ? activeStatusIds : dispatchedStatusIds;
+    // In live-tail, also sweep terminal statuses (despatched/cancelled/etc.) but
+    // ALWAYS apply a date floor so we only pull recent activity (last ~3 days).
+    // This catches orders that completed between cron runs and would otherwise
+    // never appear in our system (the same-day-despatch gap).
+    const liveTailTerminalFloor = new Date(); liveTailTerminalFloor.setUTCDate(liveTailTerminalFloor.getUTCDate() - 3);
+    const liveTailTerminalIds = ignoreDateFilter ? terminalStatusIds : [];
 
     // 1. Fetch order headers across ALL statuses
     let allOrders: MintsoftOrder[] = [];
