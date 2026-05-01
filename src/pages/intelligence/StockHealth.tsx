@@ -37,6 +37,8 @@ const StockHealth = () => {
     data,
     loading,
     totalCount,
+    summary,
+    dirtSkusCount,
     page,
     pageSize,
     setPage,
