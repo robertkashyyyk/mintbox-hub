@@ -86,20 +86,88 @@ const ProfitDashboard = () => {
     },
   });
 
+  // Fetch ALL lines for the week (paged through 1k limit), then sort/filter/page client-side
   const { data: lines, isLoading: linesLoading } = useQuery({
-    queryKey: ["profit-lines", year, week, refetchKey],
+    queryKey: ["profit-lines-all", year, week, refetchKey],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("order_line_economics")
-        .select("mintsoft_order_id, line_index, sku, product_name, channel, qty, price, order_value, cost_each, courier_cost, channel_fee, profit, por_pct, good_dirt, missing_cost, courier, fee_rule_name")
-        .eq("iso_year", year)
-        .eq("iso_week", week)
-        .order("profit", { ascending: true })
-        .limit(100);
-      if (error) throw error;
-      return data ?? [];
+      const pageSize = 1000;
+      let from = 0;
+      const all: any[] = [];
+      while (true) {
+        const { data, error } = await supabase
+          .from("order_line_economics")
+          .select("mintsoft_order_id, line_index, sku, product_name, channel, qty, price, order_value, cost_each, courier_cost, channel_fee, profit, por_pct, good_dirt, missing_cost, courier, fee_rule_name")
+          .eq("iso_year", year)
+          .eq("iso_week", week)
+          .order("mintsoft_order_id", { ascending: true })
+          .range(from, from + pageSize - 1);
+        if (error) throw error;
+        const batch = data ?? [];
+        all.push(...batch);
+        if (batch.length < pageSize) break;
+        from += pageSize;
+        if (from > 50000) break; // safety
+      }
+      return all;
     },
   });
+
+  // Filters + sorting + pagination state
+  const [search, setSearch] = useState("");
+  const [channelFilter, setChannelFilter] = useState<string>("all");
+  const [flagFilter, setFlagFilter] = useState<string>("all"); // all | loss | dirt | missing_cost | profitable
+  const [sortKey, setSortKey] = useState<string>("mintsoft_order_id");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(100);
+
+  const channelOptions = useMemo(() => {
+    const set = new Set<string>();
+    (lines ?? []).forEach((l: any) => { if (l.channel) set.add(l.channel); });
+    return Array.from(set).sort();
+  }, [lines]);
+
+  const filteredLines = useMemo(() => {
+    let rows = (lines ?? []) as any[];
+    if (channelFilter !== "all") rows = rows.filter(r => (r.channel ?? "") === channelFilter);
+    if (flagFilter === "loss") rows = rows.filter(r => Number(r.profit ?? 0) < 0);
+    else if (flagFilter === "profitable") rows = rows.filter(r => Number(r.profit ?? 0) >= 0);
+    else if (flagFilter === "dirt") rows = rows.filter(r => r.good_dirt === "Dirt");
+    else if (flagFilter === "missing_cost") rows = rows.filter(r => r.missing_cost === true);
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      rows = rows.filter(r =>
+        String(r.mintsoft_order_id ?? "").toLowerCase().includes(q) ||
+        String(r.sku ?? "").toLowerCase().includes(q) ||
+        String(r.product_name ?? "").toLowerCase().includes(q) ||
+        String(r.channel ?? "").toLowerCase().includes(q)
+      );
+    }
+    rows = [...rows].sort((a, b) => {
+      const av = a[sortKey]; const bv = b[sortKey];
+      if (av == null && bv == null) return 0;
+      if (av == null) return 1;
+      if (bv == null) return -1;
+      if (typeof av === "number" && typeof bv === "number") return sortDir === "asc" ? av - bv : bv - av;
+      const as = String(av).toLowerCase(); const bs = String(bv).toLowerCase();
+      if (as < bs) return sortDir === "asc" ? -1 : 1;
+      if (as > bs) return sortDir === "asc" ? 1 : -1;
+      return 0;
+    });
+    return rows;
+  }, [lines, channelFilter, flagFilter, search, sortKey, sortDir]);
+
+  const totalRows = filteredLines.length;
+  const totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const pagedLines = filteredLines.slice((safePage - 1) * pageSize, safePage * pageSize);
+
+  const toggleSort = (key: string) => {
+    if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc");
+    else { setSortKey(key); setSortDir("asc"); }
+    setPage(1);
+  };
+
 
   const isThisWeek = useMemo(() => year === initial.year && week === initial.week, [year, week, initial]);
 
