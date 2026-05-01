@@ -186,7 +186,80 @@ const ProfitRules = () => {
           )}
         </CardContent>
       </Card>
+
+      <LossBandsCard />
     </div>
+  );
+};
+
+interface LossBands {
+  big_loss_max: number;
+  small_loss_max: number;
+  breakeven_max: number;
+  small_profit_max: number;
+}
+
+const LossBandsCard = () => {
+  const qc = useQueryClient();
+  const { data, isLoading } = useQuery({
+    queryKey: ["loss-bands"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("app_settings")
+        .select("value")
+        .eq("key", "profit.loss_bands")
+        .maybeSingle();
+      if (error) throw error;
+      return (data?.value ?? { big_loss_max: -2, small_loss_max: -0.5, breakeven_max: 0.5, small_profit_max: 2 }) as unknown as LossBands;
+    },
+  });
+
+  const [draft, setDraft] = useState<LossBands | null>(null);
+  const current = draft ?? data ?? null;
+  const dirty = draft != null && JSON.stringify(draft) !== JSON.stringify(data);
+
+  const save = async () => {
+    if (!current) return;
+    const { error } = await supabase
+      .from("app_settings")
+      .update({ value: current as any })
+      .eq("key", "profit.loss_bands");
+    if (error) toast({ title: "Save failed", description: error.message, variant: "destructive" });
+    else { toast({ title: "Loss bands saved" }); qc.invalidateQueries({ queryKey: ["loss-bands"] }); setDraft(null); }
+  };
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-start justify-between">
+        <div>
+          <CardTitle className="text-base">Loss / profit bands</CardTitle>
+          <CardDescription>
+            Per-line profit £ thresholds used by the segmentation card on the Profit dashboard. Buckets: Big loss &lt; big_loss_max, Small loss ≤ small_loss_max, Breakeven ≤ breakeven_max, Small profit ≤ small_profit_max, otherwise Big profit.
+          </CardDescription>
+        </div>
+        <Button size="sm" disabled={!dirty} onClick={save}><Save className="h-4 w-4 mr-1" />Save</Button>
+      </CardHeader>
+      <CardContent>
+        {isLoading || !current ? (
+          <Skeleton className="h-12 w-full" />
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {(["big_loss_max", "small_loss_max", "breakeven_max", "small_profit_max"] as const).map((k) => (
+              <label key={k} className="text-xs text-foreground/70 space-y-1">
+                <span className="block font-medium">{k.replace(/_/g, " ")}</span>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={current[k]}
+                  onChange={(e) => setDraft({ ...current, [k]: Number(e.target.value) })}
+                  className="h-8"
+                />
+              </label>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 };
 

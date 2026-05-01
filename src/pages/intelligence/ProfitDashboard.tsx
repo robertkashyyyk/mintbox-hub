@@ -32,7 +32,7 @@ function shiftIsoWeek(year: number, week: number, delta: number): { year: number
 }
 
 const fmtGBP = (n: number | null | undefined) =>
-  n == null ? "—" : new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP", maximumFractionDigits: 0 }).format(Number(n));
+  n == null ? "—" : new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(n));
 const fmtPct = (n: number | null | undefined) =>
   n == null ? "—" : `${(Number(n) * 100).toFixed(1)}%`;
 const fmtNum = (n: number | null | undefined) =>
@@ -67,6 +67,18 @@ const ProfitDashboard = () => {
         .order("iso_year", { ascending: false })
         .order("iso_week", { ascending: false })
         .limit(20);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const { data: bands, isLoading: bandsLoading } = useQuery({
+    queryKey: ["profit-bands", year, week, refetchKey],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_profit_week_breakdown", {
+        p_iso_year: year,
+        p_iso_week: week,
+      });
       if (error) throw error;
       return data ?? [];
     },
@@ -188,7 +200,44 @@ const ProfitDashboard = () => {
         />
       </div>
 
-      {/* Lines table — worst-profit first */}
+      {/* Loss / Profit segmentation */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Profitability segmentation (per line)</CardTitle>
+          <CardDescription>
+            Order lines bucketed by profit £. Thresholds editable in <Link to="/admin/profit-rules" className="underline text-pd-accent">Profit Rules</Link>.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {bandsLoading ? (
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-20 w-full" />)}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              {(["big_loss","small_loss","breakeven","small_profit","big_profit"] as const).map((b) => {
+                const row = (bands ?? []).find((x: any) => x.band === b);
+                const meta: Record<string, { label: string; tone: string }> = {
+                  big_loss: { label: "Big loss", tone: "border-destructive/60 bg-destructive/10" },
+                  small_loss: { label: "Small loss", tone: "border-warning/60 bg-warning/10" },
+                  breakeven: { label: "Breakeven", tone: "border-border bg-muted/30" },
+                  small_profit: { label: "Small profit", tone: "border-pd-accent/40 bg-pd-accent/5" },
+                  big_profit: { label: "Big profit", tone: "border-pd-accent bg-pd-accent/10" },
+                };
+                const m = meta[b];
+                return (
+                  <div key={b} className={`rounded-md border p-3 ${m.tone}`}>
+                    <div className="text-xs uppercase tracking-wide text-foreground/60">{m.label}</div>
+                    <div className="text-xl font-bold text-foreground mt-1">{fmtNum(row?.line_count ?? 0)}</div>
+                    <div className="text-xs text-foreground/70 mt-0.5">{Number(row?.pct ?? 0).toFixed(1)}% of lines</div>
+                    <div className="text-xs font-mono text-foreground/80 mt-1">{fmtGBP(row?.profit_total ?? 0)}</div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Lines this week — sorted by lowest profit</CardTitle>
