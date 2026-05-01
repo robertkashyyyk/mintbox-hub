@@ -3458,6 +3458,15 @@ export type Database = {
           profit_total: number
         }[]
       }
+      get_stock_health_summary: {
+        Args: { p_brand_id?: string; p_exclude_dirt?: boolean }
+        Returns: {
+          by_category: Json
+          dirt_skus: number
+          total_on_hand: number
+          total_skus: number
+        }[]
+      }
       get_system_health_job_runs: {
         Args: { _jobname: string; _limit?: number }
         Returns: {
