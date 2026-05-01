@@ -48,6 +48,7 @@ import DashboardsIndex from "./pages/DashboardsIndex";
 // Operations Pages
 import OpsDashboard from "./pages/operations/OpsDashboard";
 import OpsReports from "./pages/operations/OpsReports";
+import DespatchPerformanceReport from "./pages/operations/reports/DespatchPerformanceReport";
 import OpsTrends from "./pages/operations/OpsTrends";
 import OpsSkuAnalysis from "./pages/operations/OpsSkuAnalysis";
 
@@ -196,6 +197,7 @@ const App = () => (
             <Route path="/operations/dashboard" element={<OpsDashboard />} />
             <Route path="/operations/order-telemetry" element={<SalesOrders />} />
             <Route path="/operations/reports" element={<OpsReports />} />
+            <Route path="/operations/reports/despatch-performance" element={<DespatchPerformanceReport />} />
             <Route path="/operations/trends" element={<OpsTrends />} />
             <Route path="/operations/sku-analysis" element={<OpsSkuAnalysis />} />
             <Route path="/operations/carriers" element={<CarriersIndex />} />
