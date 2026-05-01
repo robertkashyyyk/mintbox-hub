@@ -1,10 +1,38 @@
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Settings as SettingsIcon, Bell, Palette, Monitor } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Settings as SettingsIcon, Bell, Palette, Monitor, Download, Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 const Settings = () => {
+  const { toast } = useToast();
+  const [ftpRunning, setFtpRunning] = useState(false);
+  const [ftpResult, setFtpResult] = useState<Record<string, unknown> | null>(null);
+
+  const runFtpPull = async () => {
+    setFtpRunning(true);
+    setFtpResult(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("pull-mintsoft-stock-ftp");
+      if (error) throw error;
+      setFtpResult(data as Record<string, unknown>);
+      toast({
+        title: "FTP pull complete",
+        description: `Updated ${(data as { updated?: number })?.updated ?? 0} SKUs`,
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      toast({ title: "FTP pull failed", description: msg, variant: "destructive" });
+      setFtpResult({ error: msg });
+    } finally {
+      setFtpRunning(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -13,6 +41,28 @@ const Settings = () => {
       </div>
 
       <div className="grid gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Download className="h-5 w-5" />
+              Mintsoft Stock FTP Pull (Test)
+            </CardTitle>
+            <CardDescription>
+              Pulls <code>ColeraineLIVEStockLevelsforHub15.csv</code> from <code>138.68.139.54/pdochub-7</code> and updates stock figures in products_cache.
+              Mintsoft drops the file at 15:30 UK daily.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <Button onClick={runFtpPull} disabled={ftpRunning}>
+              {ftpRunning ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Pulling…</> : "Run FTP pull now"}
+            </Button>
+            {ftpResult && (
+              <pre className="text-xs bg-muted p-3 rounded overflow-auto max-h-96">
+                {JSON.stringify(ftpResult, null, 2)}
+              </pre>
+            )}
+          </CardContent>
+        </Card>
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">

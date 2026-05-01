@@ -44,3 +44,6 @@ verify_jwt = false
 
 [functions.backfill-order-economics]
 verify_jwt = false
+
+[functions.pull-mintsoft-stock-ftp]
+verify_jwt = false
