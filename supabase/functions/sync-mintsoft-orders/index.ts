@@ -193,6 +193,7 @@ Deno.serve(async (req) => {
     // Fetch ALL Mintsoft statuses for lookup AND to know which status IDs to query
     const statusLookup = new Map<number, string>();
     const activeStatusIds: number[] = [];
+    const terminalStatusIds: number[] = [];
     const terminalNames = ['despatched', 'dispatched', 'cancelled', 'completed', 'delivered', 'refunded', 'returned', 'closed'];
     try {
       const statusResp = await fetch(`${settings.base_url}/api/Order/Statuses`, {
@@ -202,16 +203,22 @@ Deno.serve(async (req) => {
         const statuses = await statusResp.json();
         for (const s of statuses) {
           if (s.ID && s.ExternalName) statusLookup.set(s.ID, s.ExternalName);
-          // Only fetch headers for non-terminal statuses to avoid timeout
           const isTerminal = terminalNames.some(t => (s.ExternalName || '').toLowerCase().includes(t));
           if (s.ID && s.Active !== false && !isTerminal) activeStatusIds.push(s.ID);
+          if (s.ID && isTerminal) terminalStatusIds.push(s.ID);
         }
-        console.log(`Loaded ${statusLookup.size} status names, fetching ${activeStatusIds.length} non-terminal statuses`);
+        console.log(`Loaded ${statusLookup.size} status names, fetching ${activeStatusIds.length} non-terminal + ${terminalStatusIds.length} terminal statuses`);
       }
     } catch (e) { console.error("Failed to fetch status names:", e); }
 
     // If we couldn't fetch statuses, fall back to configured IDs
     const statusIdsToFetch = activeStatusIds.length > 0 ? activeStatusIds : dispatchedStatusIds;
+    // In live-tail, also sweep terminal statuses (despatched/cancelled/etc.) but
+    // ALWAYS apply a date floor so we only pull recent activity (last ~10 days).
+    // This catches orders that completed between cron runs and would otherwise
+    // never appear in our system (the same-day-despatch gap).
+    const liveTailTerminalFloor = new Date(); liveTailTerminalFloor.setUTCDate(liveTailTerminalFloor.getUTCDate() - 10);
+    const liveTailTerminalIds = ignoreDateFilter ? terminalStatusIds : [];
 
     // 1. Fetch order headers across ALL statuses
     let allOrders: MintsoftOrder[] = [];
@@ -243,6 +250,37 @@ Deno.serve(async (req) => {
         }
       }
       console.log(`Fetched ${allOrders.length} order headers across ${statusIdsToFetch.length} statuses${timedOut ? ' (partial - timed out)' : ''}`);
+
+      // 1b. LIVE-TAIL terminal sweep: pull recently-despatched/cancelled orders
+      // (last 3 days by OrderDate) so we don't miss same-day-despatch orders.
+      if (liveTailTerminalIds.length > 0 && !timedOut) {
+        for (const statusId of liveTailTerminalIds) {
+          if (isTimeRunningOut()) { timedOut = true; break; }
+          let pageNo = 1;
+          while (true) {
+            const resp = await fetch(`${settings.base_url}/api/Order/List?OrderStatusId=${statusId}&Limit=100&PageNo=${pageNo}`, {
+              headers: { "ms-apikey": mintsoftApiKey, "Content-Type": "application/json" },
+            });
+            if (!resp.ok) break;
+            const orders: MintsoftOrder[] = await resp.json();
+            if (orders.length === 0) break;
+            let stopPaging = false;
+            const filtered = orders.filter(o => {
+              if (seenOrderIds.has(o.ID)) return false;
+              const orderDateObj = new Date(o.OrderDate);
+              if (orderDateObj < MIN_DATE) return false;
+              if (orderDateObj < liveTailTerminalFloor) { stopPaging = true; return false; }
+              seenOrderIds.add(o.ID);
+              return true;
+            });
+            allOrders = allOrders.concat(filtered);
+            // Mintsoft returns most recent first — once we cross the floor, stop.
+            if (stopPaging || orders.length < 100 || pageNo >= 50) break;
+            pageNo++;
+          }
+        }
+        console.log(`After terminal sweep: ${allOrders.length} total order headers`);
+      }
 
     // 2. Find which orders we already have lines for
     const orderIds = [...new Set(allOrders.map(o => o.ID))];
