@@ -360,12 +360,18 @@ Deno.serve(async (req) => {
 
       for (const order of chunk) {
         const items = itemsMap.get(order.ID) || [];
+        const courierService = extractCourierService(order);
+        const orderCurrency = (order as any).Currency || 'GBP';
         let lineIndex = 1;
         for (const item of items) {
           linesProcessed++;
           const brandId = resolveBrandFromSKU(item.SKU, brands);
           const dirty = isDirtySku(item.SKU);
           newSkus.push({ sku: item.SKU, brand_id: brandId, quarantined: dirty });
+
+          const unitPrice = num(item.Price) ?? num(item.UnitValue);
+          const lineTotal = num(item.LineTotal) ?? num(item.LinePrice) ?? (unitPrice !== null ? unitPrice * (item.Quantity || 0) : null);
+          const discount = num(item.Discount) ?? num(item.DiscountAmount) ?? 0;
 
           upsertPayloads.push({
             mintsoft_order_id: order.ID,
@@ -379,9 +385,14 @@ Deno.serve(async (req) => {
             brand_id: brandId,
             order_status: extractStatusName(order, statusLookup),
             order_status_id: order.OrderStatusId ?? null,
-             product_name: item.Name || null,
+            product_name: item.Name || null,
             customer_name: order.CustomerName || null,
             tracking_number: (order as any).TrackingNo || (order as any).Consignment || (order as any).TrackingNumber || null,
+            unit_price: unitPrice,
+            line_total: lineTotal,
+            discount: discount,
+            currency: orderCurrency,
+            courier_service: courierService,
             first_seen_at: now,
             last_seen_at: now,
             last_status_change_at: now,
