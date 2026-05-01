@@ -193,11 +193,23 @@ const ProfitRules = () => {
 };
 
 interface LossBands {
-  big_loss_max: number;
-  small_loss_max: number;
-  breakeven_max: number;
-  small_profit_max: number;
+  mode?: string;
+  loss_max: number;       // POR % below this = Loss
+  breakeven_max: number;  // up to this = Breakeven
+  poor_max: number;       // up to this = Poor
+  average_max: number;    // up to this = Average
+  good_max: number;       // up to this = Good
+  great_max: number;      // up to this = Great; above = Amazing
 }
+
+const BAND_FIELDS: { key: keyof LossBands; label: string; hint: string }[] = [
+  { key: "loss_max",      label: "Loss <",         hint: "POR % below this is a Loss" },
+  { key: "breakeven_max", label: "Breakeven ≤",    hint: "Up to this POR % is Breakeven" },
+  { key: "poor_max",      label: "Poor ≤",         hint: "Up to this POR % is Poor" },
+  { key: "average_max",   label: "Average ≤",      hint: "Up to this POR % is Average" },
+  { key: "good_max",      label: "Good ≤",         hint: "Up to this POR % is Good" },
+  { key: "great_max",     label: "Great ≤",        hint: "Up to this POR % is Great; above is Amazing" },
+];
 
 const LossBandsCard = () => {
   const qc = useQueryClient();
@@ -210,7 +222,7 @@ const LossBandsCard = () => {
         .eq("key", "profit.loss_bands")
         .maybeSingle();
       if (error) throw error;
-      return (data?.value ?? { big_loss_max: -2, small_loss_max: -0.5, breakeven_max: 0.5, small_profit_max: 2 }) as unknown as LossBands;
+      return (data?.value ?? { mode: "pct", loss_max: -1, breakeven_max: 1, poor_max: 9.99, average_max: 19.99, good_max: 24.99, great_max: 29.99 }) as unknown as LossBands;
     },
   });
 
@@ -232,9 +244,9 @@ const LossBandsCard = () => {
     <Card>
       <CardHeader className="flex flex-row items-start justify-between">
         <div>
-          <CardTitle className="text-base">Loss / profit bands</CardTitle>
+          <CardTitle className="text-base">Profitability bands (POR %)</CardTitle>
           <CardDescription>
-            Per-line profit £ thresholds used by the segmentation card on the Profit dashboard. Buckets: Big loss &lt; big_loss_max, Small loss ≤ small_loss_max, Breakeven ≤ breakeven_max, Small profit ≤ small_profit_max, otherwise Big profit.
+            Per-line POR % thresholds used by the segmentation card on the Profit dashboard. Bands: <strong>Loss</strong> &lt; loss_max · <strong>Breakeven</strong> ≤ breakeven_max · <strong>Poor</strong> ≤ poor_max · <strong>Average</strong> ≤ average_max · <strong>Good</strong> ≤ good_max · <strong>Great</strong> ≤ great_max · otherwise <strong>Amazing</strong>. Values are percentages (e.g. 9.99 = 9.99%).
           </CardDescription>
         </div>
         <Button size="sm" disabled={!dirty} onClick={save}><Save className="h-4 w-4 mr-1" />Save</Button>
@@ -243,17 +255,18 @@ const LossBandsCard = () => {
         {isLoading || !current ? (
           <Skeleton className="h-12 w-full" />
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {(["big_loss_max", "small_loss_max", "breakeven_max", "small_profit_max"] as const).map((k) => (
-              <label key={k} className="text-xs text-foreground/70 space-y-1">
-                <span className="block font-medium">{k.replace(/_/g, " ")}</span>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+            {BAND_FIELDS.map(({ key, label, hint }) => (
+              <label key={key as string} className="text-xs text-foreground/70 space-y-1">
+                <span className="block font-medium text-foreground">{label}</span>
                 <Input
                   type="number"
                   step="0.01"
-                  value={current[k]}
-                  onChange={(e) => setDraft({ ...current, [k]: Number(e.target.value) })}
+                  value={Number(current[key] ?? 0)}
+                  onChange={(e) => setDraft({ ...current, [key]: Number(e.target.value) } as LossBands)}
                   className="h-8"
                 />
+                <span className="block text-[10px] text-foreground/50">{hint}</span>
               </label>
             ))}
           </div>

@@ -203,26 +203,28 @@ const ProfitDashboard = () => {
       {/* Loss / Profit segmentation */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Profitability segmentation (per line)</CardTitle>
+          <CardTitle className="text-base">Profitability segmentation (per line, by POR %)</CardTitle>
           <CardDescription>
-            Order lines bucketed by profit £. Thresholds editable in <Link to="/admin/profit-rules" className="underline text-pd-accent">Profit Rules</Link>.
+            Order lines bucketed by their POR % (profit ÷ GMV inc VAT). Thresholds editable in <Link to="/admin/profit-rules" className="underline text-pd-accent">Profit Rules</Link>.
           </CardDescription>
         </CardHeader>
         <CardContent>
           {bandsLoading ? (
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-              {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-20 w-full" />)}
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+              {[...Array(7)].map((_, i) => <Skeleton key={i} className="h-24 w-full" />)}
             </div>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-              {(["big_loss","small_loss","breakeven","small_profit","big_profit"] as const).map((b) => {
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+              {(["loss","breakeven","poor","average","good","great","amazing"] as const).map((b) => {
                 const row = (bands ?? []).find((x: any) => x.band === b);
                 const meta: Record<string, { label: string; tone: string }> = {
-                  big_loss: { label: "Big loss", tone: "border-destructive/60 bg-destructive/10" },
-                  small_loss: { label: "Small loss", tone: "border-warning/60 bg-warning/10" },
+                  loss:      { label: "Loss",      tone: "border-destructive/60 bg-destructive/10" },
                   breakeven: { label: "Breakeven", tone: "border-border bg-muted/30" },
-                  small_profit: { label: "Small profit", tone: "border-pd-accent/40 bg-pd-accent/5" },
-                  big_profit: { label: "Big profit", tone: "border-pd-accent bg-pd-accent/10" },
+                  poor:      { label: "Poor",      tone: "border-warning/60 bg-warning/10" },
+                  average:   { label: "Average",   tone: "border-warning/30 bg-warning/5" },
+                  good:      { label: "Good",      tone: "border-pd-accent/40 bg-pd-accent/5" },
+                  great:     { label: "Great",     tone: "border-pd-accent/70 bg-pd-accent/10" },
+                  amazing:   { label: "Amazing",   tone: "border-pd-accent bg-pd-accent/20" },
                 };
                 const m = meta[b];
                 return (
