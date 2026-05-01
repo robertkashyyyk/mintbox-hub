@@ -169,6 +169,7 @@ export function AppSidebar() {
         { title: "Logs / Diagnostics", url: "/admin/logs", icon: FileText },
         { title: "System Settings", url: "/admin/settings", icon: Settings },
         { title: "Integrations", url: "/admin/integrations", icon: Plug },
+        { title: "Profit Rules", url: "/admin/profit-rules", icon: Sliders },
       ],
     },
   ];

@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Search, BarChart3, Sparkles, PlayCircle, Users, Activity } from "lucide-react";
+import { Search, BarChart3, Sparkles, PlayCircle, Users, Activity, Clock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { SystemHealthStrip } from "@/components/SystemHealthStrip";
@@ -27,7 +27,8 @@ const MainMenu = () => {
 
   const sections = [
     { title: "Discovery", description: "See and manage products, brands, and ingested data.", icon: Search, path: "/discovery", show: true },
-    { title: "Intelligence", description: "Velocity, stock health and coverage insights.", icon: BarChart3, path: "/intelligence", show: true },
+    { title: "Intelligence", description: "Velocity, stock health, profit and coverage insights.", icon: BarChart3, path: "/intelligence", show: true },
+    { title: "Housekeeping", description: "The to-do board: missing costs, dirt SKUs, pending images.", icon: Clock, path: "/housekeeping", show: true },
     { title: "Decisions", description: "AI-driven buying, pricing and liquidation recommendations.", icon: Sparkles, path: "/decisions", show: isSeniorUser || isSuperUser },
     { title: "Execution", description: "Execute purchase, pricing and listing actions.", icon: PlayCircle, path: "/execution", show: isSeniorUser || isSuperUser },
     { title: "Operations", description: "Order monitoring, sync status, and system health.", icon: Activity, path: "/operations", show: isSeniorUser || isSuperUser },
