@@ -65,6 +65,13 @@ All colors MUST be HSL.
     --pd-accent: 174 58% 37%;
     --pd-accent-light: 174 42% 50%;
     --pd-accent-foreground: 0 0% 100%;
+    --band-loss: 350 55% 38%;
+    --band-breakeven: 0 70% 55%;
+    --band-poor: 25 85% 55%;
+    --band-average: 48 85% 55%;
+    --band-good: 140 50% 45%;
+    --band-great: 190 70% 50%;
+    --band-amazing: 235 65% 58%;
     --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
     --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
     --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
