@@ -6,7 +6,7 @@ import {
   ShoppingCart, RefreshCw, Copy,
   Users, Key, CreditCard, LogOut, UserCircle, Gauge,
   ChevronDown, ChevronRight, LayoutDashboard, Settings,
-  Images, Clock, Plug, Truck
+  Images, Clock, Plug, Truck, AlertTriangle, Sliders
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -89,10 +89,23 @@ export function AppSidebar() {
       basePath: "/intelligence",
       icon: TrendingUp,
       items: [
+        { title: "Profit", url: "/intelligence/profit", icon: DollarSign },
         { title: "Velocity & Coverage", url: "/intelligence/velocity", icon: TrendingUp },
         { title: "Stock Health", url: "/intelligence/stock-health", icon: Activity },
         { title: "Pricing Signals", url: "/intelligence/pricing", icon: DollarSign },
         { title: "Seasonality", url: "/intelligence/seasonality", icon: Calendar },
+      ],
+    },
+    {
+      label: "Housekeeping",
+      basePath: "/housekeeping",
+      icon: Clock,
+      items: [
+        { title: "Overview", url: "/housekeeping", icon: Clock },
+        { title: "Missing Costs", url: "/intelligence/missing-costs", icon: AlertCircle },
+        { title: "Dirt SKUs", url: "/intelligence/dirt-skus", icon: AlertTriangle },
+        { title: "Pending Images", url: "/discovery/pending-images", icon: Images },
+        { title: "Discovery Queue", url: "/discovery/discovery-queue", icon: Search },
       ],
     },
     {
@@ -156,6 +169,7 @@ export function AppSidebar() {
         { title: "Logs / Diagnostics", url: "/admin/logs", icon: FileText },
         { title: "System Settings", url: "/admin/settings", icon: Settings },
         { title: "Integrations", url: "/admin/integrations", icon: Plug },
+        { title: "Profit Rules", url: "/admin/profit-rules", icon: Sliders },
       ],
     },
   ];

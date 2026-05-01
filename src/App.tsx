@@ -69,6 +69,15 @@ import VelocityCoverage from "./pages/intelligence/VelocityCoverage";
 import StockHealth from "./pages/intelligence/StockHealth";
 import PricingSignals from "./pages/intelligence/PricingSignals";
 import Seasonality from "./pages/intelligence/Seasonality";
+import ProfitDashboard from "./pages/intelligence/ProfitDashboard";
+import MissingCosts from "./pages/intelligence/MissingCosts";
+import DirtSkus from "./pages/intelligence/DirtSkus";
+
+// Housekeeping
+import HousekeepingIndex from "./pages/HousekeepingIndex";
+
+// Admin extras
+import ProfitRules from "./pages/admin/ProfitRules";
 
 // Decisions Pages
 import BuyRecommendations from "./pages/decisions/BuyRecommendations";
@@ -164,6 +173,12 @@ const App = () => (
             <Route path="/intelligence/stock-health" element={<StockHealth />} />
             <Route path="/intelligence/pricing" element={<PricingSignals />} />
             <Route path="/intelligence/seasonality" element={<Seasonality />} />
+            <Route path="/intelligence/profit" element={<ProfitDashboard />} />
+            <Route path="/intelligence/missing-costs" element={<MissingCosts />} />
+            <Route path="/intelligence/dirt-skus" element={<DirtSkus />} />
+
+            {/* Housekeeping */}
+            <Route path="/housekeeping" element={<HousekeepingIndex />} />
 
             {/* Decisions Sub-Routes */}
             <Route path="/decisions/buying" element={<BuyRecommendations />} />
@@ -192,6 +207,7 @@ const App = () => (
             <Route path="/admin/integrations" element={<Integrations />} />
             <Route path="/admin/catalogues" element={<CatalogueLibrary />} />
             <Route path="/admin/catalogues/:id" element={<CatalogueBuilder />} />
+            <Route path="/admin/profit-rules" element={<ProfitRules />} />
 
             {/* Operations Sub-Routes */}
             <Route path="/operations/dashboard" element={<OpsDashboard />} />
