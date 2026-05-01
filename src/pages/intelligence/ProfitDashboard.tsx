@@ -342,23 +342,31 @@ const ProfitDashboard = () => {
             </div>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
-              {(["unknown","loss","breakeven","poor","average","good","great","amazing"] as const).map((b) => {
+             {(() => {
+              // Single shared denominator across ALL bands (including unknown) so percentages sum to 100%.
+              const allLines = (lines ?? []) as any[];
+              const unknownLines = allLines.filter((l) => l.missing_cost === true || l.cost_each == null || Number(l.cost_each) === 0);
+              const knownBandsTotal = (bands ?? []).reduce((s: number, r: any) => s + Number(r?.line_count ?? 0), 0);
+              // Prefer allLines.length when available; fall back to known + unknown if lines weren't loaded.
+              const denominator = allLines.length > 0 ? allLines.length : (knownBandsTotal + unknownLines.length);
+              return null;
+             })()}
+             {(["unknown","loss","breakeven","poor","average","good","great","amazing"] as const).map((b) => {
+                const allLines = (lines ?? []) as any[];
+                const unknownLines = allLines.filter((l) => l.missing_cost === true || l.cost_each == null || Number(l.cost_each) === 0);
+                const knownBandsTotal = (bands ?? []).reduce((s: number, r: any) => s + Number(r?.line_count ?? 0), 0);
+                const denominator = allLines.length > 0 ? allLines.length : (knownBandsTotal + unknownLines.length);
                 let lineCount = 0;
-                let pctOfLines = 0;
                 let profitTotal: number | null = null;
                 if (b === "unknown") {
-                  // Derived client-side: missing-cost lines are excluded from the SQL bands RPC.
-                  const allLines = (lines ?? []) as any[];
-                  const unknowns = allLines.filter((l) => l.missing_cost === true || l.cost_each == null || Number(l.cost_each) === 0);
-                  lineCount = unknowns.length;
-                  pctOfLines = allLines.length > 0 ? (lineCount / allLines.length) * 100 : 0;
+                  lineCount = unknownLines.length;
                   profitTotal = null; // intentionally hidden — profit is unreliable without cost
                 } else {
                   const row = (bands ?? []).find((x: any) => x.band === b);
                   lineCount = Number(row?.line_count ?? 0);
-                  pctOfLines = Number(row?.pct ?? 0);
                   profitTotal = row?.profit_total ?? 0;
                 }
+                const pctOfLines = denominator > 0 ? (lineCount / denominator) * 100 : 0;
                 const meta: Record<string, { label: string; tone: string }> = {
                   unknown:   { label: "Unknown",   tone: `border-warning/70 ${HAZARD_STRIPES}` },
                   loss:      { label: "Loss",      tone: "border-band-loss/60 bg-band-loss/15" },
