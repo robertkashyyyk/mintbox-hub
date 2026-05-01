@@ -150,40 +150,26 @@ export const useStockHealth = () => {
     }
   };
 
-  // Fetch top-level summary (independent of pagination/sort).
-  // Respects brand + excludeDirt; ignores text search and category filters so cards
-  // remain a stable overview that the cards can themselves filter into.
+  // Fetch top-level summary via server-side RPC (no row-cap; aggregates the full
+  // 180k+ SKU view). Respects brand + excludeDirt; ignores text + category filters
+  // so the tiles remain a stable overview the user can drill into.
   const fetchSummary = async () => {
     try {
-      const buildBase = () => {
-        let q = supabase.from("sku_stock_health").select("health_category, on_hand_qty, sku");
-        if (filters.brandId && filters.brandId !== "all") q = q.eq("brand_id", filters.brandId);
-        if (filters.excludeDirt && dirtSkus.length > 0) {
-          const list = `(${dirtSkus.map((s) => `"${s.replace(/"/g, '\\"')}"`).join(",")})`;
-          q = q.not("sku", "in", list);
-        }
-        return q;
-      };
-
-      // Pull a wide window for aggregation — sku_stock_health is bounded by catalog size.
-      const { data: rows, error } = await buildBase().range(0, 49999);
+      const { data, error } = await supabase.rpc("get_stock_health_summary" as any, {
+        p_brand_id: filters.brandId && filters.brandId !== "all" ? filters.brandId : null,
+        p_exclude_dirt: filters.excludeDirt,
+      });
       if (error) throw error;
-
-      const byCategory: Record<string, number> = {};
-      let totalOnHand = 0;
-      let dirtInScope = 0;
-      const dirtSet = new Set(dirtSkus);
-      for (const r of (rows ?? []) as any[]) {
-        const cat = r.health_category ?? "Unknown";
-        byCategory[cat] = (byCategory[cat] ?? 0) + 1;
-        totalOnHand += Number(r.on_hand_qty ?? 0);
-        if (dirtSet.has(r.sku)) dirtInScope += 1;
+      const row: any = Array.isArray(data) ? data[0] : data;
+      if (!row) {
+        setSummary(null);
+        return;
       }
       setSummary({
-        totalSkus: rows?.length ?? 0,
-        dirtSkus: filters.excludeDirt ? 0 : dirtInScope,
-        byCategory,
-        totalOnHand,
+        totalSkus: Number(row.total_skus ?? 0),
+        dirtSkus: Number(row.dirt_skus ?? 0),
+        byCategory: (row.by_category ?? {}) as Record<string, number>,
+        totalOnHand: Number(row.total_on_hand ?? 0),
       });
     } catch (e) {
       // Soft fail — summary is non-critical.
