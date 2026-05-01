@@ -43,7 +43,7 @@ const fmtNum = (n: number | null | undefined) =>
 // Per-line band classifier — mirrors get_profit_week_breakdown SQL.
 // Uses POR% on VAT-inclusive order_value (profit / (order_value * 1.2) * 100)
 // Defaults match app_settings.profit.loss_bands.
-type ProfitBand = "loss" | "breakeven" | "poor" | "average" | "good" | "great" | "amazing";
+type ProfitBand = "unknown" | "loss" | "breakeven" | "poor" | "average" | "good" | "great" | "amazing";
 const DEFAULT_THRESHOLDS = {
   loss_max: -1.0,
   breakeven_max: 1.0,
@@ -52,7 +52,14 @@ const DEFAULT_THRESHOLDS = {
   good_max: 24.99,
   great_max: 29.99,
 };
-function classifyBand(profit: number | null | undefined, orderValue: number | null | undefined, t = DEFAULT_THRESHOLDS): ProfitBand | null {
+function classifyBand(
+  profit: number | null | undefined,
+  orderValue: number | null | undefined,
+  costEach: number | null | undefined,
+  t = DEFAULT_THRESHOLDS,
+): ProfitBand | null {
+  // No cost data → we cannot trust profit. Flag as UNKNOWN.
+  if (costEach == null || Number(costEach) === 0) return "unknown";
   if (profit == null || orderValue == null || Number(orderValue) <= 0) return null;
   const por = (Number(profit) / (Number(orderValue) * 1.2)) * 100;
   if (por < t.loss_max) return "loss";
@@ -63,7 +70,11 @@ function classifyBand(profit: number | null | undefined, orderValue: number | nu
   if (por <= t.great_max) return "great";
   return "amazing";
 }
+// Hazard-tape style for unknown: diagonal yellow/black stripes via inline gradient (semantic warning + foreground tokens)
+const HAZARD_STRIPES =
+  "[background-image:repeating-linear-gradient(45deg,hsl(var(--warning))_0_10px,hsl(var(--background))_10px_20px)]";
 const BAND_BADGE: Record<ProfitBand, { label: string; className: string }> = {
+  unknown:   { label: "⚠ unknown", className: "border-warning/80 bg-warning/20 text-warning font-semibold" },
   loss:      { label: "loss",      className: "border-band-loss/70 bg-band-loss/15 text-band-loss" },
   breakeven: { label: "breakeven", className: "border-band-breakeven/70 bg-band-breakeven/15 text-band-breakeven" },
   poor:      { label: "poor",      className: "border-band-poor/70 bg-band-poor/15 text-band-poor" },
@@ -168,7 +179,7 @@ const ProfitDashboard = () => {
     else if (flagFilter === "profitable") rows = rows.filter(r => Number(r.profit ?? 0) >= 0);
     else if (flagFilter === "dirt") rows = rows.filter(r => r.good_dirt === "Dirt");
     else if (flagFilter === "missing_cost") rows = rows.filter(r => r.missing_cost === true);
-    if (bandFilter !== "all") rows = rows.filter(r => classifyBand(r.profit, r.order_value) === bandFilter);
+    if (bandFilter !== "all") rows = rows.filter(r => classifyBand(r.profit, r.order_value, r.cost_each) === bandFilter);
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       rows = rows.filter(r =>
@@ -326,14 +337,30 @@ const ProfitDashboard = () => {
         </CardHeader>
         <CardContent>
           {bandsLoading ? (
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
-              {[...Array(7)].map((_, i) => <Skeleton key={i} className="h-24 w-full" />)}
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
+              {[...Array(8)].map((_, i) => <Skeleton key={i} className="h-24 w-full" />)}
             </div>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
-              {(["loss","breakeven","poor","average","good","great","amazing"] as const).map((b) => {
-                const row = (bands ?? []).find((x: any) => x.band === b);
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
+              {(["unknown","loss","breakeven","poor","average","good","great","amazing"] as const).map((b) => {
+                let lineCount = 0;
+                let pctOfLines = 0;
+                let profitTotal: number | null = null;
+                if (b === "unknown") {
+                  // Derived client-side: missing-cost lines are excluded from the SQL bands RPC.
+                  const allLines = (lines ?? []) as any[];
+                  const unknowns = allLines.filter((l) => l.missing_cost === true || l.cost_each == null || Number(l.cost_each) === 0);
+                  lineCount = unknowns.length;
+                  pctOfLines = allLines.length > 0 ? (lineCount / allLines.length) * 100 : 0;
+                  profitTotal = null; // intentionally hidden — profit is unreliable without cost
+                } else {
+                  const row = (bands ?? []).find((x: any) => x.band === b);
+                  lineCount = Number(row?.line_count ?? 0);
+                  pctOfLines = Number(row?.pct ?? 0);
+                  profitTotal = row?.profit_total ?? 0;
+                }
                 const meta: Record<string, { label: string; tone: string }> = {
+                  unknown:   { label: "Unknown",   tone: `border-warning/70 ${HAZARD_STRIPES}` },
                   loss:      { label: "Loss",      tone: "border-band-loss/60 bg-band-loss/15" },
                   breakeven: { label: "Breakeven", tone: "border-band-breakeven/60 bg-band-breakeven/15" },
                   poor:      { label: "Poor",      tone: "border-band-poor/60 bg-band-poor/15" },
@@ -344,17 +371,22 @@ const ProfitDashboard = () => {
                 };
                 const m = meta[b];
                 const isActive = bandFilter === b;
+                const isUnknown = b === "unknown";
                 return (
                   <button
                     key={b}
                     type="button"
                     onClick={() => { setBandFilter(isActive ? "all" : b); setPage(1); }}
-                    className={`text-left rounded-md border p-3 transition hover:brightness-125 focus:outline-none focus:ring-2 focus:ring-pd-accent ${m.tone} ${isActive ? "ring-2 ring-pd-accent" : ""}`}
+                    className={`text-left rounded-md border-2 p-3 transition hover:brightness-125 focus:outline-none focus:ring-2 focus:ring-pd-accent ${m.tone} ${isActive ? "ring-2 ring-pd-accent" : ""}`}
                   >
-                    <div className="text-xs uppercase tracking-wide text-foreground/60">{m.label}</div>
-                    <div className="text-xl font-bold text-foreground mt-1">{fmtNum(row?.line_count ?? 0)}</div>
-                    <div className="text-xs text-foreground/70 mt-0.5">{Number(row?.pct ?? 0).toFixed(1)}% of lines</div>
-                    <div className="text-xs font-mono text-foreground/80 mt-1">{fmtGBP(row?.profit_total ?? 0)}</div>
+                    <div className={`text-xs uppercase tracking-wide ${isUnknown ? "text-warning font-bold bg-background/80 px-1 rounded inline-block" : "text-foreground/60"}`}>
+                      {isUnknown ? "⚠ " : ""}{m.label}
+                    </div>
+                    <div className={`text-xl font-bold mt-1 ${isUnknown ? "text-foreground bg-background/80 px-1 rounded inline-block" : "text-foreground"}`}>{fmtNum(lineCount)}</div>
+                    <div className={`text-xs mt-0.5 ${isUnknown ? "text-foreground bg-background/80 px-1 rounded inline-block" : "text-foreground/70"}`}>{pctOfLines.toFixed(1)}% of lines</div>
+                    <div className={`text-xs font-mono mt-1 ${isUnknown ? "text-foreground bg-background/80 px-1 rounded inline-block" : "text-foreground/80"}`}>
+                      {isUnknown ? "no cost data" : fmtGBP(profitTotal ?? 0)}
+                    </div>
                   </button>
                 );
               })}
@@ -399,7 +431,7 @@ const ProfitDashboard = () => {
               <SelectTrigger className="w-[180px]"><SelectValue placeholder="Profit segment" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All segments</SelectItem>
-                {(["loss","breakeven","poor","average","good","great","amazing"] as const).map((b) => (
+                {(["unknown","loss","breakeven","poor","average","good","great","amazing"] as const).map((b) => (
                   <SelectItem key={b} value={b}>{b.charAt(0).toUpperCase() + b.slice(1)}</SelectItem>
                 ))}
               </SelectContent>
@@ -459,14 +491,14 @@ const ProfitDashboard = () => {
                         <TableCell className="text-right">{fmtPct(l.por_pct)}</TableCell>
                         <TableCell className="space-x-1 whitespace-nowrap">
                           {(() => {
-                            const band = classifyBand(l.profit, l.order_value);
+                            const band = classifyBand(l.profit, l.order_value, l.cost_each);
                             if (band) {
                               const b = BAND_BADGE[band];
                               return <Badge variant="outline" className={`text-[10px] ${b.className}`}>{b.label}</Badge>;
                             }
                             return null;
                           })()}
-                          {l.missing_cost && <Badge variant="destructive" className="text-[10px]">no cost</Badge>}
+                          {/* missing-cost lines are surfaced via the ⚠ unknown band badge above */}
                           {l.good_dirt === "Dirt" && <Badge variant="outline" className="text-[10px] border-warning text-warning">dirt</Badge>}
                         </TableCell>
                       </TableRow>
