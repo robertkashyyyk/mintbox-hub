@@ -43,7 +43,7 @@ const fmtNum = (n: number | null | undefined) =>
 // Per-line band classifier — mirrors get_profit_week_breakdown SQL.
 // Uses POR% on VAT-inclusive order_value (profit / (order_value * 1.2) * 100)
 // Defaults match app_settings.profit.loss_bands.
-type ProfitBand = "loss" | "breakeven" | "poor" | "average" | "good" | "great" | "amazing";
+type ProfitBand = "unknown" | "loss" | "breakeven" | "poor" | "average" | "good" | "great" | "amazing";
 const DEFAULT_THRESHOLDS = {
   loss_max: -1.0,
   breakeven_max: 1.0,
@@ -52,7 +52,14 @@ const DEFAULT_THRESHOLDS = {
   good_max: 24.99,
   great_max: 29.99,
 };
-function classifyBand(profit: number | null | undefined, orderValue: number | null | undefined, t = DEFAULT_THRESHOLDS): ProfitBand | null {
+function classifyBand(
+  profit: number | null | undefined,
+  orderValue: number | null | undefined,
+  costEach: number | null | undefined,
+  t = DEFAULT_THRESHOLDS,
+): ProfitBand | null {
+  // No cost data → we cannot trust profit. Flag as UNKNOWN.
+  if (costEach == null || Number(costEach) === 0) return "unknown";
   if (profit == null || orderValue == null || Number(orderValue) <= 0) return null;
   const por = (Number(profit) / (Number(orderValue) * 1.2)) * 100;
   if (por < t.loss_max) return "loss";
@@ -63,7 +70,11 @@ function classifyBand(profit: number | null | undefined, orderValue: number | nu
   if (por <= t.great_max) return "great";
   return "amazing";
 }
+// Hazard-tape style for unknown: diagonal yellow/black stripes via inline gradient (semantic warning + foreground tokens)
+const HAZARD_STRIPES =
+  "[background-image:repeating-linear-gradient(45deg,hsl(var(--warning))_0_10px,hsl(var(--background))_10px_20px)]";
 const BAND_BADGE: Record<ProfitBand, { label: string; className: string }> = {
+  unknown:   { label: "⚠ unknown", className: "border-warning/80 bg-warning/20 text-warning font-semibold" },
   loss:      { label: "loss",      className: "border-band-loss/70 bg-band-loss/15 text-band-loss" },
   breakeven: { label: "breakeven", className: "border-band-breakeven/70 bg-band-breakeven/15 text-band-breakeven" },
   poor:      { label: "poor",      className: "border-band-poor/70 bg-band-poor/15 text-band-poor" },
