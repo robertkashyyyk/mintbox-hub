@@ -433,10 +433,17 @@ const ProfitDashboard = () => {
                           {fmtGBP(l.profit)}
                         </TableCell>
                         <TableCell className="text-right">{fmtPct(l.por_pct)}</TableCell>
-                        <TableCell className="space-x-1">
+                        <TableCell className="space-x-1 whitespace-nowrap">
+                          {(() => {
+                            const band = classifyBand(l.profit, l.order_value);
+                            if (band) {
+                              const b = BAND_BADGE[band];
+                              return <Badge variant="outline" className={`text-[10px] ${b.className}`}>{b.label}</Badge>;
+                            }
+                            return null;
+                          })()}
                           {l.missing_cost && <Badge variant="destructive" className="text-[10px]">no cost</Badge>}
                           {l.good_dirt === "Dirt" && <Badge variant="outline" className="text-[10px] border-warning text-warning">dirt</Badge>}
-                          {Number(l.profit ?? 0) < 0 && <Badge variant="outline" className="text-[10px] border-destructive text-destructive">loss</Badge>}
                         </TableCell>
                       </TableRow>
                     ))}
