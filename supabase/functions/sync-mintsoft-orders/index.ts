@@ -41,6 +41,20 @@ interface MintsoftOrder {
   Channel: { Name: string } | null;
   ExternalOrderReference: string;
   WarehouseId?: number;
+  CourierService?: string | null;
+  Courier?: string | { Name?: string } | null;
+  CourierServiceName?: string | null;
+  Currency?: string | null;
+}
+
+function extractCourierService(order: MintsoftOrder): string | null {
+  if (typeof order.CourierService === 'string' && order.CourierService) return order.CourierService;
+  if (typeof order.CourierServiceName === 'string' && order.CourierServiceName) return order.CourierServiceName;
+  if (order.Courier && typeof order.Courier === 'object' && (order.Courier as any).Name) {
+    return (order.Courier as any).Name;
+  }
+  if (typeof order.Courier === 'string') return order.Courier;
+  return null;
 }
 
 function extractStatusName(order: MintsoftOrder, statusLookup: Map<number, string>): string | null {
