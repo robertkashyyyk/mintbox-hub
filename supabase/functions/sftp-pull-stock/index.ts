@@ -49,32 +49,27 @@ Deno.serve(async (req) => {
   let chosenFile: string | null = null;
 
   try {
-    let privateKey = Deno.env.get("MINTSOFT_FTP_PRIVATE_KEY");
-    if (!privateKey) throw new Error("MINTSOFT_FTP_PRIVATE_KEY not set");
-
-    // Detect storage format and normalize to PEM with real newlines.
-    // 1) Replace literal "\n" sequences with newlines.
-    privateKey = privateKey.replace(/\\n/g, "\n").replace(/\r/g, "");
-
-    // 2) If still no newlines (single-line blob), reconstruct PEM.
-    if (!privateKey.includes("\n")) {
-      const m = privateKey.match(
-        /^(-----BEGIN [A-Z0-9 ]+ PRIVATE KEY-----)(.*?)(-----END [A-Z0-9 ]+ PRIVATE KEY-----)\s*$/,
+    // Prefer base64-encoded key (single-line, robust). Fall back to raw key.
+    const b64 = Deno.env.get("MINTSOFT_FTP_PRIVATE_KEY_B64");
+    const raw = Deno.env.get("MINTSOFT_FTP_PRIVATE_KEY");
+    let privateKey: string;
+    if (b64 && b64.length > 100) {
+      privateKey = new TextDecoder().decode(
+        Uint8Array.from(atob(b64.replace(/\s+/g, "")), (c) => c.charCodeAt(0)),
       );
-      if (m) {
-        const body = m[2].replace(/\s+/g, "");
-        const wrapped = body.match(/.{1,70}/g)?.join("\n") ?? body;
-        privateKey = `${m[1]}\n${wrapped}\n${m[3]}\n`;
-      }
+    } else if (raw) {
+      privateKey = raw.replace(/\\n/g, "\n").replace(/\r/g, "");
+    } else {
+      throw new Error("Neither MINTSOFT_FTP_PRIVATE_KEY_B64 nor MINTSOFT_FTP_PRIVATE_KEY set");
     }
     if (!privateKey.endsWith("\n")) privateKey += "\n";
 
-    console.log("PK debug", {
-      length: privateKey.length,
-      starts: privateKey.slice(0, 40),
-      ends: privateKey.slice(-40),
-      lineCount: privateKey.split("\n").length,
-    });
+    if (privateKey.length < 200) {
+      throw new Error(
+        `Private key looks truncated (length=${privateKey.length}). ` +
+          `Re-add MINTSOFT_FTP_PRIVATE_KEY_B64 with the base64-encoded key.`,
+      );
+    }
 
     await sftp.connect({
       host: SFTP_HOST,
