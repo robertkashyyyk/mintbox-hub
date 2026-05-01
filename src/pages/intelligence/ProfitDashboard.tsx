@@ -149,6 +149,7 @@ const ProfitDashboard = () => {
   const [search, setSearch] = useState("");
   const [channelFilter, setChannelFilter] = useState<string>("all");
   const [flagFilter, setFlagFilter] = useState<string>("all"); // all | loss | dirt | missing_cost | profitable
+  const [bandFilter, setBandFilter] = useState<string>("all"); // all | loss | breakeven | poor | average | good | great | amazing
   const [sortKey, setSortKey] = useState<string>("mintsoft_order_id");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [page, setPage] = useState(1);
@@ -167,6 +168,7 @@ const ProfitDashboard = () => {
     else if (flagFilter === "profitable") rows = rows.filter(r => Number(r.profit ?? 0) >= 0);
     else if (flagFilter === "dirt") rows = rows.filter(r => r.good_dirt === "Dirt");
     else if (flagFilter === "missing_cost") rows = rows.filter(r => r.missing_cost === true);
+    if (bandFilter !== "all") rows = rows.filter(r => classifyBand(r.profit, r.order_value) === bandFilter);
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       rows = rows.filter(r =>
@@ -188,7 +190,7 @@ const ProfitDashboard = () => {
       return 0;
     });
     return rows;
-  }, [lines, channelFilter, flagFilter, search, sortKey, sortDir]);
+  }, [lines, channelFilter, flagFilter, bandFilter, search, sortKey, sortDir]);
 
   const totalRows = filteredLines.length;
   const totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
@@ -310,9 +312,16 @@ const ProfitDashboard = () => {
       {/* Loss / Profit segmentation */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Profitability segmentation (per line, by POR %)</CardTitle>
+          <CardTitle className="text-base flex items-center justify-between gap-2 flex-wrap">
+            <span>Profitability segmentation (per line, by POR %)</span>
+            {bandFilter !== "all" && (
+              <Button variant="ghost" size="sm" onClick={() => { setBandFilter("all"); setPage(1); }}>
+                Clear band filter ({bandFilter})
+              </Button>
+            )}
+          </CardTitle>
           <CardDescription>
-            Order lines bucketed by their POR % (profit ÷ GMV inc VAT). Thresholds editable in <Link to="/admin/profit-rules" className="underline text-pd-accent">Profit Rules</Link>.
+            Order lines bucketed by their POR % (profit ÷ GMV inc VAT). Click a card to filter the table below. Thresholds editable in <Link to="/admin/profit-rules" className="underline text-pd-accent">Profit Rules</Link>.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -334,13 +343,19 @@ const ProfitDashboard = () => {
                   amazing:   { label: "Amazing",   tone: "border-band-amazing/70 bg-band-amazing/20" },
                 };
                 const m = meta[b];
+                const isActive = bandFilter === b;
                 return (
-                  <div key={b} className={`rounded-md border p-3 ${m.tone}`}>
+                  <button
+                    key={b}
+                    type="button"
+                    onClick={() => { setBandFilter(isActive ? "all" : b); setPage(1); }}
+                    className={`text-left rounded-md border p-3 transition hover:brightness-125 focus:outline-none focus:ring-2 focus:ring-pd-accent ${m.tone} ${isActive ? "ring-2 ring-pd-accent" : ""}`}
+                  >
                     <div className="text-xs uppercase tracking-wide text-foreground/60">{m.label}</div>
                     <div className="text-xl font-bold text-foreground mt-1">{fmtNum(row?.line_count ?? 0)}</div>
                     <div className="text-xs text-foreground/70 mt-0.5">{Number(row?.pct ?? 0).toFixed(1)}% of lines</div>
                     <div className="text-xs font-mono text-foreground/80 mt-1">{fmtGBP(row?.profit_total ?? 0)}</div>
-                  </div>
+                  </button>
                 );
               })}
             </div>
@@ -378,6 +393,15 @@ const ProfitDashboard = () => {
                 <SelectItem value="profitable">Profitable only</SelectItem>
                 <SelectItem value="dirt">Dirt SKUs</SelectItem>
                 <SelectItem value="missing_cost">Missing cost</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={bandFilter} onValueChange={(v) => { setBandFilter(v); setPage(1); }}>
+              <SelectTrigger className="w-[180px]"><SelectValue placeholder="Profit segment" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All segments</SelectItem>
+                {(["loss","breakeven","poor","average","good","great","amazing"] as const).map((b) => (
+                  <SelectItem key={b} value={b}>{b.charAt(0).toUpperCase() + b.slice(1)}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
             <Select value={String(pageSize)} onValueChange={(v) => { setPageSize(Number(v)); setPage(1); }}>
