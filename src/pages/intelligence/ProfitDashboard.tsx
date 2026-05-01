@@ -40,6 +40,39 @@ const fmtPct = (n: number | null | undefined) =>
 const fmtNum = (n: number | null | undefined) =>
   n == null ? "—" : new Intl.NumberFormat("en-GB").format(Number(n));
 
+// Per-line band classifier — mirrors get_profit_week_breakdown SQL.
+// Uses POR% on VAT-inclusive order_value (profit / (order_value * 1.2) * 100)
+// Defaults match app_settings.profit.loss_bands.
+type ProfitBand = "loss" | "breakeven" | "poor" | "average" | "good" | "great" | "amazing";
+const DEFAULT_THRESHOLDS = {
+  loss_max: -1.0,
+  breakeven_max: 1.0,
+  poor_max: 9.99,
+  average_max: 19.99,
+  good_max: 24.99,
+  great_max: 29.99,
+};
+function classifyBand(profit: number | null | undefined, orderValue: number | null | undefined, t = DEFAULT_THRESHOLDS): ProfitBand | null {
+  if (profit == null || orderValue == null || Number(orderValue) <= 0) return null;
+  const por = (Number(profit) / (Number(orderValue) * 1.2)) * 100;
+  if (por < t.loss_max) return "loss";
+  if (por <= t.breakeven_max) return "breakeven";
+  if (por <= t.poor_max) return "poor";
+  if (por <= t.average_max) return "average";
+  if (por <= t.good_max) return "good";
+  if (por <= t.great_max) return "great";
+  return "amazing";
+}
+const BAND_BADGE: Record<ProfitBand, { label: string; className: string }> = {
+  loss:      { label: "loss",      className: "border-band-loss/70 bg-band-loss/15 text-band-loss" },
+  breakeven: { label: "breakeven", className: "border-band-breakeven/70 bg-band-breakeven/15 text-band-breakeven" },
+  poor:      { label: "poor",      className: "border-band-poor/70 bg-band-poor/15 text-band-poor" },
+  average:   { label: "average",   className: "border-band-average/70 bg-band-average/15 text-band-average" },
+  good:      { label: "good",      className: "border-band-good/70 bg-band-good/15 text-band-good" },
+  great:     { label: "great",     className: "border-band-great/70 bg-band-great/15 text-band-great" },
+  amazing:   { label: "amazing",   className: "border-band-amazing/70 bg-band-amazing/20 text-band-amazing" },
+};
+
 const ProfitDashboard = () => {
   const today = new Date();
   const initial = isoWeekOf(today);
