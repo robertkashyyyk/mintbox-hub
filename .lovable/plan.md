@@ -1,80 +1,83 @@
-## Goal
+## What the spreadsheet actually does
 
-Replace the manual monthly despatch performance spreadsheet with an in-app **Active Report**, surfaced as a card inside Operations → Reports. Restructure that page into two tabs: **Scheduled** (today's content) and **Active** (interactive on-demand reports). Make the Despatch Performance card on the Operations Dashboard click through to it.
+Each `Week NN` tab has 21 columns. **A–H come from Mintsoft**, **I–U are formulas** you paste in. Decoded:
 
-## What we have
+| Col | Meaning | Logic |
+|---|---|---|
+| A–H | Order Id, Date, Channel, Courier Service, SKU, Price, Qty, Cost | from Mintsoft export |
+| I | Courier Cost | VLOOKUP service → `Courier Costs` table, divided across multi-line orders |
+| J | Channel Fee | Amazon: `price × 1.2 × 15% × qty`; else: `0.36 + (price × 1.2 × 12% × qty)` |
+| K | Profit | `(price − cost) × qty − courier − fee` |
+| L | POR % | `profit / (price × qty × 1.2)`; "Sale Items" excluded |
+| M | Profit Status | Loss / Breakeven / Poor / Average / Good / Great / Amazing (bands at 0/5/10/20/25/30%) |
+| N | Good/Dirt | `Good` if 4th char of SKU is `-` or `/`, else `Dirt` |
+| O | Order Value | `price × qty` |
+| P | Profit per piece | `profit / qty` |
+| Q | Price Increase? | `Yes` if POR < 10% |
+| R | Suggested New Price | rounded formula based on status |
+| S | Note | "Multi-Pack Possible" warning if qty>1 |
+| T | Brand | first 4 chars of SKU |
+| U | Single-unit order flag | |
 
-- ~15k despatched lines from late Jan 2026 onward across 7 channels/accounts (Amazon, Amazon-IE, eBay - CPI, ASC, Universal, 123 Autocare, The Stop Shop). Channel is already populated on `order_lines`.
-- Despatch time = `last_status_change_at - order_date` when `order_status='DESPATCHED'` (already used by the existing dashboard card).
-- Existing `OpsReports` page only manages weekly email subscribers + send history.
+Plus supporting sheets:
+- **Overview** – per-week totals (Revenue, Qty, Couriers, Fees, Profit, Missing-Cost ratio, Good/Dirt %, AOV, AIP, APPP, APPO)
+- **Missing Costs** – unique SKUs from latest week with cost = 0
+- **Remaining Dirt** – Dirt SKUs from latest week
+- **Sale Items** – SKUs to exclude from POR scoring
+- **Courier Costs** – service → cost lookup (rates you maintain)
 
-## Plan
+---
 
-### 1. Restructure Operations → Reports into tabs
+## The plan: one module, four surfaces
 
-`src/pages/operations/OpsReports.tsx` gets a `<Tabs>` shell:
+### 1. New core feature — **Profit Intelligence** (under Intelligence)
 
-- **Scheduled** — current Subscribers + Send History cards, unchanged.
-- **Active** — new grid of report cards. Phase 1 ships **one** card: "Despatch Performance". Layout leaves room for future cards (Backorder Ageing, Channel Mix, etc.).
+**Data model**
+- `courier_rates` table — `courier`, `service` (unique), `cost`, `effective_from`. Seed from your `Courier Costs` sheet (~17 active services).
+- `channel_fee_rules` table — `channel_pattern` (e.g. `Ama%`), `vat_rate`, `fee_pct`, `fixed_fee`, `priority`. Seed two rules matching your formula.
+- `sale_items` table — list of SKUs excluded from POR scoring (your current `Sale Items` sheet).
+- `order_line_economics` view — joins `order_lines` + `products_cache` (for cost) + `courier_rates` + `channel_fee_rules` and computes courier cost (with multi-line split), channel fee, profit, POR %, profit status, Good/Dirt, profit-per-piece, suggested price — exactly as your sheet does.
 
-Active tab card: title, one-line description, "Open Report →" button. Clicking opens the Despatch Performance report.
+**Pages**
+- `/intelligence/profit` — week selector (default = current ISO week), KPI cards mirroring the **Overview** sheet (Revenue, Qty, Profit, Couriers, Fees, AOV, APPP, APPO, Good/Dirt %, Missing-Cost ratio), profit-status distribution, channel breakdown.
+- `/intelligence/profit/lines` — full line-level table (the Week 17 view) with filters: week, channel, brand, profit status, Good/Dirt, "Price Increase?", "Has cost". Inline columns include Suggested New Price + Multi-Pack warning. CSV/XLSX export that mirrors your current paste-in format so you can keep the spreadsheet running in parallel until you trust the new view.
+- `/intelligence/profit/history` — sparkline trend of every Overview metric, week-over-week, with quarter/YTD totals.
 
-### 2. New report: Despatch Performance
+### 2. Surface the by-products the spreadsheet was inventing
 
-Lives at `src/pages/operations/reports/DespatchPerformanceReport.tsx`, route `/operations/reports/despatch-performance`. Reached via:
-- The Active tab card on `/operations/reports`.
-- A click on the existing **Despatch Performance** card on `/operations/dashboard` (wrap it in a link, add a small "View report →" affordance).
+These are *the same query* with different filters — no new pipelines:
 
-#### Filter bar
-- **Period preset**: This Week, Last Week, This Month, Last Month, This Quarter, Last Quarter, YTD, Custom range.
-- **Bucket**: Day / Week / Month / Quarter (auto-default by period length, user override).
-- **Channel filter**: multi-select chips of all distinct channels. Default = All.
-- **Group by**: None (totals only) | Channel.
+- **Missing Costs** → fill the existing placeholder. Lists SKUs with cost = 0 that *actually sold* in the chosen window, ranked by units sold and revenue at risk. Click-through to product detail to fill cost. Replaces the `Missing Costs` tab.
+- **Dirt SKUs** → fill the existing placeholder. Lists SKUs whose 4th char isn't `-` or `/` and that sold in the window. Adds a "Quarantine / Map to clean SKU / Ignore" action. Replaces the `Remaining Dirt` tab.
+- **Pricing — Needs Increase** → feeds the existing Price Hunter / pricing area. Lists every line where POR < 10% (or Loss/Breakeven), grouped by SKU with units sold, current price, suggested price, expected POR after change. This is the "where we are too cheap" question, but answered from *real sold orders* instead of just eBay scrapes.
 
-#### KPI strip
-Four cards for the selected window: Total Despatched, % within 24h, % within 48h, % within 72h. Each shows a delta vs the previous equivalent period.
+### 3. Cron + automation
 
-#### Distribution table (the heart of the report — matches the user's reference sheet)
-Pivot rows = period bucket (and channel if grouped); columns mirror the reference:
+- Weekly cron at Monday 06:00 UTC: snapshot the previous ISO week's Overview metrics into a `profit_weekly_snapshots` table so history is durable even if `order_lines` rolls or order data is corrected later.
+- The `Sale Items` and `Courier Costs` tables become editable admin screens (Settings → Profit Rules) so you stop hand-editing the workbook.
 
-```text
-Period   | Channel    | Despatched | <6h | <12h | <24h | <36h | <48h | <72h | >72h | Median hrs | Mean hrs
-2026-04  | Amazon     |    412     |  8% | 22%  | 78%  | 88%  | 92%  | 97%  |  3%  |   18.4     |  20.1
-2026-04  | eBay - CPI |    560     |  6% | 19%  | 71%  | 84%  | 88%  | 95%  |  5%  |   22.1     |  24.6
-2026-04  | TOTAL      |  1,820     |  7% | 21%  | 74%  | 86%  | 90%  | 96%  |  4%  |   20.3     |  22.4
-```
+### 4. What stays manual (for now)
 
-Conditional colour on the % cells using the user's reference scale (Terrible / Poor / Unacceptable / Average / Good / Great) mapped to existing semantic tokens (`destructive`, `warning`, `success`, `pd-accent`). Sticky header.
+Your spreadsheet currently has channel fees as a single hardcoded rule per channel. We'll seed the same rule, but the new `channel_fee_rules` table lets us add Amazon-IE / specific eBay accounts later without touching code.
 
-#### Trend chart
-Stacked bar per bucket: <24h / 24-48h / 48-72h / >72h. Toggle counts ↔ %. When grouped by channel, becomes one small-multiple chart per channel.
+---
 
-#### Export
-"Download CSV" + "Download XLSX" buttons. Exports the breakdown table exactly as displayed (respects filters/grouping/channel). Filename pattern: `despatch-performance_{period}_{channel|all}_{generated-at}.csv`. This is the artifact that replaces the manual monthly report.
+## Build order (suggested — each step is independently shippable)
 
-### 3. Data layer
+1. **Migration**: `courier_rates`, `channel_fee_rules`, `sale_items`, `profit_weekly_snapshots` + seed data from the workbook.
+2. **`order_line_economics` view** + a `get_profit_week(week_start, week_end)` RPC.
+3. **`/intelligence/profit`** dashboard + line-level table + XLSX export matching the current sheet layout.
+4. **Wire Missing Costs / Dirt SKUs / Pricing Needs Increase** placeholders to the same view (small UI work, no new data).
+5. **Weekly snapshot cron** + `/intelligence/profit/history`.
+6. **Settings → Profit Rules** screens for courier rates, channel fees, sale items.
 
-Two new SECURITY DEFINER SQL functions on `order_lines` (no schema changes):
+---
 
-- `get_despatch_performance_buckets(from_date date, to_date date, bucket text, channels text[])` → rows of `{ bucket_start, channel, total, under_6h, under_12h, under_24h, under_36h, under_48h, under_72h, over_72h, median_hours, mean_hours }`. `bucket` ∈ `'day'|'week'|'month'|'quarter'`. NULL `channel` row = grand total per bucket. NULL `channels` arg = all.
-- `get_despatch_channels()` → distinct channel values seen in `order_lines` since 2026-01-01, for the filter.
+## Open questions before I build
 
-Both honour the Jan 1, 2026 retention boundary and use the same despatch definition as today's dashboard card so numbers reconcile.
+1. **Channel fees** — your formula treats anything starting with `Ama` as 15% Amazon and everything else as eBay's `0.36 + 12%`. Keep that exact rule, or do you want to split eBay accounts / add Amazon-IE separately at the same time?
+2. **Sale Items** — currently 10 SKUs. OK to migrate them as-is and let you maintain via a small admin screen?
+3. **History** — do you want me to backfill Weeks 1–17 from the spreadsheet's Overview tab into `profit_weekly_snapshots` so the history view is populated from day one? (I can ingest your XLSX values directly.)
+4. **Cost source** — should "cost price" come from `products_cache.cost_price` only, or do you want a fallback to the Mintsoft API value at sync-time when cache is empty?
 
-### 4. Wiring
-
-- New hook `src/hooks/useDespatchPerformance.ts` calling the new RPCs.
-- Add route in `src/App.tsx`.
-- Update `docs/NAVIGATION.md` (Reports stays the sidebar entry; the report is reached *through* it, not added to the sidebar).
-- Existing OpsDashboard "Despatch Performance" card → wrap in click handler navigating to the new report; add a small "View history →" link in the card header.
-
-## Out of scope (call out, not building)
-
-- Carrier-level breakdown (carrier not on order line yet).
-- Per-channel SLA targets — using universal 24/48/72 buckets for now.
-- Auto-emailing the monthly despatch report — easy follow-on once the page exists; we'd register it as a second "scheduled" job alongside the weekly ops report.
-
-## Notes
-
-- Data starts ~23 Jan 2026 due to the retention cutoff. Periods before that show empty; UI will note this.
-- Colour bands for the heatmap will be configurable constants in the component so we can tune them after first review.
+Once you've answered those (or said "your call"), I'll start with step 1.
