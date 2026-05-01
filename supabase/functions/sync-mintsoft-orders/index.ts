@@ -41,6 +41,20 @@ interface MintsoftOrder {
   Channel: { Name: string } | null;
   ExternalOrderReference: string;
   WarehouseId?: number;
+  CourierService?: string | null;
+  Courier?: string | { Name?: string } | null;
+  CourierServiceName?: string | null;
+  Currency?: string | null;
+}
+
+function extractCourierService(order: MintsoftOrder): string | null {
+  if (typeof order.CourierService === 'string' && order.CourierService) return order.CourierService;
+  if (typeof order.CourierServiceName === 'string' && order.CourierServiceName) return order.CourierServiceName;
+  if (order.Courier && typeof order.Courier === 'object' && (order.Courier as any).Name) {
+    return (order.Courier as any).Name;
+  }
+  if (typeof order.Courier === 'string') return order.Courier;
+  return null;
 }
 
 function extractStatusName(order: MintsoftOrder, statusLookup: Map<number, string>): string | null {
@@ -58,6 +72,18 @@ interface MintsoftOrderItem {
   SKU: string;
   Quantity: number;
   Name?: string;
+  Price?: number | string | null;
+  UnitValue?: number | string | null;
+  LineTotal?: number | string | null;
+  LinePrice?: number | string | null;
+  Discount?: number | string | null;
+  DiscountAmount?: number | string | null;
+}
+
+function num(v: unknown): number | null {
+  if (v === null || v === undefined || v === '') return null;
+  const n = typeof v === 'number' ? v : parseFloat(String(v));
+  return Number.isFinite(n) ? n : null;
 }
 
 interface Brand {
@@ -260,6 +286,7 @@ Deno.serve(async (req) => {
       for (const order of existingOrders) {
         const lineKeys = [...existingLineMap.keys()].filter(k => k.startsWith(`${order.ID}-`));
         const newStatusName = extractStatusName(order, statusLookup);
+        const courierService = extractCourierService(order);
         
         for (const key of lineKeys) {
           const existing = existingLineMap.get(key)!;
@@ -283,9 +310,10 @@ Deno.serve(async (req) => {
             last_seen_at: now,
             times_seen: (existing.times_seen || 1) + 1,
             order_status: newStatusName,
-             order_status_id: order.OrderStatusId ?? null,
+            order_status_id: order.OrderStatusId ?? null,
             customer_name: order.CustomerName || null,
             tracking_number: (order as any).TrackingNo || (order as any).Consignment || (order as any).TrackingNumber || existing.tracking_number || null,
+            courier_service: courierService,
           };
           if (statusChanged) {
             payload.last_status_change_at = now;
@@ -334,12 +362,18 @@ Deno.serve(async (req) => {
 
       for (const order of chunk) {
         const items = itemsMap.get(order.ID) || [];
+        const courierService = extractCourierService(order);
+        const orderCurrency = (order as any).Currency || 'GBP';
         let lineIndex = 1;
         for (const item of items) {
           linesProcessed++;
           const brandId = resolveBrandFromSKU(item.SKU, brands);
           const dirty = isDirtySku(item.SKU);
           newSkus.push({ sku: item.SKU, brand_id: brandId, quarantined: dirty });
+
+          const unitPrice = num(item.Price) ?? num(item.UnitValue);
+          const lineTotal = num(item.LineTotal) ?? num(item.LinePrice) ?? (unitPrice !== null ? unitPrice * (item.Quantity || 0) : null);
+          const discount = num(item.Discount) ?? num(item.DiscountAmount) ?? 0;
 
           upsertPayloads.push({
             mintsoft_order_id: order.ID,
@@ -353,9 +387,14 @@ Deno.serve(async (req) => {
             brand_id: brandId,
             order_status: extractStatusName(order, statusLookup),
             order_status_id: order.OrderStatusId ?? null,
-             product_name: item.Name || null,
+            product_name: item.Name || null,
             customer_name: order.CustomerName || null,
             tracking_number: (order as any).TrackingNo || (order as any).Consignment || (order as any).TrackingNumber || null,
+            unit_price: unitPrice,
+            line_total: lineTotal,
+            discount: discount,
+            currency: orderCurrency,
+            courier_service: courierService,
             first_seen_at: now,
             last_seen_at: now,
             last_status_change_at: now,
