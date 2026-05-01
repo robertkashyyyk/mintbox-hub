@@ -67,7 +67,7 @@ const PublicProducts = () => (
             <Link to="/contact">Send an Enquiry <ArrowRight className="h-4 w-4 ml-1" /></Link>
           </Button>
           <Button asChild size="lg" variant="outlineDark">
-            <a href="tel:+442870344344">Call Us</a>
+            <a href="tel:+442870322970">Call Us</a>
           </Button>
         </div>
       </div>

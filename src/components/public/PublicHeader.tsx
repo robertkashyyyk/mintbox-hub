@@ -59,13 +59,13 @@ const PublicHeader = () => {
         {/* Right actions */}
         <div className="hidden lg:flex items-center gap-4">
           <a
-            href="tel:+442870344344"
+            href="tel:+442870322970"
             className="flex items-center gap-2 text-sm text-foreground/70 hover:text-foreground transition-colors"
           >
             <div className="w-8 h-8 rounded-full border border-foreground/20 flex items-center justify-center">
               <Phone className="h-3.5 w-3.5" />
             </div>
-            028 7034 4344
+            028 7032 2970
           </a>
           <Button asChild className="bg-pd-accent hover:bg-pd-accent-light text-foreground font-semibold px-5">
             <Link to="/auth">
@@ -102,10 +102,10 @@ const PublicHeader = () => {
               </Link>
             ))}
             <a
-              href="tel:+442870344344"
+              href="tel:+442870322970"
               className="py-3 text-sm text-foreground/70 flex items-center gap-2"
             >
-              <Phone className="h-4 w-4" /> 028 7034 4344
+              <Phone className="h-4 w-4" /> 028 7032 2970
             </a>
             <Button asChild className="mt-3 bg-pd-accent hover:bg-pd-accent-light text-foreground font-semibold">
               <Link to="/auth" onClick={() => setOpen(false)}>

@@ -23,13 +23,13 @@ const PublicContact = () => (
           <div className="bg-pd-offwhite rounded-xl p-7 border border-pd-steel-light/20">
             <h2 className="text-lg font-bold text-pd-charcoal mb-5">Get in Touch</h2>
             <div className="space-y-4 text-sm">
-              <a href="tel:+442870344344" className="flex items-center gap-4 group">
+              <a href="tel:+442870322970" className="flex items-center gap-4 group">
                 <div className="w-10 h-10 rounded-lg bg-pd-accent/10 flex items-center justify-center shrink-0">
                   <Phone className="h-4 w-4 text-pd-accent" />
                 </div>
                 <div>
                   <div className="text-xs text-pd-steel-light uppercase tracking-wider">Phone</div>
-                  <div className="text-pd-charcoal font-medium group-hover:text-pd-accent transition-colors">028 7034 4344</div>
+                  <div className="text-pd-charcoal font-medium group-hover:text-pd-accent transition-colors">028 7032 2970</div>
                 </div>
               </a>
               <a href="mailto:sales@partsdoc.co.uk" className="flex items-center gap-4 group">
@@ -47,7 +47,7 @@ const PublicContact = () => (
                 </div>
                 <div>
                   <div className="text-xs text-pd-steel-light uppercase tracking-wider">Location</div>
-                  <div className="text-pd-charcoal font-medium">Coleraine, Co. Londonderry, NI</div>
+                  <div className="text-pd-charcoal font-medium">Coleraine, Co. Londonderry, BT52 2NS</div>
                 </div>
               </div>
             </div>
@@ -73,7 +73,7 @@ const PublicContact = () => (
           {/* Embedded Map */}
           <div className="rounded-xl overflow-hidden border border-pd-steel-light/20 h-52">
             <iframe
-              src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d36168.81918201844!2d-6.6899!3d55.1326!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x486017b3cf11cc01%3A0xa9b1e11c5d5e3c0!2sColeraine!5e0!3m2!1sen!2suk!4v1700000000000!5m2!1sen!2suk"
+              src="https://www.google.com/maps?q=PartsDoc+BT52+2NS+Coleraine&output=embed"
               width="100%"
               height="100%"
               style={{ border: 0 }}

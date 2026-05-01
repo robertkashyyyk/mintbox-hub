@@ -8,7 +8,7 @@ import {
 const faqs = [
   { q: "Do you supply trade and retail customers?", a: "Yes. We supply both trade and retail customers. If you're a garage, workshop or fleet operator, ask us about trade pricing and opening a trade account." },
   { q: "Can I collect parts from your counter?", a: "Absolutely. Our Coleraine counter is open Monday to Friday 8:30–17:30 and Saturday 9:00–13:00. Many orders can be collected same-day." },
-  { q: "How do I find the right part for my vehicle?", a: "Call us on 028 7034 4344 or email sales@partsdoc.co.uk with your vehicle registration and what you need. We'll confirm fitment and availability." },
+  { q: "How do I find the right part for my vehicle?", a: "Call us on 028 7032 2970 or email sales@partsdoc.co.uk with your vehicle registration and what you need. We'll confirm fitment and availability." },
   { q: "Do you deliver?", a: "We offer delivery options depending on your location and order. Contact us to discuss delivery for your specific order." },
   { q: "What brands do you stock?", a: "We stock parts from a wide range of leading aftermarket brands across all vehicle systems — braking, suspension, engine, electrical and more." },
   { q: "What is the Hub Login?", a: "The Hub is our internal system for account users and staff. If you have been given login credentials, you can access the Hub via the login button in the header." },

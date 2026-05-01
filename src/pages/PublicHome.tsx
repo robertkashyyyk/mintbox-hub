@@ -241,7 +241,7 @@ const PublicHome = () => (
                 <div className="w-9 h-9 rounded-lg bg-pd-accent/10 flex items-center justify-center shrink-0">
                   <Phone className="h-4 w-4 text-pd-accent" />
                 </div>
-                <a href="tel:+442870344344" className="hover:text-pd-accent transition-colors">028 7034 4344</a>
+                <a href="tel:+442870322970" className="hover:text-pd-accent transition-colors">028 7032 2970</a>
               </li>
             </ul>
             <Button asChild className="mt-8 bg-pd-accent hover:bg-pd-accent-light text-foreground font-semibold">
@@ -250,7 +250,7 @@ const PublicHome = () => (
           </div>
           <div className="rounded-2xl overflow-hidden border border-foreground/10 h-72">
             <iframe
-              src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d36168.81918201844!2d-6.6899!3d55.1326!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x486017b3cf11cc01%3A0xa9b1e11c5d5e3c0!2sColeraine!5e0!3m2!1sen!2suk!4v1700000000000!5m2!1sen!2suk"
+              src="https://www.google.com/maps?q=PartsDoc+BT52+2NS+Coleraine&output=embed"
               width="100%"
               height="100%"
               style={{ border: 0 }}
