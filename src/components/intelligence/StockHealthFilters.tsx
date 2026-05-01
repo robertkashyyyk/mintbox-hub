@@ -13,12 +13,14 @@ interface StockHealthFiltersProps {
     brandId: string;
     healthCategory: string;
     onlyProblems: boolean;
+    excludeDirt: boolean;
   };
   onFiltersChange: (filters: Partial<{
     search: string;
     brandId: string;
     healthCategory: string;
     onlyProblems: boolean;
+    excludeDirt: boolean;
   }>) => void;
 }
 
