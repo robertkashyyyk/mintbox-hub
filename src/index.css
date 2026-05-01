@@ -135,6 +135,15 @@ All colors MUST be HSL.
 
     --pd-accent: 174 38% 42%;
     --pd-accent-light: 174 32% 55%;
+
+    /* Profit band tones (pastelised) */
+    --band-loss: 350 55% 38%;       /* burgundy */
+    --band-breakeven: 0 70% 60%;    /* red */
+    --band-poor: 25 85% 58%;        /* orange */
+    --band-average: 48 85% 58%;     /* yellow */
+    --band-good: 140 50% 50%;       /* green */
+    --band-great: 190 70% 58%;      /* cyan */
+    --band-amazing: 235 65% 62%;    /* indigo / cobalt */
   }
 }
 
