@@ -491,7 +491,7 @@ const ProfitDashboard = () => {
                         <TableCell className="text-right">{fmtPct(l.por_pct)}</TableCell>
                         <TableCell className="space-x-1 whitespace-nowrap">
                           {(() => {
-                            const band = classifyBand(l.profit, l.order_value);
+                            const band = classifyBand(l.profit, l.order_value, l.cost_each);
                             if (band) {
                               const b = BAND_BADGE[band];
                               return <Badge variant="outline" className={`text-[10px] ${b.className}`}>{b.label}</Badge>;
