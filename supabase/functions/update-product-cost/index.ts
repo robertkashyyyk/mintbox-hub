@@ -105,36 +105,45 @@ Deno.serve(async (req) => {
 
   for (const item of items) {
     try {
-      // 1) Fetch current product so we don't blank other fields on the update
-      const getResp = await fetch(`${MINTSOFT_BASE}/api/Product/${item.mintsoft_product_id}`, {
-        headers: { "ms-apikey": mintsoftKey },
-      });
-      if (!getResp.ok) {
-        const text = await getResp.text();
-        results.push({ sku: item.sku, ok: false, error: `GET ${getResp.status}: ${text.slice(0, 200)}` });
-        continue;
-      }
-      const product = await getResp.json();
-
-      // 2) Merge new CostPrice and PUT back to the specific product ID.
-      // Mintsoft: POST /api/Product creates; PUT /api/Product/{id} updates.
-      const updated = { ...product, CostPrice: item.cost_price, ID: item.mintsoft_product_id };
-      const putResp = await fetch(`${MINTSOFT_BASE}/api/Product/${item.mintsoft_product_id}`, {
-        method: "PUT",
+      // 1) POST minimal payload to /api/Product. This is Mintsoft's update endpoint
+      //    when ID is present. We deliberately send ONLY {ID, SKU, CostPrice} —
+      //    echoing the full product object back triggers validation errors
+      //    (e.g. "One or more pallet sizes are not valid!") and silently fails.
+      // Send ONLY {ID, CostPrice}. Including SKU triggers Mintsoft's
+      // uniqueness check and fails when the live SKU has been renamed
+      // (e.g. "<sku>-DEL"). ID alone is the unambiguous handle.
+      const payload = {
+        ID: item.mintsoft_product_id,
+        CostPrice: item.cost_price,
+      };
+      const postResp = await fetch(`${MINTSOFT_BASE}/api/Product`, {
+        method: "POST",
         headers: {
           "ms-apikey": mintsoftKey,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(updated),
+        body: JSON.stringify(payload),
       });
 
-      const putText = await putResp.text();
-      if (!putResp.ok) {
-        results.push({ sku: item.sku, ok: false, error: `PUT ${putResp.status}: ${putText.slice(0, 200)}` });
+      const postText = await postResp.text();
+      if (!postResp.ok) {
+        results.push({ sku: item.sku, ok: false, error: `HTTP ${postResp.status}: ${postText.slice(0, 200)}` });
         continue;
       }
 
-      // 2b) Verify by re-fetching and confirming the new CostPrice landed
+      // Mintsoft returns HTTP 200 even on logical failure — must check Success flag.
+      let parsed: any = null;
+      try { parsed = JSON.parse(postText); } catch { /* ignore */ }
+      if (parsed && parsed.Success === false) {
+        results.push({
+          sku: item.sku,
+          ok: false,
+          error: `Mintsoft rejected: ${parsed.Message ?? postText.slice(0, 200)}`,
+        });
+        continue;
+      }
+
+      // 2) Verify by re-fetching the product
       const verifyResp = await fetch(`${MINTSOFT_BASE}/api/Product/${item.mintsoft_product_id}`, {
         headers: { "ms-apikey": mintsoftKey },
       });
@@ -145,7 +154,7 @@ Deno.serve(async (req) => {
           results.push({
             sku: item.sku,
             ok: false,
-            error: `Mintsoft accepted PUT but CostPrice still ${verifiedCost} (expected ${item.cost_price}). Response: ${putText.slice(0, 150)}`,
+            error: `Mintsoft accepted but CostPrice still ${verifiedCost} (expected ${item.cost_price})`,
           });
           continue;
         }
