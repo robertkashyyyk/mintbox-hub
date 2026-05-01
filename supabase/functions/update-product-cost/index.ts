@@ -116,10 +116,11 @@ Deno.serve(async (req) => {
       }
       const product = await getResp.json();
 
-      // 2) Merge new CostPrice and POST back
-      const updated = { ...product, CostPrice: item.cost_price };
-      const postResp = await fetch(`${MINTSOFT_BASE}/api/Product`, {
-        method: "POST",
+      // 2) Merge new CostPrice and PUT back to the specific product ID.
+      // Mintsoft: POST /api/Product creates; PUT /api/Product/{id} updates.
+      const updated = { ...product, CostPrice: item.cost_price, ID: item.mintsoft_product_id };
+      const putResp = await fetch(`${MINTSOFT_BASE}/api/Product/${item.mintsoft_product_id}`, {
+        method: "PUT",
         headers: {
           "ms-apikey": mintsoftKey,
           "Content-Type": "application/json",
@@ -127,10 +128,27 @@ Deno.serve(async (req) => {
         body: JSON.stringify(updated),
       });
 
-      if (!postResp.ok) {
-        const text = await postResp.text();
-        results.push({ sku: item.sku, ok: false, error: `POST ${postResp.status}: ${text.slice(0, 200)}` });
+      const putText = await putResp.text();
+      if (!putResp.ok) {
+        results.push({ sku: item.sku, ok: false, error: `PUT ${putResp.status}: ${putText.slice(0, 200)}` });
         continue;
+      }
+
+      // 2b) Verify by re-fetching and confirming the new CostPrice landed
+      const verifyResp = await fetch(`${MINTSOFT_BASE}/api/Product/${item.mintsoft_product_id}`, {
+        headers: { "ms-apikey": mintsoftKey },
+      });
+      if (verifyResp.ok) {
+        const verified = await verifyResp.json();
+        const verifiedCost = Number(verified?.CostPrice ?? 0);
+        if (Math.abs(verifiedCost - item.cost_price) > 0.005) {
+          results.push({
+            sku: item.sku,
+            ok: false,
+            error: `Mintsoft accepted PUT but CostPrice still ${verifiedCost} (expected ${item.cost_price}). Response: ${putText.slice(0, 150)}`,
+          });
+          continue;
+        }
       }
 
       // 3) Mirror to products_cache
