@@ -395,7 +395,15 @@ const ProfitDashboard = () => {
                 <SelectItem value="missing_cost">Missing cost</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={String(pageSize)} onValueChange={(v) => { setPageSize(Number(v)); setPage(1); }}>
+            <Select value={bandFilter} onValueChange={(v) => { setBandFilter(v); setPage(1); }}>
+              <SelectTrigger className="w-[180px]"><SelectValue placeholder="Profit segment" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All segments</SelectItem>
+                {(["loss","breakeven","poor","average","good","great","amazing"] as const).map((b) => (
+                  <SelectItem key={b} value={b}>{b.charAt(0).toUpperCase() + b.slice(1)}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
               <SelectTrigger className="w-[120px]"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {[25, 50, 100, 200, 500].map((n) => <SelectItem key={n} value={String(n)}>{n} / page</SelectItem>)}
