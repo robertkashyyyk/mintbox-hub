@@ -168,6 +168,7 @@ const ProfitDashboard = () => {
     else if (flagFilter === "profitable") rows = rows.filter(r => Number(r.profit ?? 0) >= 0);
     else if (flagFilter === "dirt") rows = rows.filter(r => r.good_dirt === "Dirt");
     else if (flagFilter === "missing_cost") rows = rows.filter(r => r.missing_cost === true);
+    if (bandFilter !== "all") rows = rows.filter(r => classifyBand(r.profit, r.order_value) === bandFilter);
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       rows = rows.filter(r =>
