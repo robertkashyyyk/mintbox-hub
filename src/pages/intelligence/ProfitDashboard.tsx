@@ -72,6 +72,18 @@ const ProfitDashboard = () => {
     },
   });
 
+  const { data: bands, isLoading: bandsLoading } = useQuery({
+    queryKey: ["profit-bands", year, week, refetchKey],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_profit_week_breakdown", {
+        p_iso_year: year,
+        p_iso_week: week,
+      });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
   const { data: lines, isLoading: linesLoading } = useQuery({
     queryKey: ["profit-lines", year, week, refetchKey],
     queryFn: async () => {
