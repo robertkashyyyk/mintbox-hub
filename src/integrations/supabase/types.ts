@@ -3508,6 +3508,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      refresh_sku_health_now: { Args: never; Returns: undefined }
       user_area_capability: {
         Args: { area_key: string; uid?: string }
         Returns: Database["public"]["Enums"]["app_capability"]
