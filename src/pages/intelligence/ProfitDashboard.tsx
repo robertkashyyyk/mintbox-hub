@@ -431,7 +431,7 @@ const ProfitDashboard = () => {
               <SelectTrigger className="w-[180px]"><SelectValue placeholder="Profit segment" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All segments</SelectItem>
-                {(["loss","breakeven","poor","average","good","great","amazing"] as const).map((b) => (
+                {(["unknown","loss","breakeven","poor","average","good","great","amazing"] as const).map((b) => (
                   <SelectItem key={b} value={b}>{b.charAt(0).toUpperCase() + b.slice(1)}</SelectItem>
                 ))}
               </SelectContent>
