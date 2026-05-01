@@ -150,7 +150,9 @@ const ProfitDashboard = () => {
             </Button>
             {isThisWeek && <Badge variant="outline" className="ml-2">Current week</Badge>}
           </div>
-          <Button variant="ghost" size="sm" onClick={() => setWeek(initial)}>This week</Button>
+          <Button variant="ghost" size="sm" onClick={() => setWeek(initial)} disabled={isThisWeek}>
+            Jump to this week
+          </Button>
         </CardContent>
       </Card>
 
