@@ -530,4 +530,23 @@ const FlagCard = ({ label, value, accent, loading, link }: { label: string; valu
   );
 };
 
+const SortableHead = ({ label, col, align, sortKey, sortDir, onClick }: {
+  label: string; col: string; align?: "right"; sortKey: string; sortDir: "asc" | "desc"; onClick: (col: string) => void;
+}) => {
+  const active = sortKey === col;
+  const Icon = active ? (sortDir === "asc" ? ArrowUp : ArrowDown) : ArrowUpDown;
+  return (
+    <TableHead className={align === "right" ? "text-right" : ""}>
+      <button
+        type="button"
+        onClick={() => onClick(col)}
+        className={`inline-flex items-center gap-1 hover:text-foreground transition-colors ${active ? "text-foreground" : "text-foreground/70"} ${align === "right" ? "ml-auto" : ""}`}
+      >
+        <span>{label}</span>
+        <Icon className="h-3 w-3" />
+      </button>
+    </TableHead>
+  );
+};
+
 export default ProfitDashboard;
