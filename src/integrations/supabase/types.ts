@@ -691,6 +691,84 @@ export type Database = {
           },
         ]
       }
+      channel_fee_rules: {
+        Row: {
+          active: boolean
+          channel_pattern: string
+          created_at: string
+          fee_pct: number
+          fixed_fee: number
+          id: string
+          name: string
+          notes: string | null
+          priority: number
+          updated_at: string
+          vat_rate: number
+        }
+        Insert: {
+          active?: boolean
+          channel_pattern: string
+          created_at?: string
+          fee_pct?: number
+          fixed_fee?: number
+          id?: string
+          name: string
+          notes?: string | null
+          priority?: number
+          updated_at?: string
+          vat_rate?: number
+        }
+        Update: {
+          active?: boolean
+          channel_pattern?: string
+          created_at?: string
+          fee_pct?: number
+          fixed_fee?: number
+          id?: string
+          name?: string
+          notes?: string | null
+          priority?: number
+          updated_at?: string
+          vat_rate?: number
+        }
+        Relationships: []
+      }
+      courier_rates: {
+        Row: {
+          active: boolean
+          cost: number
+          courier: string
+          created_at: string
+          effective_from: string
+          id: string
+          notes: string | null
+          service: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          cost?: number
+          courier: string
+          created_at?: string
+          effective_from?: string
+          id?: string
+          notes?: string | null
+          service: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          cost?: number
+          courier?: string
+          created_at?: string
+          effective_from?: string
+          id?: string
+          notes?: string | null
+          service?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       download_history: {
         Row: {
           brand_id: string
@@ -1385,14 +1463,18 @@ export type Database = {
           brand_id: string | null
           channel: string | null
           channel_order_ref: string | null
+          courier_service: string | null
           created_at: string
+          currency: string | null
           customer_name: string | null
+          discount: number | null
           first_seen_at: string | null
           id: number
           last_backordered_at: string | null
           last_seen_at: string | null
           last_status_change_at: string | null
           line_index: number
+          line_total: number | null
           mintsoft_order_id: number
           order_date: string
           order_status: string | null
@@ -1402,6 +1484,7 @@ export type Database = {
           sku: string
           times_seen: number | null
           tracking_number: string | null
+          unit_price: number | null
           updated_at: string
           warehouse_id: string | null
           was_backordered: boolean
@@ -1410,14 +1493,18 @@ export type Database = {
           brand_id?: string | null
           channel?: string | null
           channel_order_ref?: string | null
+          courier_service?: string | null
           created_at?: string
+          currency?: string | null
           customer_name?: string | null
+          discount?: number | null
           first_seen_at?: string | null
           id?: number
           last_backordered_at?: string | null
           last_seen_at?: string | null
           last_status_change_at?: string | null
           line_index: number
+          line_total?: number | null
           mintsoft_order_id: number
           order_date: string
           order_status?: string | null
@@ -1427,6 +1514,7 @@ export type Database = {
           sku: string
           times_seen?: number | null
           tracking_number?: string | null
+          unit_price?: number | null
           updated_at?: string
           warehouse_id?: string | null
           was_backordered?: boolean
@@ -1435,14 +1523,18 @@ export type Database = {
           brand_id?: string | null
           channel?: string | null
           channel_order_ref?: string | null
+          courier_service?: string | null
           created_at?: string
+          currency?: string | null
           customer_name?: string | null
+          discount?: number | null
           first_seen_at?: string | null
           id?: number
           last_backordered_at?: string | null
           last_seen_at?: string | null
           last_status_change_at?: string | null
           line_index?: number
+          line_total?: number | null
           mintsoft_order_id?: number
           order_date?: string
           order_status?: string | null
@@ -1452,6 +1544,7 @@ export type Database = {
           sku?: string
           times_seen?: number | null
           tracking_number?: string | null
+          unit_price?: number | null
           updated_at?: string
           warehouse_id?: string | null
           was_backordered?: boolean
@@ -2133,6 +2226,87 @@ export type Database = {
         }
         Relationships: []
       }
+      profit_weekly_snapshots: {
+        Row: {
+          aip: number | null
+          aov: number | null
+          appo: number | null
+          appp: number | null
+          channel_fees_total: number
+          cost_total: number
+          courier_cost_total: number
+          created_at: string
+          dirt_count: number
+          good_count: number
+          id: string
+          iso_week: number
+          iso_year: number
+          line_count: number
+          missing_cost_count: number
+          order_count: number
+          por_pct: number | null
+          profit: number
+          qty: number
+          revenue: number
+          source: string
+          updated_at: string
+          week_end: string
+          week_start: string
+        }
+        Insert: {
+          aip?: number | null
+          aov?: number | null
+          appo?: number | null
+          appp?: number | null
+          channel_fees_total?: number
+          cost_total?: number
+          courier_cost_total?: number
+          created_at?: string
+          dirt_count?: number
+          good_count?: number
+          id?: string
+          iso_week: number
+          iso_year: number
+          line_count?: number
+          missing_cost_count?: number
+          order_count?: number
+          por_pct?: number | null
+          profit?: number
+          qty?: number
+          revenue?: number
+          source?: string
+          updated_at?: string
+          week_end: string
+          week_start: string
+        }
+        Update: {
+          aip?: number | null
+          aov?: number | null
+          appo?: number | null
+          appp?: number | null
+          channel_fees_total?: number
+          cost_total?: number
+          courier_cost_total?: number
+          created_at?: string
+          dirt_count?: number
+          good_count?: number
+          id?: string
+          iso_week?: number
+          iso_year?: number
+          line_count?: number
+          missing_cost_count?: number
+          order_count?: number
+          por_pct?: number | null
+          profit?: number
+          qty?: number
+          revenue?: number
+          source?: string
+          updated_at?: string
+          week_end?: string
+          week_start?: string
+        }
+        Relationships: []
+      }
       purchase_order_lines: {
         Row: {
           created_at: string | null
@@ -2767,6 +2941,53 @@ export type Database = {
         }
         Relationships: []
       }
+      order_line_economics: {
+        Row: {
+          brand_id: string | null
+          channel: string | null
+          channel_fee: number | null
+          cost_each: number | null
+          courier: string | null
+          courier_cost: number | null
+          courier_service: string | null
+          currency: string | null
+          fee_rule_name: string | null
+          good_dirt: string | null
+          id: number | null
+          iso_week: number | null
+          iso_year: number | null
+          line_index: number | null
+          lines_in_order: number | null
+          mintsoft_order_id: number | null
+          missing_cost: boolean | null
+          order_date: string | null
+          order_status: string | null
+          order_value: number | null
+          por_pct: number | null
+          price: number | null
+          product_name: string | null
+          profit: number | null
+          qty: number | null
+          sku: string | null
+          week_start: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_lines_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_lines_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands_missing_base_multiplier"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       order_status_snapshot_latest: {
         Row: {
           awaitingpicking_count: number | null
@@ -3198,6 +3419,28 @@ export type Database = {
           median_age_hours: number
           order_count: number
           status: string
+        }[]
+      }
+      get_profit_week: {
+        Args: { p_iso_week: number; p_iso_year: number }
+        Returns: {
+          aov: number
+          channel_fees_total: number
+          cost_total: number
+          courier_cost_total: number
+          dirt_count: number
+          good_count: number
+          iso_week: number
+          iso_year: number
+          line_count: number
+          missing_cost_count: number
+          order_count: number
+          por_pct: number
+          profit: number
+          qty: number
+          revenue: number
+          week_end: string
+          week_start: string
         }[]
       }
       get_system_health_job_runs: {
