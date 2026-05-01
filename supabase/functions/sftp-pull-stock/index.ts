@@ -49,8 +49,12 @@ Deno.serve(async (req) => {
   let chosenFile: string | null = null;
 
   try {
-    const privateKey = Deno.env.get("MINTSOFT_FTP_PRIVATE_KEY");
+    let privateKey = Deno.env.get("MINTSOFT_FTP_PRIVATE_KEY");
     if (!privateKey) throw new Error("MINTSOFT_FTP_PRIVATE_KEY not set");
+    // Normalize: env vars sometimes lose real newlines; restore \n -> newline
+    // and ensure CR/LF stripped, trailing newline present.
+    privateKey = privateKey.replace(/\\n/g, "\n").replace(/\r/g, "");
+    if (!privateKey.endsWith("\n")) privateKey += "\n";
 
     await sftp.connect({
       host: SFTP_HOST,
