@@ -109,9 +109,11 @@ Deno.serve(async (req) => {
       //    when ID is present. We deliberately send ONLY {ID, SKU, CostPrice} —
       //    echoing the full product object back triggers validation errors
       //    (e.g. "One or more pallet sizes are not valid!") and silently fails.
+      // Send ONLY {ID, CostPrice}. Including SKU triggers Mintsoft's
+      // uniqueness check and fails when the live SKU has been renamed
+      // (e.g. "<sku>-DEL"). ID alone is the unambiguous handle.
       const payload = {
         ID: item.mintsoft_product_id,
-        SKU: item.sku,
         CostPrice: item.cost_price,
       };
       const postResp = await fetch(`${MINTSOFT_BASE}/api/Product`, {
