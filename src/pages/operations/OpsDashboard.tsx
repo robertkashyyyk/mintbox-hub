@@ -637,11 +637,17 @@ const OpsDashboard = () => {
           </Card>
 
           {/* Despatch Performance */}
-          <Card>
+          <Card
+            className="cursor-pointer hover:border-pd-accent/60 transition-colors"
+            onClick={() => navigate("/operations/reports/despatch-performance")}
+          >
             <CardHeader className="pb-2">
-              <CardTitle className="text-base flex items-center gap-2">
-                <BarChart3 className="h-4 w-4" />
-                Despatch Performance
+              <CardTitle className="text-base flex items-center justify-between gap-2">
+                <span className="flex items-center gap-2">
+                  <BarChart3 className="h-4 w-4" />
+                  Despatch Performance
+                </span>
+                <span className="text-xs font-normal text-pd-accent">View report →</span>
               </CardTitle>
             </CardHeader>
             <CardContent>

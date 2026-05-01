@@ -40,6 +40,7 @@
 | | — Remeasure Queue | `/operations/carriers/remeasure` | `operations.carriers.remeasure` |
 | | — Settings | `/operations/carriers/settings` | `operations.carriers.settings` |
 | | Reports | `/operations/reports` | `operations.reports` |
+| | ↳ Despatch Performance (active report) | `/operations/reports/despatch-performance` | `operations.reports` |
 | | Monitoring | `/operations/monitoring` | `operations.monitoring` |
 | **Dashboards** | *Index* | `/dashboards` | `dashboards` |
 | | Warehouse Performance | `/dashboards/warehouse` | `dashboards.warehouse` |

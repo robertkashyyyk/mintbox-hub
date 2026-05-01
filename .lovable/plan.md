@@ -1,107 +1,80 @@
-# Carriers — Royal Mail penalty reduction workflow
+## Goal
 
-A new section under **Operations** that anchors the current £~800/wk Royal Mail penalty cost, ingests penalty notices and invoices as PDFs, turns each penalty into an actionable remeasure task for packers, and tracks reduction over time.
+Replace the manual monthly despatch performance spreadsheet with an in-app **Active Report**, surfaced as a card inside Operations → Reports. Restructure that page into two tabs: **Scheduled** (today's content) and **Active** (interactive on-demand reports). Make the Despatch Performance card on the Operations Dashboard click through to it.
 
-Built carrier-agnostic from day one (Royal Mail first, DPD/Evri/UPS later).
+## What we have
 
-## Navigation
+- ~15k despatched lines from late Jan 2026 onward across 7 channels/accounts (Amazon, Amazon-IE, eBay - CPI, ASC, Universal, 123 Autocare, The Stop Shop). Channel is already populated on `order_lines`.
+- Despatch time = `last_status_change_at - order_date` when `order_status='DESPATCHED'` (already used by the existing dashboard card).
+- Existing `OpsReports` page only manages weekly email subscribers + send history.
 
-Four new sub-pages, all under `/operations/carriers/...`:
+## Plan
 
-| Route | Page |
-|---|---|
-| `/operations/carriers` | Index tile grid |
-| `/operations/carriers/documents` | Upload + library of invoices and penalty notices |
-| `/operations/carriers/penalties` | Trend dashboard (weekly total, 4–6w avg, by reason, by SKU) |
-| `/operations/carriers/remeasure` | Packer worklist |
-| `/operations/carriers/settings` | Carriers, reason codes, packer assignments |
+### 1. Restructure Operations → Reports into tabs
 
-Sidebar entry "Carriers" added to the Operations group. `docs/NAVIGATION.md`, `system_areas`, `role_area_permissions`, `AppSidebar.tsx`, `RbacSidebar.tsx`, and `OperationsIndex.tsx` all updated together (per existing nav governance).
+`src/pages/operations/OpsReports.tsx` gets a `<Tabs>` shell:
 
-## Data model (migration)
+- **Scheduled** — current Subscribers + Send History cards, unchanged.
+- **Active** — new grid of report cards. Phase 1 ships **one** card: "Despatch Performance". Layout leaves room for future cards (Backorder Ageing, Channel Mix, etc.).
+
+Active tab card: title, one-line description, "Open Report →" button. Clicking opens the Despatch Performance report.
+
+### 2. New report: Despatch Performance
+
+Lives at `src/pages/operations/reports/DespatchPerformanceReport.tsx`, route `/operations/reports/despatch-performance`. Reached via:
+- The Active tab card on `/operations/reports`.
+- A click on the existing **Despatch Performance** card on `/operations/dashboard` (wrap it in a link, add a small "View report →" affordance).
+
+#### Filter bar
+- **Period preset**: This Week, Last Week, This Month, Last Month, This Quarter, Last Quarter, YTD, Custom range.
+- **Bucket**: Day / Week / Month / Quarter (auto-default by period length, user override).
+- **Channel filter**: multi-select chips of all distinct channels. Default = All.
+- **Group by**: None (totals only) | Channel.
+
+#### KPI strip
+Four cards for the selected window: Total Despatched, % within 24h, % within 48h, % within 72h. Each shows a delta vs the previous equivalent period.
+
+#### Distribution table (the heart of the report — matches the user's reference sheet)
+Pivot rows = period bucket (and channel if grouped); columns mirror the reference:
 
 ```text
-carriers                  id, name, slug, active
-carrier_documents         id, carrier_id, doc_type (invoice|penalty_notice|claim|other),
-                          document_date, period_start, period_end,
-                          file_path, file_url, total_amount,
-                          parse_status (pending|parsed|failed|manual),
-                          parse_error, parsed_at, uploaded_by, created_at
-carrier_penalties         id, document_id, carrier_id, tracking_number,
-                          penalty_amount, reason_code, reason_text,
-                          declared_format, actual_format,
-                          penalty_date,
-                          mintsoft_order_id (nullable, resolved later),
-                          sku (nullable, resolved later),
-                          resolution_status (unresolved|order_found|sku_found|
-                                             remeasure_pending|remeasured|
-                                             packer_issue|written_off),
-                          resolved_at, notes, created_at
-carrier_remeasure_tasks   id, penalty_id, sku, mintsoft_order_id,
-                          assigned_to, status (todo|in_progress|done|escalated),
-                          old_category, new_category,
-                          old_dimensions jsonb, new_dimensions jsonb,
-                          completed_at, completed_by, notes
+Period   | Channel    | Despatched | <6h | <12h | <24h | <36h | <48h | <72h | >72h | Median hrs | Mean hrs
+2026-04  | Amazon     |    412     |  8% | 22%  | 78%  | 88%  | 92%  | 97%  |  3%  |   18.4     |  20.1
+2026-04  | eBay - CPI |    560     |  6% | 19%  | 71%  | 84%  | 88%  | 95%  |  5%  |   22.1     |  24.6
+2026-04  | TOTAL      |  1,820     |  7% | 21%  | 74%  | 86%  | 90%  | 96%  |  4%  |   20.3     |  22.4
 ```
 
-Plus a tracking column added to `order_lines`:
-- `tracking_number text`, indexed — populated going forward by `sync-mintsoft-orders`, looked up on demand for older orders.
+Conditional colour on the % cells using the user's reference scale (Terrible / Poor / Unacceptable / Average / Good / Great) mapped to existing semantic tokens (`destructive`, `warning`, `success`, `pd-accent`). Sticky header.
 
-Storage: new private bucket `carrier-documents` for the PDFs (RLS to authenticated, write to operations/admin roles).
+#### Trend chart
+Stacked bar per bucket: <24h / 24-48h / 48-72h / >72h. Toggle counts ↔ %. When grouped by channel, becomes one small-multiple chart per channel.
 
-RLS pattern: read for authenticated; write/update restricted via `has_area_capability('operations.carriers', ...)` with super_user/senior_user fallback (matches existing tables).
+#### Export
+"Download CSV" + "Download XLSX" buttons. Exports the breakdown table exactly as displayed (respects filters/grouping/channel). Filename pattern: `despatch-performance_{period}_{channel|all}_{generated-at}.csv`. This is the artifact that replaces the manual monthly report.
 
-## Edge functions
+### 3. Data layer
 
-1. **`parse-carrier-document`** — triggered on upload. Downloads the PDF, sends to Lovable AI (`google/gemini-2.5-flash` with vision via tool-calling for structured output) with a schema that returns: `total_amount`, `period_start/end`, and an array of penalty rows `{tracking_number, amount, reason_code, reason_text, declared_format, actual_format, date}`. Writes to `carrier_penalties`, sets `parse_status`. User can review/correct before they hit the worklist.
-2. **`resolve-penalty-tracking`** — for each unresolved penalty: first try `order_lines.tracking_number` (fast local lookup); if miss, call Mintsoft order search by tracking number (single call per unknown — small volumes). Backfills `mintsoft_order_id` and `sku` (single-line orders auto-assign; multi-line marked for human pick).
-3. **`sync-mintsoft-orders` update** — capture `TrackingNo`/`Consignment` from the Mintsoft order payload into the new `order_lines.tracking_number` column.
+Two new SECURITY DEFINER SQL functions on `order_lines` (no schema changes):
 
-Lovable AI key is already present (`LOVABLE_API_KEY`), Mintsoft is already wired. **No new secrets needed.**
+- `get_despatch_performance_buckets(from_date date, to_date date, bucket text, channels text[])` → rows of `{ bucket_start, channel, total, under_6h, under_12h, under_24h, under_36h, under_48h, under_72h, over_72h, median_hours, mean_hours }`. `bucket` ∈ `'day'|'week'|'month'|'quarter'`. NULL `channel` row = grand total per bucket. NULL `channels` arg = all.
+- `get_despatch_channels()` → distinct channel values seen in `order_lines` since 2026-01-01, for the filter.
 
-## UI — page by page
+Both honour the Jan 1, 2026 retention boundary and use the same despatch definition as today's dashboard card so numbers reconcile.
 
-**Documents** (`/operations/carriers/documents`)
-- Drag-drop upload (PDF), required fields: carrier, doc type, document date.
-- Library table: date, carrier, type, total amount, # penalties extracted, parse status, file link. Filters by carrier/type/date.
-- Row click → drawer with PDF preview, parsed line items, "Re-parse with AI" and "Edit manually" actions.
+### 4. Wiring
 
-**Penalties dashboard** (`/operations/carriers/penalties`)
-- Anchor cards: This week £, Last week £, 4-week avg £, 6-week avg £, week-over-week delta.
-- Weekly bar chart (last 12 weeks), £ and count.
-- Breakdown tables: by reason code, by top-offending SKUs, by declared vs actual format.
-- "Estimated annualised cost" and "Reduction since baseline" once we have ≥4 weeks of data.
+- New hook `src/hooks/useDespatchPerformance.ts` calling the new RPCs.
+- Add route in `src/App.tsx`.
+- Update `docs/NAVIGATION.md` (Reports stays the sidebar entry; the report is reached *through* it, not added to the sidebar).
+- Existing OpsDashboard "Despatch Performance" card → wrap in click handler navigating to the new report; add a small "View history →" link in the card header.
 
-**Remeasure queue** (`/operations/carriers/remeasure`)
-- One row per task: SKU, current Mintsoft category, current declared dims/weight, penalty count for that SKU, total £ impact, assigned packer, status.
-- Grouped/sortable by SKU (so a single SKU with 5 penalties is one row of work).
-- Actions: "Mark remeasured" (records new dims), "Already correct → packer issue" (flags for supervisor convo), "Escalate".
-- Linked back to the underlying penalty rows.
+## Out of scope (call out, not building)
 
-**Settings** (`/operations/carriers/settings`)
-- Carriers list (Royal Mail seeded).
-- Reason code library (editable labels).
-- Packer roster for assignment dropdowns.
+- Carrier-level breakdown (carrier not on order line yet).
+- Per-channel SLA targets — using universal 24/48/72 buckets for now.
+- Auto-emailing the monthly despatch report — easy follow-on once the page exists; we'd register it as a second "scheduled" job alongside the weekly ops report.
 
-## Style & layout
+## Notes
 
-Standard subpage header pattern, full-width layout, Carbon/Graphite/Teal tokens, existing `Card`/`Table`/`Badge`/`Accordion` components — same conventions as Buy Recommendations and Order Telemetry. No new design patterns.
-
-## Build order (one PR per phase, all in this plan)
-
-1. **Schema + nav scaffolding** — migration (carriers, documents, penalties, remeasure_tasks, `order_lines.tracking_number`, storage bucket, RLS), nav entries, four empty page shells, `OperationsIndex` tile.
-2. **Documents page + parse-carrier-document edge function** — upload, AI extract, library list, parsed-rows review drawer.
-3. **Penalties dashboard** — anchor cards, weekly chart, breakdowns.
-4. **Tracking capture + resolver + Remeasure queue** — extend `sync-mintsoft-orders` to grab tracking, build `resolve-penalty-tracking`, build worklist UI with completion actions.
-5. **Settings page** — carriers, reason codes, packer roster.
-
-## Out of scope (for now)
-
-- Auto-pushing corrected dimensions back into Mintsoft (manual entry by packer in Mintsoft for v1; a "Push to Mintsoft" button is a v2 candidate).
-- Other carriers beyond Royal Mail (schema supports them; we only seed Royal Mail).
-- Automated dispute submission to Royal Mail.
-
-## Memory updates after build
-
-- Add `mem://features/carriers/overview` and `mem://data-model/carriers-schema`.
-- Update Core memory: "Carriers section under Operations owns courier penalty reduction loop."
+- Data starts ~23 Jan 2026 due to the retention cutoff. Periods before that show empty; UI will note this.
+- Colour bands for the heatmap will be configurable constants in the component so we can tune them after first review.

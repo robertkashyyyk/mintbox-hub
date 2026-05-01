@@ -3102,6 +3102,13 @@ export type Database = {
         Args: { c: Database["public"]["Enums"]["app_capability"] }
         Returns: number
       }
+      get_despatch_channels: {
+        Args: never
+        Returns: {
+          channel: string
+          despatched_count: number
+        }[]
+      }
       get_despatch_performance: {
         Args: { from_date: string; to_date: string }
         Returns: {
@@ -3109,6 +3116,28 @@ export type Database = {
           within_24h: number
           within_48h: number
           within_72h: number
+        }[]
+      }
+      get_despatch_performance_buckets: {
+        Args: {
+          bucket?: string
+          channels?: string[]
+          from_date: string
+          to_date: string
+        }
+        Returns: {
+          bucket_start: string
+          channel: string
+          mean_hours: number
+          median_hours: number
+          over_72h: number
+          total: number
+          under_12h: number
+          under_24h: number
+          under_36h: number
+          under_48h: number
+          under_6h: number
+          under_72h: number
         }[]
       }
       get_edge_function_runs: {
