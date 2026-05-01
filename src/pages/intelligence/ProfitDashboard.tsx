@@ -498,7 +498,7 @@ const ProfitDashboard = () => {
                             }
                             return null;
                           })()}
-                          {l.missing_cost && <Badge variant="destructive" className="text-[10px]">no cost</Badge>}
+                          {/* missing-cost lines are surfaced via the ⚠ unknown band badge above */}
                           {l.good_dirt === "Dirt" && <Badge variant="outline" className="text-[10px] border-warning text-warning">dirt</Badge>}
                         </TableCell>
                       </TableRow>
