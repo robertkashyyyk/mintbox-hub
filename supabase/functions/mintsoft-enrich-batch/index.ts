@@ -244,7 +244,18 @@ Deno.serve(async (req) => {
             mintsoft_categories: mintsoftCategories,
             last_stock_sync: new Date().toISOString(),
             updated_at: new Date().toISOString(),
-          })
+        };
+
+        // Only set cost_price when not preserving a manual edit, and only if we got a value
+        if (!preserveManualCost && incomingCost !== null) {
+          updatePayload.cost_price = incomingCost;
+          updatePayload.cost_price_updated_at = new Date().toISOString();
+          updatePayload.cost_price_source = "mintsoft_sync";
+        }
+
+        const { error: updateError } = await supabase
+          .from("products_cache")
+          .update(updatePayload)
           .eq("id", product.id);
 
         if (updateError) {
