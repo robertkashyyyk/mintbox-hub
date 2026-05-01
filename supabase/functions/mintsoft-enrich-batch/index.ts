@@ -10,6 +10,7 @@ interface ProductToEnrich {
   id: string;
   sku: string;
   mintsoft_product_id: number;
+  cost_price_source?: string | null;
 }
 
 interface MintsoftProductDetails {
@@ -93,7 +94,7 @@ Deno.serve(async (req) => {
 
     const { data: products, error: productsError } = await supabase
       .from("products_cache")
-      .select("id, sku, mintsoft_product_id")
+      .select("id, sku, mintsoft_product_id, cost_price_source")
       .not("mintsoft_product_id", "is", null)
       .or(`last_stock_sync.is.null,last_stock_sync.lt.${staleDate.toISOString()}`)
       .order("last_stock_sync", { ascending: true, nullsFirst: true })
@@ -219,12 +220,14 @@ Deno.serve(async (req) => {
           mintsoftCategories = Array.from(new Set(mintsoftCategories));
         }
 
+        // Guard: never overwrite a manually-edited cost price.
+        // If user set it via the UI, we keep their value regardless of what Mintsoft returns.
+        const preserveManualCost = product.cost_price_source === "manual_ui";
+        const incomingCost = productDetails.CostPrice ?? null;
+
         // Update product with enriched data
-        const { error: updateError } = await supabase
-          .from("products_cache")
-          .update({
+        const updatePayload: Record<string, unknown> = {
             name: productDetails.Name || product.sku,
-            cost_price: productDetails.CostPrice || null,
             weight: productDetails.Weight || null,
             height: productDetails.Height || null,
             length: productDetails.Length || null,
@@ -241,7 +244,18 @@ Deno.serve(async (req) => {
             mintsoft_categories: mintsoftCategories,
             last_stock_sync: new Date().toISOString(),
             updated_at: new Date().toISOString(),
-          })
+        };
+
+        // Only set cost_price when not preserving a manual edit, and only if we got a value
+        if (!preserveManualCost && incomingCost !== null) {
+          updatePayload.cost_price = incomingCost;
+          updatePayload.cost_price_updated_at = new Date().toISOString();
+          updatePayload.cost_price_source = "mintsoft_sync";
+        }
+
+        const { error: updateError } = await supabase
+          .from("products_cache")
+          .update(updatePayload)
           .eq("id", product.id);
 
         if (updateError) {

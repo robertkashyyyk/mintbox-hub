@@ -2028,6 +2028,8 @@ export type Database = {
           barcode_type_id: string | null
           brand_id: string | null
           cost_price: number | null
+          cost_price_source: string | null
+          cost_price_updated_at: string | null
           created_at: string | null
           current_stock: number | null
           depth: number | null
@@ -2079,6 +2081,8 @@ export type Database = {
           barcode_type_id?: string | null
           brand_id?: string | null
           cost_price?: number | null
+          cost_price_source?: string | null
+          cost_price_updated_at?: string | null
           created_at?: string | null
           current_stock?: number | null
           depth?: number | null
@@ -2130,6 +2134,8 @@ export type Database = {
           barcode_type_id?: string | null
           brand_id?: string | null
           cost_price?: number | null
+          cost_price_source?: string | null
+          cost_price_updated_at?: string | null
           created_at?: string | null
           current_stock?: number | null
           depth?: number | null
