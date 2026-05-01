@@ -59,7 +59,7 @@ const PublicTrade = () => (
             <Link to="/contact">Contact Us <ArrowRight className="h-4 w-4 ml-1" /></Link>
           </Button>
             <Button asChild size="lg" variant="outlineDark">
-              <a href="tel:+442870344344">Call Now</a>
+              <a href="tel:+442870322970">Call Now</a>
             </Button>
         </div>
       </div>

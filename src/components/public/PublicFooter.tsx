@@ -21,7 +21,7 @@ const PublicFooter = () => (
             Contact Us <ArrowRight className="h-4 w-4" />
           </Link>
           <a
-            href="tel:+442870344344"
+            href="tel:+442870322970"
             className="inline-flex items-center justify-center gap-2 px-8 py-3.5 border border-foreground/30 text-foreground font-medium rounded-md hover:bg-foreground/10 transition-colors"
           >
             <Phone className="h-4 w-4" /> Call Now
@@ -76,7 +76,7 @@ const PublicFooter = () => (
           </li>
           <li className="flex items-center gap-2.5">
             <Phone className="h-4 w-4 shrink-0 text-pd-accent" />
-            <a href="tel:+442870344344" className="text-foreground/70 hover:text-pd-accent transition-colors">028 7034 4344</a>
+            <a href="tel:+442870322970" className="text-foreground/70 hover:text-pd-accent transition-colors">028 7032 2970</a>
           </li>
           <li className="flex items-center gap-2.5">
             <Mail className="h-4 w-4 shrink-0 text-pd-accent" />
