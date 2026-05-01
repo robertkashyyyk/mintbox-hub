@@ -3443,6 +3443,15 @@ export type Database = {
           week_start: string
         }[]
       }
+      get_profit_week_breakdown: {
+        Args: { p_iso_week: number; p_iso_year: number }
+        Returns: {
+          band: string
+          line_count: number
+          pct: number
+          profit_total: number
+        }[]
+      }
       get_system_health_job_runs: {
         Args: { _jobname: string; _limit?: number }
         Returns: {
