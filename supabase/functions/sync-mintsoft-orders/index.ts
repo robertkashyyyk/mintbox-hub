@@ -251,6 +251,37 @@ Deno.serve(async (req) => {
       }
       console.log(`Fetched ${allOrders.length} order headers across ${statusIdsToFetch.length} statuses${timedOut ? ' (partial - timed out)' : ''}`);
 
+      // 1b. LIVE-TAIL terminal sweep: pull recently-despatched/cancelled orders
+      // (last 3 days by OrderDate) so we don't miss same-day-despatch orders.
+      if (liveTailTerminalIds.length > 0 && !timedOut) {
+        for (const statusId of liveTailTerminalIds) {
+          if (isTimeRunningOut()) { timedOut = true; break; }
+          let pageNo = 1;
+          while (true) {
+            const resp = await fetch(`${settings.base_url}/api/Order/List?OrderStatusId=${statusId}&Limit=100&PageNo=${pageNo}`, {
+              headers: { "ms-apikey": mintsoftApiKey, "Content-Type": "application/json" },
+            });
+            if (!resp.ok) break;
+            const orders: MintsoftOrder[] = await resp.json();
+            if (orders.length === 0) break;
+            let stopPaging = false;
+            const filtered = orders.filter(o => {
+              if (seenOrderIds.has(o.ID)) return false;
+              const orderDateObj = new Date(o.OrderDate);
+              if (orderDateObj < MIN_DATE) return false;
+              if (orderDateObj < liveTailTerminalFloor) { stopPaging = true; return false; }
+              seenOrderIds.add(o.ID);
+              return true;
+            });
+            allOrders = allOrders.concat(filtered);
+            // Mintsoft returns most recent first — once we cross the floor, stop.
+            if (stopPaging || orders.length < 100 || pageNo >= 50) break;
+            pageNo++;
+          }
+        }
+        console.log(`After terminal sweep: ${allOrders.length} total order headers`);
+      }
+
     // 2. Find which orders we already have lines for
     const orderIds = [...new Set(allOrders.map(o => o.ID))];
     const knownOrderIds = new Set<number>();
