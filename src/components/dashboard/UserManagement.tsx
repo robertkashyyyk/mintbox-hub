@@ -113,13 +113,19 @@ const UserManagement = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
+      // Upsert by email so re-inviting (e.g. after expiry) refreshes role/expiry
       const { data: invite, error: inviteError } = await supabase
         .from("user_invites")
-        .insert({
-          email: inviteEmail,
-          role: inviteRole,
-          invited_by: user.id,
-        })
+        .upsert(
+          {
+            email: inviteEmail,
+            role: inviteRole,
+            invited_by: user.id,
+            used: false,
+            expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+          },
+          { onConflict: "email" }
+        )
         .select()
         .single();
 

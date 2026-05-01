@@ -110,8 +110,7 @@ Deno.serve(async (req) => {
         .eq("mintsoft_order_id", orderId);
       if (!existing?.length) continue;
 
-      // Build patches: prefer matching by SKU + position; fall back to position
-      const updates: Record<string, unknown>[] = [];
+      // Apply targeted UPDATEs (avoid upsert which would attempt insert and fail on NOT NULL columns)
       let posIdx = 0;
       const seenLineIdx = new Set<number>();
       for (const item of items) {
@@ -121,31 +120,25 @@ Deno.serve(async (req) => {
         const lineTotal = num(item.LineTotal) ?? num(item.LinePrice) ?? (unitPrice !== null ? unitPrice * qty : null);
         const discount = num(item.Discount) ?? num(item.DiscountAmount) ?? 0;
 
-        // Match by SKU first, skipping ones we've already updated
         let match = existing.find(l => l.sku === sku && !seenLineIdx.has(l.line_index));
         if (!match) match = existing[posIdx];
         posIdx++;
         if (!match) continue;
         seenLineIdx.add(match.line_index);
 
-        updates.push({
-          mintsoft_order_id: orderId,
-          line_index: match.line_index,
-          sku: match.sku,
-          unit_price: unitPrice,
-          line_total: lineTotal,
-          discount,
-          currency,
-          courier_service: courier,
-        });
-      }
-
-      if (updates.length > 0) {
         const { error: upErr } = await supabase
           .from("order_lines")
-          .upsert(updates, { onConflict: "mintsoft_order_id,line_index" });
-        if (upErr) { errors++; console.error(`upsert ${orderId}:`, upErr.message); }
-        else updated += updates.length;
+          .update({
+            unit_price: unitPrice,
+            line_total: lineTotal,
+            discount,
+            currency,
+            courier_service: courier,
+          })
+          .eq("mintsoft_order_id", orderId)
+          .eq("line_index", match.line_index);
+        if (upErr) { errors++; console.error(`update ${orderId}.${match.line_index}:`, upErr.message); }
+        else updated++;
       }
     } catch (e) {
       errors++;
