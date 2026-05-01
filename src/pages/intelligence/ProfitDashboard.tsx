@@ -32,7 +32,7 @@ function shiftIsoWeek(year: number, week: number, delta: number): { year: number
 }
 
 const fmtGBP = (n: number | null | undefined) =>
-  n == null ? "—" : new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP", maximumFractionDigits: 0 }).format(Number(n));
+  n == null ? "—" : new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(n));
 const fmtPct = (n: number | null | undefined) =>
   n == null ? "—" : `${(Number(n) * 100).toFixed(1)}%`;
 const fmtNum = (n: number | null | undefined) =>
