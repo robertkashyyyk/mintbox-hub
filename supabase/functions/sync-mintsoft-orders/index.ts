@@ -72,6 +72,18 @@ interface MintsoftOrderItem {
   SKU: string;
   Quantity: number;
   Name?: string;
+  Price?: number | string | null;
+  UnitValue?: number | string | null;
+  LineTotal?: number | string | null;
+  LinePrice?: number | string | null;
+  Discount?: number | string | null;
+  DiscountAmount?: number | string | null;
+}
+
+function num(v: unknown): number | null {
+  if (v === null || v === undefined || v === '') return null;
+  const n = typeof v === 'number' ? v : parseFloat(String(v));
+  return Number.isFinite(n) ? n : null;
 }
 
 interface Brand {
