@@ -41,3 +41,6 @@ verify_jwt = false
 
 [functions.evaluate-order-issues]
 verify_jwt = false
+
+[functions.backfill-order-economics]
+verify_jwt = false
