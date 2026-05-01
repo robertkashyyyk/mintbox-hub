@@ -149,6 +149,7 @@ const ProfitDashboard = () => {
   const [search, setSearch] = useState("");
   const [channelFilter, setChannelFilter] = useState<string>("all");
   const [flagFilter, setFlagFilter] = useState<string>("all"); // all | loss | dirt | missing_cost | profitable
+  const [bandFilter, setBandFilter] = useState<string>("all"); // all | loss | breakeven | poor | average | good | great | amazing
   const [sortKey, setSortKey] = useState<string>("mintsoft_order_id");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [page, setPage] = useState(1);
