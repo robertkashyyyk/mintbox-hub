@@ -210,7 +210,7 @@ const LossBandsCard = () => {
         .eq("key", "profit.loss_bands")
         .maybeSingle();
       if (error) throw error;
-      return (data?.value ?? { big_loss_max: -2, small_loss_max: -0.5, breakeven_max: 0.5, small_profit_max: 2 }) as LossBands;
+      return (data?.value ?? { big_loss_max: -2, small_loss_max: -0.5, breakeven_max: 0.5, small_profit_max: 2 }) as unknown as LossBands;
     },
   });
 
