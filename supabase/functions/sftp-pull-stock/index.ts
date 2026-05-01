@@ -51,10 +51,30 @@ Deno.serve(async (req) => {
   try {
     let privateKey = Deno.env.get("MINTSOFT_FTP_PRIVATE_KEY");
     if (!privateKey) throw new Error("MINTSOFT_FTP_PRIVATE_KEY not set");
-    // Normalize: env vars sometimes lose real newlines; restore \n -> newline
-    // and ensure CR/LF stripped, trailing newline present.
+
+    // Detect storage format and normalize to PEM with real newlines.
+    // 1) Replace literal "\n" sequences with newlines.
     privateKey = privateKey.replace(/\\n/g, "\n").replace(/\r/g, "");
+
+    // 2) If still no newlines (single-line blob), reconstruct PEM.
+    if (!privateKey.includes("\n")) {
+      const m = privateKey.match(
+        /^(-----BEGIN [A-Z0-9 ]+ PRIVATE KEY-----)(.*?)(-----END [A-Z0-9 ]+ PRIVATE KEY-----)\s*$/,
+      );
+      if (m) {
+        const body = m[2].replace(/\s+/g, "");
+        const wrapped = body.match(/.{1,70}/g)?.join("\n") ?? body;
+        privateKey = `${m[1]}\n${wrapped}\n${m[3]}\n`;
+      }
+    }
     if (!privateKey.endsWith("\n")) privateKey += "\n";
+
+    console.log("PK debug", {
+      length: privateKey.length,
+      starts: privateKey.slice(0, 40),
+      ends: privateKey.slice(-40),
+      lineCount: privateKey.split("\n").length,
+    });
 
     await sftp.connect({
       host: SFTP_HOST,
