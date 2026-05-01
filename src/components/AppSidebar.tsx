@@ -94,6 +94,8 @@ export function AppSidebar() {
         { title: "Stock Health", url: "/intelligence/stock-health", icon: Activity },
         { title: "Pricing Signals", url: "/intelligence/pricing", icon: DollarSign },
         { title: "Seasonality", url: "/intelligence/seasonality", icon: Calendar },
+        { title: "Missing Costs", url: "/intelligence/missing-costs", icon: AlertCircle },
+        { title: "Dirt SKUs", url: "/intelligence/dirt-skus", icon: AlertTriangle },
       ],
     },
     {

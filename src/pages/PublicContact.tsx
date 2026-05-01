@@ -47,7 +47,7 @@ const PublicContact = () => (
                 </div>
                 <div>
                   <div className="text-xs text-pd-steel-light uppercase tracking-wider">Location</div>
-                  <div className="text-pd-charcoal font-medium">Coleraine, Co. Londonderry, NI</div>
+                  <div className="text-pd-charcoal font-medium">Coleraine, Co. Londonderry, BT52 2NS</div>
                 </div>
               </div>
             </div>
