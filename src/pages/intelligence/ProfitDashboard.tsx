@@ -222,13 +222,13 @@ const ProfitDashboard = () => {
               {(["loss","breakeven","poor","average","good","great","amazing"] as const).map((b) => {
                 const row = (bands ?? []).find((x: any) => x.band === b);
                 const meta: Record<string, { label: string; tone: string }> = {
-                  loss:      { label: "Loss",      tone: "border-destructive/60 bg-destructive/10" },
-                  breakeven: { label: "Breakeven", tone: "border-border bg-muted/30" },
-                  poor:      { label: "Poor",      tone: "border-warning/60 bg-warning/10" },
-                  average:   { label: "Average",   tone: "border-warning/30 bg-warning/5" },
-                  good:      { label: "Good",      tone: "border-pd-accent/40 bg-pd-accent/5" },
-                  great:     { label: "Great",     tone: "border-pd-accent/70 bg-pd-accent/10" },
-                  amazing:   { label: "Amazing",   tone: "border-pd-accent bg-pd-accent/20" },
+                  loss:      { label: "Loss",      tone: "border-band-loss/60 bg-band-loss/15" },
+                  breakeven: { label: "Breakeven", tone: "border-band-breakeven/60 bg-band-breakeven/15" },
+                  poor:      { label: "Poor",      tone: "border-band-poor/60 bg-band-poor/15" },
+                  average:   { label: "Average",   tone: "border-band-average/60 bg-band-average/15" },
+                  good:      { label: "Good",      tone: "border-band-good/60 bg-band-good/15" },
+                  great:     { label: "Great",     tone: "border-band-great/60 bg-band-great/15" },
+                  amazing:   { label: "Amazing",   tone: "border-band-amazing/70 bg-band-amazing/20" },
                 };
                 const m = meta[b];
                 return (

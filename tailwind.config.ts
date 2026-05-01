@@ -81,6 +81,15 @@ export default {
 				'3': 'hsl(var(--chart-3))',
 				'4': 'hsl(var(--chart-4))',
 				'5': 'hsl(var(--chart-5))'
+			},
+			band: {
+				loss: 'hsl(var(--band-loss))',
+				breakeven: 'hsl(var(--band-breakeven))',
+				poor: 'hsl(var(--band-poor))',
+				average: 'hsl(var(--band-average))',
+				good: 'hsl(var(--band-good))',
+				great: 'hsl(var(--band-great))',
+				amazing: 'hsl(var(--band-amazing))'
 			}
   		},
   		borderRadius: {
