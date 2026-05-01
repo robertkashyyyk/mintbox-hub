@@ -190,7 +190,7 @@ const ProfitDashboard = () => {
       return 0;
     });
     return rows;
-  }, [lines, channelFilter, flagFilter, search, sortKey, sortDir]);
+  }, [lines, channelFilter, flagFilter, bandFilter, search, sortKey, sortDir]);
 
   const totalRows = filteredLines.length;
   const totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
