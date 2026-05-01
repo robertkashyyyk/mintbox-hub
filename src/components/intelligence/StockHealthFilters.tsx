@@ -125,15 +125,27 @@ export const StockHealthFilters = ({ filters, onFiltersChange }: StockHealthFilt
           </Select>
         </div>
 
-        <div className="flex items-center space-x-2 pt-7">
-          <Switch
-            id="only-problems"
-            checked={filters.onlyProblems}
-            onCheckedChange={(checked) => onFiltersChange({ onlyProblems: checked })}
-          />
-          <Label htmlFor="only-problems" className="text-sm font-medium cursor-pointer">
-            Only problems
-          </Label>
+        <div className="flex flex-col gap-3 pt-7">
+          <div className="flex items-center space-x-2">
+            <Switch
+              id="only-problems"
+              checked={filters.onlyProblems}
+              onCheckedChange={(checked) => onFiltersChange({ onlyProblems: checked })}
+            />
+            <Label htmlFor="only-problems" className="text-sm font-medium cursor-pointer">
+              Only problems
+            </Label>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Switch
+              id="exclude-dirt"
+              checked={filters.excludeDirt}
+              onCheckedChange={(checked) => onFiltersChange({ excludeDirt: checked })}
+            />
+            <Label htmlFor="exclude-dirt" className="text-sm font-medium cursor-pointer">
+              Exclude DIRT
+            </Label>
+          </div>
         </div>
       </div>
     </div>
