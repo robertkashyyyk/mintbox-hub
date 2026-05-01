@@ -343,14 +343,16 @@ const ProfitDashboard = () => {
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
              {(["unknown","loss","breakeven","poor","average","good","great","amazing"] as const).map((b) => {
-                const allLines = (lines ?? []) as any[];
-                const unknownLines = allLines.filter((l) => l.missing_cost === true || l.cost_each == null || Number(l.cost_each) === 0);
-                const knownBandsTotal = (bands ?? []).reduce((s: number, r: any) => s + Number(r?.line_count ?? 0), 0);
-                const denominator = allLines.length > 0 ? allLines.length : (knownBandsTotal + unknownLines.length);
+                // Authoritative totals come from get_profit_week (server-side, full week — NOT
+                // the paginated `lines` array). `line_count` includes missing-cost rows, so it
+                // is the single shared denominator for all 8 bands.
+                const totalLines = Number((kpis as any)?.line_count ?? 0);
+                const missingCost = Number((kpis as any)?.missing_cost_count ?? 0);
+                const denominator = totalLines;
                 let lineCount = 0;
                 let profitTotal: number | null = null;
                 if (b === "unknown") {
-                  lineCount = unknownLines.length;
+                  lineCount = missingCost;
                   profitTotal = null; // intentionally hidden — profit is unreliable without cost
                 } else {
                   const row = (bands ?? []).find((x: any) => x.band === b);
