@@ -214,10 +214,10 @@ Deno.serve(async (req) => {
     // If we couldn't fetch statuses, fall back to configured IDs
     const statusIdsToFetch = activeStatusIds.length > 0 ? activeStatusIds : dispatchedStatusIds;
     // In live-tail, also sweep terminal statuses (despatched/cancelled/etc.) but
-    // ALWAYS apply a date floor so we only pull recent activity (last ~3 days).
+    // ALWAYS apply a date floor so we only pull recent activity (last ~10 days).
     // This catches orders that completed between cron runs and would otherwise
     // never appear in our system (the same-day-despatch gap).
-    const liveTailTerminalFloor = new Date(); liveTailTerminalFloor.setUTCDate(liveTailTerminalFloor.getUTCDate() - 3);
+    const liveTailTerminalFloor = new Date(); liveTailTerminalFloor.setUTCDate(liveTailTerminalFloor.getUTCDate() - 10);
     const liveTailTerminalIds = ignoreDateFilter ? terminalStatusIds : [];
 
     // 1. Fetch order headers across ALL statuses
