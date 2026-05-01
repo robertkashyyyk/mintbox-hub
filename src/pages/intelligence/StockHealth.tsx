@@ -2,10 +2,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, Activity } from "lucide-react";
+import { ChevronLeft, ChevronRight, Activity, RefreshCw } from "lucide-react";
 import { StockHealthFilters } from "@/components/intelligence/StockHealthFilters";
 import { useStockHealth } from "@/hooks/useStockHealth";
 import { Link } from "react-router-dom";
+import { useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 const getHealthBadgeVariant = (category: string) => {
   const colorMap: Record<string, { bg: string; text: string; border?: string }> = {
@@ -60,13 +63,37 @@ const StockHealth = () => {
     </TableHead>
   );
 
+  const [refreshing, setRefreshing] = useState(false);
+  const handleRefreshSnapshot = async () => {
+    setRefreshing(true);
+    try {
+      const { error } = await supabase.rpc("refresh_sku_health_now" as any);
+      if (error) throw error;
+      toast.success("Stock health snapshot refreshed — reloading…");
+      setTimeout(() => window.location.reload(), 600);
+    } catch (e: any) {
+      toast.error(`Refresh failed: ${e?.message ?? e}`);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-3xl font-bold tracking-tight text-foreground">Stock Health</h2>
-        <p className="text-foreground/60">
-          Stock levels, overstock, and shortage analysis powered by sales velocity.
-        </p>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight text-foreground">Stock Health</h2>
+          <p className="text-foreground/60">
+            Stock levels, overstock, and shortage analysis powered by sales velocity.
+          </p>
+          <p className="text-xs text-foreground/50 mt-1">
+            Snapshot auto-refreshes daily at 06:30 UTC. Use Refresh now after editing brand base multipliers.
+          </p>
+        </div>
+        <Button variant="outline" size="sm" onClick={handleRefreshSnapshot} disabled={refreshing}>
+          <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? "animate-spin" : ""}`} />
+          {refreshing ? "Refreshing…" : "Refresh now"}
+        </Button>
       </div>
 
       <Card>
