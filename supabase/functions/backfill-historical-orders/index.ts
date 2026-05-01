@@ -196,9 +196,13 @@ Deno.serve(async (req) => {
           if (!Array.isArray(items) || items.length === 0) continue;
 
           const courier = extractCourier(order);
-          const channel = order.OrderSourceName ?? order.OrderSource ?? null;
-          const channelOrderRef = order.ChannelOrderRef ?? order.ExternalOrderReference ?? null;
-          const customerName = [order.FirstName, order.LastName].filter(Boolean).join(" ") || null;
+          // Mintsoft fields: Channel: { Name }, CustomerName (single string), ExternalOrderReference
+          const channel = (order.Channel && typeof order.Channel === "object" && order.Channel.Name)
+            ? order.Channel.Name
+            : (typeof order.Channel === "string" ? order.Channel : (order.OrderSourceName ?? order.OrderSource ?? null));
+          const channelOrderRef = order.ExternalOrderReference ?? order.ChannelOrderRef ?? null;
+          const customerName = order.CustomerName
+            ?? ([order.FirstName, order.LastName].filter(Boolean).join(" ") || null);
           const orderStatus = order.OrderStatus ?? statusNames.get(statusId) ?? "DESPATCHED";
           const orderStatusId = Number(order.OrderStatusId ?? order.StatusId ?? statusId) || statusId;
           const trackingNumber = order.TrackingNumber ?? order.Tracking ?? null;
