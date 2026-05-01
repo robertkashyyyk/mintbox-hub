@@ -82,11 +82,11 @@ Deno.serve(async (req) => {
 
   let updated = 0, fetched = 0, errors = 0;
 
-  for (const orderId of orderIds) {
-    if (timeOut()) break;
-
+  // Process orders in parallel pools to maximise throughput within the 50s budget
+  const POOL = 8;
+  async function processOne(orderId: number) {
+    if (timeOut()) return;
     try {
-      // Fetch order header (for courier + currency) and items in parallel
       const [hdrResp, itemsResp] = await Promise.all([
         fetch(`${settings.base_url}/api/Order/${orderId}`, {
           headers: { "ms-apikey": apiKey, "Content-Type": "application/json" },
@@ -96,21 +96,30 @@ Deno.serve(async (req) => {
         }),
       ]);
       fetched++;
-      if (!itemsResp.ok) { errors++; continue; }
+      if (!itemsResp.ok) { errors++; return; }
 
       const items: any[] = await itemsResp.json();
       const header: any = hdrResp.ok ? await hdrResp.json() : {};
       const courier = extractCourier(header);
       const currency = header?.Currency || 'GBP';
 
-      // Fetch existing lines so we can map by SKU → line_index
       const { data: existing } = await supabase
         .from("order_lines")
         .select("line_index, sku")
         .eq("mintsoft_order_id", orderId);
-      if (!existing?.length) continue;
+      if (!existing?.length) return;
 
-      // Apply targeted UPDATEs (avoid upsert which would attempt insert and fail on NOT NULL columns)
+      // If the order has no items at all, mark its lines with zero price so we
+      // don't keep re-fetching it — currency stamp signals "backfilled".
+      if (!Array.isArray(items) || items.length === 0) {
+        await supabase
+          .from("order_lines")
+          .update({ unit_price: 0, line_total: 0, discount: 0, currency, courier_service: courier })
+          .eq("mintsoft_order_id", orderId)
+          .is("unit_price", null);
+        return;
+      }
+
       let posIdx = 0;
       const seenLineIdx = new Set<number>();
       for (const item of items) {
@@ -129,8 +138,8 @@ Deno.serve(async (req) => {
         const { error: upErr } = await supabase
           .from("order_lines")
           .update({
-            unit_price: unitPrice,
-            line_total: lineTotal,
+            unit_price: unitPrice ?? 0,
+            line_total: lineTotal ?? 0,
             discount,
             currency,
             courier_service: courier,
@@ -140,11 +149,36 @@ Deno.serve(async (req) => {
         if (upErr) { errors++; console.error(`update ${orderId}.${match.line_index}:`, upErr.message); }
         else updated++;
       }
+
+      // Stamp any remaining unmatched lines on this order so they aren't
+      // re-queued forever (price 0, courier still recorded).
+      const unmatched = existing.filter(l => !seenLineIdx.has(l.line_index));
+      if (unmatched.length) {
+        await supabase
+          .from("order_lines")
+          .update({ unit_price: 0, line_total: 0, discount: 0, currency, courier_service: courier })
+          .eq("mintsoft_order_id", orderId)
+          .in("line_index", unmatched.map(u => u.line_index))
+          .is("unit_price", null);
+      }
     } catch (e) {
       errors++;
       console.error(`order ${orderId} failed:`, (e as Error).message);
     }
   }
+
+  // Run a sliding window of POOL concurrent fetches
+  let cursor = 0;
+  const workers: Promise<void>[] = [];
+  async function worker() {
+    while (!timeOut()) {
+      const idx = cursor++;
+      if (idx >= orderIds.length) return;
+      await processOne(orderIds[idx]);
+    }
+  }
+  for (let i = 0; i < POOL; i++) workers.push(worker());
+  await Promise.all(workers);
 
   const processedOrderIds = orderIds.length;
   const nextOffset = offset + processedOrderIds;
