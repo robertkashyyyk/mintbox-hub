@@ -337,14 +337,30 @@ const ProfitDashboard = () => {
         </CardHeader>
         <CardContent>
           {bandsLoading ? (
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
-              {[...Array(7)].map((_, i) => <Skeleton key={i} className="h-24 w-full" />)}
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
+              {[...Array(8)].map((_, i) => <Skeleton key={i} className="h-24 w-full" />)}
             </div>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
-              {(["loss","breakeven","poor","average","good","great","amazing"] as const).map((b) => {
-                const row = (bands ?? []).find((x: any) => x.band === b);
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
+              {(["unknown","loss","breakeven","poor","average","good","great","amazing"] as const).map((b) => {
+                let lineCount = 0;
+                let pctOfLines = 0;
+                let profitTotal: number | null = null;
+                if (b === "unknown") {
+                  // Derived client-side: missing-cost lines are excluded from the SQL bands RPC.
+                  const allLines = (lines ?? []) as any[];
+                  const unknowns = allLines.filter((l) => l.missing_cost === true || l.cost_each == null || Number(l.cost_each) === 0);
+                  lineCount = unknowns.length;
+                  pctOfLines = allLines.length > 0 ? (lineCount / allLines.length) * 100 : 0;
+                  profitTotal = null; // intentionally hidden — profit is unreliable without cost
+                } else {
+                  const row = (bands ?? []).find((x: any) => x.band === b);
+                  lineCount = Number(row?.line_count ?? 0);
+                  pctOfLines = Number(row?.pct ?? 0);
+                  profitTotal = row?.profit_total ?? 0;
+                }
                 const meta: Record<string, { label: string; tone: string }> = {
+                  unknown:   { label: "Unknown",   tone: `border-warning/70 ${HAZARD_STRIPES}` },
                   loss:      { label: "Loss",      tone: "border-band-loss/60 bg-band-loss/15" },
                   breakeven: { label: "Breakeven", tone: "border-band-breakeven/60 bg-band-breakeven/15" },
                   poor:      { label: "Poor",      tone: "border-band-poor/60 bg-band-poor/15" },
@@ -355,17 +371,22 @@ const ProfitDashboard = () => {
                 };
                 const m = meta[b];
                 const isActive = bandFilter === b;
+                const isUnknown = b === "unknown";
                 return (
                   <button
                     key={b}
                     type="button"
                     onClick={() => { setBandFilter(isActive ? "all" : b); setPage(1); }}
-                    className={`text-left rounded-md border p-3 transition hover:brightness-125 focus:outline-none focus:ring-2 focus:ring-pd-accent ${m.tone} ${isActive ? "ring-2 ring-pd-accent" : ""}`}
+                    className={`text-left rounded-md border-2 p-3 transition hover:brightness-125 focus:outline-none focus:ring-2 focus:ring-pd-accent ${m.tone} ${isActive ? "ring-2 ring-pd-accent" : ""}`}
                   >
-                    <div className="text-xs uppercase tracking-wide text-foreground/60">{m.label}</div>
-                    <div className="text-xl font-bold text-foreground mt-1">{fmtNum(row?.line_count ?? 0)}</div>
-                    <div className="text-xs text-foreground/70 mt-0.5">{Number(row?.pct ?? 0).toFixed(1)}% of lines</div>
-                    <div className="text-xs font-mono text-foreground/80 mt-1">{fmtGBP(row?.profit_total ?? 0)}</div>
+                    <div className={`text-xs uppercase tracking-wide ${isUnknown ? "text-warning font-bold bg-background/80 px-1 rounded inline-block" : "text-foreground/60"}`}>
+                      {isUnknown ? "⚠ " : ""}{m.label}
+                    </div>
+                    <div className={`text-xl font-bold mt-1 ${isUnknown ? "text-foreground bg-background/80 px-1 rounded inline-block" : "text-foreground"}`}>{fmtNum(lineCount)}</div>
+                    <div className={`text-xs mt-0.5 ${isUnknown ? "text-foreground bg-background/80 px-1 rounded inline-block" : "text-foreground/70"}`}>{pctOfLines.toFixed(1)}% of lines</div>
+                    <div className={`text-xs font-mono mt-1 ${isUnknown ? "text-foreground bg-background/80 px-1 rounded inline-block" : "text-foreground/80"}`}>
+                      {isUnknown ? "no cost data" : fmtGBP(profitTotal ?? 0)}
+                    </div>
                   </button>
                 );
               })}
