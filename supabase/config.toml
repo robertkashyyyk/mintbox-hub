@@ -52,3 +52,6 @@ verify_jwt = false
 
 [functions.debug-secret]
 verify_jwt = false
+
+[functions.verify-mintsoft-costs]
+verify_jwt = false
