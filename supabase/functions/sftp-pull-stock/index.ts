@@ -55,16 +55,24 @@ Deno.serve(async (req) => {
       throw new Error("MINTSOFT_FTP_PASSWORD secret not set");
     }
 
+    console.log(`[sftp] connecting to ${SFTP_USER}@${SFTP_HOST}:${SFTP_PORT}`);
+    const t0 = Date.now();
     await sftp.connect({
       host: SFTP_HOST,
       port: SFTP_PORT,
       username: SFTP_USER,
       password,
       readyTimeout: 20_000,
-    });
+      algorithms: {
+        serverHostKey: ["ssh-ed25519", "ssh-rsa", "ecdsa-sha2-nistp256"],
+      },
+    } as any);
+    console.log(`[sftp] connected in ${Date.now() - t0}ms`);
 
     // Find newest pdochubInventory*.csv
+    console.log(`[sftp] listing ${SFTP_DIR}`);
     const list = await sftp.list(SFTP_DIR);
+    console.log(`[sftp] list returned ${list.length} entries`);
     const candidates = list
       .filter(
         (f) =>
@@ -87,10 +95,12 @@ Deno.serve(async (req) => {
 
     chosenFile = candidates[0].name;
     const remotePath = `${SFTP_DIR}/${chosenFile}`;
+    console.log(`[sftp] downloading ${remotePath}`);
 
     // Download to memory
     const buf = (await sftp.get(remotePath)) as Buffer;
     const text = buf.toString("utf-8");
+    console.log(`[sftp] downloaded ${text.length} bytes`);
 
     // Parse CSV
     const rows: Array<Record<string, string>> = parse(text, {
