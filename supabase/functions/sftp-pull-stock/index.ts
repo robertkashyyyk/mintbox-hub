@@ -123,38 +123,32 @@ Deno.serve(async (req) => {
       stockMap.set(sku, lvl);
     }
 
-    // Chunked update
-    const now = new Date().toISOString();
-    const skus = Array.from(stockMap.entries());
-    const CHUNK = 500;
+    // Bulk update via single RPC call. Send in chunks to keep payload sane.
+    const entries = Array.from(stockMap.entries());
+    const CHUNK = 5000;
     let updated = 0;
     let notFound = 0;
+    console.log(`[sftp] bulk-updating ${entries.length} SKUs in chunks of ${CHUNK}`);
 
-    for (let i = 0; i < skus.length; i += CHUNK) {
-      const slice = skus.slice(i, i + CHUNK);
-      // Use upsert-style update via RPC-less batching: do parallel updates per row is too slow.
-      // Instead: for each chunk, run a single SQL via PostgREST `.in()` pattern is read-only.
-      // We use the `update` with `in` filter per stock value — group SKUs by value to minimize calls.
-      const byValue = new Map<number, string[]>();
-      for (const [sku, lvl] of slice) {
-        const arr = byValue.get(lvl) ?? [];
-        arr.push(sku);
-        byValue.set(lvl, arr);
+    for (let i = 0; i < entries.length; i += CHUNK) {
+      const payload = entries.slice(i, i + CHUNK).map(([sku, stock_level]) => ({
+        sku,
+        stock_level,
+      }));
+      const t = Date.now();
+      const { data, error } = await supabase.rpc("bulk_update_stock_from_sftp", {
+        _payload: payload,
+      });
+      if (error) {
+        console.error("bulk_update_stock_from_sftp error", error.message);
+        throw new Error(`bulk update failed: ${error.message}`);
       }
-      for (const [lvl, skuList] of byValue) {
-        const { data, error } = await supabase
-          .from("products_cache")
-          .update({ current_stock: lvl, last_stock_sync: now })
-          .in("sku", skuList)
-          .select("sku");
-        if (error) {
-          console.error("update error", error.message);
-          continue;
-        }
-        const hit = data?.length ?? 0;
-        updated += hit;
-        notFound += skuList.length - hit;
-      }
+      const row = Array.isArray(data) ? data[0] : data;
+      const u = Number(row?.updated_count ?? 0);
+      const nf = Number(row?.not_found_count ?? 0);
+      updated += u;
+      notFound += nf;
+      console.log(`[sftp] chunk ${i / CHUNK + 1}: updated=${u} not_found=${nf} in ${Date.now() - t}ms`);
     }
 
     // Delete the source file
