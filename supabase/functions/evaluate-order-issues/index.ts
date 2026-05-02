@@ -201,8 +201,8 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Rule 3.5: BOUNCING — order has flipped status many times over a longer window
-    // (e.g. NEW ↔ AWAITINGPICKING ↔ ONBACKORDER repeatedly). Window: last 14 days.
+    // Rule 3.5: BOUNCING — order has flipped status 3+ times across 2+ distinct statuses
+    // (e.g. NEW ↔ AWAITINGPICKING ↔ ONBACKORDER repeatedly). No time window — full recorded history.
     const activeOrderIds = [...new Set(activeLines.map(l => l.mintsoft_order_id))];
     if (activeOrderIds.length > 0) {
       const flipCounts = new Map<string, { flips: number; last_change: string; statuses: Set<string> }>();
@@ -211,8 +211,7 @@ Deno.serve(async (req) => {
         const { data: history } = await supabase
           .from("order_status_history")
           .select("mintsoft_order_id, line_index, to_status, changed_at")
-          .in("mintsoft_order_id", batch)
-          .gte("changed_at", new Date(Date.now() - 14 * 86_400_000).toISOString());
+          .in("mintsoft_order_id", batch);
         for (const h of history || []) {
           const key = `${h.mintsoft_order_id}-${h.line_index}`;
           const cur = flipCounts.get(key) || { flips: 0, last_change: h.changed_at, statuses: new Set<string>() };
@@ -225,13 +224,13 @@ Deno.serve(async (req) => {
       for (const line of activeLines) {
         const key = `${line.mintsoft_order_id}-${line.line_index}`;
         const fc = flipCounts.get(key);
-        // Require ≥4 distinct flips AND ≥2 distinct statuses to count as bouncing
-        if (fc && fc.flips >= 4 && fc.statuses.size >= 2) {
-          const sev = fc.flips >= 8 ? "critical" : fc.flips >= 6 ? "problem" : "watch";
+        // Require ≥3 flips AND ≥2 distinct statuses to count as bouncing (no time window)
+        if (fc && fc.flips >= 3 && fc.statuses.size >= 2) {
+          const sev = fc.flips >= 6 ? "critical" : fc.flips >= 4 ? "problem" : "watch";
           candidates.push({
             mintsoft_order_id: line.mintsoft_order_id, line_index: line.line_index,
             sku: line.sku, brand_id: line.brand_id, problem_type: "bouncing", severity: sev,
-            reason: `Order has flipped status ${fc.flips}× across ${fc.statuses.size} states in last 14 days (latest: ${line.order_status})`,
+            reason: `Order has flipped status ${fc.flips}× across ${fc.statuses.size} states (latest: ${line.order_status})`,
             last_problem_seen_at: now,
             suggested_action: 'Order is oscillating between statuses — investigate root cause (intermittent stock, system loop, or manual reassignment).',
           });
