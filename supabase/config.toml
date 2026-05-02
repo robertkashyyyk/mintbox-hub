@@ -50,5 +50,5 @@ verify_jwt = false
 [functions.sftp-pull-stock]
 verify_jwt = false
 
-[functions._debug-secret]
+[functions.debug-secret]
 verify_jwt = false
