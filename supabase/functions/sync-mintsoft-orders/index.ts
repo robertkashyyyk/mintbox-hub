@@ -80,6 +80,17 @@ interface MintsoftOrderItem {
   DiscountAmount?: number | string | null;
 }
 
+function buildOrderListUrl(baseUrl: string, statusId: number, pageNo: number, limit = 100) {
+  const url = new URL(`${baseUrl}/api/Order/List`);
+  url.searchParams.set("OrderStatusId", String(statusId));
+  url.searchParams.set("Limit", String(limit));
+  url.searchParams.set("PageNo", String(pageNo));
+  // Mintsoft added SortOldestFirst with default false (newest first).
+  // We pass it explicitly so the live-tail always starts from the freshest orders.
+  url.searchParams.set("SortOldestFirst", "false");
+  return url.toString();
+}
+
 function num(v: unknown): number | null {
   if (v === null || v === undefined || v === '') return null;
   const n = typeof v === 'number' ? v : parseFloat(String(v));
@@ -257,7 +268,7 @@ Deno.serve(async (req) => {
         let pageNo = 1;
         let statusFullyDone = true;
         while (true) {
-          const resp = await fetch(`${settings.base_url}/api/Order/List?OrderStatusId=${statusId}&Limit=100&PageNo=${pageNo}`, {
+          const resp = await fetch(buildOrderListUrl(settings.base_url, statusId, pageNo), {
             headers: { "ms-apikey": mintsoftApiKey, "Content-Type": "application/json" },
           });
           if (!resp.ok) break;
@@ -282,7 +293,11 @@ Deno.serve(async (req) => {
         if (isCold && statusFullyDone) coldFullyProcessed++;
         if (timedOut) break;
       }
-      console.log(`Fetched ${allOrders.length} order headers${timedOut ? ' (partial - timed out)' : ''}, cold processed: ${coldFullyProcessed}/${rotatedCold.length}`);
+      const topFetchedIds = [...allOrders]
+        .sort((a, b) => b.ID - a.ID)
+        .slice(0, 10)
+        .map(o => o.ID);
+      console.log(`Fetched ${allOrders.length} order headers${timedOut ? ' (partial - timed out)' : ''}, cold processed: ${coldFullyProcessed}/${rotatedCold.length}, top IDs: ${topFetchedIds.join(', ')}`);
 
       // Advance cold cursor so the NEXT run picks up where this one stopped.
       if (coldStatusIds.length > 0) {
@@ -540,6 +555,7 @@ Deno.serve(async (req) => {
       orders_fetched: allOrders.length,
       new_orders: newOrders.length,
       existing_orders_updated: existingOrders.length,
+      highest_order_id_seen: allOrders.reduce((max, order) => Math.max(max, order.ID || 0), 0),
       lines_inserted: linesInserted,
       lines_skipped: linesSkipped,
       products_created: productsCreated,
