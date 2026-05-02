@@ -212,22 +212,50 @@ Deno.serve(async (req) => {
     } catch (e) { console.error("Failed to fetch status names:", e); }
 
     // If we couldn't fetch statuses, fall back to configured IDs
-    const statusIdsToFetch = activeStatusIds.length > 0 ? activeStatusIds : dispatchedStatusIds;
-    // In live-tail, also sweep terminal statuses (despatched/cancelled/etc.) but
-    // ALWAYS apply a date floor so we only pull recent activity (last ~10 days).
-    // This catches orders that completed between cron runs and would otherwise
-    // never appear in our system (the same-day-despatch gap).
+    const allStatusIds = activeStatusIds.length > 0 ? activeStatusIds : dispatchedStatusIds;
+    // Live-tail terminal sweep — always date-floored to last 10 days
     const liveTailTerminalFloor = new Date(); liveTailTerminalFloor.setUTCDate(liveTailTerminalFloor.getUTCDate() - 10);
     const liveTailTerminalIds = ignoreDateFilter ? terminalStatusIds : [];
 
-    // 1. Fetch order headers across ALL statuses
+    // ── PRIORITY ORDERING ───────────────────────────────────────────────────
+    // Hot statuses (where today's activity lives) go first — guarantees recent
+    // orders land in the first ~20s of every run even if the rest times out.
+    // Cold statuses are round-robined across runs via a cursor in app_settings,
+    // so EVERY status is eventually visited even when individual runs time out.
+    const hotNames = ['new', 'awaitingpicking', 'onbackorder', 'onhold', 'awaitingstock', 'pickinginprogress', 'packing'];
+    const hotStatusIds: number[] = [];
+    const coldStatusIds: number[] = [];
+    for (const id of allStatusIds) {
+      const name = (statusLookup.get(id) || '').toLowerCase().replace(/\s+/g, '');
+      if (hotNames.some(h => name.includes(h))) hotStatusIds.push(id);
+      else coldStatusIds.push(id);
+    }
+    // Read cursor (last cold status index processed) and rotate cold list
+    let coldCursor = 0;
+    try {
+      const { data: cur } = await supabase.from('app_settings').select('value').eq('key', 'sync_orders.cold_cursor').maybeSingle();
+      if (cur?.value != null) coldCursor = Number(cur.value) || 0;
+    } catch { /* ignore */ }
+    const rotatedCold = coldStatusIds.length > 0
+      ? [...coldStatusIds.slice(coldCursor % coldStatusIds.length), ...coldStatusIds.slice(0, coldCursor % coldStatusIds.length)]
+      : [];
+    // Final order: terminal sweep (recent dispatched/cancelled) FIRST, then hot, then rotated cold
+    const statusIdsToFetch = [...liveTailTerminalIds, ...hotStatusIds, ...rotatedCold];
+    console.log(`Status priority: ${liveTailTerminalIds.length} terminal + ${hotStatusIds.length} hot + ${rotatedCold.length} cold (cursor=${coldCursor})`);
+
+    // 1. Fetch order headers across statuses in priority order
     let allOrders: MintsoftOrder[] = [];
     const seenOrderIds = new Set<number>();
-    
+    let coldFullyProcessed = 0; // count of cold statuses fully completed this run
+
       let timedOut = false;
-      for (const statusId of statusIdsToFetch) {
+      for (let sIdx = 0; sIdx < statusIdsToFetch.length; sIdx++) {
+        const statusId = statusIdsToFetch[sIdx];
+        const isTerminal = liveTailTerminalIds.includes(statusId);
+        const isCold = rotatedCold.includes(statusId) && !isTerminal && !hotStatusIds.includes(statusId);
         if (isTimeRunningOut()) { timedOut = true; break; }
         let pageNo = 1;
+        let statusFullyDone = true;
         while (true) {
           const resp = await fetch(`${settings.base_url}/api/Order/List?OrderStatusId=${statusId}&Limit=100&PageNo=${pageNo}`, {
             headers: { "ms-apikey": mintsoftApiKey, "Content-Type": "application/json" },
@@ -235,51 +263,37 @@ Deno.serve(async (req) => {
           if (!resp.ok) break;
           const orders: MintsoftOrder[] = await resp.json();
           if (orders.length === 0) break;
+          let stopPaging = false;
           const filtered = orders.filter(o => {
             if (seenOrderIds.has(o.ID)) return false;
-            // Honor MIN_DATE always; honor fromDate only in backfill mode
             const orderDateObj = new Date(o.OrderDate);
             if (orderDateObj < MIN_DATE) return false;
+            // Terminal sweep: hard 10-day floor (Mintsoft returns newest first)
+            if (isTerminal && orderDateObj < liveTailTerminalFloor) { stopPaging = true; return false; }
             if (!ignoreDateFilter && orderDateObj < fromDateObj) return false;
             seenOrderIds.add(o.ID);
             return true;
           });
           allOrders = allOrders.concat(filtered);
-          if (orders.length < 100 || pageNo >= 50) break;
+          if (stopPaging || orders.length < 100 || pageNo >= 50) break;
           pageNo++;
+          if (isTimeRunningOut()) { timedOut = true; statusFullyDone = false; break; }
         }
+        if (isCold && statusFullyDone) coldFullyProcessed++;
+        if (timedOut) break;
       }
-      console.log(`Fetched ${allOrders.length} order headers across ${statusIdsToFetch.length} statuses${timedOut ? ' (partial - timed out)' : ''}`);
+      console.log(`Fetched ${allOrders.length} order headers${timedOut ? ' (partial - timed out)' : ''}, cold processed: ${coldFullyProcessed}/${rotatedCold.length}`);
 
-      // 1b. LIVE-TAIL terminal sweep: pull recently-despatched/cancelled orders
-      // (last 3 days by OrderDate) so we don't miss same-day-despatch orders.
-      if (liveTailTerminalIds.length > 0 && !timedOut) {
-        for (const statusId of liveTailTerminalIds) {
-          if (isTimeRunningOut()) { timedOut = true; break; }
-          let pageNo = 1;
-          while (true) {
-            const resp = await fetch(`${settings.base_url}/api/Order/List?OrderStatusId=${statusId}&Limit=100&PageNo=${pageNo}`, {
-              headers: { "ms-apikey": mintsoftApiKey, "Content-Type": "application/json" },
-            });
-            if (!resp.ok) break;
-            const orders: MintsoftOrder[] = await resp.json();
-            if (orders.length === 0) break;
-            let stopPaging = false;
-            const filtered = orders.filter(o => {
-              if (seenOrderIds.has(o.ID)) return false;
-              const orderDateObj = new Date(o.OrderDate);
-              if (orderDateObj < MIN_DATE) return false;
-              if (orderDateObj < liveTailTerminalFloor) { stopPaging = true; return false; }
-              seenOrderIds.add(o.ID);
-              return true;
-            });
-            allOrders = allOrders.concat(filtered);
-            // Mintsoft returns most recent first — once we cross the floor, stop.
-            if (stopPaging || orders.length < 100 || pageNo >= 50) break;
-            pageNo++;
-          }
-        }
-        console.log(`After terminal sweep: ${allOrders.length} total order headers`);
+      // Advance cold cursor so the NEXT run picks up where this one stopped.
+      if (coldStatusIds.length > 0) {
+        const newCursor = (coldCursor + coldFullyProcessed) % coldStatusIds.length;
+        try {
+          await supabase.from('app_settings').upsert({
+            key: 'sync_orders.cold_cursor',
+            value: newCursor,
+            description: 'Round-robin cursor for cold (rarely-changing) Mintsoft order statuses',
+          });
+        } catch (e) { console.error('Failed to update cold_cursor:', e); }
       }
 
     // 2. Find which orders we already have lines for
