@@ -1566,6 +1566,36 @@ export type Database = {
           },
         ]
       }
+      order_status_history: {
+        Row: {
+          changed_at: string
+          created_at: string
+          from_status: string | null
+          id: number
+          line_index: number
+          mintsoft_order_id: number
+          to_status: string | null
+        }
+        Insert: {
+          changed_at?: string
+          created_at?: string
+          from_status?: string | null
+          id?: number
+          line_index: number
+          mintsoft_order_id: number
+          to_status?: string | null
+        }
+        Update: {
+          changed_at?: string
+          created_at?: string
+          from_status?: string | null
+          id?: number
+          line_index?: number
+          mintsoft_order_id?: number
+          to_status?: string | null
+        }
+        Relationships: []
+      }
       order_status_snapshots: {
         Row: {
           awaitingpicking_count: number
