@@ -319,6 +319,7 @@ Deno.serve(async (req) => {
     let linesProcessed = 0, linesInserted = 0, linesSkipped = 0, productsCreated = 0;
 
     // 3. For EXISTING orders — bulk update status fields
+    const statusHistoryRows: Record<string, unknown>[] = [];
     if (existingOrders.length > 0) {
       const updatePayloads: Record<string, unknown>[] = [];
       for (const order of existingOrders) {
@@ -333,6 +334,15 @@ Deno.serve(async (req) => {
           // Detect if status actually changed
           const oldStatus = existing.order_status;
           const statusChanged = newStatusName !== oldStatus;
+          if (statusChanged) {
+            statusHistoryRows.push({
+              mintsoft_order_id: order.ID,
+              line_index: parseInt(lineIndexStr),
+              from_status: oldStatus,
+              to_status: newStatusName,
+              changed_at: now,
+            });
+          }
           
           const payload: Record<string, unknown> = {
             mintsoft_order_id: order.ID,
@@ -372,6 +382,16 @@ Deno.serve(async (req) => {
         else linesInserted += batch.length;
       }
       console.log(`Updated ${linesInserted} existing lines with status info`);
+
+      // Persist status transitions for bouncing detector
+      if (statusHistoryRows.length > 0) {
+        for (let i = 0; i < statusHistoryRows.length; i += 500) {
+          const batch = statusHistoryRows.slice(i, i + 500);
+          const { error } = await supabase.from("order_status_history").insert(batch);
+          if (error) console.error("status history insert error:", error);
+        }
+        console.log(`Recorded ${statusHistoryRows.length} status transitions`);
+      }
     }
 
     // 4. For NEW orders — fetch items and create lines
