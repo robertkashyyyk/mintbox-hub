@@ -382,6 +382,16 @@ Deno.serve(async (req) => {
         else linesInserted += batch.length;
       }
       console.log(`Updated ${linesInserted} existing lines with status info`);
+
+      // Persist status transitions for bouncing detector
+      if (statusHistoryRows.length > 0) {
+        for (let i = 0; i < statusHistoryRows.length; i += 500) {
+          const batch = statusHistoryRows.slice(i, i + 500);
+          const { error } = await supabase.from("order_status_history").insert(batch);
+          if (error) console.error("status history insert error:", error);
+        }
+        console.log(`Recorded ${statusHistoryRows.length} status transitions`);
+      }
     }
 
     // 4. For NEW orders — fetch items and create lines
