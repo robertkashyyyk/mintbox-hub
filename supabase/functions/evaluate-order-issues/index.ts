@@ -201,6 +201,45 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Rule 3.5: BOUNCING — order has flipped status many times over a longer window
+    // (e.g. NEW ↔ AWAITINGPICKING ↔ ONBACKORDER repeatedly). Window: last 14 days.
+    const activeOrderIds = [...new Set(activeLines.map(l => l.mintsoft_order_id))];
+    if (activeOrderIds.length > 0) {
+      const flipCounts = new Map<string, { flips: number; last_change: string; statuses: Set<string> }>();
+      for (let i = 0; i < activeOrderIds.length; i += 500) {
+        const batch = activeOrderIds.slice(i, i + 500);
+        const { data: history } = await supabase
+          .from("order_status_history")
+          .select("mintsoft_order_id, line_index, to_status, changed_at")
+          .in("mintsoft_order_id", batch)
+          .gte("changed_at", new Date(Date.now() - 14 * 86_400_000).toISOString());
+        for (const h of history || []) {
+          const key = `${h.mintsoft_order_id}-${h.line_index}`;
+          const cur = flipCounts.get(key) || { flips: 0, last_change: h.changed_at, statuses: new Set<string>() };
+          cur.flips++;
+          if (h.to_status) cur.statuses.add(h.to_status);
+          if (h.changed_at > cur.last_change) cur.last_change = h.changed_at;
+          flipCounts.set(key, cur);
+        }
+      }
+      for (const line of activeLines) {
+        const key = `${line.mintsoft_order_id}-${line.line_index}`;
+        const fc = flipCounts.get(key);
+        // Require ≥4 distinct flips AND ≥2 distinct statuses to count as bouncing
+        if (fc && fc.flips >= 4 && fc.statuses.size >= 2) {
+          const sev = fc.flips >= 8 ? "critical" : fc.flips >= 6 ? "problem" : "watch";
+          candidates.push({
+            mintsoft_order_id: line.mintsoft_order_id, line_index: line.line_index,
+            sku: line.sku, brand_id: line.brand_id, problem_type: "bouncing", severity: sev,
+            reason: `Order has flipped status ${fc.flips}× across ${fc.statuses.size} states in last 14 days (latest: ${line.order_status})`,
+            last_problem_seen_at: now,
+            suggested_action: 'Order is oscillating between statuses — investigate root cause (intermittent stock, system loop, or manual reassignment).',
+          });
+          skuProblemCounts[line.sku] = (skuProblemCounts[line.sku] || 0) + 1;
+        }
+      }
+    }
+
     // Rule 4: SKU clustering (advisory)
     for (const [sku, count] of Object.entries(skuProblemCounts)) {
       if (count >= 3) {
