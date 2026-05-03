@@ -288,7 +288,10 @@ Deno.serve(async (req) => {
             return true;
           });
           allOrders = allOrders.concat(filtered);
-          if (stopPaging || orders.length < 100 || pageNo >= 50) break;
+          // Terminal sweep capped at 10 pages (1000 orders) per status per run
+          // to prevent it from starving the hot queue. Hot/cold use 50.
+          const pageCap = isTerminal ? 10 : 50;
+          if (stopPaging || orders.length < 100 || pageNo >= pageCap) break;
           pageNo++;
           if (isTimeRunningOut()) { timedOut = true; statusFullyDone = false; break; }
         }
