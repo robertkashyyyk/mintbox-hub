@@ -191,6 +191,35 @@ const MissingCosts = () => {
     return { unique: sold28.size, units };
   }, [sold28]);
 
+  // Classify the sold-28d SKUs against the cache to break the banner down
+  const { data: skuClassification } = useQuery({
+    queryKey: ["missing-costs-sold28-classification", sold28 ? Array.from(sold28.keys()).length : 0],
+    enabled: !!sold28 && sold28.size > 0,
+    queryFn: async () => {
+      const skus = Array.from(sold28!.keys());
+      const found = new Map<string, { quarantined: boolean; discontinued: boolean }>();
+      const chunkSize = 500;
+      for (let i = 0; i < skus.length; i += chunkSize) {
+        const chunk = skus.slice(i, i + chunkSize);
+        const { data, error } = await supabase
+          .from("products_cache")
+          .select("sku, quarantined, discontinued")
+          .in("sku", chunk);
+        if (error) throw error;
+        for (const r of data ?? []) found.set(r.sku, { quarantined: !!r.quarantined, discontinued: !!r.discontinued });
+      }
+      let editable = 0, quarantined = 0, discontinued = 0, orphan = 0;
+      for (const sku of skus) {
+        const f = found.get(sku);
+        if (!f) orphan++;
+        else if (f.quarantined) quarantined++;
+        else if (f.discontinued) discontinued++;
+        else editable++;
+      }
+      return { editable, quarantined, discontinued, orphan };
+    },
+  });
+
   // Sortable column header
   const Th = ({ k, label, align = "left" }: { k: SortKey; label: string; align?: "left" | "right" }) => {
     const active = sortKey === k;
@@ -300,9 +329,25 @@ const MissingCosts = () => {
 
       <Card className="border-destructive/40">
         <CardContent className="p-4 flex items-center justify-between flex-wrap gap-3">
-          <div className="text-sm">
-            <span className="font-semibold text-destructive">{recentImpact.unique}</span> SKUs sold in the last 28 days have no cost set
-            <span className="text-foreground/60"> ({recentImpact.units} units).</span>
+          <div className="text-sm space-y-1">
+            <div>
+              <span className="font-semibold text-destructive">{recentImpact.unique}</span> SKUs sold in the last 28 days have no cost set
+              <span className="text-foreground/60"> ({recentImpact.units} units).</span>
+            </div>
+            {skuClassification && (
+              <div className="text-xs text-foreground/60">
+                <span className="text-foreground/80 font-medium">{skuClassification.editable.toLocaleString()}</span> editable here
+                {skuClassification.quarantined > 0 && (
+                  <> · <Link to="/intelligence/dirt-skus" className="text-pd-accent hover:underline">{skuClassification.quarantined.toLocaleString()} quarantined (Dirt SKUs)</Link></>
+                )}
+                {skuClassification.orphan > 0 && (
+                  <> · <Link to="/discovery/discovery-queue" className="text-pd-accent hover:underline">{skuClassification.orphan.toLocaleString()} missing from catalogue</Link></>
+                )}
+                {skuClassification.discontinued > 0 && (
+                  <> · {skuClassification.discontinued.toLocaleString()} discontinued</>
+                )}
+              </div>
+            )}
           </div>
           <Button asChild variant="outline" size="sm">
             <Link to="/intelligence/profit">Open Profit dashboard</Link>
