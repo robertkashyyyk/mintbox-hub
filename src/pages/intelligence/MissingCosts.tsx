@@ -191,6 +191,35 @@ const MissingCosts = () => {
     return { unique: sold28.size, units };
   }, [sold28]);
 
+  // Classify the sold-28d SKUs against the cache to break the banner down
+  const { data: skuClassification } = useQuery({
+    queryKey: ["missing-costs-sold28-classification", sold28 ? Array.from(sold28.keys()).length : 0],
+    enabled: !!sold28 && sold28.size > 0,
+    queryFn: async () => {
+      const skus = Array.from(sold28!.keys());
+      const found = new Map<string, { quarantined: boolean; discontinued: boolean }>();
+      const chunkSize = 500;
+      for (let i = 0; i < skus.length; i += chunkSize) {
+        const chunk = skus.slice(i, i + chunkSize);
+        const { data, error } = await supabase
+          .from("products_cache")
+          .select("sku, quarantined, discontinued")
+          .in("sku", chunk);
+        if (error) throw error;
+        for (const r of data ?? []) found.set(r.sku, { quarantined: !!r.quarantined, discontinued: !!r.discontinued });
+      }
+      let editable = 0, quarantined = 0, discontinued = 0, orphan = 0;
+      for (const sku of skus) {
+        const f = found.get(sku);
+        if (!f) orphan++;
+        else if (f.quarantined) quarantined++;
+        else if (f.discontinued) discontinued++;
+        else editable++;
+      }
+      return { editable, quarantined, discontinued, orphan };
+    },
+  });
+
   // Sortable column header
   const Th = ({ k, label, align = "left" }: { k: SortKey; label: string; align?: "left" | "right" }) => {
     const active = sortKey === k;
