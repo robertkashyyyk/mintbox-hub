@@ -556,11 +556,17 @@ Deno.serve(async (req) => {
 
     const partial = earlyExit ? " (partial — run again to continue)" : "";
     const summary = `Synced ${allOrders.length} orders across ${statusIdsToFetch.length} statuses · ${linesInserted} lines saved · ${productsCreated} new products${partial}`;
+    const allIds = allOrders.map(o => o.ID || 0);
+    const highestId = allIds.reduce((m, id) => Math.max(m, id), 0);
+    const lowestId = allIds.length ? allIds.reduce((m, id) => Math.min(m, id), Number.MAX_SAFE_INTEGER) : 0;
+    const hotReached = hotStatusIds.length === 0 ? null : allOrders.some(o => o.OrderStatusId && hotStatusIds.includes(o.OrderStatusId));
     await logRun(supabase, earlyExit ? "partial" : "succeeded", summary, {
       orders_fetched: allOrders.length,
       new_orders: newOrders.length,
       existing_orders_updated: existingOrders.length,
-      highest_order_id_seen: allOrders.reduce((max, order) => Math.max(max, order.ID || 0), 0),
+      highest_order_id_seen: highestId,
+      lowest_order_id_seen: lowestId,
+      hot_status_reached: hotReached,
       lines_inserted: linesInserted,
       lines_skipped: linesSkipped,
       products_created: productsCreated,
