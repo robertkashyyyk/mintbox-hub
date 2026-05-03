@@ -250,9 +250,11 @@ Deno.serve(async (req) => {
     const rotatedCold = coldStatusIds.length > 0
       ? [...coldStatusIds.slice(coldCursor % coldStatusIds.length), ...coldStatusIds.slice(0, coldCursor % coldStatusIds.length)]
       : [];
-    // Final order: terminal sweep (recent dispatched/cancelled) FIRST, then hot, then rotated cold
-    const statusIdsToFetch = [...liveTailTerminalIds, ...hotStatusIds, ...rotatedCold];
-    console.log(`Status priority: ${liveTailTerminalIds.length} terminal + ${hotStatusIds.length} hot + ${rotatedCold.length} cold (cursor=${coldCursor})`);
+    // Final order: HOT first (today's NEW/AWAITINGPICKING — small + critical),
+    // then rotated COLD, then terminal sweep LAST (largest, can be truncated
+    // safely because reconcile-order-ghosts handles deeper terminal reconciliation).
+    const statusIdsToFetch = [...hotStatusIds, ...rotatedCold, ...liveTailTerminalIds];
+    console.log(`Status priority: ${hotStatusIds.length} hot + ${rotatedCold.length} cold (cursor=${coldCursor}) + ${liveTailTerminalIds.length} terminal`);
 
     // 1. Fetch order headers across statuses in priority order
     let allOrders: MintsoftOrder[] = [];
