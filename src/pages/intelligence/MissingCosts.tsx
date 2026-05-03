@@ -329,9 +329,25 @@ const MissingCosts = () => {
 
       <Card className="border-destructive/40">
         <CardContent className="p-4 flex items-center justify-between flex-wrap gap-3">
-          <div className="text-sm">
-            <span className="font-semibold text-destructive">{recentImpact.unique}</span> SKUs sold in the last 28 days have no cost set
-            <span className="text-foreground/60"> ({recentImpact.units} units).</span>
+          <div className="text-sm space-y-1">
+            <div>
+              <span className="font-semibold text-destructive">{recentImpact.unique}</span> SKUs sold in the last 28 days have no cost set
+              <span className="text-foreground/60"> ({recentImpact.units} units).</span>
+            </div>
+            {skuClassification && (
+              <div className="text-xs text-foreground/60">
+                <span className="text-foreground/80 font-medium">{skuClassification.editable.toLocaleString()}</span> editable here
+                {skuClassification.quarantined > 0 && (
+                  <> · <Link to="/intelligence/dirt-skus" className="text-pd-accent hover:underline">{skuClassification.quarantined.toLocaleString()} quarantined (Dirt SKUs)</Link></>
+                )}
+                {skuClassification.orphan > 0 && (
+                  <> · <Link to="/discovery/discovery-queue" className="text-pd-accent hover:underline">{skuClassification.orphan.toLocaleString()} missing from catalogue</Link></>
+                )}
+                {skuClassification.discontinued > 0 && (
+                  <> · {skuClassification.discontinued.toLocaleString()} discontinued</>
+                )}
+              </div>
+            )}
           </div>
           <Button asChild variant="outline" size="sm">
             <Link to="/intelligence/profit">Open Profit dashboard</Link>
