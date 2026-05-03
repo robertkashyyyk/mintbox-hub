@@ -3275,33 +3275,6 @@ export type Database = {
           },
         ]
       }
-      sku_stock_health: {
-        Row: {
-          avg_weekly_units: number | null
-          base_multiplier: number | null
-          brand_id: string | null
-          health_category: string | null
-          on_hand_qty: number | null
-          sku: string | null
-          weeks_of_cover: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "products_cache_brand_id_fkey"
-            columns: ["brand_id"]
-            isOneToOne: false
-            referencedRelation: "brands"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "products_cache_brand_id_fkey"
-            columns: ["brand_id"]
-            isOneToOne: false
-            referencedRelation: "brands_missing_base_multiplier"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       sku_velocity: {
         Row: {
           avg_weekly_units: number | null
@@ -3313,14 +3286,14 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "order_lines_brand_id_fkey"
+            foreignKeyName: "products_cache_brand_id_fkey"
             columns: ["brand_id"]
             isOneToOne: false
             referencedRelation: "brands"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "order_lines_brand_id_fkey"
+            foreignKeyName: "products_cache_brand_id_fkey"
             columns: ["brand_id"]
             isOneToOne: false
             referencedRelation: "brands_missing_base_multiplier"
