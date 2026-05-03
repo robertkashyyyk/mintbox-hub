@@ -250,9 +250,11 @@ Deno.serve(async (req) => {
     const rotatedCold = coldStatusIds.length > 0
       ? [...coldStatusIds.slice(coldCursor % coldStatusIds.length), ...coldStatusIds.slice(0, coldCursor % coldStatusIds.length)]
       : [];
-    // Final order: terminal sweep (recent dispatched/cancelled) FIRST, then hot, then rotated cold
-    const statusIdsToFetch = [...liveTailTerminalIds, ...hotStatusIds, ...rotatedCold];
-    console.log(`Status priority: ${liveTailTerminalIds.length} terminal + ${hotStatusIds.length} hot + ${rotatedCold.length} cold (cursor=${coldCursor})`);
+    // Final order: HOT first (today's NEW/AWAITINGPICKING — small + critical),
+    // then rotated COLD, then terminal sweep LAST (largest, can be truncated
+    // safely because reconcile-order-ghosts handles deeper terminal reconciliation).
+    const statusIdsToFetch = [...hotStatusIds, ...rotatedCold, ...liveTailTerminalIds];
+    console.log(`Status priority: ${hotStatusIds.length} hot + ${rotatedCold.length} cold (cursor=${coldCursor}) + ${liveTailTerminalIds.length} terminal`);
 
     // 1. Fetch order headers across statuses in priority order
     let allOrders: MintsoftOrder[] = [];
@@ -286,7 +288,10 @@ Deno.serve(async (req) => {
             return true;
           });
           allOrders = allOrders.concat(filtered);
-          if (stopPaging || orders.length < 100 || pageNo >= 50) break;
+          // Terminal sweep capped at 10 pages (1000 orders) per status per run
+          // to prevent it from starving the hot queue. Hot/cold use 50.
+          const pageCap = isTerminal ? 10 : 50;
+          if (stopPaging || orders.length < 100 || pageNo >= pageCap) break;
           pageNo++;
           if (isTimeRunningOut()) { timedOut = true; statusFullyDone = false; break; }
         }
@@ -551,11 +556,17 @@ Deno.serve(async (req) => {
 
     const partial = earlyExit ? " (partial — run again to continue)" : "";
     const summary = `Synced ${allOrders.length} orders across ${statusIdsToFetch.length} statuses · ${linesInserted} lines saved · ${productsCreated} new products${partial}`;
+    const allIds = allOrders.map(o => o.ID || 0);
+    const highestId = allIds.reduce((m, id) => Math.max(m, id), 0);
+    const lowestId = allIds.length ? allIds.reduce((m, id) => Math.min(m, id), Number.MAX_SAFE_INTEGER) : 0;
+    const hotReached = hotStatusIds.length === 0 ? null : allOrders.some(o => o.OrderStatusId && hotStatusIds.includes(o.OrderStatusId));
     await logRun(supabase, earlyExit ? "partial" : "succeeded", summary, {
       orders_fetched: allOrders.length,
       new_orders: newOrders.length,
       existing_orders_updated: existingOrders.length,
-      highest_order_id_seen: allOrders.reduce((max, order) => Math.max(max, order.ID || 0), 0),
+      highest_order_id_seen: highestId,
+      lowest_order_id_seen: lowestId,
+      hot_status_reached: hotReached,
       lines_inserted: linesInserted,
       lines_skipped: linesSkipped,
       products_created: productsCreated,
