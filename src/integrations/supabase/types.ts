@@ -2818,6 +2818,34 @@ export type Database = {
         }
         Relationships: []
       }
+      buy_recommendations: {
+        Row: {
+          avg_weekly_units: number | null
+          base_multiplier: number | null
+          brand_id: string | null
+          on_hand_qty: number | null
+          recommended_purchase_qty: number | null
+          sku: string | null
+          target_stock: number | null
+          weeks_of_cover: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "products_cache_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "products_cache_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands_missing_base_multiplier"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       latest_email_per_type: {
         Row: {
           alert_type: Database["public"]["Enums"]["alert_type"] | null
@@ -3313,14 +3341,14 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "order_lines_brand_id_fkey"
+            foreignKeyName: "products_cache_brand_id_fkey"
             columns: ["brand_id"]
             isOneToOne: false
             referencedRelation: "brands"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "order_lines_brand_id_fkey"
+            foreignKeyName: "products_cache_brand_id_fkey"
             columns: ["brand_id"]
             isOneToOne: false
             referencedRelation: "brands_missing_base_multiplier"

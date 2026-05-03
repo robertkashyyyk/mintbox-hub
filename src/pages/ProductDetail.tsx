@@ -19,7 +19,10 @@ export default function ProductDetail() {
   const { data: product, isLoading } = useQuery({
     queryKey: ["product", id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      if (!id) return null;
+      // UUID v4-ish detection — otherwise treat as SKU
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+      const query = supabase
         .from("products_cache")
         .select(`
           *,
@@ -27,9 +30,10 @@ export default function ProductDetail() {
           product_category_links (
             product_categories (name)
           )
-        `)
-        .eq("id", id)
-        .single();
+        `);
+      const { data, error } = isUuid
+        ? await query.eq("id", id).maybeSingle()
+        : await query.eq("sku", id).maybeSingle();
       if (error) throw error;
       return data;
     },
