@@ -78,6 +78,9 @@ import HousekeepingIndex from "./pages/HousekeepingIndex";
 
 // Admin extras
 import ProfitRules from "./pages/admin/ProfitRules";
+import Suppliers from "./pages/admin/Suppliers";
+import PurchaseOrders from "./pages/execution/PurchaseOrders";
+import PurchaseOrderDetail from "./pages/execution/PurchaseOrderDetail";
 
 // Decisions Pages
 import BuyRecommendations from "./pages/decisions/BuyRecommendations";
@@ -188,7 +191,8 @@ const App = () => (
             <Route path="/decisions/bundles" element={<BundleSuggestions />} />
 
             {/* Execution Sub-Routes */}
-            <Route path="/execution/purchase-orders" element={<Dashboard />} />
+            <Route path="/execution/purchase-orders" element={<PurchaseOrders />} />
+            <Route path="/execution/purchase-orders/:id" element={<PurchaseOrderDetail />} />
             <Route path="/execution/price-hunter" element={<PriceHunter />} />
             <Route path="/execution/price-hunter/ignored-sellers" element={<IgnoredSellers />} />
             <Route path="/execution/price-hunter/ignored-listings" element={<IgnoredListings />} />
@@ -208,6 +212,7 @@ const App = () => (
             <Route path="/admin/catalogues" element={<CatalogueLibrary />} />
             <Route path="/admin/catalogues/:id" element={<CatalogueBuilder />} />
             <Route path="/admin/profit-rules" element={<ProfitRules />} />
+            <Route path="/admin/suppliers" element={<Suppliers />} />
 
             {/* Operations Sub-Routes */}
             <Route path="/operations/dashboard" element={<OpsDashboard />} />
