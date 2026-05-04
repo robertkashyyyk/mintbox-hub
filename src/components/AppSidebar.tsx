@@ -128,7 +128,7 @@ export function AppSidebar() {
       icon: ShoppingCart,
       requireSenior: true,
       items: [
-        { title: "Purchase Order Builder", url: "/execution/purchase-orders", icon: ShoppingCart },
+        { title: "Purchase Orders", url: "/execution/purchase-orders", icon: ShoppingCart },
         { title: "Price Hunter", url: "/execution/price-hunter", icon: DollarSign },
         { title: "Remote Stock Updates", url: "/execution/remote-stock-updates", icon: RefreshCw },
         { title: "Listing Cloner", url: "/execution/listing-cloner", icon: Copy },
@@ -172,6 +172,7 @@ export function AppSidebar() {
         { title: "System Settings", url: "/admin/settings", icon: Settings },
         { title: "Integrations", url: "/admin/integrations", icon: Plug },
         { title: "Profit Rules", url: "/admin/profit-rules", icon: Sliders },
+        { title: "Suppliers", url: "/admin/suppliers", icon: Truck },
       ],
     },
   ];
