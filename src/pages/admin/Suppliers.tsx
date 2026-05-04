@@ -43,12 +43,10 @@ const Suppliers = () => {
   const { data: suppliers = [], isLoading } = useQuery({
     queryKey: ["suppliers-list"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("suppliers" as any)
-        .select("*")
-        .order("name");
+      const sb = supabase as any;
+      const { data, error } = await sb.from("suppliers").select("*").order("name");
       if (error) throw error;
-      return (data || []) as Supplier[];
+      return ((data || []) as unknown) as Supplier[];
     },
   });
 
