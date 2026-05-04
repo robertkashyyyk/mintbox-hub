@@ -55,3 +55,10 @@ verify_jwt = false
 
 [functions.verify-mintsoft-costs]
 verify_jwt = false
+
+[functions.sftp-pull-lowstock]
+verify_jwt = false
+
+[functions.mintsoft-create-po]
+verify_jwt = true
+
