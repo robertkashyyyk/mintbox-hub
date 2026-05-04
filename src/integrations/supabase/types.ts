@@ -206,6 +206,7 @@ export type Database = {
         Row: {
           base_multiplier: number | null
           created_at: string | null
+          default_supplier_id: string | null
           family: string | null
           id: string
           name: string
@@ -218,6 +219,7 @@ export type Database = {
         Insert: {
           base_multiplier?: number | null
           created_at?: string | null
+          default_supplier_id?: string | null
           family?: string | null
           id?: string
           name: string
@@ -230,6 +232,7 @@ export type Database = {
         Update: {
           base_multiplier?: number | null
           created_at?: string | null
+          default_supplier_id?: string | null
           family?: string | null
           id?: string
           name?: string
@@ -239,7 +242,15 @@ export type Database = {
             | Database["public"]["Enums"]["remote_stock_feed_type"]
             | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "brands_default_supplier_id_fkey"
+            columns: ["default_supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       carrier_documents: {
         Row: {
@@ -2073,7 +2084,9 @@ export type Database = {
           key_features: string[] | null
           last_stock_sync: string | null
           length: number | null
+          low_stock_alert: number | null
           low_stock_alert_level: number | null
+          low_stock_alert_synced_at: string | null
           marketing_description: string | null
           marketing_title: string | null
           mintsoft_categories: string[] | null
@@ -2126,7 +2139,9 @@ export type Database = {
           key_features?: string[] | null
           last_stock_sync?: string | null
           length?: number | null
+          low_stock_alert?: number | null
           low_stock_alert_level?: number | null
+          low_stock_alert_synced_at?: string | null
           marketing_description?: string | null
           marketing_title?: string | null
           mintsoft_categories?: string[] | null
@@ -2179,7 +2194,9 @@ export type Database = {
           key_features?: string[] | null
           last_stock_sync?: string | null
           length?: number | null
+          low_stock_alert?: number | null
           low_stock_alert_level?: number | null
+          low_stock_alert_synced_at?: string | null
           marketing_description?: string | null
           marketing_title?: string | null
           mintsoft_categories?: string[] | null
@@ -2347,33 +2364,51 @@ export type Database = {
         Row: {
           created_at: string | null
           id: string
+          line_total: number | null
           mintsoft_asn_id: number | null
+          notes: string | null
           po_id: string
           product_name: string | null
           qty_ordered: number
           sku: string
+          snapshot_back_orders: number | null
+          snapshot_live_stock: number | null
+          snapshot_low_stock_alert: number | null
+          snapshot_on_order: number | null
           unit_cost: number | null
           updated_at: string | null
         }
         Insert: {
           created_at?: string | null
           id?: string
+          line_total?: number | null
           mintsoft_asn_id?: number | null
+          notes?: string | null
           po_id: string
           product_name?: string | null
           qty_ordered?: number
           sku: string
+          snapshot_back_orders?: number | null
+          snapshot_live_stock?: number | null
+          snapshot_low_stock_alert?: number | null
+          snapshot_on_order?: number | null
           unit_cost?: number | null
           updated_at?: string | null
         }
         Update: {
           created_at?: string | null
           id?: string
+          line_total?: number | null
           mintsoft_asn_id?: number | null
+          notes?: string | null
           po_id?: string
           product_name?: string | null
           qty_ordered?: number
           sku?: string
+          snapshot_back_orders?: number | null
+          snapshot_live_stock?: number | null
+          snapshot_low_stock_alert?: number | null
+          snapshot_on_order?: number | null
           unit_cost?: number | null
           updated_at?: string | null
         }
@@ -2394,11 +2429,18 @@ export type Database = {
           created_at: string | null
           created_by: string | null
           id: string
+          mintsoft_po_id: number | null
           notes: string | null
+          po_number: string | null
+          received_at: string | null
           sent_at: string | null
+          sent_by: string | null
           status: string | null
           supplier_id: string | null
+          total_cost: number
+          total_qty: number
           updated_at: string | null
+          warehouse_id: number | null
         }
         Insert: {
           approved_at?: string | null
@@ -2406,11 +2448,18 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           id?: string
+          mintsoft_po_id?: number | null
           notes?: string | null
+          po_number?: string | null
+          received_at?: string | null
           sent_at?: string | null
+          sent_by?: string | null
           status?: string | null
           supplier_id?: string | null
+          total_cost?: number
+          total_qty?: number
           updated_at?: string | null
+          warehouse_id?: number | null
         }
         Update: {
           approved_at?: string | null
@@ -2418,11 +2467,18 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           id?: string
+          mintsoft_po_id?: number | null
           notes?: string | null
+          po_number?: string | null
+          received_at?: string | null
           sent_at?: string | null
+          sent_by?: string | null
           status?: string | null
           supplier_id?: string | null
+          total_cost?: number
+          total_qty?: number
           updated_at?: string | null
+          warehouse_id?: number | null
         }
         Relationships: [
           {
@@ -2522,6 +2578,8 @@ export type Database = {
           contact_phone: string | null
           created_at: string | null
           id: string
+          lead_time_days: number | null
+          mintsoft_supplier_id: number | null
           name: string
           notes: string | null
           ordering_method: string | null
@@ -2534,6 +2592,8 @@ export type Database = {
           contact_phone?: string | null
           created_at?: string | null
           id: string
+          lead_time_days?: number | null
+          mintsoft_supplier_id?: number | null
           name: string
           notes?: string | null
           ordering_method?: string | null
@@ -2546,6 +2606,8 @@ export type Database = {
           contact_phone?: string | null
           created_at?: string | null
           id?: string
+          lead_time_days?: number | null
+          mintsoft_supplier_id?: number | null
           name?: string
           notes?: string | null
           ordering_method?: string | null
