@@ -206,7 +206,6 @@ export type Database = {
         Row: {
           base_multiplier: number | null
           created_at: string | null
-          default_supplier_id: string | null
           family: string | null
           id: string
           name: string
@@ -219,7 +218,6 @@ export type Database = {
         Insert: {
           base_multiplier?: number | null
           created_at?: string | null
-          default_supplier_id?: string | null
           family?: string | null
           id?: string
           name: string
@@ -232,7 +230,6 @@ export type Database = {
         Update: {
           base_multiplier?: number | null
           created_at?: string | null
-          default_supplier_id?: string | null
           family?: string | null
           id?: string
           name?: string
@@ -242,15 +239,7 @@ export type Database = {
             | Database["public"]["Enums"]["remote_stock_feed_type"]
             | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "brands_default_supplier_id_fkey"
-            columns: ["default_supplier_id"]
-            isOneToOne: false
-            referencedRelation: "suppliers"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       carrier_documents: {
         Row: {
@@ -2084,9 +2073,7 @@ export type Database = {
           key_features: string[] | null
           last_stock_sync: string | null
           length: number | null
-          low_stock_alert: number | null
           low_stock_alert_level: number | null
-          low_stock_alert_synced_at: string | null
           marketing_description: string | null
           marketing_title: string | null
           mintsoft_categories: string[] | null
@@ -2139,9 +2126,7 @@ export type Database = {
           key_features?: string[] | null
           last_stock_sync?: string | null
           length?: number | null
-          low_stock_alert?: number | null
           low_stock_alert_level?: number | null
-          low_stock_alert_synced_at?: string | null
           marketing_description?: string | null
           marketing_title?: string | null
           mintsoft_categories?: string[] | null
@@ -2194,9 +2179,7 @@ export type Database = {
           key_features?: string[] | null
           last_stock_sync?: string | null
           length?: number | null
-          low_stock_alert?: number | null
           low_stock_alert_level?: number | null
-          low_stock_alert_synced_at?: string | null
           marketing_description?: string | null
           marketing_title?: string | null
           mintsoft_categories?: string[] | null
