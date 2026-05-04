@@ -3456,6 +3456,40 @@ export type Database = {
         Args: { c: Database["public"]["Enums"]["app_capability"] }
         Returns: number
       }
+      get_buy_recommendations: {
+        Args: {
+          p_brand_id?: string
+          p_include_pending?: boolean
+          p_supplier_id?: string
+        }
+        Returns: {
+          back_orders: number
+          brand_id: string
+          brand_name: string
+          current_stock: number
+          low_stock_alert: number
+          on_order: number
+          pending_po_id: string
+          pending_po_qty: number
+          product_name: string
+          required_qty: number
+          sku: string
+          status: string
+          supplier_id: string
+          supplier_name: string
+          unit_cost: number
+        }[]
+      }
+      get_buy_recommendations_summary: {
+        Args: never
+        Returns: {
+          missing_cost_count: number
+          pending_po_count: number
+          recommended_count: number
+          total_required_cost: number
+          total_required_qty: number
+        }[]
+      }
       get_despatch_channels: {
         Args: never
         Returns: {
