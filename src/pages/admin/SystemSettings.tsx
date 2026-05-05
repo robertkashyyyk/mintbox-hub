@@ -1,20 +1,43 @@
 import { useNavigate } from "react-router-dom";
-import { Settings, Shield, AlertTriangle, ArrowLeft } from "lucide-react";
+import { Settings, Shield, AlertTriangle, ArrowLeft, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useAppSetting, useUpdateAppSetting } from "@/hooks/useAppSettings";
 import { useToast } from "@/hooks/use-toast";
 import { AccessGate } from "@/components/AccessGate";
+import { useEffect, useState } from "react";
 
 const SystemSettings = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  
+
   const { data: rbacEnabled, isLoading } = useAppSetting<boolean>('use_rbac_navigation');
+  const { data: lsaThreshold, isLoading: lsaLoading } = useAppSetting<number>('lsa.ingest_min_threshold');
   const updateSetting = useUpdateAppSetting();
+
+  const [lsaInput, setLsaInput] = useState<string>("");
+  useEffect(() => {
+    if (lsaThreshold !== null && lsaThreshold !== undefined) setLsaInput(String(lsaThreshold));
+  }, [lsaThreshold]);
+
+  const handleLsaSave = async () => {
+    const n = Number(lsaInput);
+    if (!Number.isFinite(n) || n < 0) {
+      toast({ title: "Invalid value", description: "Enter a non-negative number.", variant: "destructive" });
+      return;
+    }
+    try {
+      await updateSetting.mutateAsync({ key: 'lsa.ingest_min_threshold', value: n });
+      toast({ title: "LSA threshold updated", description: `Daily SFTP feed will skip rows with LSA ≤ ${n}.` });
+    } catch {
+      toast({ title: "Error", description: "Failed to save threshold.", variant: "destructive" });
+    }
+  };
+
 
   const handleRbacToggle = async (checked: boolean) => {
     try {
