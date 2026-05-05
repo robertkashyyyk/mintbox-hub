@@ -175,6 +175,15 @@ export function AppSidebar() {
         { title: "Suppliers", url: "/admin/suppliers", icon: Truck },
       ],
     },
+    {
+      label: "Vendors",
+      basePath: "/admin/suppliers",
+      icon: Truck,
+      requireSenior: true,
+      items: [
+        { title: "Suppliers", url: "/admin/suppliers", icon: Truck },
+      ],
+    },
   ];
 
   // Track which groups are open
