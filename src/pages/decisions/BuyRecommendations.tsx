@@ -14,7 +14,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Search, Truck, Package, PoundSterling, Loader2, FilePlus2 } from "lucide-react";
-import { useBuyRecommendationsRpc, type BuyRecommendationRow } from "@/hooks/useBuyRecommendationsRpc";
+import { useBuyRecommendationsRpc, useBuyRecommendationsSummary, type BuyRecommendationRow } from "@/hooks/useBuyRecommendationsRpc";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
