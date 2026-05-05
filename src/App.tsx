@@ -84,6 +84,7 @@ import PurchaseOrderDetail from "./pages/execution/PurchaseOrderDetail";
 
 // Decisions Pages
 import BuyRecommendations from "./pages/decisions/BuyRecommendations";
+import LsaCalibration from "./pages/decisions/LsaCalibration";
 import LiquidationCandidates from "./pages/decisions/LiquidationCandidates";
 import PriceMoves from "./pages/decisions/PriceMoves";
 import BundleSuggestions from "./pages/decisions/BundleSuggestions";
