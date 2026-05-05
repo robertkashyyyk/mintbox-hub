@@ -41,6 +41,7 @@ const BuyRecommendations = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { data: rows = [], isLoading } = useBuyRecommendationsRpc({ includePending: true });
+  const { data: summary } = useBuyRecommendationsSummary();
 
   const [search, setSearch] = useState("");
   const [brandFilter, setBrandFilter] = useState<string>(ALL);
