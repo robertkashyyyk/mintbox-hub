@@ -137,9 +137,5 @@ const SystemSettings = () => {
     </AccessGate>
   );
 };
-      </div>
-    </AccessGate>
-  );
-};
 
 export default SystemSettings;
