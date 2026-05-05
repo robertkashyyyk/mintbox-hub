@@ -20,7 +20,7 @@ const FILE_PATTERNS = [
   "pdochubLowStockAlerts",
   "ColeraineLowStockAlerts",
 ];
-const LSA_MIN_THRESHOLD = 1;
+const LSA_MIN_THRESHOLD_DEFAULT = 1;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -46,6 +46,16 @@ Deno.serve(async (req) => {
   try {
     const password = Deno.env.get("MINTSOFT_FTP_PASSWORD");
     if (!password) throw new Error("MINTSOFT_FTP_PASSWORD secret not set");
+
+    // Load configurable threshold from app_settings (fallback to default).
+    let lsaMinThreshold = LSA_MIN_THRESHOLD_DEFAULT;
+    try {
+      const { data: setting } = await supabase
+        .from("app_settings").select("value").eq("key", "lsa.ingest_min_threshold").maybeSingle();
+      const v = Number(setting?.value);
+      if (Number.isFinite(v)) lsaMinThreshold = v;
+    } catch (_) { /* keep default */ }
+
     await sftp.connect({
       host: SFTP_HOST, port: SFTP_PORT, username: SFTP_USER, password,
       readyTimeout: 20_000,
@@ -98,7 +108,7 @@ Deno.serve(async (req) => {
       const sku = (r[skuKey] ?? "").trim();
       const lsa = Number(r[lsaKey]);
       if (!sku || !Number.isFinite(lsa)) { skippedInvalid++; continue; }
-      if (lsa <= LSA_MIN_THRESHOLD) { skippedBelowThreshold++; continue; }
+      if (lsa <= lsaMinThreshold) { skippedBelowThreshold++; continue; }
       lsaMap.set(sku, lsa);
     }
 
