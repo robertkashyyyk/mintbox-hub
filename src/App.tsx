@@ -84,6 +84,7 @@ import PurchaseOrderDetail from "./pages/execution/PurchaseOrderDetail";
 
 // Decisions Pages
 import BuyRecommendations from "./pages/decisions/BuyRecommendations";
+import LsaCalibration from "./pages/decisions/LsaCalibration";
 import LiquidationCandidates from "./pages/decisions/LiquidationCandidates";
 import PriceMoves from "./pages/decisions/PriceMoves";
 import BundleSuggestions from "./pages/decisions/BundleSuggestions";
@@ -186,6 +187,7 @@ const App = () => (
             {/* Decisions Sub-Routes */}
             <Route path="/decisions/buying" element={<BuyRecommendations />} />
             <Route path="/decisions/buy" element={<Navigate to="/decisions/buying" replace />} />
+            <Route path="/decisions/lsa-calibration" element={<LsaCalibration />} />
             <Route path="/decisions/liquidation" element={<LiquidationCandidates />} />
             <Route path="/decisions/price-moves" element={<PriceMoves />} />
             <Route path="/decisions/bundles" element={<BundleSuggestions />} />
