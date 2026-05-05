@@ -108,7 +108,7 @@ Deno.serve(async (req) => {
       const sku = (r[skuKey] ?? "").trim();
       const lsa = Number(r[lsaKey]);
       if (!sku || !Number.isFinite(lsa)) { skippedInvalid++; continue; }
-      if (lsa <= LSA_MIN_THRESHOLD) { skippedBelowThreshold++; continue; }
+      if (lsa <= lsaMinThreshold) { skippedBelowThreshold++; continue; }
       lsaMap.set(sku, lsa);
     }
 
