@@ -151,6 +151,48 @@ const SystemSettings = () => {
               </Alert>
             </CardContent>
           </Card>
+
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Package className="h-5 w-5 text-pd-accent" />
+                <CardTitle>LSA "Unset" Sentinel Threshold</CardTitle>
+              </div>
+              <CardDescription>
+                SKUs with a Mintsoft LowStockAlertLevel at or below this value are treated as having no meaningful LSA configured, and are excluded from LSA Calibration and Buy Recommendations.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2 max-w-xs">
+                <Label htmlFor="lsa-min-threshold" className="text-base font-medium">
+                  Minimum LSA threshold (exclusion)
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  Default is <strong>1</strong> — Mintsoft uses LSA = 1 as the "not set" sentinel.
+                </p>
+                <div className="flex gap-2">
+                  <Input
+                    id="lsa-min-threshold"
+                    type="number"
+                    min={0}
+                    step={1}
+                    value={lsaMinInput}
+                    onChange={(e) => setLsaMinInput(e.target.value)}
+                    disabled={lsaMinLoading || updateSetting.isPending}
+                  />
+                  <Button onClick={handleLsaMinSave} disabled={lsaMinLoading || updateSetting.isPending}>
+                    Save
+                  </Button>
+                </div>
+              </div>
+              <Alert>
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>
+                  Affects which SKUs appear in LSA Calibration and which feed Buy Recommendations' LSA-driven ordering. Back-orders are still considered regardless.
+                </AlertDescription>
+              </Alert>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </AccessGate>
