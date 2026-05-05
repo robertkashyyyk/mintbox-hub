@@ -14,7 +14,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Search, Truck, Package, PoundSterling, Loader2, FilePlus2 } from "lucide-react";
-import { useBuyRecommendationsRpc, type BuyRecommendationRow } from "@/hooks/useBuyRecommendationsRpc";
+import { useBuyRecommendationsRpc, useBuyRecommendationsSummary, type BuyRecommendationRow } from "@/hooks/useBuyRecommendationsRpc";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -41,6 +41,7 @@ const BuyRecommendations = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { data: rows = [], isLoading } = useBuyRecommendationsRpc({ includePending: true });
+  const { data: summary } = useBuyRecommendationsSummary();
 
   const [search, setSearch] = useState("");
   const [brandFilter, setBrandFilter] = useState<string>(ALL);
@@ -215,15 +216,30 @@ const BuyRecommendations = () => {
         <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">SKUs</CardTitle>
           <Package className="h-4 w-4 text-muted-foreground" /></CardHeader>
-          <CardContent><div className="text-2xl font-bold">{stats.totalSkus.toLocaleString()}</div></CardContent></Card>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.totalSkus.toLocaleString()}</div>
+            {summary && summary.recommended_count !== stats.totalSkus && (
+              <p className="text-xs text-muted-foreground">of {Number(summary.recommended_count).toLocaleString()} total</p>
+            )}
+          </CardContent></Card>
         <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Units</CardTitle>
           <Package className="h-4 w-4 text-muted-foreground" /></CardHeader>
-          <CardContent><div className="text-2xl font-bold">{stats.totalUnits.toLocaleString()}</div></CardContent></Card>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.totalUnits.toLocaleString()}</div>
+            {summary && Number(summary.total_required_qty) !== stats.totalUnits && (
+              <p className="text-xs text-muted-foreground">of {Number(summary.total_required_qty).toLocaleString()} total</p>
+            )}
+          </CardContent></Card>
         <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Estimated spend</CardTitle>
           <PoundSterling className="h-4 w-4 text-muted-foreground" /></CardHeader>
-          <CardContent><div className="text-2xl font-bold">{formatGBP(stats.totalSpend)}</div></CardContent></Card>
+          <CardContent>
+            <div className="text-2xl font-bold">{formatGBP(stats.totalSpend)}</div>
+            {summary && Math.round(Number(summary.total_required_cost)) !== Math.round(stats.totalSpend) && (
+              <p className="text-xs text-muted-foreground">of {formatGBP(Number(summary.total_required_cost))} total</p>
+            )}
+          </CardContent></Card>
       </div>
 
       {/* Filters */}
