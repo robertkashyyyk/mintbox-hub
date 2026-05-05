@@ -91,7 +91,52 @@ const SystemSettings = () => {
               </Alert>
             </CardContent>
           </Card>
+
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Package className="h-5 w-5 text-pd-accent" />
+                <CardTitle>Low Stock Alert (LSA) Ingestion</CardTitle>
+              </div>
+              <CardDescription>
+                Controls the daily SFTP low-stock-alert import. Rows with LSA at or below this value are ignored.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2 max-w-xs">
+                <Label htmlFor="lsa-threshold" className="text-base font-medium">
+                  Minimum LSA threshold
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  Default is <strong>1</strong> — only rows where LSA is <strong>2 or higher</strong> are persisted.
+                </p>
+                <div className="flex gap-2">
+                  <Input
+                    id="lsa-threshold"
+                    type="number"
+                    min={0}
+                    value={lsaInput}
+                    onChange={(e) => setLsaInput(e.target.value)}
+                    disabled={lsaLoading || updateSetting.isPending}
+                  />
+                  <Button onClick={handleLsaSave} disabled={lsaLoading || updateSetting.isPending}>
+                    Save
+                  </Button>
+                </div>
+              </div>
+              <Alert>
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>
+                  Applies on the next scheduled SFTP pull. Increasing this value will skip more rows; decreasing it (e.g. to 0) will ingest every row from the feed.
+                </AlertDescription>
+              </Alert>
+            </CardContent>
+          </Card>
         </div>
+      </div>
+    </AccessGate>
+  );
+};
       </div>
     </AccessGate>
   );
