@@ -17,12 +17,17 @@ const SystemSettings = () => {
 
   const { data: rbacEnabled, isLoading } = useAppSetting<boolean>('use_rbac_navigation');
   const { data: lsaThreshold, isLoading: lsaLoading } = useAppSetting<number>('lsa.ingest_min_threshold');
+  const { data: lsaMinThreshold, isLoading: lsaMinLoading } = useAppSetting<number>('lsa.min_threshold');
   const updateSetting = useUpdateAppSetting();
 
   const [lsaInput, setLsaInput] = useState<string>("");
+  const [lsaMinInput, setLsaMinInput] = useState<string>("");
   useEffect(() => {
     if (lsaThreshold !== null && lsaThreshold !== undefined) setLsaInput(String(lsaThreshold));
   }, [lsaThreshold]);
+  useEffect(() => {
+    if (lsaMinThreshold !== null && lsaMinThreshold !== undefined) setLsaMinInput(String(lsaMinThreshold));
+  }, [lsaMinThreshold]);
 
   const handleLsaSave = async () => {
     const n = Number(lsaInput);
@@ -33,6 +38,20 @@ const SystemSettings = () => {
     try {
       await updateSetting.mutateAsync({ key: 'lsa.ingest_min_threshold', value: n });
       toast({ title: "LSA threshold updated", description: `Daily SFTP feed will skip rows with LSA ≤ ${n}.` });
+    } catch {
+      toast({ title: "Error", description: "Failed to save threshold.", variant: "destructive" });
+    }
+  };
+
+  const handleLsaMinSave = async () => {
+    const n = Number(lsaMinInput);
+    if (!Number.isFinite(n) || n < 0 || !Number.isInteger(n)) {
+      toast({ title: "Invalid value", description: "Enter a non-negative integer.", variant: "destructive" });
+      return;
+    }
+    try {
+      await updateSetting.mutateAsync({ key: 'lsa.min_threshold', value: n });
+      toast({ title: "LSA min threshold updated", description: `SKUs with LSA ≤ ${n} are now excluded from LSA Calibration & Buy Recommendations.` });
     } catch {
       toast({ title: "Error", description: "Failed to save threshold.", variant: "destructive" });
     }
