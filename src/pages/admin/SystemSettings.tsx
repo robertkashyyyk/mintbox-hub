@@ -17,12 +17,17 @@ const SystemSettings = () => {
 
   const { data: rbacEnabled, isLoading } = useAppSetting<boolean>('use_rbac_navigation');
   const { data: lsaThreshold, isLoading: lsaLoading } = useAppSetting<number>('lsa.ingest_min_threshold');
+  const { data: lsaMinThreshold, isLoading: lsaMinLoading } = useAppSetting<number>('lsa.min_threshold');
   const updateSetting = useUpdateAppSetting();
 
   const [lsaInput, setLsaInput] = useState<string>("");
+  const [lsaMinInput, setLsaMinInput] = useState<string>("");
   useEffect(() => {
     if (lsaThreshold !== null && lsaThreshold !== undefined) setLsaInput(String(lsaThreshold));
   }, [lsaThreshold]);
+  useEffect(() => {
+    if (lsaMinThreshold !== null && lsaMinThreshold !== undefined) setLsaMinInput(String(lsaMinThreshold));
+  }, [lsaMinThreshold]);
 
   const handleLsaSave = async () => {
     const n = Number(lsaInput);
@@ -33,6 +38,20 @@ const SystemSettings = () => {
     try {
       await updateSetting.mutateAsync({ key: 'lsa.ingest_min_threshold', value: n });
       toast({ title: "LSA threshold updated", description: `Daily SFTP feed will skip rows with LSA ≤ ${n}.` });
+    } catch {
+      toast({ title: "Error", description: "Failed to save threshold.", variant: "destructive" });
+    }
+  };
+
+  const handleLsaMinSave = async () => {
+    const n = Number(lsaMinInput);
+    if (!Number.isFinite(n) || n < 0 || !Number.isInteger(n)) {
+      toast({ title: "Invalid value", description: "Enter a non-negative integer.", variant: "destructive" });
+      return;
+    }
+    try {
+      await updateSetting.mutateAsync({ key: 'lsa.min_threshold', value: n });
+      toast({ title: "LSA min threshold updated", description: `SKUs with LSA ≤ ${n} are now excluded from LSA Calibration & Buy Recommendations.` });
     } catch {
       toast({ title: "Error", description: "Failed to save threshold.", variant: "destructive" });
     }
@@ -128,6 +147,48 @@ const SystemSettings = () => {
                 <AlertTriangle className="h-4 w-4" />
                 <AlertDescription>
                   Applies on the next scheduled SFTP pull. Increasing this value will skip more rows; decreasing it (e.g. to 0) will ingest every row from the feed.
+                </AlertDescription>
+              </Alert>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Package className="h-5 w-5 text-pd-accent" />
+                <CardTitle>LSA "Unset" Sentinel Threshold</CardTitle>
+              </div>
+              <CardDescription>
+                SKUs with a Mintsoft LowStockAlertLevel at or below this value are treated as having no meaningful LSA configured, and are excluded from LSA Calibration and Buy Recommendations.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2 max-w-xs">
+                <Label htmlFor="lsa-min-threshold" className="text-base font-medium">
+                  Minimum LSA threshold (exclusion)
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  Default is <strong>1</strong> — Mintsoft uses LSA = 1 as the "not set" sentinel.
+                </p>
+                <div className="flex gap-2">
+                  <Input
+                    id="lsa-min-threshold"
+                    type="number"
+                    min={0}
+                    step={1}
+                    value={lsaMinInput}
+                    onChange={(e) => setLsaMinInput(e.target.value)}
+                    disabled={lsaMinLoading || updateSetting.isPending}
+                  />
+                  <Button onClick={handleLsaMinSave} disabled={lsaMinLoading || updateSetting.isPending}>
+                    Save
+                  </Button>
+                </div>
+              </div>
+              <Alert>
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>
+                  Affects which SKUs appear in LSA Calibration and which feed Buy Recommendations' LSA-driven ordering. Back-orders are still considered regardless.
                 </AlertDescription>
               </Alert>
             </CardContent>
