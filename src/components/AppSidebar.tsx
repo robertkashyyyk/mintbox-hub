@@ -117,6 +117,7 @@ export function AppSidebar() {
       requireSenior: true,
       items: [
         { title: "Buy Recommendations", url: "/decisions/buying", icon: ShoppingBag },
+        { title: "LSA Calibration", url: "/decisions/lsa-calibration", icon: Gauge },
         { title: "Liquidation Candidates", url: "/decisions/liquidation", icon: Flame },
         { title: "Price Moves", url: "/decisions/price-moves", icon: TrendingDown },
         { title: "Bundle Suggestions", url: "/decisions/bundles", icon: Package },
