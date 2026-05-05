@@ -144,6 +144,37 @@ const Suppliers = () => {
     setOpen(true);
   };
 
+  const save = useMutation({
+    mutationFn: async (s: Partial<Supplier>) => {
+      const sb = supabase as any;
+      if (!s.name?.trim()) throw new Error("Name is required");
+      const payload = {
+        name: s.name.trim(),
+        contact_email: s.contact_email || null,
+        contact_name: s.contact_name || null,
+        contact_phone: s.contact_phone || null,
+        ordering_method: s.ordering_method || "email",
+        lead_time_days: Number(s.lead_time_days) || 7,
+        mintsoft_supplier_id: s.mintsoft_supplier_id ? Number(s.mintsoft_supplier_id) : null,
+        active: !!s.active,
+        notes: s.notes || null,
+      };
+      if (s.id) {
+        const { error } = await sb.from("suppliers").update(payload).eq("id", s.id);
+        if (error) throw error;
+      } else {
+        const { data, error } = await sb.from("suppliers").insert(payload).select("id").single();
+        if (error) throw error;
+        setEditing({ ...s, id: data.id });
+      }
+    },
+    onSuccess: () => {
+      toast({ title: "Saved" });
+      qc.invalidateQueries({ queryKey: ["suppliers-list"] });
+    },
+    onError: (e: any) => toast({ title: "Save failed", description: e.message, variant: "destructive" }),
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4 flex-wrap">
