@@ -305,6 +305,92 @@ const Suppliers = () => {
               <Switch checked={!!editing.active} onCheckedChange={(v) => setEditing({ ...editing, active: v })} />
               <Label className="!mt-0">Active</Label>
             </div>
+
+            {/* Prefix mappings */}
+            <div className="border-t pt-4 space-y-3">
+              <div>
+                <h3 className="text-sm font-semibold">Brand prefix mappings</h3>
+                <p className="text-xs text-muted-foreground">SKUs whose prefix matches will route to this supplier on Buy Recommendations.</p>
+              </div>
+
+              {!editing.id ? (
+                <p className="text-xs text-muted-foreground">Save the supplier first, then add prefix mappings.</p>
+              ) : (
+                <>
+                  {mappedPrefixes.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">No prefixes mapped yet.</p>
+                  ) : (
+                    <div className="rounded-md border">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Prefix</TableHead>
+                            <TableHead>Style</TableHead>
+                            <TableHead className="w-12" />
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {mappedPrefixes.map((p) => (
+                            <TableRow key={p.prefix}>
+                              <TableCell className="font-mono">{p.prefix}</TableCell>
+                              <TableCell className="text-sm text-muted-foreground">
+                                {p.prefix_style === "slash" ? "PREFIX/SKU" : "PREFIX-SKU"}
+                              </TableCell>
+                              <TableCell>
+                                <Button variant="ghost" size="icon"
+                                  onClick={() => removePrefix.mutate(p.prefix)}
+                                  disabled={removePrefix.isPending}
+                                  aria-label={`Remove ${p.prefix}`}>
+                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-[1fr_140px_auto] gap-2 items-end">
+                    <div>
+                      <Label className="text-xs">Add prefix</Label>
+                      <Input
+                        list="unmapped-brand-prefixes"
+                        placeholder="e.g. ABC"
+                        value={newPrefix}
+                        onChange={(e) => setNewPrefix(e.target.value.toUpperCase())}
+                      />
+                      <datalist id="unmapped-brand-prefixes">
+                        {unmappedBrands.map((b) => (
+                          <option key={b.id} value={b.prefix}>{b.name}</option>
+                        ))}
+                      </datalist>
+                    </div>
+                    <div>
+                      <Label className="text-xs">Style</Label>
+                      <select
+                        className="w-full h-10 rounded-md border bg-background px-3 text-sm"
+                        value={newPrefixStyle}
+                        onChange={(e) => setNewPrefixStyle(e.target.value)}
+                      >
+                        <option value="hyphen">PREFIX-SKU</option>
+                        <option value="slash">PREFIX/SKU</option>
+                      </select>
+                    </div>
+                    <Button variant="outline" onClick={() => addPrefix.mutate()}
+                      disabled={!newPrefix.trim() || addPrefix.isPending}>
+                      <Plus className="h-4 w-4" /> Map
+                    </Button>
+                  </div>
+
+                  {unmappedBrands.length > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      {unmappedBrands.length} brand prefix{unmappedBrands.length === 1 ? "" : "es"} not mapped to any supplier yet.
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
