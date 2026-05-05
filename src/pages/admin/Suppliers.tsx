@@ -34,11 +34,26 @@ const empty: Partial<Supplier> = {
   active: true, notes: "",
 };
 
+interface Prefix {
+  prefix: string;
+  prefix_style: string | null;
+  supplier_id: string | null;
+  notes: string | null;
+}
+interface Brand {
+  id: string;
+  name: string;
+  prefix: string;
+  prefix_style: string | null;
+}
+
 const Suppliers = () => {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Partial<Supplier>>(empty);
+  const [newPrefix, setNewPrefix] = useState<string>("");
+  const [newPrefixStyle, setNewPrefixStyle] = useState<string>("hyphen");
 
   const { data: suppliers = [], isLoading } = useQuery({
     queryKey: ["suppliers-list"],
@@ -50,40 +65,82 @@ const Suppliers = () => {
     },
   });
 
-  const save = useMutation({
-    mutationFn: async (s: Partial<Supplier>) => {
+  const { data: prefixes = [] } = useQuery({
+    queryKey: ["sku-prefixes-all"],
+    queryFn: async () => {
       const sb = supabase as any;
-      if (!s.name?.trim()) throw new Error("Name is required");
-      const payload = {
-        name: s.name.trim(),
-        contact_email: s.contact_email || null,
-        contact_name: s.contact_name || null,
-        contact_phone: s.contact_phone || null,
-        ordering_method: s.ordering_method || "email",
-        lead_time_days: Number(s.lead_time_days) || 7,
-        mintsoft_supplier_id: s.mintsoft_supplier_id ? Number(s.mintsoft_supplier_id) : null,
-        active: !!s.active,
-        notes: s.notes || null,
-      };
-      if (s.id) {
-        const { error } = await sb.from("suppliers").update(payload).eq("id", s.id);
-        if (error) throw error;
-      } else {
-        const { error } = await sb.from("suppliers").insert(payload);
-        if (error) throw error;
-      }
+      const { data, error } = await sb.from("sku_prefixes").select("*").order("prefix");
+      if (error) throw error;
+      return ((data || []) as unknown) as Prefix[];
+    },
+  });
+
+  const { data: brands = [] } = useQuery({
+    queryKey: ["brands-with-prefix"],
+    queryFn: async () => {
+      const sb = supabase as any;
+      const { data, error } = await sb.from("brands").select("id, name, prefix, prefix_style").order("name");
+      if (error) throw error;
+      return ((data || []) as unknown) as Brand[];
+    },
+  });
+
+  const prefixCountBySupplier = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const p of prefixes) {
+      if (!p.supplier_id) continue;
+      map.set(p.supplier_id, (map.get(p.supplier_id) || 0) + 1);
+    }
+    return map;
+  }, [prefixes]);
+
+  const mappedPrefixes = useMemo(
+    () => prefixes.filter((p) => p.supplier_id === editing.id),
+    [prefixes, editing.id]
+  );
+
+  // Brand prefixes not yet mapped to ANY supplier (good candidates to add)
+  const unmappedBrands = useMemo(() => {
+    const used = new Set(prefixes.map((p) => p.prefix.toUpperCase()));
+    return brands.filter((b) => b.prefix && !used.has(b.prefix.toUpperCase()));
+  }, [brands, prefixes]);
+
+  const addPrefix = useMutation({
+    mutationFn: async () => {
+      if (!editing.id || !newPrefix.trim()) throw new Error("Pick a prefix");
+      const sb = supabase as any;
+      const { error } = await sb.from("sku_prefixes").upsert({
+        prefix: newPrefix.trim().toUpperCase(),
+        prefix_style: newPrefixStyle,
+        supplier_id: editing.id,
+      }, { onConflict: "prefix" });
+      if (error) throw error;
     },
     onSuccess: () => {
-      toast({ title: "Saved" });
-      qc.invalidateQueries({ queryKey: ["suppliers-list"] });
-      setOpen(false);
-      setEditing(empty);
+      toast({ title: "Prefix mapped" });
+      setNewPrefix("");
+      qc.invalidateQueries({ queryKey: ["sku-prefixes-all"] });
     },
-    onError: (e: any) => toast({ title: "Save failed", description: e.message, variant: "destructive" }),
+    onError: (e: any) => toast({ title: "Could not map prefix", description: e.message, variant: "destructive" }),
+  });
+
+  const removePrefix = useMutation({
+    mutationFn: async (prefix: string) => {
+      const sb = supabase as any;
+      const { error } = await sb.from("sku_prefixes").delete().eq("prefix", prefix);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast({ title: "Mapping removed" });
+      qc.invalidateQueries({ queryKey: ["sku-prefixes-all"] });
+    },
+    onError: (e: any) => toast({ title: "Remove failed", description: e.message, variant: "destructive" }),
   });
 
   const startEdit = (s?: Supplier) => {
     setEditing(s ? { ...s } : empty);
+    setNewPrefix("");
+    setNewPrefixStyle("hyphen");
     setOpen(true);
   };
 
