@@ -16,6 +16,7 @@ export interface BuyRecommendationRow {
   required_qty: number;
   pending_po_qty: number;
   pending_po_id: string | null;
+  sales_4w: number;
   status: "needs_order" | "po_sent_pending" | string;
 }
 
