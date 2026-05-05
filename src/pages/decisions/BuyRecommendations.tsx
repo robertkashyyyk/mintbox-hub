@@ -203,6 +203,7 @@ const BuyRecommendations = () => {
                           <TableHead className="text-right">Stock</TableHead>
                           <TableHead className="text-right">LSA</TableHead>
                           <TableHead className="text-right">Backorders</TableHead>
+                          <TableHead className="text-right" title="Units sold in last 28 days">Sales 4W</TableHead>
                           <TableHead className="text-right">On Order</TableHead>
                           <TableHead className="text-right">Suggest Qty</TableHead>
                           <TableHead className="text-right">Est. Cost</TableHead>
