@@ -187,6 +187,7 @@ const App = () => (
             {/* Decisions Sub-Routes */}
             <Route path="/decisions/buying" element={<BuyRecommendations />} />
             <Route path="/decisions/buy" element={<Navigate to="/decisions/buying" replace />} />
+            <Route path="/decisions/lsa-calibration" element={<LsaCalibration />} />
             <Route path="/decisions/liquidation" element={<LiquidationCandidates />} />
             <Route path="/decisions/price-moves" element={<PriceMoves />} />
             <Route path="/decisions/bundles" element={<BundleSuggestions />} />
