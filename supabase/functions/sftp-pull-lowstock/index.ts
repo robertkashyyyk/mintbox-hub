@@ -20,7 +20,7 @@ const FILE_PATTERNS = [
   "pdochubLowStockAlerts",
   "ColeraineLowStockAlerts",
 ];
-const LSA_MIN_THRESHOLD = 1;
+const LSA_MIN_THRESHOLD_DEFAULT = 1;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
