@@ -3456,6 +3456,7 @@ export type Database = {
           pending_po_qty: number
           product_name: string
           required_qty: number
+          sales_4w: number
           sku: string
           status: string
           supplier_id: string
