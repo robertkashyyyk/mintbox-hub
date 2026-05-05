@@ -205,6 +205,7 @@ const Suppliers = () => {
                     <TableHead>Contact</TableHead>
                     <TableHead>Method</TableHead>
                     <TableHead className="text-right">Lead time</TableHead>
+                    <TableHead className="text-right">Prefixes</TableHead>
                     <TableHead className="text-right">Mintsoft ID</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="w-12" />
@@ -220,6 +221,9 @@ const Suppliers = () => {
                       </TableCell>
                       <TableCell className="capitalize">{s.ordering_method || "—"}</TableCell>
                       <TableCell className="text-right">{s.lead_time_days ?? "—"} d</TableCell>
+                      <TableCell className="text-right">
+                        {prefixCountBySupplier.get(s.id) ?? 0}
+                      </TableCell>
                       <TableCell className="text-right text-muted-foreground">
                         {s.mintsoft_supplier_id ?? "—"}
                       </TableCell>
