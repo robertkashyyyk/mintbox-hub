@@ -3525,6 +3525,23 @@ export type Database = {
           status: string
         }[]
       }
+      get_lsa_calibration: {
+        Args: { p_brand_id?: string }
+        Returns: {
+          base_multiplier: number
+          brand_id: string
+          brand_name: string
+          current_lsa: number
+          current_stock: number
+          product_name: string
+          sku: string
+          status: string
+          supplier_id: string
+          supplier_name: string
+          target_lsa: number
+          weekly_velocity: number
+        }[]
+      }
       get_ops_daily_trend: {
         Args: { from_date: string; to_date: string }
         Returns: {
