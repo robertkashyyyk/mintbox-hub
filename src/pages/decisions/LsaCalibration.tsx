@@ -76,8 +76,16 @@ const LsaCalibration = () => {
     return c;
   }, [rows]);
 
+  const extractPrefix = (sku: string) => {
+    if (!sku) return "—";
+    const sep = sku.includes("/") ? "/" : "-";
+    const head = sku.split(sep)[0];
+    return head ? head.toUpperCase() : sku;
+  };
+
+  // Seed Proposed from the calculated Target LSA (fall back to current if target missing)
   const proposedFor = (r: LsaCalibrationRow) =>
-    proposed[r.sku] ?? r.current_lsa;
+    proposed[r.sku] ?? Math.round(Number(r.target_lsa) || Number(r.current_lsa) || 0);
 
   const dirtyRows = useMemo(
     () => filtered.filter((r) => Math.round(proposedFor(r)) !== Math.round(r.current_lsa)),
