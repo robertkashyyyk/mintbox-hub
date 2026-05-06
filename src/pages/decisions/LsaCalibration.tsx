@@ -76,8 +76,16 @@ const LsaCalibration = () => {
     return c;
   }, [rows]);
 
+  const extractPrefix = (sku: string) => {
+    if (!sku) return "—";
+    const sep = sku.includes("/") ? "/" : "-";
+    const head = sku.split(sep)[0];
+    return head ? head.toUpperCase() : sku;
+  };
+
+  // Seed Proposed from the calculated Target LSA (fall back to current if target missing)
   const proposedFor = (r: LsaCalibrationRow) =>
-    proposed[r.sku] ?? r.current_lsa;
+    proposed[r.sku] ?? Math.round(Number(r.target_lsa) || Number(r.current_lsa) || 0);
 
   const dirtyRows = useMemo(
     () => filtered.filter((r) => Math.round(proposedFor(r)) !== Math.round(r.current_lsa)),
@@ -274,7 +282,7 @@ const LsaCalibration = () => {
                     No SKUs match the current filters.
                   </TableCell></TableRow>
                 ) : (
-                  filtered.slice(0, 500).map((r) => {
+                  filtered.map((r) => {
                     const meta = STATUS_META[r.status as StatusKey];
                     const p = proposedFor(r);
                     const dirty = Math.round(p) !== Math.round(r.current_lsa);
@@ -290,7 +298,11 @@ const LsaCalibration = () => {
                         <TableCell className="max-w-[280px] truncate" title={r.product_name || ""}>
                           {r.product_name || <span className="text-muted-foreground italic">—</span>}
                         </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">{r.brand_name || "—"}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {r.brand_name ? r.brand_name : (
+                            <span title="No brand mapping — falling back to SKU prefix">{extractPrefix(r.sku)}</span>
+                          )}
+                        </TableCell>
                         <TableCell className="text-right tabular-nums">{Number(r.current_stock).toLocaleString()}</TableCell>
                         <TableCell className="text-right tabular-nums">{Number(r.weekly_velocity).toFixed(2)}</TableCell>
                         <TableCell className="text-right tabular-nums text-muted-foreground">{Number(r.base_multiplier).toFixed(1)}</TableCell>
@@ -316,9 +328,9 @@ const LsaCalibration = () => {
                 )}
               </TableBody>
             </Table>
-            {filtered.length > 500 && (
+            {filtered.length > 1000 && (
               <div className="p-3 text-center text-xs text-muted-foreground border-t">
-                Showing first 500 of {filtered.length.toLocaleString()} — narrow filters to see more.
+                Rendering {filtered.length.toLocaleString()} rows — narrow filters if the page feels sluggish.
               </div>
             )}
           </div>
