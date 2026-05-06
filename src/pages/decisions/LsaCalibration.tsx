@@ -298,7 +298,11 @@ const LsaCalibration = () => {
                         <TableCell className="max-w-[280px] truncate" title={r.product_name || ""}>
                           {r.product_name || <span className="text-muted-foreground italic">—</span>}
                         </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">{r.brand_name || "—"}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {r.brand_name ? r.brand_name : (
+                            <span title="No brand mapping — falling back to SKU prefix">{extractPrefix(r.sku)}</span>
+                          )}
+                        </TableCell>
                         <TableCell className="text-right tabular-nums">{Number(r.current_stock).toLocaleString()}</TableCell>
                         <TableCell className="text-right tabular-nums">{Number(r.weekly_velocity).toFixed(2)}</TableCell>
                         <TableCell className="text-right tabular-nums text-muted-foreground">{Number(r.base_multiplier).toFixed(1)}</TableCell>
