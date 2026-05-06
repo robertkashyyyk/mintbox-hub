@@ -282,7 +282,7 @@ const LsaCalibration = () => {
                     No SKUs match the current filters.
                   </TableCell></TableRow>
                 ) : (
-                  filtered.slice(0, 500).map((r) => {
+                  filtered.map((r) => {
                     const meta = STATUS_META[r.status as StatusKey];
                     const p = proposedFor(r);
                     const dirty = Math.round(p) !== Math.round(r.current_lsa);
@@ -328,9 +328,9 @@ const LsaCalibration = () => {
                 )}
               </TableBody>
             </Table>
-            {filtered.length > 500 && (
+            {filtered.length > 1000 && (
               <div className="p-3 text-center text-xs text-muted-foreground border-t">
-                Showing first 500 of {filtered.length.toLocaleString()} — narrow filters to see more.
+                Rendering {filtered.length.toLocaleString()} rows — narrow filters if the page feels sluggish.
               </div>
             )}
           </div>
