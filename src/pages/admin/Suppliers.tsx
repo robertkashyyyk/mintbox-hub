@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, DownloadCloud, Loader2 } from "lucide-react";
 
 interface Supplier {
   id: string;
@@ -54,6 +54,7 @@ const Suppliers = () => {
   const [editing, setEditing] = useState<Partial<Supplier>>(empty);
   const [newPrefix, setNewPrefix] = useState<string>("");
   const [newPrefixStyle, setNewPrefixStyle] = useState<string>("hyphen");
+  const [pulling, setPulling] = useState(false);
 
   const { data: suppliers = [], isLoading } = useQuery({
     queryKey: ["suppliers-list"],
@@ -182,9 +183,35 @@ const Suppliers = () => {
           <h1 className="text-3xl font-bold tracking-tight text-foreground">Suppliers</h1>
           <p className="text-foreground/60">Vendors used to fulfil purchase orders.</p>
         </div>
-        <Button variant="outline" onClick={() => startEdit()}>
-          <Plus className="h-4 w-4" /> New supplier
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            disabled={pulling}
+            onClick={async () => {
+              setPulling(true);
+              try {
+                const { data, error } = await supabase.functions.invoke("mintsoft-pull-suppliers");
+                if (error) throw error;
+                const d: any = data;
+                toast({
+                  title: "Mintsoft sweep complete",
+                  description: `Total ${d.total}: ${d.created} created, ${d.updated} updated, ${d.skipped} skipped.`,
+                });
+                qc.invalidateQueries({ queryKey: ["suppliers-list"] });
+              } catch (e: any) {
+                toast({ title: "Pull failed", description: e.message, variant: "destructive" });
+              } finally {
+                setPulling(false);
+              }
+            }}
+          >
+            {pulling ? <Loader2 className="h-4 w-4 animate-spin" /> : <DownloadCloud className="h-4 w-4" />}
+            Pull from Mintsoft
+          </Button>
+          <Button variant="outline" onClick={() => startEdit()}>
+            <Plus className="h-4 w-4" /> New supplier
+          </Button>
+        </div>
       </div>
 
       <Card>
