@@ -202,6 +202,7 @@ export default function ImageScout() {
       toast.success("Retry queued and processed");
       qc.invalidateQueries({ queryKey: ["image-scout-jobs"] });
       qc.invalidateQueries({ queryKey: ["image-scout-results"] });
+      qc.invalidateQueries({ queryKey: ["image-scout-review"] });
     },
     onError: (e) => toast.error((e as Error).message),
   });
