@@ -326,6 +326,9 @@ const PricingSignals = () => {
       <Tabs defaultValue="loss-changes" className="w-full">
         <TabsList>
           <TabsTrigger value="loss-changes">Loss Changes</TabsTrigger>
+          <TabsTrigger value="competitive">Competitive</TabsTrigger>
+          <TabsTrigger value="elasticity">Elasticity</TabsTrigger>
+          <TabsTrigger value="dynamic">Dynamic</TabsTrigger>
         </TabsList>
 
         <TabsContent value="loss-changes" className="space-y-5 mt-4">
@@ -588,6 +591,27 @@ const PricingSignals = () => {
             </CardContent>
           </Card>
         </TabsContent>
+
+        <TabsContent value="competitive" className="mt-4">
+          <PlaceholderArea
+            title="Competitive"
+            blurb="Benchmark our prices against eBay/marketplace data captured by Price Hunter — surface SKUs where we're materially above or below the field, with one-click reprice suggestions."
+          />
+        </TabsContent>
+
+        <TabsContent value="elasticity" className="mt-4">
+          <PlaceholderArea
+            title="Elasticity"
+            blurb="Estimate price sensitivity per SKU from historical price/volume movements. Suggest the price point that maximises projected weekly profit, not just margin."
+          />
+        </TabsContent>
+
+        <TabsContent value="dynamic" className="mt-4">
+          <PlaceholderArea
+            title="Dynamic"
+            blurb="Rules-based auto-repricing: time-of-day, stock cover, age, and competitive position triggers pushed continuously to 3D."
+          />
+        </TabsContent>
       </Tabs>
     </div>
   );
@@ -602,5 +626,22 @@ const Stat = ({ label, value, tone }: { label: string; value: string; tone?: "go
     </div>
   );
 };
+
+const PlaceholderArea = ({ title, blurb }: { title: string; blurb: string }) => (
+  <Card>
+    <CardHeader>
+      <CardTitle className="text-base flex items-center gap-2">
+        <TrendingUp className="h-4 w-4 text-pd-accent" />
+        {title}
+      </CardTitle>
+      <CardDescription>{blurb}</CardDescription>
+    </CardHeader>
+    <CardContent>
+      <div className="rounded-lg border border-dashed bg-card/50 p-8 text-center">
+        <p className="text-sm text-muted-foreground">Coming soon — placeholder area.</p>
+      </div>
+    </CardContent>
+  </Card>
+);
 
 export default PricingSignals;
