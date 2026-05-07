@@ -19,7 +19,8 @@ const getHealthBadgeVariant = (category: string) => {
     "Low Stock": { bg: "bg-orange-100 dark:bg-orange-900/30", text: "text-orange-800 dark:text-orange-300" },
     "Critical": { bg: "bg-red-100 dark:bg-red-900/30", text: "text-red-800 dark:text-red-300" },
     "Dead Stock": { bg: "bg-muted dark:bg-card/30", text: "text-foreground dark:text-muted-foreground" },
-    "Out of Stock": { bg: "bg-muted dark:bg-card/50", text: "text-foreground dark:text-muted-foreground" },
+    "Out of Stock": { bg: "bg-red-100 dark:bg-red-900/30", text: "text-red-800 dark:text-red-300" },
+    "Non Selling": { bg: "bg-muted dark:bg-card/30", text: "text-foreground/70 dark:text-muted-foreground" },
     "Missing Baseline": { bg: "bg-background", text: "text-red-600 dark:text-red-400", border: "border-red-600 dark:border-red-400" },
   };
 
@@ -102,10 +103,12 @@ const StockHealth = () => {
       {summary && (() => {
         const cat = summary.byCategory ?? {};
         const healthy = cat["Healthy"] ?? 0;
-        const problemKeys = ["Unhealthy", "Low Stock", "Critical", "Out of Stock", "Dead Stock", "Missing Baseline"];
+        const problemKeys = ["Unhealthy", "Low Stock", "Critical", "Out of Stock", "Dead Stock"];
         const overstockKeys = ["Overstock", "Extreme Overstock"];
         const problems = problemKeys.reduce((s, k) => s + (cat[k] ?? 0), 0);
         const overstock = overstockKeys.reduce((s, k) => s + (cat[k] ?? 0), 0);
+        const nonSelling = cat["Non Selling"] ?? 0;
+        const missingBaseline = cat["Missing Baseline"] ?? 0;
         const total = summary.totalSkus || 1;
         const pct = (n: number) => `${((n / total) * 100).toFixed(1)}%`;
 
@@ -146,6 +149,22 @@ const StockHealth = () => {
             tone: "border-blue-500/40 bg-blue-500/10",
           },
           {
+            label: "Non Selling",
+            value: nonSelling.toLocaleString(),
+            sub: pct(nonSelling),
+            tone: "border-border bg-muted/30",
+            onClick: () => handleFiltersChange({ healthCategory: filters.healthCategory === "Non Selling" ? "all" : "Non Selling", onlyProblems: false }),
+            active: filters.healthCategory === "Non Selling",
+          },
+          {
+            label: "Missing Baseline",
+            value: missingBaseline.toLocaleString(),
+            sub: pct(missingBaseline),
+            tone: "border-warning/40 bg-warning/10",
+            onClick: () => handleFiltersChange({ healthCategory: filters.healthCategory === "Missing Baseline" ? "all" : "Missing Baseline", onlyProblems: false }),
+            active: filters.healthCategory === "Missing Baseline",
+          },
+          {
             label: "DIRT in scope",
             value: summary.dirtSkus.toLocaleString(),
             sub: filters.excludeDirt ? "filter active" : "click to exclude",
@@ -161,7 +180,7 @@ const StockHealth = () => {
         ];
 
         return (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
             {tiles.map((t) => {
               const isButton = !!t.onClick;
               const Comp: any = isButton ? "button" : "div";
