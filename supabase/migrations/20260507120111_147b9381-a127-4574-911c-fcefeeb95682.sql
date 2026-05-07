@@ -1,0 +1,1 @@
+UPDATE public.brands SET image_search_domain = 'fa1.pl' WHERE prefix = 'FA1' AND image_search_domain IS NULL;
