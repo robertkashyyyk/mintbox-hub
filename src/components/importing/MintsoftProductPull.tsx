@@ -125,6 +125,35 @@ export function MintsoftProductPull() {
     },
   });
 
+  // Discover new products mutation
+  const discoverMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke(
+        "mintsoft-discover-new-products",
+        { body: {} }
+      );
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data: any) => {
+      toast({
+        title: "Discovery complete",
+        description:
+          data?.message ||
+          `Scanned ${data?.scanned ?? 0} products, added ${data?.added ?? 0} new SKUs.`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["import-history"] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Discovery failed",
+        description: error.message || "Failed to discover new products",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleSearch = () => {
     if (!effectivePrefix) {
       toast({
