@@ -43,7 +43,7 @@ const PackingAreaDisplay = () => {
 
   // Tick clock every 30s for cut-off countdown
   useEffect(() => {
-    const t = setInterval(() => force((n) => n + 1), 30_000);
+    const t = setInterval(() => force((n) => n + 1), 15_000);
     return () => clearInterval(t);
   }, []);
 
