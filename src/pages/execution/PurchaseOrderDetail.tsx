@@ -28,7 +28,7 @@ const PurchaseOrderDetail = () => {
       const sb = supabase as any;
       const [poRes, linesRes] = await Promise.all([
         sb.from("purchase_orders")
-          .select("*, suppliers(name, contact_email, ordering_method)")
+          .select("*, suppliers(name, contact_email, ordering_method, mintsoft_supplier_id)")
           .eq("id", id).single(),
         sb.from("purchase_order_lines")
           .select("*")
@@ -37,20 +37,48 @@ const PurchaseOrderDetail = () => {
       ]);
       if (poRes.error) throw poRes.error;
       if (linesRes.error) throw linesRes.error;
-      return { po: poRes.data as any, lines: (linesRes.data || []) as any[] };
+      const lines = (linesRes.data || []) as any[];
+      const skus = lines.map((l) => l.sku);
+      let pidMap: Record<string, number> = {};
+      if (skus.length) {
+        const { data: pcs } = await sb.from("products_cache")
+          .select("sku, mintsoft_product_id").in("sku", skus);
+        for (const r of pcs || []) {
+          if (r.mintsoft_product_id) pidMap[r.sku] = r.mintsoft_product_id;
+        }
+      }
+      return { po: poRes.data as any, lines, pidMap };
     },
     enabled: !!id,
   });
 
   const saveLine = useMutation({
-    mutationFn: async ({ lineId, patch }: { lineId: string; patch: any }) => {
+    mutationFn: async ({ lineId, patch, sku, mintsoftProductId, pushCost }:
+      { lineId: string; patch: any; sku: string; mintsoftProductId?: number; pushCost?: number }) => {
       const sb = supabase as any;
       const { error } = await sb.from("purchase_order_lines").update(patch).eq("id", lineId);
       if (error) throw error;
+
+      // If a cost was edited and we have a Mintsoft product id, push to Mintsoft
+      // (this also mirrors back into products_cache automatically).
+      if (pushCost && pushCost > 0 && mintsoftProductId) {
+        const { data, error: fnErr } = await supabase.functions.invoke("update-product-cost", {
+          body: { items: [{ mintsoft_product_id: mintsoftProductId, sku, cost_price: pushCost }] },
+        });
+        if (fnErr) throw new Error(fnErr.message);
+        const result = (data as any)?.results?.[0];
+        if (result && !result.ok) throw new Error(result.error || "Mintsoft cost push failed");
+      }
     },
-    onSuccess: () => {
+    onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ["po-detail", id] });
-      setEdits({});
+      setEdits((prev) => {
+        const { [vars.lineId]: _drop, ...rest } = prev;
+        return rest;
+      });
+      if (vars.pushCost) {
+        toast({ title: "Cost saved", description: `${vars.sku} updated and pushed to Mintsoft.` });
+      }
     },
     onError: (e: any) => toast({ title: "Save failed", description: e.message, variant: "destructive" }),
   });
@@ -61,14 +89,18 @@ const PurchaseOrderDetail = () => {
         body: { po_id: id },
       });
       if (error) throw new Error(error.message);
-      if ((data as any)?.error) throw new Error((data as any).error + ((data as any).bad_skus ? `: ${(data as any).bad_skus.join(", ")}` : ""));
-      return data;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      return data as { mintsoft_po_id?: number; lines_sent?: number; skipped?: { sku: string; reason: string }[] };
     },
-    onSuccess: () => {
-      toast({ title: "PO sent", description: "Status moved to Sent — Awaiting ASN." });
+    onSuccess: (data) => {
+      const skipped = data?.skipped?.length || 0;
+      toast({
+        title: "PO sent to Mintsoft",
+        description: `Mintsoft PO #${data?.mintsoft_po_id ?? "?"} created · ${data?.lines_sent} lines${skipped ? ` · ${skipped} skipped (fix and resend)` : ""}.`,
+      });
       refetch();
     },
-    onError: (e: any) => toast({ title: "Cannot send", description: e.message, variant: "destructive" }),
+    onError: (e: any) => toast({ title: "Cannot send to Mintsoft", description: e.message, variant: "destructive" }),
   });
 
   if (isLoading || !data) return <div className="p-8 text-muted-foreground">Loading PO…</div>;
