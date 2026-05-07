@@ -149,6 +149,22 @@ const StockHealth = () => {
             tone: "border-blue-500/40 bg-blue-500/10",
           },
           {
+            label: "Non Selling",
+            value: nonSelling.toLocaleString(),
+            sub: pct(nonSelling),
+            tone: "border-border bg-muted/30",
+            onClick: () => handleFiltersChange({ healthCategory: filters.healthCategory === "Non Selling" ? "all" : "Non Selling", onlyProblems: false }),
+            active: filters.healthCategory === "Non Selling",
+          },
+          {
+            label: "Missing Baseline",
+            value: missingBaseline.toLocaleString(),
+            sub: pct(missingBaseline),
+            tone: "border-warning/40 bg-warning/10",
+            onClick: () => handleFiltersChange({ healthCategory: filters.healthCategory === "Missing Baseline" ? "all" : "Missing Baseline", onlyProblems: false }),
+            active: filters.healthCategory === "Missing Baseline",
+          },
+          {
             label: "DIRT in scope",
             value: summary.dirtSkus.toLocaleString(),
             sub: filters.excludeDirt ? "filter active" : "click to exclude",
