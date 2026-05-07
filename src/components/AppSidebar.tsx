@@ -82,6 +82,7 @@ export function AppSidebar() {
         { title: "Feed Imports", url: "/discovery/feed-imports", icon: FileText },
         { title: "Bulk Image Upload", url: "/discovery/bulk-images", icon: Images },
         { title: "Pending Images", url: "/discovery/pending-images", icon: Clock },
+        { title: "Image Scout", url: "/discovery/image-scout", icon: Search },
       ],
     },
     {

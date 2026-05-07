@@ -63,6 +63,7 @@ import CarrierSettings from "./pages/operations/carriers/CarrierSettings";
 import DiscoveryQueue from "./pages/discovery/DiscoveryQueue";
 import BulkImageUpload from "./pages/discovery/BulkImageUpload";
 import PendingImages from "./pages/discovery/PendingImages";
+import ImageScout from "./pages/discovery/ImageScout";
 
 // Intelligence Pages
 import VelocityCoverage from "./pages/intelligence/VelocityCoverage";
@@ -171,6 +172,7 @@ const App = () => (
             <Route path="/discovery/feed-imports" element={<Importing />} />
             <Route path="/discovery/bulk-images" element={<BulkImageUpload />} />
             <Route path="/discovery/pending-images" element={<PendingImages />} />
+            <Route path="/discovery/image-scout" element={<ImageScout />} />
 
             {/* Intelligence Sub-Routes */}
             <Route path="/intelligence/velocity" element={<VelocityCoverage />} />
