@@ -1,5 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import Client from "npm:ssh2-sftp-client@10.0.3";
+import { Buffer } from "node:buffer";
+
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -154,11 +156,10 @@ Deno.serve(async (req) => {
       }
     }
 
-    const buf = new TextEncoder().encode(csv);
-    // ssh2-sftp-client accepts Buffer; in Deno, Uint8Array works via npm shim
-    // deno-lint-ignore no-explicit-any
-    await sftp.put(buf as any, targetPath);
+    const buf = Buffer.from(csv, "utf-8");
+    await sftp.put(buf, targetPath);
     await sftp.end();
+
 
     await admin
       .from("threeds_reprice_pushes")
