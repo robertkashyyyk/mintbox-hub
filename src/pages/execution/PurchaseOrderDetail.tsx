@@ -269,9 +269,12 @@ const PurchaseOrderDetail = () => {
                           <Button variant="outline" size="sm"
                             onClick={() => saveLine.mutate({
                               lineId: l.id,
+                              sku: l.sku,
+                              mintsoftProductId: pidMap[l.sku],
+                              pushCost: e.cost !== undefined && cost > 0 ? cost : undefined,
                               patch: { qty_ordered: qty, unit_cost: cost },
                             })}>
-                            Save
+                            Save{e.cost !== undefined && pidMap[l.sku] ? " & push" : ""}
                           </Button>
                         )}
                       </TableCell>
