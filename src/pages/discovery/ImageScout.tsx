@@ -809,3 +809,23 @@ function StatusBadge({ status }: { status: string }) {
   };
   return <Badge variant={(map[status] ?? "outline") as any}>{status}</Badge>;
 }
+
+function CandidateStatusBadge({ status }: { status: string }) {
+  const map: Record<string, "default" | "secondary" | "outline" | "destructive"> = {
+    new: "outline",
+    shortlisted: "secondary",
+    manual_required: "outline",
+    approved: "default",
+    dismissed: "destructive",
+  };
+  return <Badge variant={map[status] ?? "outline"}>{status?.replace("_", " ") ?? "—"}</Badge>;
+}
+
+function DetailRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div className="flex justify-between gap-2">
+      <span className="text-xs text-muted-foreground uppercase">{label}</span>
+      <span className={"text-xs text-right " + (mono ? "font-mono" : "")}>{value}</span>
+    </div>
+  );
+}
