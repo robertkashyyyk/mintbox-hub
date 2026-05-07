@@ -127,19 +127,55 @@ export default function ImageScout() {
     },
   });
 
+  // Candidates filters
+  const [candBrand, setCandBrand] = useState<string>("all");
+  const [candStatus, setCandStatus] = useState<string>("all");
+  const [candPicked, setCandPicked] = useState<string>("all");
+  const [candMinScore, setCandMinScore] = useState<string>("");
+  const [candMaxScore, setCandMaxScore] = useState<string>("");
+  const [candSort, setCandSort] = useState<"score_desc" | "score_asc" | "created_desc" | "created_asc">("created_desc");
+  const [openCandidate, setOpenCandidate] = useState<any | null>(null);
+
   const candidatesQ = useQuery({
-    queryKey: ["image-scout-candidates"],
+    queryKey: ["image-scout-candidates", candBrand, candStatus, candPicked, candMinScore, candMaxScore, candSort],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("image_scout_candidates")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .order("confidence_score", { ascending: false })
-        .limit(200);
+      let q = supabase.from("image_scout_candidates").select("*").limit(300);
+      if (candBrand !== "all") q = q.eq("brand_id", candBrand);
+      if (candStatus !== "all") q = q.eq("status", candStatus as any);
+      if (candPicked === "picked") q = q.eq("picked", true);
+      if (candPicked === "unpicked") q = q.eq("picked", false);
+      const min = parseFloat(candMinScore);
+      const max = parseFloat(candMaxScore);
+      if (!isNaN(min)) q = q.gte("confidence_score", min);
+      if (!isNaN(max)) q = q.lte("confidence_score", max);
+      switch (candSort) {
+        case "score_desc": q = q.order("confidence_score", { ascending: false }); break;
+        case "score_asc":  q = q.order("confidence_score", { ascending: true }); break;
+        case "created_asc": q = q.order("created_at", { ascending: true }); break;
+        default:            q = q.order("created_at", { ascending: false }); break;
+      }
+      const { data, error } = await q;
       if (error) throw error;
       return data as any[];
     },
     refetchInterval: 10000,
+  });
+
+  const setCandStatusMut = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      const { error } = await supabase
+        .from("image_scout_candidates")
+        .update({ status: status as any, reviewed_by: user?.id ?? null, reviewed_at: new Date().toISOString() })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: (_d, vars) => {
+      toast.success(`Marked as ${vars.status}`);
+      qc.invalidateQueries({ queryKey: ["image-scout-candidates"] });
+      setOpenCandidate((prev: any) => prev ? { ...prev, status: vars.status } : prev);
+    },
+    onError: (e) => toast.error((e as Error).message),
   });
 
   const enqueue = useMutation({
