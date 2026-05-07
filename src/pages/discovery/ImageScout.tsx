@@ -118,7 +118,7 @@ export default function ImageScout() {
       const { data, error } = await supabase
         .from("image_scout_results")
         .select("*")
-        .eq("outcome", "watermark_review")
+        .in("outcome", ["watermark_review", "low_res"])
         .order("created_at", { ascending: false })
         .limit(50);
       if (error) throw error;
