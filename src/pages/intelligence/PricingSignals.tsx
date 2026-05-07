@@ -182,6 +182,7 @@ const PricingSignals = () => {
         sku: l.sku,
         product_name: l.product_name,
         channel: l.channel,
+        brand_id: l.brand_id ?? null,
         qty: 0,
         revenue: 0,
         costTotal: 0,
