@@ -1,15 +1,22 @@
 import { Link } from "react-router-dom";
-import { ShieldCheck, Truck, Users, Clock, Phone, Wrench, ArrowRight, CheckCircle2 } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import tradeImg from "@/assets/trade-workshop.jpg";
 
+import imgPricing from "@/assets/trade-pricing.jpg";
+import imgStock from "@/assets/trade-stock.jpg";
+import imgSupport from "@/assets/trade-support.jpg";
+import imgTurnaround from "@/assets/trade-turnaround.jpg";
+import imgSourcing from "@/assets/trade-sourcing.jpg";
+import imgOrdering from "@/assets/trade-ordering.jpg";
+
 const benefits = [
-  { icon: ShieldCheck, title: "Trade Pricing", desc: "Competitive rates for registered trade customers across all product lines." },
-  { icon: Truck, title: "Reliable Stock", desc: "Deep inventory across major brands — less waiting, more working." },
-  { icon: Users, title: "Dedicated Support", desc: "A team that knows your business and understands what you need." },
-  { icon: Clock, title: "Fast Turnaround", desc: "Same-day collection and rapid order processing." },
-  { icon: Wrench, title: "Parts Sourcing", desc: "If we don't have it, we'll find it. Specialist and hard-to-find parts sourced quickly." },
-  { icon: Phone, title: "Easy Ordering", desc: "Phone, email, or counter — order however suits you best." },
+  { img: imgPricing, title: "Trade Pricing", desc: "Competitive rates for registered trade customers across all product lines." },
+  { img: imgStock, title: "Reliable Stock", desc: "Deep inventory across major brands — less waiting, more working." },
+  { img: imgSupport, title: "Dedicated Support", desc: "A team that knows your business and understands what you need." },
+  { img: imgTurnaround, title: "Fast Turnaround", desc: "Same-day collection and rapid order processing." },
+  { img: imgSourcing, title: "Parts Sourcing", desc: "If we don't have it, we'll find it. Specialist and hard-to-find parts sourced quickly." },
+  { img: imgOrdering, title: "Easy Ordering", desc: "Phone, email, or counter — order however suits you best." },
 ];
 
 const PublicTrade = () => (
@@ -34,14 +41,22 @@ const PublicTrade = () => (
     </section>
 
     <section className="container mx-auto px-4 py-20">
-      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
         {benefits.map((b) => (
-          <div key={b.title} className="bg-card rounded-xl p-6 border border-pd-steel-light/20 hover:border-pd-accent/30 hover:shadow-md transition-all">
-            <div className="w-11 h-11 rounded-lg bg-pd-accent/10 flex items-center justify-center text-pd-accent mb-4">
-              <b.icon className="h-5 w-5" />
+          <div key={b.title} className="group relative rounded-xl overflow-hidden aspect-[4/3]">
+            <img
+              src={b.img}
+              alt={b.title}
+              className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+              loading="lazy"
+              width={800}
+              height={600}
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-pd-charcoal via-pd-charcoal/40 to-transparent" />
+            <div className="absolute bottom-0 left-0 right-0 p-5">
+              <h3 className="text-lg font-bold text-foreground">{b.title}</h3>
+              <p className="text-sm text-foreground/75 mt-0.5 leading-relaxed">{b.desc}</p>
             </div>
-            <h3 className="font-bold text-pd-charcoal mb-1.5">{b.title}</h3>
-            <p className="text-sm text-pd-charcoal/70 leading-relaxed">{b.desc}</p>
           </div>
         ))}
       </div>
@@ -58,9 +73,9 @@ const PublicTrade = () => (
           <Button asChild size="lg" className="bg-pd-accent hover:bg-pd-accent-light text-foreground font-semibold">
             <Link to="/contact">Contact Us <ArrowRight className="h-4 w-4 ml-1" /></Link>
           </Button>
-            <Button asChild size="lg" variant="outlineDark">
-              <a href="tel:+442870322970">Call Now</a>
-            </Button>
+          <Button asChild size="lg" variant="outlineDark">
+            <a href="tel:+442870322970">Call Now</a>
+          </Button>
         </div>
       </div>
     </section>
