@@ -209,14 +209,14 @@ export default function ImageScout() {
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <StatCard label="Queued" value={stats.queued} />
-        <StatCard label="Running" value={stats.running} />
-        <StatCard label="Success" value={stats.success} />
-        <StatCard label="Failed" value={stats.failed} />
-        <StatCard label="Needs Review" value={stats.review} />
+        <StatCard label="Queued" value={stats.queued} onClick={() => { setLogStatusFilter("queued"); setTab("log"); }} />
+        <StatCard label="Running" value={stats.running} onClick={() => { setLogStatusFilter("running"); setTab("log"); }} />
+        <StatCard label="Success" value={stats.success} onClick={() => { setLogStatusFilter("success"); setTab("log"); }} />
+        <StatCard label="Failed" value={stats.failed} onClick={() => { setLogStatusFilter("failed"); setTab("log"); }} />
+        <StatCard label="Needs Review" value={stats.review} onClick={() => { setLogStatusFilter("needs_review"); setTab("log"); }} />
       </div>
 
-      <Tabs defaultValue="run">
+      <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
           <TabsTrigger value="run"><Play className="h-4 w-4 mr-1" /> Run Agent</TabsTrigger>
           <TabsTrigger value="queue"><ListChecks className="h-4 w-4 mr-1" /> Missing Images ({missingQ.data?.length ?? 0})</TabsTrigger>
