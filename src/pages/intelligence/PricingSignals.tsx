@@ -166,6 +166,16 @@ const PricingSignals = () => {
     },
   });
 
+  const { data: brands = [] } = useQuery({
+    queryKey: ["pricing-signals-brands"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("brands").select("id, name").order("name");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+  const brandName = (id: string | null) => brands.find((b: any) => b.id === id)?.name ?? "—";
+
   // Roll up to SKU level (collapse channels into one row per SKU)
   const skuRollups = useMemo<SkuRollup[]>(() => {
     const map = new Map<string, SkuRollup>();
