@@ -387,7 +387,7 @@ Respond ONLY with a JSON array of indices, best first, e.g. [3,0,7].`;
 
 // ---------------- candidate discovery ----------------
 
-async function buildCandidates(job: Job, brand: Brand): Promise<{ candidates: Candidate[]; notes: string[] }> {
+async function buildCandidates(job: Job, brand: Brand, profile: BrandProfile): Promise<{ candidates: Candidate[]; notes: string[] }> {
   const candidates: Candidate[] = [];
   const notes: string[] = [];
   const cleanSku = stripPrefix(job.sku, brand?.prefix ?? null);
@@ -395,13 +395,19 @@ async function buildCandidates(job: Job, brand: Brand): Promise<{ candidates: Ca
   const brandDomain = brand?.image_search_domain ?? null;
   const searchTerm = (job.override_search_term && job.override_search_term.trim()) || cleanSku;
 
-  notes.push(`sku=${job.sku} clean=${cleanSku} brand=${brandName || "?"} domain=${brandDomain || "?"}`);
+  const preferred = new Set<string>([
+    ...(profile?.preferred_domains ?? []),
+    ...(brandDomain ? [brandDomain] : []),
+  ].map((d) => d.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "")));
+  const blocked = new Set<string>((profile?.blocked_domains ?? []).map((d) => d.replace(/^www\./, "")));
+
+  notes.push(`sku=${job.sku} clean=${cleanSku} brand=${brandName || "?"} preferred=[${[...preferred].join(",")}] blocked=[${[...blocked].join(",")}]`);
 
   // 1. Direct source URL
   if (job.source_url) {
-    const imgs = await firecrawlScrapeImages(job.source_url);
-    for (const i of imgs.slice(0, 12)) candidates.push({ imageUrl: i, pageUrl: job.source_url, source: "source_url" });
-    notes.push(`source_url → ${imgs.length} imgs`);
+    const { images, text } = await firecrawlScrapeImages(job.source_url);
+    for (const i of images.slice(0, 12)) candidates.push({ imageUrl: i, pageUrl: job.source_url, source: "source_url", pageText: text });
+    notes.push(`source_url → ${images.length} imgs`);
   }
 
   // 2. Brand pattern (only if fully templated)
@@ -415,31 +421,40 @@ async function buildCandidates(job: Job, brand: Brand): Promise<{ candidates: Ca
     }
   }
 
-  // 3. Firecrawl search — brand domain first
-  const queries: string[] = [];
-  if (brandDomain) {
-    queries.push(`site:${brandDomain} ${searchTerm}`);
-    queries.push(`${brandName} ${searchTerm} site:${brandDomain}`);
+  // 3. Build queries: profile templates first, then defaults
+  const tplVars = { brand: brandName, part_number: searchTerm, sku: job.sku };
+  const queries: Array<{ q: string; tpl: string }> = [];
+  for (const tpl of profile?.search_templates ?? []) {
+    const q = expandTemplate(tpl, tplVars);
+    if (q) queries.push({ q, tpl });
   }
-  queries.push(`${brandName} ${searchTerm}`.trim());
-  queries.push(`"${searchTerm}" ${brandName}`.trim());
-  if (cleanSku !== job.sku) queries.push(`${searchTerm} part`);
+  if (queries.length === 0) {
+    if (brandDomain) {
+      queries.push({ q: `site:${brandDomain} ${searchTerm}`, tpl: `site:{brand_domain} {part_number}` });
+      queries.push({ q: `${brandName} ${searchTerm} site:${brandDomain}`, tpl: `{brand} {part_number} site:{brand_domain}` });
+    }
+    queries.push({ q: `${brandName} ${searchTerm}`.trim(), tpl: "{brand} {part_number}" });
+    queries.push({ q: `"${searchTerm}" ${brandName}`.trim(), tpl: `"{part_number}" {brand}` });
+  }
 
   const seenPages = new Set<string>();
   let scraped = 0;
-  for (const q of queries) {
+  for (const { q, tpl } of queries) {
     if (scraped >= MAX_SCRAPE_PAGES) break;
     const results = await firecrawlSearch(q, 4);
     notes.push(`search "${q}" → ${results.length} pages`);
     for (const r of results) {
       if (scraped >= MAX_SCRAPE_PAGES) break;
       if (seenPages.has(r.url)) continue;
+      const host = hostOf(r.url);
+      if (host && blocked.has(host)) continue;
       seenPages.add(r.url);
       scraped++;
-      const imgs = await firecrawlScrapeImages(r.url);
-      const onBrand = brandDomain && r.url.includes(brandDomain);
-      for (const i of imgs.slice(0, 8)) candidates.push({
-        imageUrl: i, pageUrl: r.url, source: onBrand ? "firecrawl_brand" : "firecrawl_open",
+      const { images, text } = await firecrawlScrapeImages(r.url);
+      const onPreferred = host && preferred.has(host);
+      for (const i of images.slice(0, 8)) candidates.push({
+        imageUrl: i, pageUrl: r.url, source: onPreferred ? "preferred_domain" : "open_search",
+        fromTemplate: tpl, pageText: text,
       });
     }
   }
@@ -450,6 +465,18 @@ async function buildCandidates(job: Job, brand: Brand): Promise<{ candidates: Ca
     if (seen.has(c.imageUrl)) return false;
     seen.add(c.imageUrl); return true;
   });
+
+  // Score everything
+  const manufacturerHost = brandDomain ? brandDomain.replace(/^www\./, "") : null;
+  for (const c of dedup) {
+    const { score, reasoning } = scoreCandidate(c, {
+      partNumber: cleanSku, brand: brandName, preferred, blocked, manufacturerHost,
+    });
+    c.score = score;
+    c.reasoning = reasoning;
+  }
+  dedup.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+
   notes.push(`total candidates: ${dedup.length}`);
   return { candidates: dedup, notes };
 }
