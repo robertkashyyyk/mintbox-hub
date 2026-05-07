@@ -11,11 +11,13 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-  Search, Truck, Package, PoundSterling, Loader2, FilePlus2, ArrowLeft, ChevronRight,
+  Search, Truck, Package, PoundSterling, Loader2, FilePlus2, ArrowLeft, ChevronRight, AlertTriangle, Clock,
 } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   useBuyRecommendationsRpc, useBuyRecommendationsSummary, type BuyRecommendationRow,
 } from "@/hooks/useBuyRecommendationsRpc";
+import { useSentPoSuppression } from "@/hooks/useSentPoSuppression";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -64,6 +66,7 @@ const BuyRecommendations = () => {
   const { toast } = useToast();
   const { data: rows = [], isLoading } = useBuyRecommendationsRpc({ includePending: true });
   const { data: summary } = useBuyRecommendationsSummary();
+  const { suppressionMap, hours: suppressionHours } = useSentPoSuppression();
 
   // Mode: null = supplier summary, otherwise the chosen supplierId (or "__unmapped__")
   const [supplierView, setSupplierView] = useState<string | null>(null);
@@ -109,14 +112,18 @@ const BuyRecommendations = () => {
     return Array.from(map.values()).sort((a, b) => b.totalSpend - a.totalSpend);
   }, [activeRows]);
 
-  // Filter the summary list itself (by search on supplier name)
+  // Filter the summary list itself (by search on supplier name + suppression window)
   const filteredSupplierGroups = useMemo(() => {
     const q = search.trim().toLowerCase();
     return supplierGroups.filter((g) => {
+      if (g.supplierId) {
+        const s = suppressionMap.get(g.supplierId);
+        if (s?.suppressed) return false; // hide during PO suppression window
+      }
       if (q && !g.supplierName.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [supplierGroups, search]);
+  }, [supplierGroups, search, suppressionMap]);
 
   // Detail rows for selected supplier
   const detailRows = useMemo(() => {
@@ -326,6 +333,7 @@ const BuyRecommendations = () => {
                     {filteredSupplierGroups.map((g) => {
                       const key = g.supplierId || "__unmapped__";
                       const unmapped = !g.supplierId;
+                      const overdue = g.supplierId ? suppressionMap.get(g.supplierId)?.overdueNoAsn : false;
                       return (
                         <TableRow
                           key={key}
@@ -343,9 +351,14 @@ const BuyRecommendations = () => {
                           <TableCell className="text-right tabular-nums">{g.totalUnits.toLocaleString()}</TableCell>
                           <TableCell className="text-right tabular-nums">{formatGBP(g.totalSpend)}</TableCell>
                           <TableCell>
-                            <div className="flex gap-1">
+                            <div className="flex gap-1 flex-wrap">
                               {g.hasBackorder && <Badge className="bg-warning text-warning-foreground">BO</Badge>}
                               {unmapped && <Badge variant="destructive">No supplier</Badge>}
+                              {overdue && (
+                                <Badge variant="destructive" className="gap-1">
+                                  <Clock className="h-3 w-3" /> PO Pending — No ASN Yet
+                                </Badge>
+                              )}
                             </div>
                           </TableCell>
                           <TableCell><ChevronRight className="h-4 w-4 text-muted-foreground" /></TableCell>
@@ -392,6 +405,40 @@ const BuyRecommendations = () => {
           </Button>
         </div>
       </div>
+
+      {(() => {
+        const sup = currentSupplier?.supplierId ? suppressionMap.get(currentSupplier.supplierId) : null;
+        if (!sup) return null;
+        const sentLabel = new Date(sup.sentAt).toLocaleString("en-GB", {
+          day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit",
+        });
+        if (sup.suppressed) {
+          return (
+            <Alert>
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                <strong>PO sent to Mintsoft on {sentLabel}</strong> — awaiting ASN conversion.
+                Supplier is suppressed from the summary list for {suppressionHours}h and will reappear automatically
+                if stock levels change after the next sync.
+                {sup.poNumber && <> · <Link to={`/execution/purchase-orders/${sup.poId}`} className="underline">View PO {sup.poNumber}</Link></>}
+              </AlertDescription>
+            </Alert>
+          );
+        }
+        if (sup.overdueNoAsn) {
+          return (
+            <Alert variant="destructive">
+              <Clock className="h-4 w-4" />
+              <AlertDescription>
+                <strong>PO Pending — No ASN Yet.</strong> Sent to Mintsoft on {sentLabel} and not yet converted to an ASN
+                (window of {suppressionHours}h has elapsed). Chase Mintsoft rather than re-ordering.
+                {sup.poNumber && <> · <Link to={`/execution/purchase-orders/${sup.poId}`} className="underline">View PO {sup.poNumber}</Link></>}
+              </AlertDescription>
+            </Alert>
+          );
+        }
+        return null;
+      })()}
 
       <Card>
         <CardContent className="p-4">
