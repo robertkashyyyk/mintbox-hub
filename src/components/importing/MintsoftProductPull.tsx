@@ -155,6 +155,43 @@ export function MintsoftProductPull() {
     },
   });
 
+  // Single SKU fetch mutation
+  const singleSkuMutation = useMutation({
+    mutationFn: async (sku: string) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      const { data, error } = await supabase.functions.invoke(
+        "mintsoft-fetch-single-sku",
+        { body: { sku, userId: user?.id } }
+      );
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data: any) => {
+      if (data?.found) {
+        toast({
+          title: "SKU imported",
+          description: data.message,
+        });
+        setSingleSku("");
+        queryClient.invalidateQueries({ queryKey: ["products"] });
+        queryClient.invalidateQueries({ queryKey: ["upload-history"] });
+      } else {
+        toast({
+          title: "SKU not found",
+          description: data?.message || "Mintsoft returned no match",
+          variant: "destructive",
+        });
+      }
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Fetch failed",
+        description: error?.context?.error || error.message || "Failed to fetch SKU",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleSearch = () => {
     if (!effectivePrefix) {
       toast({
