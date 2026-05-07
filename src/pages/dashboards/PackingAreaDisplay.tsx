@@ -15,21 +15,27 @@ const PackingAreaDisplay = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [, force] = useState(0);
 
-  // Live counters from order_lines (current state) + despatched today from order_status_history
+  // Live counters from Mintsoft snapshot (truthful, refreshed every 5 min by cron)
   const liveQuery = useQuery({
     queryKey: ["packing-live"],
     refetchInterval: REFRESH_MS,
     queryFn: async () => {
-      const [awaiting, newOrders, picked, despatchedHist] = await Promise.all([
-        supabase.from("order_lines").select("mintsoft_order_id", { count: "exact", head: true }).eq("order_status", "AWAITINGPICKING"),
-        supabase.from("order_lines").select("mintsoft_order_id", { count: "exact", head: true }).eq("order_status", "NEW"),
-        supabase.from("order_lines").select("mintsoft_order_id", { count: "exact", head: true }).eq("order_status", "PICKED"),
+      const [snap, despatchedHist] = await Promise.all([
+        supabase.rpc("get_mintsoft_status_latest" as any).then((r) => r),
         supabase.rpc("get_despatch_hourly_today" as any).then((r) => r),
       ]);
+      const rows = (snap.data as Array<{ status: string; count: number; captured_at: string }> | null) ?? [];
+      const byStatus: Record<string, number> = {};
+      let capturedAt: string | null = null;
+      for (const r of rows) {
+        byStatus[r.status] = Number(r.count);
+        if (!capturedAt || r.captured_at > capturedAt) capturedAt = r.captured_at;
+      }
       return {
-        awaiting: awaiting.count ?? 0,
-        newOrders: newOrders.count ?? 0,
-        picked: picked.count ?? 0,
+        awaiting: byStatus["AWAITINGPICKING"] ?? 0,
+        newOrders: byStatus["NEW"] ?? 0,
+        picked: byStatus["PICKED"] ?? 0,
+        capturedAt,
         hourly: (despatchedHist.data as Array<{ hr: string; despatched: number }> | null) ?? [],
       };
     },
