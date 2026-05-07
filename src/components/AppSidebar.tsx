@@ -11,6 +11,7 @@ import {
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useRbacEnabled } from "@/hooks/useRbacEnabled";
@@ -52,7 +53,7 @@ export function AppSidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const currentPath = location.pathname;
-  const { data: rbacEnabled } = useRbacEnabled();
+  const { data: rbacEnabled, isLoading: rbacLoading } = useRbacEnabled();
 
   // Move useQuery to top (before any conditional return)
   const { data: userRoles } = useQuery({
@@ -206,6 +207,26 @@ export function AppSidebar() {
   }, [currentPath]);
 
   // NOW conditional return is safe - all hooks already ran
+  // Wait for the RBAC toggle to resolve before rendering ANY sidebar,
+  // otherwise non-super users briefly see the legacy menu and then it vanishes
+  // when RbacSidebar takes over.
+  if (rbacLoading) {
+    return (
+      <Sidebar>
+        <SidebarContent className="pt-4">
+          <div className="px-4 space-y-4">
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className="space-y-2">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-8 w-full" />
+                <Skeleton className="h-8 w-full" />
+              </div>
+            ))}
+          </div>
+        </SidebarContent>
+      </Sidebar>
+    );
+  }
   if (rbacEnabled) {
     return <RbacSidebar />;
   }
