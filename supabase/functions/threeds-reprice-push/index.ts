@@ -29,14 +29,12 @@ Deno.serve(async (req) => {
   const userClient = createClient(url, anon, {
     global: { headers: { Authorization: authHeader } },
   });
-  const token = authHeader.replace("Bearer ", "");
-  const { data: claims, error: claimsErr } = await userClient.auth.getClaims(
-    token,
-  );
-  if (claimsErr || !claims?.claims?.sub) {
+  const { data: userData, error: userErr } = await userClient.auth.getUser();
+  if (userErr || !userData?.user?.id) {
     return json({ error: "Unauthorized" }, 401);
   }
-  const userId = claims.claims.sub as string;
+  const userId = userData.user.id;
+
 
   // Parse + validate
   let body: { store_id?: string; rows?: PushRow[] };
