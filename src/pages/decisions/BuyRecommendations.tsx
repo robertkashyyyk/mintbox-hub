@@ -66,6 +66,7 @@ const BuyRecommendations = () => {
   const { toast } = useToast();
   const { data: rows = [], isLoading } = useBuyRecommendationsRpc({ includePending: true });
   const { data: summary } = useBuyRecommendationsSummary();
+  const { suppressionMap, hours: suppressionHours } = useSentPoSuppression();
 
   // Mode: null = supplier summary, otherwise the chosen supplierId (or "__unmapped__")
   const [supplierView, setSupplierView] = useState<string | null>(null);
