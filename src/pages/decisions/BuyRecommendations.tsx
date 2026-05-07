@@ -11,11 +11,13 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-  Search, Truck, Package, PoundSterling, Loader2, FilePlus2, ArrowLeft, ChevronRight,
+  Search, Truck, Package, PoundSterling, Loader2, FilePlus2, ArrowLeft, ChevronRight, AlertTriangle, Clock,
 } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   useBuyRecommendationsRpc, useBuyRecommendationsSummary, type BuyRecommendationRow,
 } from "@/hooks/useBuyRecommendationsRpc";
+import { useSentPoSuppression } from "@/hooks/useSentPoSuppression";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
