@@ -160,16 +160,33 @@ const PackingAreaDisplay = () => {
 
   return (
     <div ref={containerRef} className="space-y-6 bg-background p-2">
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex items-center justify-between gap-4">
+        <div className="min-w-0">
           <h1 className="text-3xl font-bold tracking-tight text-foreground">Packing Area</h1>
-          <p className="text-foreground/60">
-            Live packing & despatch · Cut-off 16:30
-            {minsToCutoff > 0 && minsToCutoff < 600 && (
-              <span className="ml-2 font-semibold">· {Math.floor(minsToCutoff / 60)}h {minsToCutoff % 60}m to cut-off</span>
-            )}
-          </p>
+          <p className="text-foreground/60">Live packing & despatch · Cut-off 16:30</p>
         </div>
+
+        {/* Big cut-off countdown */}
+        <div className="flex flex-col items-center px-6">
+          <div className="text-xs uppercase tracking-wider text-muted-foreground">
+            {cutoffPast ? "Past cut-off" : "Time to 16:30 cut-off"}
+          </div>
+          <div
+            className={
+              "font-bold tabular-nums leading-none mt-1 " +
+              (cutoffPast
+                ? "text-5xl text-muted-foreground"
+                : minsToCutoff <= 60
+                  ? "text-6xl text-destructive"
+                  : minsToCutoff <= 150
+                    ? "text-6xl text-warning"
+                    : "text-6xl text-foreground")
+            }
+          >
+            {cutoffPast ? "—" : `${cutoffH}h ${String(cutoffM).padStart(2, "0")}m`}
+          </div>
+        </div>
+
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="text-xs">
             Updated: {liveQuery.dataUpdatedAt ? format(new Date(liveQuery.dataUpdatedAt), "HH:mm:ss") : "--"}
