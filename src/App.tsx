@@ -64,6 +64,7 @@ import DiscoveryQueue from "./pages/discovery/DiscoveryQueue";
 import BulkImageUpload from "./pages/discovery/BulkImageUpload";
 import PendingImages from "./pages/discovery/PendingImages";
 import ImageScout from "./pages/discovery/ImageScout";
+import ImageScoutBrandProfiles from "./pages/discovery/ImageScoutBrandProfiles";
 
 // Intelligence Pages
 import VelocityCoverage from "./pages/intelligence/VelocityCoverage";
