@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Search, Download, Loader2, Package, Sparkles } from "lucide-react";
+import { Search, Download, Loader2, Package, Sparkles, Target } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 interface PreviewResult {
@@ -26,6 +26,7 @@ export function MintsoftProductPull() {
   const queryClient = useQueryClient();
   const [selectedBrandId, setSelectedBrandId] = useState<string>("");
   const [customPrefix, setCustomPrefix] = useState<string>("");
+  const [singleSku, setSingleSku] = useState<string>("");
   const [preview, setPreview] = useState<PreviewResult | null>(null);
 
   // Fetch brands with prefixes
@@ -154,6 +155,43 @@ export function MintsoftProductPull() {
     },
   });
 
+  // Single SKU fetch mutation
+  const singleSkuMutation = useMutation({
+    mutationFn: async (sku: string) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      const { data, error } = await supabase.functions.invoke(
+        "mintsoft-fetch-single-sku",
+        { body: { sku, userId: user?.id } }
+      );
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data: any) => {
+      if (data?.found) {
+        toast({
+          title: "SKU imported",
+          description: data.message,
+        });
+        setSingleSku("");
+        queryClient.invalidateQueries({ queryKey: ["products"] });
+        queryClient.invalidateQueries({ queryKey: ["upload-history"] });
+      } else {
+        toast({
+          title: "SKU not found",
+          description: data?.message || "Mintsoft returned no match",
+          variant: "destructive",
+        });
+      }
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Fetch failed",
+        description: error?.context?.error || error.message || "Failed to fetch SKU",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleSearch = () => {
     if (!effectivePrefix) {
       toast({
@@ -222,6 +260,48 @@ export function MintsoftProductPull() {
                 <>
                   <Sparkles className="mr-2 h-4 w-4" />
                   Run discovery now
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+
+        {/* Single SKU Fetch */}
+        <div className="p-4 border rounded-lg bg-muted/30 space-y-3">
+          <div>
+            <h4 className="font-medium flex items-center gap-2">
+              <Target className="h-4 w-4" />
+              Fetch a single SKU
+            </h4>
+            <p className="text-sm text-muted-foreground mt-1">
+              Hit Mintsoft's Search endpoint directly — perfect for one-offs without scanning the full catalog. Imports immediately if found.
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Input
+              value={singleSku}
+              onChange={(e) => setSingleSku(e.target.value)}
+              placeholder="e.g., FA1-076.682.005"
+              className="font-mono"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && singleSku.trim() && !singleSkuMutation.isPending) {
+                  singleSkuMutation.mutate(singleSku.trim());
+                }
+              }}
+            />
+            <Button
+              onClick={() => singleSkuMutation.mutate(singleSku.trim())}
+              disabled={!singleSku.trim() || singleSkuMutation.isPending}
+            >
+              {singleSkuMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Fetching...
+                </>
+              ) : (
+                <>
+                  <Target className="mr-2 h-4 w-4" />
+                  Fetch SKU
                 </>
               )}
             </Button>

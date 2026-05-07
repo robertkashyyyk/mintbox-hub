@@ -113,8 +113,8 @@ Deno.serve(async (req) => {
     }
 
     const limit = 100;
-    const MAX_PAGES = 2500;
-    const MAX_PREVIEW_PAGES = 50;
+    const MAX_PAGES = 3500;
+    const MAX_PREVIEW_PAGES = 200;
 
     const allProducts: MintsoftProduct[] = [];
     let page = 1;
