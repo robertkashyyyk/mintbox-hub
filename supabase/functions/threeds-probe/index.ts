@@ -11,10 +11,11 @@ Deno.serve(async (req) => {
     const sku = url.searchParams.get("sku") ?? "";
     const token = Deno.env.get("THREEDS_API_KEY");
     if (!token) throw new Error("THREEDS_API_KEY missing");
-    if (!sku) throw new Error("sku query param required");
-
+    const qs = sku
+      ? `sku=${encodeURIComponent(sku)}&limit=10&withVariants=true`
+      : `limit=5&withVariants=true`;
     const r = await fetch(
-      `https://api.3dsellers.com/v1/products?sku=${encodeURIComponent(sku)}&limit=10&withVariants=true`,
+      `https://api.3dsellers.com/v1/products?${qs}`,
       { headers: { Authorization: `Bearer ${token}`, Accept: "application/json" } },
     );
     const text = await r.text();
