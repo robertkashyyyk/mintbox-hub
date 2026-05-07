@@ -1,12 +1,16 @@
 // mintsoft-create-po
 //
-// Marks a draft PO as "sent". Mintsoft has no public PO-create endpoint, so we
-// move the PO to the `sent` status — buyers send the PO out-of-band (email /
-// portal), then ASN matching closes the loop later when stock arrives.
+// Pushes a draft PO to Mintsoft as a Purchase Order (PreAdvice) using
+// `POST /api/PurchaseOrder/Create`. On success, stamps `mintsoft_po_id`
+// and the returned ASN reference, and moves status to `sent`.
 //
-// Cost-validation gate: refuse to send if any line has unit_cost <= 0.
-// Lag-window suppression: while status='sent' and mintsoft_po_id is null,
-//   `get_buy_recommendations` excludes / flags those SKUs.
+// Pre-flight gates:
+//   - Supplier must exist and have a `mintsoft_supplier_id` (the brand prefix
+//     mapping must resolve to a supplier configured in Mintsoft).
+//   - Every line must have `mintsoft_product_id` and `unit_cost > 0`.
+//
+// Lines that lack a unit cost are SKIPPED with a warning rather than blocking
+// the whole PO. The caller can decide whether to chase those manually.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
@@ -15,99 +19,173 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const MINTSOFT_BASE = "https://api.mintsoft.co.uk";
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+
+  const startedAt = new Date().toISOString();
 
   try {
     const auth = req.headers.get("Authorization");
     if (!auth) {
-      return new Response(JSON.stringify({ error: "Missing auth" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return json({ error: "Missing auth" }, 401);
     }
 
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-      { global: { headers: { Authorization: auth } } },
-    );
+    const url = Deno.env.get("SUPABASE_URL")!;
+    const anon = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const svcKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const mintsoftKey = Deno.env.get("MINTSOFT_API_KEY");
+    if (!mintsoftKey) return json({ error: "MINTSOFT_API_KEY not set" }, 500);
 
-    const { data: userData } = await supabase.auth.getUser();
-    if (!userData?.user) {
-      return new Response(JSON.stringify({ error: "Unauthenticated" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    const userClient = createClient(url, anon, { global: { headers: { Authorization: auth } } });
+    const { data: userData } = await userClient.auth.getUser();
+    if (!userData?.user) return json({ error: "Unauthenticated" }, 401);
 
     const body = await req.json().catch(() => ({}));
     const poId: string | undefined = body?.po_id;
-    if (!poId) {
-      return new Response(JSON.stringify({ error: "po_id required" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    if (!poId) return json({ error: "po_id required" }, 400);
 
-    // Use service role for the actual updates (bypass RLS, we've already checked auth)
-    const svc = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-    );
+    const svc = createClient(url, svcKey);
 
+    // Load PO + supplier + lines
     const { data: po, error: poErr } = await svc
       .from("purchase_orders")
-      .select("id, status")
-      .eq("id", poId)
-      .single();
-    if (poErr || !po) {
-      return new Response(JSON.stringify({ error: "PO not found" }), {
-        status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      .select("id, status, po_number, mintsoft_po_id, supplier_id, suppliers(name, mintsoft_supplier_id)")
+      .eq("id", poId).single();
+    if (poErr || !po) return json({ error: "PO not found" }, 404);
+
+    if (po.mintsoft_po_id) {
+      return json({ error: `PO already pushed to Mintsoft (#${po.mintsoft_po_id})` }, 400);
     }
     if (po.status !== "draft" && po.status !== "approved") {
-      return new Response(JSON.stringify({ error: `Cannot send PO with status '${po.status}'` }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return json({ error: `Cannot send PO with status '${po.status}'` }, 400);
     }
 
-    // Cost-validation gate
+    const supplier: any = po.suppliers;
+    if (!po.supplier_id || !supplier?.mintsoft_supplier_id) {
+      return json({
+        error: `Supplier "${supplier?.name ?? "unknown"}" is not mapped to a Mintsoft supplier. Open Suppliers admin and set the Mintsoft Supplier ID first.`,
+      }, 422);
+    }
+
     const { data: lines, error: linesErr } = await svc
       .from("purchase_order_lines")
-      .select("sku, unit_cost, qty_ordered")
+      .select("id, sku, qty_ordered, unit_cost")
       .eq("po_id", poId);
     if (linesErr) throw linesErr;
-    if (!lines || lines.length === 0) {
-      return new Response(JSON.stringify({ error: "PO has no lines" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-    const badLines = lines.filter((l) => !l.unit_cost || Number(l.unit_cost) <= 0);
-    if (badLines.length > 0) {
-      return new Response(JSON.stringify({
-        error: "Cannot send: some lines have no unit cost",
-        bad_skus: badLines.map((l) => l.sku),
-      }), {
-        status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    if (!lines || lines.length === 0) return json({ error: "PO has no lines" }, 400);
+
+    // Resolve mintsoft_product_id for each SKU
+    const skus = lines.map((l) => l.sku);
+    const { data: pcRows, error: pcErr } = await svc
+      .from("products_cache")
+      .select("sku, mintsoft_product_id")
+      .in("sku", skus);
+    if (pcErr) throw pcErr;
+    const pidMap = new Map<string, number>();
+    for (const r of pcRows || []) {
+      if (r.mintsoft_product_id) pidMap.set(r.sku, r.mintsoft_product_id);
     }
 
-    const { error: updErr } = await svc
-      .from("purchase_orders")
-      .update({
-        status: "sent",
-        sent_at: new Date().toISOString(),
-        sent_by: userData.user.id,
-      })
-      .eq("id", poId);
+    const skipped: { sku: string; reason: string }[] = [];
+    const orderItems: any[] = [];
+    for (const l of lines) {
+      const pid = pidMap.get(l.sku);
+      if (!pid) {
+        skipped.push({ sku: l.sku, reason: "no Mintsoft product id" });
+        continue;
+      }
+      const cost = Number(l.unit_cost ?? 0);
+      if (!cost || cost <= 0) {
+        skipped.push({ sku: l.sku, reason: "missing unit cost" });
+        continue;
+      }
+      const qty = Number(l.qty_ordered ?? 0);
+      if (qty <= 0) {
+        skipped.push({ sku: l.sku, reason: "qty <= 0" });
+        continue;
+      }
+      orderItems.push({ ProductID: pid, Quantity: qty, UnitCost: cost });
+    }
+
+    if (orderItems.length === 0) {
+      return json({
+        error: "No valid lines to push to Mintsoft (all lines missing cost / product id).",
+        skipped,
+      }, 422);
+    }
+
+    const payload = {
+      SupplierID: supplier.mintsoft_supplier_id,
+      OrderRef: po.po_number || `PO-${po.id.slice(0, 8)}`,
+      OrderItems: orderItems,
+    };
+
+    // Mark attempt
+    await svc.from("purchase_orders").update({
+      mintsoft_send_attempted_at: new Date().toISOString(),
+      mintsoft_send_error: null,
+    }).eq("id", poId);
+
+    const resp = await fetch(`${MINTSOFT_BASE}/api/PurchaseOrder/Create`, {
+      method: "POST",
+      headers: { "ms-apikey": mintsoftKey, "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    const text = await resp.text();
+    let parsed: any = null;
+    try { parsed = JSON.parse(text); } catch { /* ignore */ }
+
+    if (!resp.ok || (parsed && parsed.Success === false)) {
+      const errMsg = parsed?.Message || text.slice(0, 300) || `HTTP ${resp.status}`;
+      await svc.from("purchase_orders").update({ mintsoft_send_error: errMsg }).eq("id", poId);
+      await svc.from("edge_function_runs").insert({
+        function_name: "mintsoft-create-po", started_at: startedAt, ended_at: new Date().toISOString(),
+        status: "failed", message: errMsg, details: { po_id: poId, payload, response: text.slice(0, 500) },
+      } as any);
+      return json({ error: `Mintsoft rejected: ${errMsg}`, payload }, 422);
+    }
+
+    // Mintsoft PO create returns the new PO ID (number) and often an ASN reference
+    const mintsoftPoId =
+      parsed?.ID ?? parsed?.Id ?? parsed?.PurchaseOrderID ?? parsed?.PurchaseOrderId ?? null;
+    const asnRef = parsed?.ASNReference ?? parsed?.AsnReference ?? parsed?.OrderRef ?? null;
+
+    const { error: updErr } = await svc.from("purchase_orders").update({
+      status: "sent",
+      sent_at: new Date().toISOString(),
+      sent_by: userData.user.id,
+      mintsoft_po_id: typeof mintsoftPoId === "number" ? mintsoftPoId : null,
+      mintsoft_asn_reference: asnRef ? String(asnRef) : null,
+      mintsoft_send_error: null,
+    }).eq("id", poId);
     if (updErr) throw updErr;
 
-    return new Response(JSON.stringify({ ok: true, po_id: poId, status: "sent" }), {
-      status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    await svc.from("edge_function_runs").insert({
+      function_name: "mintsoft-create-po", started_at: startedAt, ended_at: new Date().toISOString(),
+      status: "success",
+      message: `PO ${poId} → Mintsoft #${mintsoftPoId ?? "?"}; ${orderItems.length} lines${skipped.length ? `, ${skipped.length} skipped` : ""}`,
+      details: { po_id: poId, mintsoft_po_id: mintsoftPoId, asn_reference: asnRef, skipped },
+    } as any);
+
+    return json({
+      ok: true, po_id: poId, status: "sent",
+      mintsoft_po_id: mintsoftPoId,
+      mintsoft_asn_reference: asnRef,
+      lines_sent: orderItems.length,
+      skipped,
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("mintsoft-create-po failed:", msg);
-    return new Response(JSON.stringify({ error: msg }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return json({ error: msg }, 500);
   }
 });
+
+function json(b: unknown, status = 200) {
+  return new Response(JSON.stringify(b), {
+    status, headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
