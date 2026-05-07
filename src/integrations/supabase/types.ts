@@ -1327,6 +1327,30 @@ export type Database = {
         }
         Relationships: []
       }
+      mintsoft_status_snapshots: {
+        Row: {
+          captured_at: string
+          count: number
+          id: number
+          source: string
+          status: string
+        }
+        Insert: {
+          captured_at?: string
+          count: number
+          id?: number
+          source?: string
+          status: string
+        }
+        Update: {
+          captured_at?: string
+          count?: number
+          id?: number
+          source?: string
+          status?: string
+        }
+        Relationships: []
+      }
       notifications: {
         Row: {
           created_at: string | null
@@ -3693,6 +3717,21 @@ export type Database = {
           supplier_name: string
           target_lsa: number
           weekly_velocity: number
+        }[]
+      }
+      get_mintsoft_despatch_hourly_today: {
+        Args: never
+        Returns: {
+          despatched: number
+          hr: string
+        }[]
+      }
+      get_mintsoft_status_latest: {
+        Args: never
+        Returns: {
+          captured_at: string
+          count: number
+          status: string
         }[]
       }
       get_ops_daily_trend: {
