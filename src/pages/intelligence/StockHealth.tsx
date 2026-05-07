@@ -19,7 +19,8 @@ const getHealthBadgeVariant = (category: string) => {
     "Low Stock": { bg: "bg-orange-100 dark:bg-orange-900/30", text: "text-orange-800 dark:text-orange-300" },
     "Critical": { bg: "bg-red-100 dark:bg-red-900/30", text: "text-red-800 dark:text-red-300" },
     "Dead Stock": { bg: "bg-muted dark:bg-card/30", text: "text-foreground dark:text-muted-foreground" },
-    "Out of Stock": { bg: "bg-muted dark:bg-card/50", text: "text-foreground dark:text-muted-foreground" },
+    "Out of Stock": { bg: "bg-red-100 dark:bg-red-900/30", text: "text-red-800 dark:text-red-300" },
+    "Non Selling": { bg: "bg-muted dark:bg-card/30", text: "text-foreground/70 dark:text-muted-foreground" },
     "Missing Baseline": { bg: "bg-background", text: "text-red-600 dark:text-red-400", border: "border-red-600 dark:border-red-400" },
   };
 
