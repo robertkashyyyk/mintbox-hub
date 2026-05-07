@@ -51,6 +51,8 @@ export default function ImageScout() {
   const [bulkSkus, setBulkSkus] = useState("");
   const [supplierUrl, setSupplierUrl] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+  const [tab, setTab] = useState<string>("run");
+  const [logStatusFilter, setLogStatusFilter] = useState<string | null>(null);
 
   const brandsQ = useQuery({
     queryKey: ["brands-list"],
@@ -207,14 +209,14 @@ export default function ImageScout() {
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <StatCard label="Queued" value={stats.queued} />
-        <StatCard label="Running" value={stats.running} />
-        <StatCard label="Success" value={stats.success} />
-        <StatCard label="Failed" value={stats.failed} />
-        <StatCard label="Needs Review" value={stats.review} />
+        <StatCard label="Queued" value={stats.queued} onClick={() => { setLogStatusFilter("queued"); setTab("log"); }} />
+        <StatCard label="Running" value={stats.running} onClick={() => { setLogStatusFilter("running"); setTab("log"); }} />
+        <StatCard label="Success" value={stats.success} onClick={() => { setLogStatusFilter("success"); setTab("log"); }} />
+        <StatCard label="Failed" value={stats.failed} onClick={() => { setLogStatusFilter("failed"); setTab("log"); }} />
+        <StatCard label="Needs Review" value={stats.review} onClick={() => { setLogStatusFilter("needs_review"); setTab("log"); }} />
       </div>
 
-      <Tabs defaultValue="run">
+      <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
           <TabsTrigger value="run"><Play className="h-4 w-4 mr-1" /> Run Agent</TabsTrigger>
           <TabsTrigger value="queue"><ListChecks className="h-4 w-4 mr-1" /> Missing Images ({missingQ.data?.length ?? 0})</TabsTrigger>
@@ -401,9 +403,16 @@ export default function ImageScout() {
 
         <TabsContent value="log">
           <Card>
-            <CardHeader>
-              <CardTitle>Recent jobs & results</CardTitle>
-              <CardDescription>Live (refreshes every 5s).</CardDescription>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Recent jobs & results</CardTitle>
+                <CardDescription>
+                  Live (refreshes every 5s).{logStatusFilter ? ` Filtered: ${logStatusFilter}` : ""}
+                </CardDescription>
+              </div>
+              {logStatusFilter && (
+                <Button size="sm" variant="ghost" onClick={() => setLogStatusFilter(null)}>Clear filter</Button>
+              )}
             </CardHeader>
             <CardContent className="overflow-x-auto">
               <Table>
@@ -419,7 +428,7 @@ export default function ImageScout() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {jobsQ.data?.map((j) => {
+                  {jobsQ.data?.filter((j) => !logStatusFilter || j.status === logStatusFilter).map((j) => {
                     const r = resultsQ.data?.find((x) => x.sku === j.sku && (!j.finished_at || new Date(x.created_at) >= new Date(j.created_at)));
                     return (
                       <TableRow key={j.id}>
@@ -435,7 +444,7 @@ export default function ImageScout() {
                             </a>
                           ) : "—"}
                         </TableCell>
-                        <TableCell className="text-xs text-muted-foreground max-w-md truncate">
+                        <TableCell className="text-xs text-muted-foreground max-w-md whitespace-pre-wrap break-words">
                           {j.error || r?.notes || ""}
                         </TableCell>
                       </TableRow>
@@ -451,9 +460,12 @@ export default function ImageScout() {
   );
 }
 
-function StatCard({ label, value }: { label: string; value: number }) {
+function StatCard({ label, value, onClick }: { label: string; value: number; onClick?: () => void }) {
   return (
-    <Card>
+    <Card
+      onClick={onClick}
+      className={onClick ? "cursor-pointer hover:border-primary transition-colors" : undefined}
+    >
       <CardContent className="p-4">
         <div className="text-xs text-muted-foreground uppercase">{label}</div>
         <div className="text-2xl font-semibold mt-1">{value}</div>
