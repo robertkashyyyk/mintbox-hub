@@ -33,6 +33,7 @@ const HEALTH_CATEGORIES = [
   "Critical",
   "Dead Stock",
   "Out of Stock",
+  "Non Selling",
   "Missing Baseline",
   "Unknown",
 ];
