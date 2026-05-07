@@ -409,6 +409,43 @@ const BuyRecommendations = () => {
       <Card>
         <CardContent className="p-4">
           <div className="flex items-center gap-4 flex-wrap">
+      {(() => {
+        const sup = currentSupplier?.supplierId ? suppressionMap.get(currentSupplier.supplierId) : null;
+        if (!sup) return null;
+        const sentLabel = new Date(sup.sentAt).toLocaleString("en-GB", {
+          day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit",
+        });
+        if (sup.suppressed) {
+          return (
+            <Alert>
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                <strong>PO sent to Mintsoft on {sentLabel}</strong> — awaiting ASN conversion.
+                Supplier is suppressed from the summary list for {suppressionHours}h and will reappear automatically
+                if stock levels change after the next sync.
+                {sup.poNumber && <> · <Link to={`/execution/purchase-orders/${sup.poId}`} className="underline">View PO {sup.poNumber}</Link></>}
+              </AlertDescription>
+            </Alert>
+          );
+        }
+        if (sup.overdueNoAsn) {
+          return (
+            <Alert variant="destructive">
+              <Clock className="h-4 w-4" />
+              <AlertDescription>
+                <strong>PO Pending — No ASN Yet.</strong> Sent to Mintsoft on {sentLabel} and not yet converted to an ASN
+                (window of {suppressionHours}h has elapsed). Chase Mintsoft rather than re-ordering.
+                {sup.poNumber && <> · <Link to={`/execution/purchase-orders/${sup.poId}`} className="underline">View PO {sup.poNumber}</Link></>}
+              </AlertDescription>
+            </Alert>
+          );
+        }
+        return null;
+      })()}
+
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex items-center gap-4 flex-wrap">
             <div className="relative flex-1 min-w-[240px] max-w-md">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input placeholder="Search SKU or product name..." value={search}
