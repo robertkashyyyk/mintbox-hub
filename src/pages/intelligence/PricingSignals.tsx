@@ -182,21 +182,23 @@ const PricingSignals = () => {
         qty: 0,
         revenue: 0,
         costTotal: 0,
-        feesTotal: 0,
+        courierTotal: 0,
+        channelFeeTotal: 0,
         profitTotal: 0,
-        avgPrice: 0, avgCost: 0, avgFees: 0,
+        avgPrice: 0, avgCost: 0, avgCourier: 0, avgFees: 0, feeRate: 0,
         currentPor: 0,
         band: "ok" as Band,
       };
       const lineRevenue = num(l.price) * qty;
       const lineCost = num(l.cost_each) * qty;
-      const lineFees = num(l.courier_cost) + num(l.channel_fee);
+      const lineCourier = num(l.courier_cost);
+      const lineChannelFee = num(l.channel_fee);
       entry.qty += qty;
       entry.revenue += lineRevenue;
       entry.costTotal += lineCost;
-      entry.feesTotal += lineFees;
+      entry.courierTotal += lineCourier;
+      entry.channelFeeTotal += lineChannelFee;
       entry.profitTotal += num(l.profit);
-      // keep last seen channel/name (good enough for display)
       entry.product_name = entry.product_name || l.product_name;
       entry.channel = entry.channel || l.channel;
       map.set(l.sku, entry);
@@ -205,8 +207,11 @@ const PricingSignals = () => {
     for (const e of map.values()) {
       e.avgPrice = e.revenue / e.qty;
       e.avgCost  = e.costTotal / e.qty;
-      e.avgFees  = e.feesTotal / e.qty;
+      e.avgCourier = e.courierTotal / e.qty;
+      e.avgFees  = (e.courierTotal + e.channelFeeTotal) / e.qty;
       const gmvIncVat = e.revenue * 1.2;
+      // Effective channel fee rate vs inc-VAT GMV (scales with price).
+      e.feeRate = gmvIncVat > 0 ? e.channelFeeTotal / gmvIncVat : 0;
       e.currentPor = gmvIncVat > 0 ? (e.profitTotal / gmvIncVat) * 100 : 0;
       e.band = classifyPor(e.currentPor);
       out.push(e);
