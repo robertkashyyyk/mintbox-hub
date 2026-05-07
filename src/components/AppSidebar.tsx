@@ -52,7 +52,7 @@ export function AppSidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const currentPath = location.pathname;
-  const { data: rbacEnabled } = useRbacEnabled();
+  const { data: rbacEnabled, isLoading: rbacLoading } = useRbacEnabled();
 
   // Move useQuery to top (before any conditional return)
   const { data: userRoles } = useQuery({
