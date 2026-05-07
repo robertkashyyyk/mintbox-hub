@@ -417,7 +417,9 @@ export default function ImageScout() {
               {reviewQ.data?.length === 0 && (
                 <p className="text-sm text-muted-foreground">Nothing to review.</p>
               )}
-              {reviewQ.data?.map((r) => (
+              {reviewQ.data?.map((r) => {
+                const job = jobsQ.data?.find((j) => j.sku === r.sku);
+                return (
                 <Card key={r.id}>
                   <CardContent className="p-3 space-y-2">
                     <div className="aspect-square w-full bg-muted rounded overflow-hidden flex items-center justify-center">
@@ -428,14 +430,34 @@ export default function ImageScout() {
                       )}
                     </div>
                     <div className="text-xs font-mono">{r.sku}</div>
+                    <Badge variant="outline" className="text-xs">{r.outcome}</Badge>
+                    {r.raw_width && r.raw_height && (
+                      <div className="text-xs text-muted-foreground">{r.raw_width}×{r.raw_height}px</div>
+                    )}
                     <div className="text-xs text-muted-foreground truncate">{r.notes}</div>
-                    <div className="flex gap-2">
+                    {r.source_page_url && (
+                      <a href={r.source_page_url} target="_blank" rel="noreferrer" className="text-xs text-primary underline truncate block">
+                        Source page
+                      </a>
+                    )}
+                    {r.source_image_url && (
+                      <a href={r.source_image_url} target="_blank" rel="noreferrer" className="text-xs text-primary underline truncate block">
+                        Open full image
+                      </a>
+                    )}
+                    <div className="flex gap-2 flex-wrap">
                       <Button size="sm" onClick={() => review.mutate({ id: r.id, action: "approved" })}>Approve</Button>
                       <Button size="sm" variant="destructive" onClick={() => review.mutate({ id: r.id, action: "rejected" })}>Reject</Button>
+                      {job && (
+                        <Button size="sm" variant="outline" onClick={() => retryJob.mutate(job)} disabled={retryJob.isPending}>
+                          <RotateCw className="h-3 w-3 mr-1" /> Retry
+                        </Button>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
-              ))}
+                );
+              })}
             </CardContent>
           </Card>
         </TabsContent>
