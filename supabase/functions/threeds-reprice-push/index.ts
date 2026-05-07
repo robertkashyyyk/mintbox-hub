@@ -1,5 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import Client from "npm:ssh2-sftp-client@10.0.3";
+import { Buffer } from "node:buffer";
+
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
