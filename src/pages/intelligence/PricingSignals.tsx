@@ -149,7 +149,7 @@ const PricingSignals = () => {
       while (true) {
         const { data, error } = await supabase
           .from("order_line_economics")
-          .select("sku, product_name, channel, qty, price, cost_each, courier_cost, channel_fee, profit, order_value, missing_cost")
+          .select("sku, product_name, channel, qty, price, cost_each, courier_cost, channel_fee, profit, order_value, missing_cost, brand_id")
           .eq("iso_year", year)
           .eq("iso_week", week)
           .order("sku", { ascending: true })
