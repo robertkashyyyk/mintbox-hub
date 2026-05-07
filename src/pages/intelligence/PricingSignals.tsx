@@ -259,30 +259,36 @@ const PricingSignals = () => {
     return rows;
   }, [skuRollups, bandFilter, brandFilter, search]);
 
-  // Projected impact at the target POR
+  // Effective inc-VAT price for a row: manual override > suggested
+  const effectivePrice = (r: SkuRollup) => {
+    const override = priceOverrides[r.sku];
+    if (override && override > 0) return override;
+    return suggestedRetailPrice(r.avgCost, r.avgCourier, r.feeRate, targetPor / 100).retailIncVat;
+  };
+
+  // Projected impact at the target POR (uses overrides where set)
   const projection = useMemo(() => {
     let currentProfit = 0;
     let projectedProfit = 0;
     let affectedSkus = 0;
     let unfeasible = 0;
-    const targetFrac = targetPor / 100;
 
     for (const r of flaggedRows) {
       currentProfit += r.profitTotal;
-      const { retailIncVat, exVat } = suggestedRetailPrice(r.avgCost, r.avgCourier, r.feeRate, targetFrac);
+      const retailIncVat = effectivePrice(r);
       if (retailIncVat <= 0) {
         projectedProfit += r.profitTotal;
         unfeasible += 1;
         continue;
       }
-      // Recompute fees & profit at the new ex-VAT price
+      const exVat = retailIncVat / 1.2;
       const newChannelFeePerUnit = exVat * 1.2 * r.feeRate;
       const newProfitPerUnit = exVat - r.avgCost - r.avgCourier - newChannelFeePerUnit;
       projectedProfit += newProfitPerUnit * r.qty;
       affectedSkus += 1;
     }
     return { currentProfit, projectedProfit, delta: projectedProfit - currentProfit, affectedSkus, unfeasible };
-  }, [flaggedRows, targetPor]);
+  }, [flaggedRows, targetPor, priceOverrides]);
 
   const allSelected = flaggedRows.length > 0 && flaggedRows.every((r) => selected[r.sku]);
   const toggleAll = () => {
