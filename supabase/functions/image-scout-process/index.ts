@@ -295,17 +295,18 @@ async function firecrawlSearch(query: string, limit = 5): Promise<Array<{ url: s
   }
 }
 
-async function firecrawlScrapeImages(pageUrl: string): Promise<string[]> {
-  if (!FIRECRAWL_API_KEY) return [];
+async function firecrawlScrapeImages(pageUrl: string): Promise<{ images: string[]; text: string }> {
+  if (!FIRECRAWL_API_KEY) return { images: [], text: "" };
   try {
     const r = await fetch("https://api.firecrawl.dev/v2/scrape", {
       method: "POST",
       headers: { Authorization: `Bearer ${FIRECRAWL_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ url: pageUrl, formats: ["html", "links"], onlyMainContent: false }),
+      body: JSON.stringify({ url: pageUrl, formats: ["html", "links", "markdown"], onlyMainContent: false }),
     });
-    if (!r.ok) return [];
+    if (!r.ok) return { images: [], text: "" };
     const j = await r.json();
     const html: string = j?.data?.html || j?.html || "";
+    const md: string = j?.data?.markdown || j?.markdown || "";
     const links: string[] = j?.data?.links || j?.links || [];
     const out: string[] = [];
     const push = (u: string | undefined) => {
@@ -324,10 +325,13 @@ async function firecrawlScrapeImages(pageUrl: string): Promise<string[]> {
       }
     }
     for (const l of links) push(l);
-    return out.filter((u) => !/logo|sprite|icon|placeholder|favicon|loader|spinner|banner|hero[-_/]/i.test(u));
+    return {
+      images: out.filter((u) => !/logo|sprite|icon|placeholder|favicon|loader|spinner|banner|hero[-_/]/i.test(u)),
+      text: md.slice(0, 8000),
+    };
   } catch (e) {
     console.error("firecrawl scrape exception", e);
-    return [];
+    return { images: [], text: "" };
   }
 }
 
