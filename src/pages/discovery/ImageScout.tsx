@@ -683,11 +683,44 @@ export default function ImageScout() {
                   </Select>
                 </div>
               </div>
+
+              {/* Saved presets */}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs text-muted-foreground uppercase">Presets:</span>
+                {Object.entries(PRESETS).map(([k, p]) => (
+                  <Button key={k} size="sm" variant="outline" className="h-7" onClick={p.apply}>{p.label}</Button>
+                ))}
+              </div>
+
+              {/* Bulk action bar */}
+              {selectedIds.size > 0 && (
+                <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/40 p-2">
+                  <span className="text-xs">{selectedIds.size} selected</span>
+                  <Button size="sm" variant="outline" disabled={bulkStatusMut.isPending}
+                    onClick={() => bulkStatusMut.mutate({ ids: [...selectedIds], status: "shortlisted" })}>Shortlist</Button>
+                  <Button size="sm" variant="outline" disabled={bulkStatusMut.isPending}
+                    onClick={() => bulkStatusMut.mutate({ ids: [...selectedIds], status: "manual_required" })}>Manual required</Button>
+                  <Button size="sm" disabled={bulkStatusMut.isPending}
+                    onClick={() => bulkStatusMut.mutate({ ids: [...selectedIds], status: "approved" })}>Approve</Button>
+                  <Button size="sm" variant="destructive" disabled={bulkStatusMut.isPending}
+                    onClick={() => bulkStatusMut.mutate({ ids: [...selectedIds], status: "dismissed" })}>Dismiss</Button>
+                  <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())}>Clear</Button>
+                </div>
+              )}
             </CardHeader>
             <CardContent className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-8">
+                      <Checkbox
+                        checked={!!candidatesQ.data?.length && candidatesQ.data.every((c: any) => selectedIds.has(c.id))}
+                        onCheckedChange={(v) => {
+                          if (v) setSelectedIds(new Set(candidatesQ.data?.map((c: any) => c.id) ?? []));
+                          else setSelectedIds(new Set());
+                        }}
+                      />
+                    </TableHead>
                     <TableHead>Image</TableHead>
                     <TableHead>SKU</TableHead>
                     <TableHead>Brand</TableHead>
@@ -696,6 +729,7 @@ export default function ImageScout() {
                     <TableHead>Status</TableHead>
                     <TableHead>Domain</TableHead>
                     <TableHead>Size</TableHead>
+                    <TableHead>Flags</TableHead>
                     <TableHead>Created</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -703,8 +737,24 @@ export default function ImageScout() {
                   {candidatesQ.data?.map((c) => {
                     const brandName = brandsQ.data?.find((b) => b.id === c.brand_id)?.name;
                     const partNumber = c.sku?.includes("-") ? c.sku.split("-").slice(1).join("-") : c.sku;
+                    const dupSet = dupMap.get(c.image_url);
+                    const dupSkus = dupSet ? dupSet.size : 1;
+                    const warnings = getWarnings(c);
+                    const checked = selectedIds.has(c.id);
                     return (
                       <TableRow key={c.id} className="cursor-pointer hover:bg-muted/40" onClick={() => setOpenCandidate({ ...c, _brandName: brandName, _partNumber: partNumber })}>
+                        <TableCell onClick={(e) => e.stopPropagation()}>
+                          <Checkbox
+                            checked={checked}
+                            onCheckedChange={(v) => {
+                              setSelectedIds((prev) => {
+                                const next = new Set(prev);
+                                if (v) next.add(c.id); else next.delete(c.id);
+                                return next;
+                              });
+                            }}
+                          />
+                        </TableCell>
                         <TableCell>
                           <img src={c.image_url} alt={c.sku} className="h-12 w-12 object-contain bg-muted rounded" />
                         </TableCell>
@@ -719,12 +769,24 @@ export default function ImageScout() {
                         <TableCell><CandidateStatusBadge status={c.status} /></TableCell>
                         <TableCell className="text-xs">{c.source_domain ?? "—"}</TableCell>
                         <TableCell className="text-xs">{c.image_width && c.image_height ? `${c.image_width}×${c.image_height}` : "—"}</TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap gap-1">
+                            {dupSkus > 1 && (
+                              <Badge variant="outline" className="gap-1"><Copy className="h-3 w-3" /> Used by {dupSkus} SKUs</Badge>
+                            )}
+                            {warnings.map((w) => (
+                              <Badge key={w} variant="outline" className="gap-1 text-warning border-warning/40">
+                                <ShieldAlert className="h-3 w-3" /> {w}
+                              </Badge>
+                            ))}
+                          </div>
+                        </TableCell>
                         <TableCell className="text-xs text-muted-foreground">{new Date(c.created_at).toLocaleString()}</TableCell>
                       </TableRow>
                     );
                   })}
                   {!candidatesQ.data?.length && (
-                    <TableRow><TableCell colSpan={9} className="text-center text-sm text-muted-foreground py-8">No candidates match these filters.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={11} className="text-center text-sm text-muted-foreground py-8">No candidates match these filters.</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>
