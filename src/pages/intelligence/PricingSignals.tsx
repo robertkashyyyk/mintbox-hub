@@ -627,4 +627,21 @@ const Stat = ({ label, value, tone }: { label: string; value: string; tone?: "go
   );
 };
 
+const PlaceholderArea = ({ title, blurb }: { title: string; blurb: string }) => (
+  <Card>
+    <CardHeader>
+      <CardTitle className="text-base flex items-center gap-2">
+        <TrendingUp className="h-4 w-4 text-pd-accent" />
+        {title}
+      </CardTitle>
+      <CardDescription>{blurb}</CardDescription>
+    </CardHeader>
+    <CardContent>
+      <div className="rounded-lg border border-dashed bg-card/50 p-8 text-center">
+        <p className="text-sm text-muted-foreground">Coming soon — placeholder area.</p>
+      </div>
+    </CardContent>
+  </Card>
+);
+
 export default PricingSignals;
