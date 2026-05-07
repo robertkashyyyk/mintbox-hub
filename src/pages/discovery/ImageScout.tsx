@@ -523,16 +523,75 @@ export default function ImageScout() {
 
         <TabsContent value="candidates">
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle>Scored candidates</CardTitle>
-                <CardDescription>
-                  All images discovered per job, ranked by deterministic confidence score. Higher score = better match.
-                </CardDescription>
+            <CardHeader className="space-y-4">
+              <div className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle>Scored candidates</CardTitle>
+                  <CardDescription>
+                    All images discovered per job, ranked by deterministic confidence. Click a row to review.
+                  </CardDescription>
+                </div>
+                <Button variant="outline" size="sm" onClick={() => candidatesQ.refetch()}>
+                  <RefreshCw className="h-4 w-4 mr-1" /> Refresh
+                </Button>
               </div>
-              <Button variant="outline" size="sm" onClick={() => candidatesQ.refetch()}>
-                <RefreshCw className="h-4 w-4 mr-1" /> Refresh
-              </Button>
+              <div className="grid grid-cols-2 md:grid-cols-6 gap-2">
+                <div>
+                  <Label className="text-xs">Brand</Label>
+                  <Select value={candBrand} onValueChange={setCandBrand}>
+                    <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All brands</SelectItem>
+                      {brandsQ.data?.map((b) => (<SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs">Status</Label>
+                  <Select value={candStatus} onValueChange={setCandStatus}>
+                    <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All</SelectItem>
+                      <SelectItem value="new">New</SelectItem>
+                      <SelectItem value="shortlisted">Shortlisted</SelectItem>
+                      <SelectItem value="manual_required">Manual required</SelectItem>
+                      <SelectItem value="approved">Approved</SelectItem>
+                      <SelectItem value="dismissed">Dismissed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs">Picked</Label>
+                  <Select value={candPicked} onValueChange={setCandPicked}>
+                    <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Any</SelectItem>
+                      <SelectItem value="picked">Picked</SelectItem>
+                      <SelectItem value="unpicked">Unpicked</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs">Min score</Label>
+                  <Input className="h-8" type="number" value={candMinScore} onChange={(e) => setCandMinScore(e.target.value)} placeholder="0" />
+                </div>
+                <div>
+                  <Label className="text-xs">Max score</Label>
+                  <Input className="h-8" type="number" value={candMaxScore} onChange={(e) => setCandMaxScore(e.target.value)} placeholder="100" />
+                </div>
+                <div>
+                  <Label className="text-xs">Sort</Label>
+                  <Select value={candSort} onValueChange={(v) => setCandSort(v as any)}>
+                    <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="created_desc">Newest</SelectItem>
+                      <SelectItem value="created_asc">Oldest</SelectItem>
+                      <SelectItem value="score_desc">Score (high → low)</SelectItem>
+                      <SelectItem value="score_asc">Score (low → high)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
             </CardHeader>
             <CardContent className="overflow-x-auto">
               <Table>
@@ -540,57 +599,105 @@ export default function ImageScout() {
                   <TableRow>
                     <TableHead>Image</TableHead>
                     <TableHead>SKU</TableHead>
+                    <TableHead>Brand</TableHead>
+                    <TableHead>Part #</TableHead>
                     <TableHead>Score</TableHead>
+                    <TableHead>Status</TableHead>
                     <TableHead>Domain</TableHead>
-                    <TableHead>Template</TableHead>
                     <TableHead>Size</TableHead>
-                    <TableHead>Reasoning</TableHead>
-                    <TableHead>Source</TableHead>
+                    <TableHead>Created</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {candidatesQ.data?.map((c) => {
-                    const reasons: string[] = Array.isArray(c.confidence_reasoning)
-                      ? c.confidence_reasoning
-                      : (c.confidence_reasoning?.reasons ?? []);
+                    const brandName = brandsQ.data?.find((b) => b.id === c.brand_id)?.name;
+                    const partNumber = c.sku?.includes("-") ? c.sku.split("-").slice(1).join("-") : c.sku;
                     return (
-                      <TableRow key={c.id}>
+                      <TableRow key={c.id} className="cursor-pointer hover:bg-muted/40" onClick={() => setOpenCandidate({ ...c, _brandName: brandName, _partNumber: partNumber })}>
                         <TableCell>
-                          <a href={c.image_url} target="_blank" rel="noreferrer">
-                            <img src={c.image_url} alt={c.sku} className="h-12 w-12 object-contain bg-muted rounded" />
-                          </a>
+                          <img src={c.image_url} alt={c.sku} className="h-12 w-12 object-contain bg-muted rounded" />
                         </TableCell>
                         <TableCell className="font-mono text-xs">{c.sku}</TableCell>
+                        <TableCell className="text-xs">{brandName ?? "—"}</TableCell>
+                        <TableCell className="font-mono text-xs">{partNumber ?? "—"}</TableCell>
                         <TableCell>
                           <Badge variant={c.confidence_score >= 60 ? "default" : c.confidence_score >= 30 ? "secondary" : "outline"}>
-                            {c.confidence_score}
+                            {Number(c.confidence_score).toFixed(0)}
                           </Badge>
                         </TableCell>
+                        <TableCell><CandidateStatusBadge status={c.status} /></TableCell>
                         <TableCell className="text-xs">{c.source_domain ?? "—"}</TableCell>
-                        <TableCell className="text-xs text-muted-foreground max-w-[180px] truncate" title={c.from_template ?? ""}>
-                          {c.from_template ?? "—"}
-                        </TableCell>
-                        <TableCell className="text-xs">
-                          {c.image_width && c.image_height ? `${c.image_width}×${c.image_height}` : "—"}
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground max-w-md whitespace-pre-wrap break-words">
-                          {reasons.length ? reasons.join(", ") : "—"}
-                        </TableCell>
-                        <TableCell>
-                          {c.source_url && (
-                            <a href={c.source_url} target="_blank" rel="noreferrer" className="text-xs text-primary underline">Page</a>
-                          )}
-                        </TableCell>
+                        <TableCell className="text-xs">{c.image_width && c.image_height ? `${c.image_width}×${c.image_height}` : "—"}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">{new Date(c.created_at).toLocaleString()}</TableCell>
                       </TableRow>
                     );
                   })}
                   {!candidatesQ.data?.length && (
-                    <TableRow><TableCell colSpan={8} className="text-center text-sm text-muted-foreground py-8">No candidates yet — run a job to populate.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={9} className="text-center text-sm text-muted-foreground py-8">No candidates match these filters.</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>
             </CardContent>
           </Card>
+
+          <Dialog open={!!openCandidate} onOpenChange={(o) => !o && setOpenCandidate(null)}>
+            <DialogContent className="max-w-3xl">
+              {openCandidate && (
+                <>
+                  <DialogHeader>
+                    <DialogTitle className="font-mono">{openCandidate.sku}</DialogTitle>
+                    <DialogDescription className="flex items-center gap-2">
+                      <CandidateStatusBadge status={openCandidate.status} />
+                      <Badge variant="outline">Score {Number(openCandidate.confidence_score).toFixed(0)}</Badge>
+                      {openCandidate.picked && <Badge>Picked</Badge>}
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="bg-muted rounded p-2 flex items-center justify-center">
+                      <img src={openCandidate.image_url} alt={openCandidate.sku} className="max-h-[360px] object-contain" />
+                    </div>
+                    <div className="space-y-2 text-sm">
+                      <DetailRow label="Brand" value={openCandidate._brandName ?? "—"} />
+                      <DetailRow label="Part number" value={openCandidate._partNumber ?? "—"} mono />
+                      <DetailRow label="Source domain" value={openCandidate.source_domain ?? "—"} />
+                      <DetailRow label="Template / query" value={openCandidate.from_template ?? "—"} />
+                      <DetailRow label="Dimensions" value={openCandidate.image_width && openCandidate.image_height ? `${openCandidate.image_width}×${openCandidate.image_height}px` : "—"} />
+                      <DetailRow label="Created" value={new Date(openCandidate.created_at).toLocaleString()} />
+                      <div>
+                        <div className="text-xs text-muted-foreground uppercase mb-1">Image URL</div>
+                        <a className="text-xs text-primary underline break-all flex items-start gap-1" href={openCandidate.image_url} target="_blank" rel="noreferrer">
+                          <ExternalLink className="h-3 w-3 mt-0.5 flex-shrink-0" /> {openCandidate.image_url}
+                        </a>
+                      </div>
+                      {openCandidate.source_url && (
+                        <div>
+                          <div className="text-xs text-muted-foreground uppercase mb-1">Source page</div>
+                          <a className="text-xs text-primary underline break-all flex items-start gap-1" href={openCandidate.source_url} target="_blank" rel="noreferrer">
+                            <ExternalLink className="h-3 w-3 mt-0.5 flex-shrink-0" /> {openCandidate.source_url}
+                          </a>
+                        </div>
+                      )}
+                      <div>
+                        <div className="text-xs text-muted-foreground uppercase mb-1">Scoring reasoning</div>
+                        <ul className="text-xs space-y-0.5 list-disc pl-4">
+                          {(Array.isArray(openCandidate.confidence_reasoning)
+                            ? openCandidate.confidence_reasoning
+                            : (openCandidate.confidence_reasoning?.reasons ?? [])
+                          ).map((r: string, i: number) => (<li key={i}>{r}</li>))}
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                  <DialogFooter className="flex flex-wrap gap-2">
+                    <Button size="sm" variant="outline" disabled={setCandStatusMut.isPending} onClick={() => setCandStatusMut.mutate({ id: openCandidate.id, status: "shortlisted" })}>Shortlist</Button>
+                    <Button size="sm" variant="outline" disabled={setCandStatusMut.isPending} onClick={() => setCandStatusMut.mutate({ id: openCandidate.id, status: "manual_required" })}>Manual required</Button>
+                    <Button size="sm" variant="destructive" disabled={setCandStatusMut.isPending} onClick={() => setCandStatusMut.mutate({ id: openCandidate.id, status: "dismissed" })}>Dismiss</Button>
+                    <Button size="sm" disabled={setCandStatusMut.isPending} onClick={() => setCandStatusMut.mutate({ id: openCandidate.id, status: "approved" })}>Approve</Button>
+                  </DialogFooter>
+                </>
+              )}
+            </DialogContent>
+          </Dialog>
         </TabsContent>
 
         <TabsContent value="log">
