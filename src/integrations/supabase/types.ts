@@ -3859,6 +3859,23 @@ export type Database = {
           seconds_since_last_run: number
         }[]
       }
+      get_threeds_reprice_candidates: {
+        Args: { p_channel: string; p_days?: number }
+        Returns: {
+          brand_name: string
+          cost_total: number
+          courier_total: number
+          current_price: number
+          current_stock: number
+          fees_total: number
+          por_pct: number
+          product_name: string
+          profit: number
+          revenue: number
+          sku: string
+          units_sold: number
+        }[]
+      }
       has_any_role: {
         Args: {
           _roles: Database["public"]["Enums"]["app_role"][]
