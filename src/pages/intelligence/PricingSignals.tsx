@@ -104,18 +104,19 @@ interface SkuRollup {
   sku: string;
   product_name: string | null;
   channel: string | null;
+  brand_id: string | null;
   qty: number;
   revenue: number;          // ex-VAT
   costTotal: number;
-  courierTotal: number;     // £ courier (does not scale with price)
-  channelFeeTotal: number;  // £ channel fee (scales with price)
+  courierTotal: number;
+  channelFeeTotal: number;
   profitTotal: number;
-  avgPrice: number;         // ex-VAT
+  avgPrice: number;
   avgCost: number;
-  avgCourier: number;       // per unit
-  avgFees: number;          // courier + channel fee per unit, for display
-  feeRate: number;          // effective channel fee rate vs inc-VAT GMV
-  currentPor: number;       // %
+  avgCourier: number;
+  avgFees: number;
+  feeRate: number;
+  currentPor: number;
   band: Band;
 }
 
@@ -133,9 +134,11 @@ const PricingSignals = () => {
   const weekKey = `${year}-W${String(week).padStart(2, "0")}`;
 
   const [bandFilter, setBandFilter] = useState<"all" | Band>("all");
+  const [brandFilter, setBrandFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [targetPor, setTargetPor] = useState<number>(20); // %
   const [selected, setSelected] = useState<Record<string, boolean>>({});
+  const [priceOverrides, setPriceOverrides] = useState<Record<string, number>>({}); // inc-VAT
 
   // Pull previous-week lines (paged through 1k limit)
   const { data: lines = [], isLoading } = useQuery({
@@ -147,7 +150,7 @@ const PricingSignals = () => {
       while (true) {
         const { data, error } = await supabase
           .from("order_line_economics")
-          .select("sku, product_name, channel, qty, price, cost_each, courier_cost, channel_fee, profit, order_value, missing_cost")
+          .select("sku, product_name, channel, qty, price, cost_each, courier_cost, channel_fee, profit, order_value, missing_cost, brand_id")
           .eq("iso_year", year)
           .eq("iso_week", week)
           .order("sku", { ascending: true })
@@ -162,6 +165,16 @@ const PricingSignals = () => {
       return all;
     },
   });
+
+  const { data: brands = [] } = useQuery({
+    queryKey: ["pricing-signals-brands"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("brands").select("id, name").order("name");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+  const brandName = (id: string | null) => brands.find((b: any) => b.id === id)?.name ?? "—";
 
   // Roll up to SKU level (collapse channels into one row per SKU)
   const skuRollups = useMemo<SkuRollup[]>(() => {
@@ -179,6 +192,7 @@ const PricingSignals = () => {
         sku: l.sku,
         product_name: l.product_name,
         channel: l.channel,
+        brand_id: l.brand_id ?? null,
         qty: 0,
         revenue: 0,
         costTotal: 0,
@@ -233,6 +247,7 @@ const PricingSignals = () => {
   const flaggedRows = useMemo(() => {
     let rows = skuRollups.filter((r) => r.band !== "ok");
     if (bandFilter !== "all") rows = rows.filter((r) => r.band === bandFilter);
+    if (brandFilter !== "all") rows = rows.filter((r) => r.brand_id === brandFilter);
     const q = search.trim().toLowerCase();
     if (q) {
       rows = rows.filter((r) =>
@@ -242,32 +257,38 @@ const PricingSignals = () => {
     }
     rows.sort((a, b) => BAND_META[a.band].sortOrder - BAND_META[b.band].sortOrder || a.profitTotal - b.profitTotal);
     return rows;
-  }, [skuRollups, bandFilter, search]);
+  }, [skuRollups, bandFilter, brandFilter, search]);
 
-  // Projected impact at the target POR
+  // Effective inc-VAT price for a row: manual override > suggested
+  const effectivePrice = (r: SkuRollup) => {
+    const override = priceOverrides[r.sku];
+    if (override && override > 0) return override;
+    return suggestedRetailPrice(r.avgCost, r.avgCourier, r.feeRate, targetPor / 100).retailIncVat;
+  };
+
+  // Projected impact at the target POR (uses overrides where set)
   const projection = useMemo(() => {
     let currentProfit = 0;
     let projectedProfit = 0;
     let affectedSkus = 0;
     let unfeasible = 0;
-    const targetFrac = targetPor / 100;
 
     for (const r of flaggedRows) {
       currentProfit += r.profitTotal;
-      const { retailIncVat, exVat } = suggestedRetailPrice(r.avgCost, r.avgCourier, r.feeRate, targetFrac);
+      const retailIncVat = effectivePrice(r);
       if (retailIncVat <= 0) {
         projectedProfit += r.profitTotal;
         unfeasible += 1;
         continue;
       }
-      // Recompute fees & profit at the new ex-VAT price
+      const exVat = retailIncVat / 1.2;
       const newChannelFeePerUnit = exVat * 1.2 * r.feeRate;
       const newProfitPerUnit = exVat - r.avgCost - r.avgCourier - newChannelFeePerUnit;
       projectedProfit += newProfitPerUnit * r.qty;
       affectedSkus += 1;
     }
     return { currentProfit, projectedProfit, delta: projectedProfit - currentProfit, affectedSkus, unfeasible };
-  }, [flaggedRows, targetPor]);
+  }, [flaggedRows, targetPor, priceOverrides]);
 
   const allSelected = flaggedRows.length > 0 && flaggedRows.every((r) => selected[r.sku]);
   const toggleAll = () => {
@@ -356,7 +377,7 @@ const PricingSignals = () => {
 
           {/* Controls + search + target POR */}
           <Card>
-            <CardContent className="p-4 grid gap-3 md:grid-cols-[1fr_auto_auto] items-end">
+            <CardContent className="p-4 grid gap-3 md:grid-cols-[1fr_auto_auto_auto] items-end">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -365,6 +386,18 @@ const PricingSignals = () => {
                   onChange={(e) => setSearch(e.target.value)}
                   className="pl-9"
                 />
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-xs text-muted-foreground">Brand</span>
+                <Select value={brandFilter} onValueChange={setBrandFilter}>
+                  <SelectTrigger className="w-[200px]"><SelectValue /></SelectTrigger>
+                  <SelectContent className="max-h-[320px]">
+                    <SelectItem value="all">All brands</SelectItem>
+                    {brands.map((b: any) => (
+                      <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="flex flex-col gap-1">
                 <span className="text-xs text-muted-foreground">Target POR %</span>
@@ -458,6 +491,7 @@ const PricingSignals = () => {
                       </TableHead>
                       <TableHead>SKU</TableHead>
                       <TableHead>Product</TableHead>
+                      <TableHead>Brand</TableHead>
                       <TableHead>Band</TableHead>
                       <TableHead className="text-right">Qty</TableHead>
                       <TableHead className="text-right">Avg price (ex-VAT)</TableHead>
@@ -465,21 +499,24 @@ const PricingSignals = () => {
                       <TableHead className="text-right">Courier / unit</TableHead>
                       <TableHead className="text-right">Channel fee %</TableHead>
                       <TableHead className="text-right">Current POR</TableHead>
-                      <TableHead className="text-right">Suggested @ {targetPor}% (inc-VAT)</TableHead>
-                      <TableHead className="text-right">Δ vs current (inc-VAT)</TableHead>
+                      <TableHead className="text-right">New price (inc-VAT)</TableHead>
+                      <TableHead className="text-right">Δ vs current</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {isLoading ? (
-                      <TableRow><TableCell colSpan={12} className="text-center py-8 text-muted-foreground">Loading…</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={13} className="text-center py-8 text-muted-foreground">Loading…</TableCell></TableRow>
                     ) : flaggedRows.length === 0 ? (
-                      <TableRow><TableCell colSpan={12} className="text-center py-8 text-muted-foreground">No flagged SKUs in this view.</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={13} className="text-center py-8 text-muted-foreground">No flagged SKUs in this view.</TableCell></TableRow>
                     ) : (
                       flaggedRows.slice(0, 500).map((r) => {
-                        const { retailIncVat } = suggestedRetailPrice(r.avgCost, r.avgCourier, r.feeRate, targetPor / 100);
+                        const suggested = suggestedRetailPrice(r.avgCost, r.avgCourier, r.feeRate, targetPor / 100).retailIncVat;
+                        const override = priceOverrides[r.sku];
+                        const newPrice = override && override > 0 ? override : suggested;
                         const currentRetailIncVat = r.avgPrice * 1.2;
-                        const delta = retailIncVat - currentRetailIncVat;
-                        const reachable = retailIncVat > 0;
+                        const delta = newPrice - currentRetailIncVat;
+                        const reachable = newPrice > 0;
+                        const isOverride = !!(override && override > 0);
                         return (
                           <TableRow key={r.sku}>
                             <TableCell>
@@ -491,6 +528,7 @@ const PricingSignals = () => {
                             </TableCell>
                             <TableCell className="font-mono text-xs">{r.sku}</TableCell>
                             <TableCell className="max-w-xs truncate">{r.product_name || "—"}</TableCell>
+                            <TableCell className="text-xs text-muted-foreground">{brandName(r.brand_id)}</TableCell>
                             <TableCell>
                               <Badge variant="outline" className={BAND_META[r.band].tone}>
                                 {BAND_META[r.band].label}
@@ -502,8 +540,35 @@ const PricingSignals = () => {
                             <TableCell className="text-right tabular-nums">{fmtGBP(r.avgCourier)}</TableCell>
                             <TableCell className="text-right tabular-nums">{(r.feeRate * 100).toFixed(1)}%</TableCell>
                             <TableCell className="text-right tabular-nums">{r.currentPor.toFixed(1)}%</TableCell>
-                            <TableCell className="text-right tabular-nums font-semibold">
-                              {reachable ? fmtGBP(retailIncVat) : <span className="text-muted-foreground">unreachable</span>}
+                            <TableCell className="text-right tabular-nums">
+                              <div className="flex items-center justify-end gap-1">
+                                <span className="text-muted-foreground text-xs">£</span>
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  value={isOverride ? override : (suggested > 0 ? suggested.toFixed(2) : "")}
+                                  onChange={(e) => {
+                                    const v = parseFloat(e.target.value);
+                                    setPriceOverrides((p) => {
+                                      const next = { ...p };
+                                      if (!isFinite(v) || v <= 0) delete next[r.sku];
+                                      else next[r.sku] = v;
+                                      return next;
+                                    });
+                                  }}
+                                  className={`h-8 w-24 text-right tabular-nums ${isOverride ? "border-pd-accent" : ""}`}
+                                  placeholder={suggested > 0 ? suggested.toFixed(2) : "—"}
+                                />
+                                {isOverride && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setPriceOverrides((p) => { const n = { ...p }; delete n[r.sku]; return n; })}
+                                    className="text-xs text-muted-foreground hover:text-foreground"
+                                    title="Reset to suggested"
+                                  >×</button>
+                                )}
+                              </div>
                             </TableCell>
                             <TableCell className={`text-right tabular-nums ${delta >= 0 ? "text-band-good" : "text-band-loss"}`}>
                               {reachable ? `${delta >= 0 ? "+" : ""}${fmtGBP(delta)}` : "—"}
