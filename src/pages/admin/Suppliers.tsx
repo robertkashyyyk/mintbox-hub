@@ -54,6 +54,7 @@ const Suppliers = () => {
   const [editing, setEditing] = useState<Partial<Supplier>>(empty);
   const [newPrefix, setNewPrefix] = useState<string>("");
   const [newPrefixStyle, setNewPrefixStyle] = useState<string>("hyphen");
+  const [pulling, setPulling] = useState(false);
 
   const { data: suppliers = [], isLoading } = useQuery({
     queryKey: ["suppliers-list"],
