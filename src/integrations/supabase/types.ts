@@ -208,6 +208,8 @@ export type Database = {
           created_at: string | null
           family: string | null
           id: string
+          image_search_domain: string | null
+          image_url_pattern: string | null
           name: string
           prefix: string | null
           prefix_style: Database["public"]["Enums"]["prefix_style"] | null
@@ -220,6 +222,8 @@ export type Database = {
           created_at?: string | null
           family?: string | null
           id?: string
+          image_search_domain?: string | null
+          image_url_pattern?: string | null
           name: string
           prefix?: string | null
           prefix_style?: Database["public"]["Enums"]["prefix_style"] | null
@@ -232,6 +236,8 @@ export type Database = {
           created_at?: string | null
           family?: string | null
           id?: string
+          image_search_domain?: string | null
+          image_url_pattern?: string | null
           name?: string
           prefix?: string | null
           prefix_style?: Database["public"]["Enums"]["prefix_style"] | null
@@ -1033,6 +1039,128 @@ export type Database = {
             columns: ["brand_id"]
             isOneToOne: false
             referencedRelation: "brands_missing_base_multiplier"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      image_scout_jobs: {
+        Row: {
+          attempts: number
+          brand_id: string | null
+          created_at: string
+          created_by: string | null
+          error: string | null
+          finished_at: string | null
+          id: string
+          mode: string
+          override_search_term: string | null
+          sku: string
+          source_url: string | null
+          started_at: string | null
+          status: string
+        }
+        Insert: {
+          attempts?: number
+          brand_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          mode: string
+          override_search_term?: string | null
+          sku: string
+          source_url?: string | null
+          started_at?: string | null
+          status?: string
+        }
+        Update: {
+          attempts?: number
+          brand_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          mode?: string
+          override_search_term?: string | null
+          sku?: string
+          source_url?: string | null
+          started_at?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "image_scout_jobs_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "image_scout_jobs_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands_missing_base_multiplier"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      image_scout_results: {
+        Row: {
+          created_at: string
+          id: string
+          job_id: string | null
+          notes: string | null
+          outcome: string
+          raw_height: number | null
+          raw_width: number | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          sku: string
+          source_image_url: string | null
+          source_page_url: string | null
+          storage_path: string | null
+          watermark_score: number | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          job_id?: string | null
+          notes?: string | null
+          outcome: string
+          raw_height?: number | null
+          raw_width?: number | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          sku: string
+          source_image_url?: string | null
+          source_page_url?: string | null
+          storage_path?: string | null
+          watermark_score?: number | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          job_id?: string | null
+          notes?: string | null
+          outcome?: string
+          raw_height?: number | null
+          raw_width?: number | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          sku?: string
+          source_image_url?: string | null
+          source_page_url?: string | null
+          storage_path?: string | null
+          watermark_score?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "image_scout_results_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "image_scout_jobs"
             referencedColumns: ["id"]
           },
         ]
