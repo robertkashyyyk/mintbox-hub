@@ -281,6 +281,7 @@ export default function ImageScout() {
           <TabsTrigger value="run"><Play className="h-4 w-4 mr-1" /> Run Agent</TabsTrigger>
           <TabsTrigger value="queue"><ListChecks className="h-4 w-4 mr-1" /> Missing Images ({missingQ.data?.length ?? 0})</TabsTrigger>
           <TabsTrigger value="review"><AlertCircle className="h-4 w-4 mr-1" /> Needs Review ({reviewQ.data?.length ?? 0})</TabsTrigger>
+          <TabsTrigger value="candidates"><Target className="h-4 w-4 mr-1" /> Candidates ({candidatesQ.data?.length ?? 0})</TabsTrigger>
           <TabsTrigger value="log"><History className="h-4 w-4 mr-1" /> Job Log</TabsTrigger>
         </TabsList>
 
