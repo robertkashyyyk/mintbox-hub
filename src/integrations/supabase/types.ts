@@ -1136,6 +1136,59 @@ export type Database = {
           },
         ]
       }
+      image_scout_candidate_events: {
+        Row: {
+          action: string
+          candidate_id: string
+          created_at: string
+          id: string
+          new_status:
+            | Database["public"]["Enums"]["image_scout_candidate_status"]
+            | null
+          notes: string | null
+          old_status:
+            | Database["public"]["Enums"]["image_scout_candidate_status"]
+            | null
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          candidate_id: string
+          created_at?: string
+          id?: string
+          new_status?:
+            | Database["public"]["Enums"]["image_scout_candidate_status"]
+            | null
+          notes?: string | null
+          old_status?:
+            | Database["public"]["Enums"]["image_scout_candidate_status"]
+            | null
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          candidate_id?: string
+          created_at?: string
+          id?: string
+          new_status?:
+            | Database["public"]["Enums"]["image_scout_candidate_status"]
+            | null
+          notes?: string | null
+          old_status?:
+            | Database["public"]["Enums"]["image_scout_candidate_status"]
+            | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "image_scout_candidate_events_candidate_id_fkey"
+            columns: ["candidate_id"]
+            isOneToOne: false
+            referencedRelation: "image_scout_candidates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       image_scout_candidates: {
         Row: {
           brand_id: string | null
@@ -3289,6 +3342,15 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      image_scout_duplicate_images: {
+        Row: {
+          candidate_count: number | null
+          image_url: string | null
+          sku_count: number | null
+          skus: string[] | null
+        }
+        Relationships: []
       }
       latest_email_per_type: {
         Row: {
