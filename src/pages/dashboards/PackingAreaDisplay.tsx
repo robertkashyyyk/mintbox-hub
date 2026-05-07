@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Maximize2, RefreshCw, Package, Clock, Target, TrendingUp } from "lucide-react";
+import { Maximize2, RefreshCw, Package, Clock, Target, TrendingUp, Volume2, VolumeX } from "lucide-react";
 import { format } from "date-fns";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -66,6 +66,72 @@ const PackingAreaDisplay = () => {
   const awaiting = liveQuery.data?.awaiting ?? 0;
   const newOrders = liveQuery.data?.newOrders ?? 0;
   const alarmActive = minsToCutoff > 15 && minsToCutoff <= 210 && awaiting < 30 && newOrders > awaiting * 2;
+  const alarmTier: "amber" | "red" | "critical" | null = !alarmActive
+    ? null
+    : minsToCutoff <= 60
+      ? "critical"
+      : minsToCutoff <= 150
+        ? "red"
+        : "amber";
+
+  const [soundEnabled, setSoundEnabled] = useState(false);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const lastChimeRef = useRef<number>(0);
+
+  const playKlaxon = () => {
+    const ctx = audioCtxRef.current;
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    const beeps = alarmTier === "critical" ? 4 : alarmTier === "red" ? 2 : 1;
+    const freq = alarmTier === "critical" ? 880 : alarmTier === "red" ? 660 : 520;
+    for (let i = 0; i < beeps; i++) {
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = "square";
+      o.frequency.value = freq;
+      g.gain.setValueAtTime(0, now + i * 0.45);
+      g.gain.linearRampToValueAtTime(0.18, now + i * 0.45 + 0.02);
+      g.gain.linearRampToValueAtTime(0, now + i * 0.45 + 0.35);
+      o.connect(g).connect(ctx.destination);
+      o.start(now + i * 0.45);
+      o.stop(now + i * 0.45 + 0.4);
+    }
+  };
+
+  useEffect(() => {
+    if (!alarmActive || !soundEnabled) return;
+    const intervalMs = alarmTier === "critical" ? 30_000 : alarmTier === "red" ? 60_000 : 120_000;
+    const tick = () => {
+      const now = Date.now();
+      if (now - lastChimeRef.current >= intervalMs - 500) {
+        lastChimeRef.current = now;
+        playKlaxon();
+      }
+    };
+    tick();
+    const t = setInterval(tick, 5_000);
+    return () => clearInterval(t);
+  }, [alarmActive, alarmTier, soundEnabled]);
+
+  const enableSound = () => {
+    if (!audioCtxRef.current) {
+      const Ctx = (window as any).AudioContext || (window as any).webkitAudioContext;
+      audioCtxRef.current = new Ctx();
+    }
+    audioCtxRef.current?.resume?.();
+    setSoundEnabled(true);
+    const ctx = audioCtxRef.current!;
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = "sine";
+    o.frequency.value = 880;
+    g.gain.setValueAtTime(0.001, ctx.currentTime);
+    g.gain.linearRampToValueAtTime(0.15, ctx.currentTime + 0.02);
+    g.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.25);
+    o.connect(g).connect(ctx.destination);
+    o.start();
+    o.stop(ctx.currentTime + 0.3);
+  };
 
   const handleFullscreen = () => {
     const el = containerRef.current;
@@ -90,6 +156,15 @@ const PackingAreaDisplay = () => {
           <Badge variant="outline" className="text-xs">
             Updated: {liveQuery.dataUpdatedAt ? format(new Date(liveQuery.dataUpdatedAt), "HH:mm:ss") : "--"}
           </Badge>
+          <Button
+            variant={soundEnabled ? "default" : "outline"}
+            size="sm"
+            onClick={() => (soundEnabled ? setSoundEnabled(false) : enableSound())}
+            title={soundEnabled ? "Mute alarm" : "Enable alarm sound"}
+          >
+            {soundEnabled ? <Volume2 className="h-4 w-4 mr-2" /> : <VolumeX className="h-4 w-4 mr-2" />}
+            {soundEnabled ? "Sound on" : "Enable sound"}
+          </Button>
           <Button variant="outline" size="sm" onClick={() => liveQuery.refetch()}>
             <RefreshCw className="h-4 w-4 mr-2" />
             Refresh
@@ -102,12 +177,29 @@ const PackingAreaDisplay = () => {
       </div>
 
       {alarmActive && (
-        <Card className="border-warning bg-warning/10 animate-pulse">
+        <Card
+          className={
+            alarmTier === "critical"
+              ? "border-destructive bg-destructive/15 animate-pulse"
+              : alarmTier === "red"
+                ? "border-destructive bg-destructive/10 animate-pulse"
+                : "border-warning bg-warning/10 animate-pulse"
+          }
+        >
           <CardContent className="py-4 flex items-center justify-between">
             <div>
-              <div className="text-2xl font-bold text-warning">⚠ NEW PICK LISTS REQUIRED</div>
-              <p className="text-sm text-foreground/70">
-                Awaiting Picking is low ({awaiting}) vs {newOrders} new orders, with {Math.floor(minsToCutoff / 60)}h {minsToCutoff % 60}m to cut-off.
+              <div
+                className={
+                  alarmTier === "amber"
+                    ? "text-2xl font-bold text-warning"
+                    : "text-3xl font-bold text-destructive"
+                }
+              >
+                ⚠ NEW PICK LISTS REQUIRED
+              </div>
+              <p className="text-sm text-foreground/70 mt-1">
+                Awaiting Picking is low ({awaiting}) vs {newOrders} new orders · {Math.floor(minsToCutoff / 60)}h {minsToCutoff % 60}m to 16:30 cut-off
+                {!soundEnabled && " · click Enable sound for audible alarm"}
               </p>
             </div>
           </CardContent>
