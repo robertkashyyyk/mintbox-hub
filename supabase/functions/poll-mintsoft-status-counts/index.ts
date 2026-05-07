@@ -59,9 +59,7 @@ Deno.serve(async (req) => {
     const captured_at = new Date().toISOString();
     const buckets: Record<string, number> = {};
     for (const s of ACTIVE_STATUSES) {
-      const n = await countStatus(baseUrl, apiKey, s.id, !!s.despatchedToday);
-      const key = s.despatchedToday ? 'DESPATCHED_TODAY' : s.name;
-      buckets[key] = (buckets[key] ?? 0) + n;
+      buckets[s.name] = await countStatus(baseUrl, apiKey, s.id);
     }
 
     const rows = Object.entries(buckets).map(([status, count]) => ({
