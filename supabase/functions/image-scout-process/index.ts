@@ -34,9 +34,24 @@ type Job = {
   override_search_term: string | null;
 };
 
-type Brand = { name: string; prefix: string | null; image_url_pattern: string | null; image_search_domain: string | null } | null;
+type Brand = { id: string; name: string; prefix: string | null; image_url_pattern: string | null; image_search_domain: string | null } | null;
 
-type Candidate = { imageUrl: string; pageUrl: string | null; source: string };
+type BrandProfile = {
+  preferred_domains: string[];
+  blocked_domains: string[];
+  search_templates: string[];
+  image_rules: Record<string, unknown>;
+} | null;
+
+type Candidate = {
+  imageUrl: string;
+  pageUrl: string | null;
+  source: string;
+  fromTemplate?: string | null;
+  pageText?: string;
+  score?: number;
+  reasoning?: string[];
+};
 
 // ---------------- helpers ----------------
 
