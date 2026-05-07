@@ -112,14 +112,18 @@ const BuyRecommendations = () => {
     return Array.from(map.values()).sort((a, b) => b.totalSpend - a.totalSpend);
   }, [activeRows]);
 
-  // Filter the summary list itself (by search on supplier name)
+  // Filter the summary list itself (by search on supplier name + suppression window)
   const filteredSupplierGroups = useMemo(() => {
     const q = search.trim().toLowerCase();
     return supplierGroups.filter((g) => {
+      if (g.supplierId) {
+        const s = suppressionMap.get(g.supplierId);
+        if (s?.suppressed) return false; // hide during PO suppression window
+      }
       if (q && !g.supplierName.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [supplierGroups, search]);
+  }, [supplierGroups, search, suppressionMap]);
 
   // Detail rows for selected supplier
   const detailRows = useMemo(() => {
