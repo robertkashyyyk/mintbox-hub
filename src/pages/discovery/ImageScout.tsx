@@ -839,8 +839,54 @@ export default function ImageScout() {
                           ).map((r: string, i: number) => (<li key={i}>{r}</li>))}
                         </ul>
                       </div>
+                      {(() => {
+                        const ws = getWarnings(openCandidate);
+                        const dupSet = dupMap.get(openCandidate.image_url);
+                        const dupSkus = dupSet ? dupSet.size : 1;
+                        if (!ws.length && dupSkus <= 1) return null;
+                        return (
+                          <div>
+                            <div className="text-xs text-muted-foreground uppercase mb-1">Quality flags</div>
+                            <div className="flex flex-wrap gap-1">
+                              {dupSkus > 1 && (
+                                <Badge variant="outline" className="gap-1"><Copy className="h-3 w-3" /> Used by {dupSkus} SKUs ({[...(dupSet ?? [])].join(", ")})</Badge>
+                              )}
+                              {ws.map((w) => (
+                                <Badge key={w} variant="outline" className="gap-1 text-warning border-warning/40">
+                                  <ShieldAlert className="h-3 w-3" /> {w}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
+
+                  {/* Audit history */}
+                  <div className="border-t pt-3">
+                    <div className="text-xs text-muted-foreground uppercase mb-2">Audit history</div>
+                    {candEventsQ.isLoading && <div className="text-xs text-muted-foreground">Loading…</div>}
+                    {!candEventsQ.isLoading && !candEventsQ.data?.length && (
+                      <div className="text-xs text-muted-foreground">No status changes recorded yet.</div>
+                    )}
+                    {!!candEventsQ.data?.length && (
+                      <ul className="space-y-1 text-xs max-h-40 overflow-auto">
+                        {candEventsQ.data.map((ev: any) => (
+                          <li key={ev.id} className="flex items-center justify-between gap-2 border-b border-border/50 pb-1">
+                            <span>
+                              <span className="text-muted-foreground">{ev.action}:</span>{" "}
+                              <span className="font-medium">{ev.old_status ?? "—"}</span>{" → "}
+                              <span className="font-medium">{ev.new_status ?? "—"}</span>
+                              {ev.notes && <span className="text-muted-foreground"> · {ev.notes}</span>}
+                            </span>
+                            <span className="text-muted-foreground">{new Date(ev.created_at).toLocaleString()}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+
                   <DialogFooter className="flex flex-wrap gap-2">
                     <Button size="sm" variant="outline" disabled={setCandStatusMut.isPending} onClick={() => setCandStatusMut.mutate({ id: openCandidate.id, status: "shortlisted" })}>Shortlist</Button>
                     <Button size="sm" variant="outline" disabled={setCandStatusMut.isPending} onClick={() => setCandStatusMut.mutate({ id: openCandidate.id, status: "manual_required" })}>Manual required</Button>
