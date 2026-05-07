@@ -453,9 +453,12 @@ export default function ImageScout() {
   );
 }
 
-function StatCard({ label, value }: { label: string; value: number }) {
+function StatCard({ label, value, onClick }: { label: string; value: number; onClick?: () => void }) {
   return (
-    <Card>
+    <Card
+      onClick={onClick}
+      className={onClick ? "cursor-pointer hover:border-primary transition-colors" : undefined}
+    >
       <CardContent className="p-4">
         <div className="text-xs text-muted-foreground uppercase">{label}</div>
         <div className="text-2xl font-semibold mt-1">{value}</div>
