@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { Settings, Shield, AlertTriangle, ArrowLeft, Package, Clock } from "lucide-react";
+import { Settings, Shield, AlertTriangle, ArrowLeft, Package, Clock, Gauge, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
@@ -11,6 +11,13 @@ import { useToast } from "@/hooks/use-toast";
 import { AccessGate } from "@/components/AccessGate";
 import { useEffect, useState } from "react";
 
+interface ToleranceBands {
+  critical: number;
+  low: number;
+  high: number;
+  excess: number;
+}
+
 const SystemSettings = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -18,16 +25,34 @@ const SystemSettings = () => {
   const { data: rbacEnabled, isLoading } = useAppSetting<boolean>('use_rbac_navigation');
   const { data: lsaMinThreshold, isLoading: lsaMinLoading } = useAppSetting<number>('lsa.min_threshold');
   const { data: poSuppHours, isLoading: poSuppLoading } = useAppSetting<number>('buying.po_suppression_hours');
+  const { data: globalMult, isLoading: globalMultLoading } = useAppSetting<number>('lsa.global_base_multiplier');
+  const { data: tolerance, isLoading: tolLoading } = useAppSetting<ToleranceBands>('lsa.tolerance');
   const updateSetting = useUpdateAppSetting();
 
   const [lsaMinInput, setLsaMinInput] = useState<string>("");
   const [poSuppInput, setPoSuppInput] = useState<string>("");
+  const [globalMultInput, setGlobalMultInput] = useState<string>("");
+  const [tolInput, setTolInput] = useState<{ critical: string; low: string; high: string; excess: string }>({
+    critical: "", low: "", high: "", excess: ""
+  });
+
   useEffect(() => {
     if (lsaMinThreshold !== null && lsaMinThreshold !== undefined) setLsaMinInput(String(lsaMinThreshold));
   }, [lsaMinThreshold]);
   useEffect(() => {
     if (poSuppHours !== null && poSuppHours !== undefined) setPoSuppInput(String(poSuppHours));
   }, [poSuppHours]);
+  useEffect(() => {
+    if (globalMult !== null && globalMult !== undefined) setGlobalMultInput(String(globalMult));
+  }, [globalMult]);
+  useEffect(() => {
+    if (tolerance) setTolInput({
+      critical: String(tolerance.critical),
+      low: String(tolerance.low),
+      high: String(tolerance.high),
+      excess: String(tolerance.excess),
+    });
+  }, [tolerance]);
 
   const handleLsaMinSave = async () => {
     const n = Number(lsaMinInput);
@@ -54,6 +79,34 @@ const SystemSettings = () => {
       toast({ title: "PO suppression window updated", description: `Suppliers with a sent PO are hidden for ${n} hours.` });
     } catch {
       toast({ title: "Error", description: "Failed to save setting.", variant: "destructive" });
+    }
+  };
+
+  const handleGlobalMultSave = async () => {
+    const n = Number(globalMultInput);
+    if (!Number.isFinite(n) || n <= 0) {
+      toast({ title: "Invalid value", description: "Enter a positive number (weeks of cover).", variant: "destructive" });
+      return;
+    }
+    try {
+      await updateSetting.mutateAsync({ key: 'lsa.global_base_multiplier', value: n });
+      toast({ title: "Global base multiplier updated", description: `Brands without a custom multiplier will use ${n} weeks of cover.` });
+    } catch {
+      toast({ title: "Error", description: "Failed to save setting.", variant: "destructive" });
+    }
+  };
+
+  const handleToleranceSave = async () => {
+    const c = Number(tolInput.critical), l = Number(tolInput.low), h = Number(tolInput.high), e = Number(tolInput.excess);
+    if (![c, l, h, e].every(Number.isFinite) || !(c > 0 && c < l && l < 1 && h > 1 && h < e)) {
+      toast({ title: "Invalid bands", description: "Required: 0 < critical < low < 1 < high < excess.", variant: "destructive" });
+      return;
+    }
+    try {
+      await updateSetting.mutateAsync({ key: 'lsa.tolerance', value: { critical: c, low: l, high: h, excess: e } as any });
+      toast({ title: "Tolerance bands updated", description: `Critical ${c}, Low ${l}, High ${h}, Excess ${e}.` });
+    } catch {
+      toast({ title: "Error", description: "Failed to save bands.", variant: "destructive" });
     }
   };
 
@@ -189,6 +242,87 @@ const SystemSettings = () => {
                 <AlertTriangle className="h-4 w-4" />
                 <AlertDescription>
                   Once Mintsoft converts the PO to an ASN, suppression lifts immediately regardless of this window — ordering math then naturally accounts for OnOrder.
+                </AlertDescription>
+              </Alert>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Gauge className="h-5 w-5 text-pd-accent" />
+                <CardTitle>LSA Global Base Multiplier</CardTitle>
+              </div>
+              <CardDescription>
+                Default weeks-of-cover used when computing Target LSA for any brand that has no <strong>base_multiplier</strong> set on its brand record. Target LSA = weekly velocity × multiplier.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2 max-w-xs">
+                <Label htmlFor="global-mult" className="text-base font-medium">Weeks of cover</Label>
+                <p className="text-sm text-muted-foreground">Default is <strong>4</strong>. Per-brand values on the Brands page override this.</p>
+                <div className="flex gap-2">
+                  <Input
+                    id="global-mult"
+                    type="number"
+                    min={0.5}
+                    step={0.5}
+                    value={globalMultInput}
+                    onChange={(e) => setGlobalMultInput(e.target.value)}
+                    disabled={globalMultLoading || updateSetting.isPending}
+                  />
+                  <Button onClick={handleGlobalMultSave} disabled={globalMultLoading || updateSetting.isPending}>
+                    Save
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <SlidersHorizontal className="h-5 w-5 text-pd-accent" />
+                <CardTitle>LSA Tolerance Bands</CardTitle>
+              </div>
+              <CardDescription>
+                Ratios of <em>current LSA</em> vs <em>target LSA</em> used to classify each SKU on LSA Calibration. Must satisfy: <code>0 &lt; critical &lt; low &lt; 1 &lt; high &lt; excess</code>.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4 max-w-md">
+                <div className="space-y-2">
+                  <Label htmlFor="tol-critical">Critical (&lt;)</Label>
+                  <Input id="tol-critical" type="number" step={0.05} min={0} value={tolInput.critical}
+                    onChange={(e) => setTolInput({ ...tolInput, critical: e.target.value })}
+                    disabled={tolLoading || updateSetting.isPending} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="tol-low">Low (&lt;)</Label>
+                  <Input id="tol-low" type="number" step={0.05} min={0} value={tolInput.low}
+                    onChange={(e) => setTolInput({ ...tolInput, low: e.target.value })}
+                    disabled={tolLoading || updateSetting.isPending} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="tol-high">High (≤)</Label>
+                  <Input id="tol-high" type="number" step={0.05} min={1} value={tolInput.high}
+                    onChange={(e) => setTolInput({ ...tolInput, high: e.target.value })}
+                    disabled={tolLoading || updateSetting.isPending} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="tol-excess">Excess (≤)</Label>
+                  <Input id="tol-excess" type="number" step={0.05} min={1} value={tolInput.excess}
+                    onChange={(e) => setTolInput({ ...tolInput, excess: e.target.value })}
+                    disabled={tolLoading || updateSetting.isPending} />
+                </div>
+              </div>
+              <Button onClick={handleToleranceSave} disabled={tolLoading || updateSetting.isPending}>
+                Save bands
+              </Button>
+              <Alert>
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>
+                  Defaults: Critical 0.5, Low 0.85, High 1.15, Excess 1.5. Anything between Low and High counts as on-target.
                 </AlertDescription>
               </Alert>
             </CardContent>

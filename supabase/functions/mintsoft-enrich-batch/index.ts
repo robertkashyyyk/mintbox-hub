@@ -148,6 +148,19 @@ Deno.serve(async (req) => {
           console.error(`Mintsoft API error for ${product.sku}: ${response.status} - ${errorText}`);
           errors.push(`${product.sku}: ${response.status}`);
           errorCount++;
+
+          // 404 means the Mintsoft product was deleted/merged. Mark as discontinued
+          // and stamp last_stock_sync so it stops cycling through every batch forever.
+          if (response.status === 404) {
+            await supabase
+              .from("products_cache")
+              .update({
+                discontinued: true,
+                last_stock_sync: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", product.id);
+          }
           continue;
         }
 
