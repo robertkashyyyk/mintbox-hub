@@ -180,7 +180,7 @@ const StockHealth = () => {
         ];
 
         return (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
             {tiles.map((t) => {
               const isButton = !!t.onClick;
               const Comp: any = isButton ? "button" : "div";
