@@ -51,6 +51,8 @@ export default function ImageScout() {
   const [bulkSkus, setBulkSkus] = useState("");
   const [supplierUrl, setSupplierUrl] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+  const [tab, setTab] = useState<string>("run");
+  const [logStatusFilter, setLogStatusFilter] = useState<string | null>(null);
 
   const brandsQ = useQuery({
     queryKey: ["brands-list"],
