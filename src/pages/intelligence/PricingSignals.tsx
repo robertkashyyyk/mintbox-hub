@@ -53,15 +53,31 @@ function roundTo95(price: number): number {
   return Math.max(0.95, Math.round(best * 100) / 100);
 }
 
-// Suggested price for target POR.
-// POR = profit / (price * 1.2)  — per-unit basis.
-// profit = price - cost - fees_per_unit
-// → price = (cost + fees) / (1 - target_por * 1.2)
-function suggestedPrice(cost: number, feesPerUnit: number, targetPor: number): number {
-  const denom = 1 - targetPor * 1.2;
-  if (denom <= 0) return 0;
-  const raw = (cost + feesPerUnit) / denom;
-  return roundTo95(raw);
+// Suggested INC-VAT retail price for target POR.
+// All amounts ex-VAT unless noted. VAT rate fixed at 20% (matches view).
+//   p_ex      = ex-VAT price we're solving for
+//   cost      = unit cost (ex-VAT)
+//   courier   = courier £ per unit (fixed, scales with shipment not price)
+//   feeRate   = channel fee as a fraction of inc-VAT GMV (e.g. 0.105 for ~10.5%)
+//   target    = target POR (fraction of inc-VAT GMV)
+//
+//   profit_per_unit = p_ex - cost - courier - p_ex*1.2*feeRate
+//   POR = profit_per_unit / (p_ex * 1.2) = target
+//   ⇒ p_ex (1 - 1.2*feeRate - 1.2*target) = cost + courier
+//   ⇒ p_ex = (cost + courier) / (1 - 1.2*(feeRate + target))
+// Displayed retail = p_ex * 1.2, rounded to nearest .95.
+function suggestedRetailPrice(
+  cost: number,
+  courierPerUnit: number,
+  feeRate: number,
+  targetPor: number,
+): { retailIncVat: number; exVat: number } {
+  const denom = 1 - 1.2 * (feeRate + targetPor);
+  if (denom <= 0) return { retailIncVat: 0, exVat: 0 };
+  const exVat = (cost + courierPerUnit) / denom;
+  const retailIncVat = roundTo95(exVat * 1.2);
+  // Recompute the ex-VAT that the rounded retail implies, for projection
+  return { retailIncVat, exVat: retailIncVat / 1.2 };
 }
 
 // ---------- previous ISO week ----------
@@ -89,14 +105,17 @@ interface SkuRollup {
   product_name: string | null;
   channel: string | null;
   qty: number;
-  revenue: number;
+  revenue: number;          // ex-VAT
   costTotal: number;
-  feesTotal: number;       // channel + courier
+  courierTotal: number;     // £ courier (does not scale with price)
+  channelFeeTotal: number;  // £ channel fee (scales with price)
   profitTotal: number;
-  avgPrice: number;
+  avgPrice: number;         // ex-VAT
   avgCost: number;
-  avgFees: number;
-  currentPor: number;      // %
+  avgCourier: number;       // per unit
+  avgFees: number;          // courier + channel fee per unit, for display
+  feeRate: number;          // effective channel fee rate vs inc-VAT GMV
+  currentPor: number;       // %
   band: Band;
 }
 
@@ -163,21 +182,23 @@ const PricingSignals = () => {
         qty: 0,
         revenue: 0,
         costTotal: 0,
-        feesTotal: 0,
+        courierTotal: 0,
+        channelFeeTotal: 0,
         profitTotal: 0,
-        avgPrice: 0, avgCost: 0, avgFees: 0,
+        avgPrice: 0, avgCost: 0, avgCourier: 0, avgFees: 0, feeRate: 0,
         currentPor: 0,
         band: "ok" as Band,
       };
       const lineRevenue = num(l.price) * qty;
       const lineCost = num(l.cost_each) * qty;
-      const lineFees = num(l.courier_cost) + num(l.channel_fee);
+      const lineCourier = num(l.courier_cost);
+      const lineChannelFee = num(l.channel_fee);
       entry.qty += qty;
       entry.revenue += lineRevenue;
       entry.costTotal += lineCost;
-      entry.feesTotal += lineFees;
+      entry.courierTotal += lineCourier;
+      entry.channelFeeTotal += lineChannelFee;
       entry.profitTotal += num(l.profit);
-      // keep last seen channel/name (good enough for display)
       entry.product_name = entry.product_name || l.product_name;
       entry.channel = entry.channel || l.channel;
       map.set(l.sku, entry);
@@ -186,8 +207,11 @@ const PricingSignals = () => {
     for (const e of map.values()) {
       e.avgPrice = e.revenue / e.qty;
       e.avgCost  = e.costTotal / e.qty;
-      e.avgFees  = e.feesTotal / e.qty;
+      e.avgCourier = e.courierTotal / e.qty;
+      e.avgFees  = (e.courierTotal + e.channelFeeTotal) / e.qty;
       const gmvIncVat = e.revenue * 1.2;
+      // Effective channel fee rate vs inc-VAT GMV (scales with price).
+      e.feeRate = gmvIncVat > 0 ? e.channelFeeTotal / gmvIncVat : 0;
       e.currentPor = gmvIncVat > 0 ? (e.profitTotal / gmvIncVat) * 100 : 0;
       e.band = classifyPor(e.currentPor);
       out.push(e);
@@ -230,14 +254,15 @@ const PricingSignals = () => {
 
     for (const r of flaggedRows) {
       currentProfit += r.profitTotal;
-      const newPrice = suggestedPrice(r.avgCost, r.avgFees, targetFrac);
-      if (newPrice <= 0) {
-        // can't reach target — keep current profit unchanged
+      const { retailIncVat, exVat } = suggestedRetailPrice(r.avgCost, r.avgCourier, r.feeRate, targetFrac);
+      if (retailIncVat <= 0) {
         projectedProfit += r.profitTotal;
         unfeasible += 1;
         continue;
       }
-      const newProfitPerUnit = newPrice - r.avgCost - r.avgFees;
+      // Recompute fees & profit at the new ex-VAT price
+      const newChannelFeePerUnit = exVat * 1.2 * r.feeRate;
+      const newProfitPerUnit = exVat - r.avgCost - r.avgCourier - newChannelFeePerUnit;
       projectedProfit += newProfitPerUnit * r.qty;
       affectedSkus += 1;
     }
@@ -435,24 +460,26 @@ const PricingSignals = () => {
                       <TableHead>Product</TableHead>
                       <TableHead>Band</TableHead>
                       <TableHead className="text-right">Qty</TableHead>
-                      <TableHead className="text-right">Avg price</TableHead>
+                      <TableHead className="text-right">Avg price (ex-VAT)</TableHead>
                       <TableHead className="text-right">Avg cost</TableHead>
-                      <TableHead className="text-right">Avg fees</TableHead>
+                      <TableHead className="text-right">Courier / unit</TableHead>
+                      <TableHead className="text-right">Channel fee %</TableHead>
                       <TableHead className="text-right">Current POR</TableHead>
-                      <TableHead className="text-right">Suggested @ {targetPor}%</TableHead>
-                      <TableHead className="text-right">Δ price</TableHead>
+                      <TableHead className="text-right">Suggested @ {targetPor}% (inc-VAT)</TableHead>
+                      <TableHead className="text-right">Δ vs current (inc-VAT)</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {isLoading ? (
-                      <TableRow><TableCell colSpan={11} className="text-center py-8 text-muted-foreground">Loading…</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={12} className="text-center py-8 text-muted-foreground">Loading…</TableCell></TableRow>
                     ) : flaggedRows.length === 0 ? (
-                      <TableRow><TableCell colSpan={11} className="text-center py-8 text-muted-foreground">No flagged SKUs in this view.</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={12} className="text-center py-8 text-muted-foreground">No flagged SKUs in this view.</TableCell></TableRow>
                     ) : (
                       flaggedRows.slice(0, 500).map((r) => {
-                        const newPrice = suggestedPrice(r.avgCost, r.avgFees, targetPor / 100);
-                        const delta = newPrice - r.avgPrice;
-                        const reachable = newPrice > 0;
+                        const { retailIncVat } = suggestedRetailPrice(r.avgCost, r.avgCourier, r.feeRate, targetPor / 100);
+                        const currentRetailIncVat = r.avgPrice * 1.2;
+                        const delta = retailIncVat - currentRetailIncVat;
+                        const reachable = retailIncVat > 0;
                         return (
                           <TableRow key={r.sku}>
                             <TableCell>
@@ -472,10 +499,11 @@ const PricingSignals = () => {
                             <TableCell className="text-right tabular-nums">{r.qty.toLocaleString()}</TableCell>
                             <TableCell className="text-right tabular-nums">{fmtGBP(r.avgPrice)}</TableCell>
                             <TableCell className="text-right tabular-nums">{fmtGBP(r.avgCost)}</TableCell>
-                            <TableCell className="text-right tabular-nums">{fmtGBP(r.avgFees)}</TableCell>
+                            <TableCell className="text-right tabular-nums">{fmtGBP(r.avgCourier)}</TableCell>
+                            <TableCell className="text-right tabular-nums">{(r.feeRate * 100).toFixed(1)}%</TableCell>
                             <TableCell className="text-right tabular-nums">{r.currentPor.toFixed(1)}%</TableCell>
                             <TableCell className="text-right tabular-nums font-semibold">
-                              {reachable ? fmtGBP(newPrice) : <span className="text-muted-foreground">unreachable</span>}
+                              {reachable ? fmtGBP(retailIncVat) : <span className="text-muted-foreground">unreachable</span>}
                             </TableCell>
                             <TableCell className={`text-right tabular-nums ${delta >= 0 ? "text-band-good" : "text-band-loss"}`}>
                               {reachable ? `${delta >= 0 ? "+" : ""}${fmtGBP(delta)}` : "—"}
