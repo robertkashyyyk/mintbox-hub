@@ -464,11 +464,13 @@ export default function ImageScout() {
                     <TableHead>Outcome</TableHead>
                     <TableHead>Stored</TableHead>
                     <TableHead>Notes / Error</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {jobsQ.data?.filter((j) => !logStatusFilter || j.status === logStatusFilter).map((j) => {
                     const r = resultsQ.data?.find((x) => x.sku === j.sku && (!j.finished_at || new Date(x.created_at) >= new Date(j.created_at)));
+                    const canAct = j.status === "failed" || j.status === "needs_review" || j.status === "success";
                     return (
                       <TableRow key={j.id}>
                         <TableCell className="text-xs">{new Date(j.created_at).toLocaleString()}</TableCell>
