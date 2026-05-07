@@ -47,33 +47,28 @@ async function testMintsoftConnection(baseUrl: string, apiKey: string): Promise<
 }
 
 async function test3DSellersConnection(baseUrl: string, apiKey: string): Promise<TestResult> {
+  // 3D Sellers uses OAuth2. /auth/me validates a Bearer access token.
+  // Docs: https://api.3dsellers.com/docs
+  const root = (baseUrl || "https://api.3dsellers.com").replace(/\/+$/, "");
   try {
-    // 3D Sellers typically uses OAuth or API key in header
-    // This is a placeholder - adjust based on actual 3D Sellers API docs
-    const response = await fetch(`${baseUrl}/api/v1/account`, {
+    const response = await fetch(`${root}/auth/me`, {
       method: "GET",
       headers: {
         "Authorization": `Bearer ${apiKey}`,
         "Accept": "application/json",
       },
     });
-
+    const body = await response.text();
     if (response.ok) {
-      return {
-        success: true,
-        message: "Connected successfully to 3D Sellers.",
-      };
-    } else if (response.status === 401 || response.status === 403) {
+      return { success: true, message: "Connected to 3D Sellers (token valid)." };
+    }
+    if (response.status === 401 || response.status === 403) {
       return {
         success: false,
-        message: "Authentication failed. Please check your API key.",
-      };
-    } else {
-      return {
-        success: false,
-        message: `API returned status ${response.status}: ${response.statusText}`,
+        message: "Token rejected. 3D Sellers uses OAuth2 — the stored value must be a valid access token (not a client secret). See https://api.3dsellers.com/docs#/Auth.",
       };
     }
+    return { success: false, message: `API returned ${response.status}: ${body.slice(0, 200)}` };
   } catch (error) {
     return {
       success: false,
