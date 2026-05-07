@@ -7,16 +7,19 @@ const corsHeaders = {
 
 // Status IDs we care about for the live wall display.
 // DESPATCHED group uses DespatchedFrom=today so we only count today's.
-const ACTIVE_STATUSES: { id: number; name: string; despatchedToday?: boolean }[] = [
+// Live-queue statuses only. (Mintsoft has no working DespatchedFrom filter,
+// and counting lifetime DESPATCHED is too heavy. Packed-today is derived from
+// order_status_history elsewhere.)
+const ACTIVE_STATUSES: { id: number; name: string }[] = [
   { id: 1,  name: 'NEW' },
+  { id: 2,  name: 'PRINTED' },
   { id: 9,  name: 'ONBACKORDER' },
   { id: 15, name: 'AWAITINGPICKING' },
   { id: 16, name: 'PICKINGSTARTED' },
   { id: 17, name: 'PICKED' },
   { id: 20, name: 'PACKED' },
-  { id: 4,  name: 'DESPATCHED', despatchedToday: true },
-  { id: 5,  name: 'INVOICED', despatchedToday: true },
-  { id: 6,  name: 'INVOICEFAILED', despatchedToday: true },
+  { id: 7,  name: 'HOLDING' },
+  { id: 14, name: 'PACKANDHOLD' },
 ];
 
 const PAGE_SIZE = 100;
