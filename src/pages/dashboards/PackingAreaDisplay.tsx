@@ -1,82 +1,147 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
 import { Maximize2, RefreshCw, Package, Clock, Target, TrendingUp } from "lucide-react";
 import { format } from "date-fns";
-import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
+import { useEffect, useRef, useState } from "react";
+
+const REFRESH_MS = 60_000;
+const TARGET_PER_HOUR = 40;
 
 const PackingAreaDisplay = () => {
-  const [lastUpdated, setLastUpdated] = useState(new Date());
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [, force] = useState(0);
 
-  // Simulated data - will be replaced with real data
-  const metrics = {
-    readyToPack: 47,
-    packedToday: 312,
-    packedThisHour: 28,
-    targetPerHour: 40,
-    avgPackTime: "2m 34s",
-  };
+  // Live counters from order_lines (current state) + despatched today from order_status_history
+  const liveQuery = useQuery({
+    queryKey: ["packing-live"],
+    refetchInterval: REFRESH_MS,
+    queryFn: async () => {
+      const [awaiting, newOrders, picked, despatchedHist] = await Promise.all([
+        supabase.from("order_lines").select("mintsoft_order_id", { count: "exact", head: true }).eq("order_status", "AWAITINGPICKING"),
+        supabase.from("order_lines").select("mintsoft_order_id", { count: "exact", head: true }).eq("order_status", "NEW"),
+        supabase.from("order_lines").select("mintsoft_order_id", { count: "exact", head: true }).eq("order_status", "PICKED"),
+        supabase.rpc("get_despatch_hourly_today" as any).then((r) => r),
+      ]);
+      return {
+        awaiting: awaiting.count ?? 0,
+        newOrders: newOrders.count ?? 0,
+        picked: picked.count ?? 0,
+        hourly: (despatchedHist.data as Array<{ hr: string; despatched: number }> | null) ?? [],
+      };
+    },
+  });
 
-  const hourlyProgress = (metrics.packedThisHour / metrics.targetPerHour) * 100;
-
+  // Tick clock every 30s for cut-off countdown
   useEffect(() => {
-    const interval = setInterval(() => {
-      setLastUpdated(new Date());
-    }, 60000);
-    return () => clearInterval(interval);
+    const t = setInterval(() => force((n) => n + 1), 30_000);
+    return () => clearInterval(t);
   }, []);
 
+  const hourly = liveQuery.data?.hourly ?? [];
+  const despatchedToday = hourly.reduce((s, r) => s + Number(r.despatched ?? 0), 0);
+  const nowHourKey = format(new Date(), "HH:00");
+  const thisHour = hourly.find((r) => format(new Date(r.hr), "HH:00") === nowHourKey)?.despatched ?? 0;
+  const hourlyProgress = Math.min(100, (Number(thisHour) / TARGET_PER_HOUR) * 100);
+
+  // Build 8am–5pm buckets for chart
+  const today = new Date();
+  const chartData = Array.from({ length: 10 }, (_, i) => {
+    const h = 8 + i;
+    const label = `${h.toString().padStart(2, "0")}:00`;
+    const row = hourly.find((r) => new Date(r.hr).getHours() === h);
+    const isFuture = h > today.getHours();
+    return {
+      hour: label,
+      despatched: isFuture ? 0 : Number(row?.despatched ?? 0),
+      future: isFuture,
+    };
+  });
+
+  // Cut-off alarm logic
+  const minsToCutoff = (16 * 60 + 30) - (today.getHours() * 60 + today.getMinutes());
+  const awaiting = liveQuery.data?.awaiting ?? 0;
+  const newOrders = liveQuery.data?.newOrders ?? 0;
+  const alarmActive = minsToCutoff > 15 && minsToCutoff <= 210 && awaiting < 30 && newOrders > awaiting * 2;
+
+  const handleFullscreen = () => {
+    const el = containerRef.current;
+    if (!el) return;
+    if (document.fullscreenElement) document.exitFullscreen();
+    else el.requestFullscreen?.();
+  };
+
   return (
-    <div className="space-y-6">
+    <div ref={containerRef} className="space-y-6 bg-background p-2">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-foreground">Packing Area</h1>
-          <p className="text-foreground/60">Live packing station metrics</p>
+          <p className="text-foreground/60">
+            Live packing & despatch · Cut-off 16:30
+            {minsToCutoff > 0 && minsToCutoff < 600 && (
+              <span className="ml-2 font-semibold">· {Math.floor(minsToCutoff / 60)}h {minsToCutoff % 60}m to cut-off</span>
+            )}
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="text-xs">
-            Updated: {format(lastUpdated, "HH:mm:ss")}
+            Updated: {liveQuery.dataUpdatedAt ? format(new Date(liveQuery.dataUpdatedAt), "HH:mm:ss") : "--"}
           </Badge>
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" onClick={() => liveQuery.refetch()}>
             <RefreshCw className="h-4 w-4 mr-2" />
             Refresh
           </Button>
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" onClick={handleFullscreen}>
             <Maximize2 className="h-4 w-4 mr-2" />
             Fullscreen
           </Button>
         </div>
       </div>
 
+      {alarmActive && (
+        <Card className="border-warning bg-warning/10 animate-pulse">
+          <CardContent className="py-4 flex items-center justify-between">
+            <div>
+              <div className="text-2xl font-bold text-warning">⚠ NEW PICK LISTS REQUIRED</div>
+              <p className="text-sm text-foreground/70">
+                Awaiting Picking is low ({awaiting}) vs {newOrders} new orders, with {Math.floor(minsToCutoff / 60)}h {minsToCutoff % 60}m to cut-off.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="relative overflow-hidden">
+        <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
               <Package className="h-4 w-4" />
-              Ready to Pack
+              Awaiting Picking
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-5xl font-bold text-amber-500">{metrics.readyToPack}</div>
-            <p className="text-sm text-muted-foreground mt-2">Orders in queue</p>
+            <div className="text-5xl font-bold text-warning">{awaiting}</div>
+            <p className="text-sm text-muted-foreground mt-2">{newOrders} new behind</p>
           </CardContent>
         </Card>
 
-        <Card className="relative overflow-hidden">
+        <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
               <TrendingUp className="h-4 w-4" />
-              Packed Today
+              Despatched Today
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-5xl font-bold text-green-500">{metrics.packedToday}</div>
-            <p className="text-sm text-muted-foreground mt-2">Since 7:00 AM</p>
+            <div className="text-5xl font-bold text-success">{despatchedToday}</div>
+            <p className="text-sm text-muted-foreground mt-2">Since 00:00</p>
           </CardContent>
         </Card>
 
-        <Card className="relative overflow-hidden">
+        <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
               <Target className="h-4 w-4" />
@@ -84,38 +149,52 @@ const PackingAreaDisplay = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-5xl font-bold">{metrics.packedThisHour}</div>
+            <div className="text-5xl font-bold">{Number(thisHour)}</div>
             <div className="mt-2">
-              <Progress value={hourlyProgress} className="h-2" />
-              <p className="text-xs text-muted-foreground mt-1">
-                Target: {metrics.targetPerHour}/hr
-              </p>
+              <div className="h-2 w-full bg-muted rounded overflow-hidden">
+                <div className="h-full bg-pd-accent" style={{ width: `${hourlyProgress}%` }} />
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">Target: {TARGET_PER_HOUR}/hr</p>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="relative overflow-hidden">
+        <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
               <Clock className="h-4 w-4" />
-              Avg Pack Time
+              Picked (queued)
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-5xl font-bold">{metrics.avgPackTime}</div>
-            <p className="text-sm text-muted-foreground mt-2">Per order</p>
+            <div className="text-5xl font-bold">{liveQuery.data?.picked ?? 0}</div>
+            <p className="text-sm text-muted-foreground mt-2">Ready to pack</p>
           </CardContent>
         </Card>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Hourly Breakdown</CardTitle>
+          <CardTitle>Despatch by Hour (today)</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-center py-8 text-muted-foreground">
-            <p>Hourly packing chart will appear here</p>
-            <p className="text-sm mt-2">Data sourced from order dispatch timestamps</p>
+          <div className="h-72">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis dataKey="hour" stroke="hsl(var(--muted-foreground))" />
+                <YAxis stroke="hsl(var(--muted-foreground))" />
+                <Tooltip
+                  contentStyle={{
+                    background: "hsl(var(--card))",
+                    border: "1px solid hsl(var(--border))",
+                    color: "hsl(var(--foreground))",
+                  }}
+                />
+                <ReferenceLine y={TARGET_PER_HOUR} stroke="hsl(var(--warning))" strokeDasharray="3 3" label={{ value: `Target ${TARGET_PER_HOUR}/hr`, fill: "hsl(var(--warning))", fontSize: 11 }} />
+                <Bar dataKey="despatched" fill="hsl(var(--pd-accent))" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
           </div>
         </CardContent>
       </Card>
