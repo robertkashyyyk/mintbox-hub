@@ -406,9 +406,6 @@ const BuyRecommendations = () => {
         </div>
       </div>
 
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex items-center gap-4 flex-wrap">
       {(() => {
         const sup = currentSupplier?.supplierId ? suppressionMap.get(currentSupplier.supplierId) : null;
         if (!sup) return null;
