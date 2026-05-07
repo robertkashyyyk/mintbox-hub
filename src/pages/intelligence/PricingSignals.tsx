@@ -377,7 +377,7 @@ const PricingSignals = () => {
 
           {/* Controls + search + target POR */}
           <Card>
-            <CardContent className="p-4 grid gap-3 md:grid-cols-[1fr_auto_auto] items-end">
+            <CardContent className="p-4 grid gap-3 md:grid-cols-[1fr_auto_auto_auto] items-end">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -386,6 +386,18 @@ const PricingSignals = () => {
                   onChange={(e) => setSearch(e.target.value)}
                   className="pl-9"
                 />
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-xs text-muted-foreground">Brand</span>
+                <Select value={brandFilter} onValueChange={setBrandFilter}>
+                  <SelectTrigger className="w-[200px]"><SelectValue /></SelectTrigger>
+                  <SelectContent className="max-h-[320px]">
+                    <SelectItem value="all">All brands</SelectItem>
+                    {brands.map((b: any) => (
+                      <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="flex flex-col gap-1">
                 <span className="text-xs text-muted-foreground">Target POR %</span>
