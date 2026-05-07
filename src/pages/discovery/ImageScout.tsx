@@ -136,6 +136,27 @@ export default function ImageScout() {
   const [candMaxScore, setCandMaxScore] = useState<string>("");
   const [candSort, setCandSort] = useState<"score_desc" | "score_asc" | "created_desc" | "created_asc">("created_desc");
   const [openCandidate, setOpenCandidate] = useState<any | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // Saved filter presets
+  const PRESETS: Record<string, { label: string; apply: () => void }> = {
+    high_conf_new: {
+      label: "High confidence · new",
+      apply: () => { setCandStatus("new"); setCandMinScore("60"); setCandMaxScore(""); setCandPicked("all"); setCandSort("score_desc"); },
+    },
+    needs_manual: {
+      label: "Needs manual review",
+      apply: () => { setCandStatus("manual_required"); setCandMinScore(""); setCandMaxScore(""); setCandPicked("all"); setCandSort("created_desc"); },
+    },
+    approved: {
+      label: "Approved candidates",
+      apply: () => { setCandStatus("approved"); setCandMinScore(""); setCandMaxScore(""); setCandPicked("all"); setCandSort("created_desc"); },
+    },
+    low_conf: {
+      label: "Low confidence rejects",
+      apply: () => { setCandStatus("all"); setCandMinScore(""); setCandMaxScore("30"); setCandPicked("all"); setCandSort("score_asc"); },
+    },
+  };
 
   const candidatesQ = useQuery({
     queryKey: ["image-scout-candidates", candBrand, candStatus, candPicked, candMinScore, candMaxScore, candSort],
@@ -162,21 +183,90 @@ export default function ImageScout() {
     refetchInterval: 10000,
   });
 
+  // Duplicate image detection — count of distinct SKUs sharing each image_url
+  const dupMap = useMemo(() => {
+    const m = new Map<string, Set<string>>();
+    (candidatesQ.data ?? []).forEach((c: any) => {
+      if (!c.image_url) return;
+      if (!m.has(c.image_url)) m.set(c.image_url, new Set());
+      m.get(c.image_url)!.add(c.sku);
+    });
+    return m;
+  }, [candidatesQ.data]);
+
+  // Quality warnings derived per-candidate
+  const BLOCKED_DOMAINS = useMemo(() => new Set([
+    "pinterest.com", "facebook.com", "instagram.com", "youtube.com",
+    "ebay.co.uk", "ebay.com", "amazon.co.uk", "amazon.com",
+  ]), []);
+  function getWarnings(c: any): string[] {
+    const w: string[] = [];
+    const w_px = c.image_width ?? 0;
+    const h_px = c.image_height ?? 0;
+    if (w_px && h_px && (w_px < 400 || h_px < 400)) w.push("Low resolution");
+    if (!c.source_url) w.push("Missing source URL");
+    if (c.source_domain && BLOCKED_DOMAINS.has(String(c.source_domain).replace(/^www\./, ""))) w.push("Blocked domain");
+    const url = String(c.image_url ?? "").toLowerCase();
+    const partRaw = c.sku?.includes("-") ? c.sku.split("-").slice(1).join("-") : c.sku;
+    const partNorm = String(partRaw ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
+    const urlNorm = url.replace(/[^a-z0-9]/g, "");
+    if (partNorm && !urlNorm.includes(partNorm)) w.push("No exact part-number match");
+    if (/(packag|carton|box|wrap|label)/i.test(url)) w.push("Suspected packaging image");
+    if (/(diagram|exploded|schematic|drawing|blueprint)/i.test(url)) w.push("Suspected diagram");
+    return w;
+  }
+
   const setCandStatusMut = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+    mutationFn: async ({ id, status, notes }: { id: string; status: string; notes?: string }) => {
       const { data: { user } } = await supabase.auth.getUser();
       const { error } = await supabase
         .from("image_scout_candidates")
-        .update({ status: status as any, reviewed_by: user?.id ?? null, reviewed_at: new Date().toISOString() })
+        .update({ status: status as any, reviewed_by: user?.id ?? null, reviewed_at: new Date().toISOString(), review_notes: notes ?? null })
         .eq("id", id);
       if (error) throw error;
     },
     onSuccess: (_d, vars) => {
       toast.success(`Marked as ${vars.status}`);
       qc.invalidateQueries({ queryKey: ["image-scout-candidates"] });
+      qc.invalidateQueries({ queryKey: ["image-scout-candidate-events"] });
       setOpenCandidate((prev: any) => prev ? { ...prev, status: vars.status } : prev);
     },
     onError: (e) => toast.error((e as Error).message),
+  });
+
+  const bulkStatusMut = useMutation({
+    mutationFn: async ({ ids, status }: { ids: string[]; status: string }) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      const { error } = await supabase
+        .from("image_scout_candidates")
+        .update({ status: status as any, reviewed_by: user?.id ?? null, reviewed_at: new Date().toISOString() })
+        .in("id", ids);
+      if (error) throw error;
+    },
+    onSuccess: (_d, vars) => {
+      toast.success(`${vars.ids.length} candidate(s) → ${vars.status}`);
+      setSelectedIds(new Set());
+      qc.invalidateQueries({ queryKey: ["image-scout-candidates"] });
+      qc.invalidateQueries({ queryKey: ["image-scout-candidate-events"] });
+    },
+    onError: (e) => toast.error((e as Error).message),
+  });
+
+  // Audit trail for the open candidate
+  const candEventsQ = useQuery({
+    queryKey: ["image-scout-candidate-events", openCandidate?.id],
+    queryFn: async () => {
+      if (!openCandidate?.id) return [] as any[];
+      const { data, error } = await supabase
+        .from("image_scout_candidate_events")
+        .select("*")
+        .eq("candidate_id", openCandidate.id)
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      return data as any[];
+    },
+    enabled: !!openCandidate?.id,
   });
 
   const enqueue = useMutation({
