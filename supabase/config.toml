@@ -65,3 +65,6 @@ verify_jwt = true
 [functions.mintsoft-discover-new-products]
 verify_jwt = false
 
+
+[functions.image-scout-process]
+verify_jwt = false
