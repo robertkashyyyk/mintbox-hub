@@ -105,14 +105,17 @@ interface SkuRollup {
   product_name: string | null;
   channel: string | null;
   qty: number;
-  revenue: number;
+  revenue: number;          // ex-VAT
   costTotal: number;
-  feesTotal: number;       // channel + courier
+  courierTotal: number;     // £ courier (does not scale with price)
+  channelFeeTotal: number;  // £ channel fee (scales with price)
   profitTotal: number;
-  avgPrice: number;
+  avgPrice: number;         // ex-VAT
   avgCost: number;
-  avgFees: number;
-  currentPor: number;      // %
+  avgCourier: number;       // per unit
+  avgFees: number;          // courier + channel fee per unit, for display
+  feeRate: number;          // effective channel fee rate vs inc-VAT GMV
+  currentPor: number;       // %
   band: Band;
 }
 
