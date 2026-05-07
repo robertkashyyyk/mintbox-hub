@@ -156,6 +156,15 @@ const PackingAreaDisplay = () => {
           <Badge variant="outline" className="text-xs">
             Updated: {liveQuery.dataUpdatedAt ? format(new Date(liveQuery.dataUpdatedAt), "HH:mm:ss") : "--"}
           </Badge>
+          <Button
+            variant={soundEnabled ? "default" : "outline"}
+            size="sm"
+            onClick={() => (soundEnabled ? setSoundEnabled(false) : enableSound())}
+            title={soundEnabled ? "Mute alarm" : "Enable alarm sound"}
+          >
+            {soundEnabled ? <Volume2 className="h-4 w-4 mr-2" /> : <VolumeX className="h-4 w-4 mr-2" />}
+            {soundEnabled ? "Sound on" : "Enable sound"}
+          </Button>
           <Button variant="outline" size="sm" onClick={() => liveQuery.refetch()}>
             <RefreshCw className="h-4 w-4 mr-2" />
             Refresh
@@ -168,12 +177,29 @@ const PackingAreaDisplay = () => {
       </div>
 
       {alarmActive && (
-        <Card className="border-warning bg-warning/10 animate-pulse">
+        <Card
+          className={
+            alarmTier === "critical"
+              ? "border-destructive bg-destructive/15 animate-pulse"
+              : alarmTier === "red"
+                ? "border-destructive bg-destructive/10 animate-pulse"
+                : "border-warning bg-warning/10 animate-pulse"
+          }
+        >
           <CardContent className="py-4 flex items-center justify-between">
             <div>
-              <div className="text-2xl font-bold text-warning">⚠ NEW PICK LISTS REQUIRED</div>
-              <p className="text-sm text-foreground/70">
-                Awaiting Picking is low ({awaiting}) vs {newOrders} new orders, with {Math.floor(minsToCutoff / 60)}h {minsToCutoff % 60}m to cut-off.
+              <div
+                className={
+                  alarmTier === "amber"
+                    ? "text-2xl font-bold text-warning"
+                    : "text-3xl font-bold text-destructive"
+                }
+              >
+                ⚠ NEW PICK LISTS REQUIRED
+              </div>
+              <p className="text-sm text-foreground/70 mt-1">
+                Awaiting Picking is low ({awaiting}) vs {newOrders} new orders · {Math.floor(minsToCutoff / 60)}h {minsToCutoff % 60}m to 16:30 cut-off
+                {!soundEnabled && " · click Enable sound for audible alarm"}
               </p>
             </div>
           </CardContent>
