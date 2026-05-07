@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Search, Download, Loader2, Package } from "lucide-react";
+import { Search, Download, Loader2, Package, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 interface PreviewResult {
@@ -125,6 +125,35 @@ export function MintsoftProductPull() {
     },
   });
 
+  // Discover new products mutation
+  const discoverMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke(
+        "mintsoft-discover-new-products",
+        { body: {} }
+      );
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data: any) => {
+      toast({
+        title: "Discovery complete",
+        description:
+          data?.message ||
+          `Scanned ${data?.scanned ?? 0} products, added ${data?.added ?? 0} new SKUs.`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["import-history"] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Discovery failed",
+        description: error.message || "Failed to discover new products",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleSearch = () => {
     if (!effectivePrefix) {
       toast({
@@ -167,6 +196,38 @@ export function MintsoftProductPull() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
+        {/* Discover New Products */}
+        <div className="p-4 border rounded-lg bg-muted/30 space-y-3">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h4 className="font-medium flex items-center gap-2">
+                <Sparkles className="h-4 w-4" />
+                Discover new Mintsoft products
+              </h4>
+              <p className="text-sm text-muted-foreground mt-1">
+                Scans Mintsoft from the highest known Product ID forward and adds any new SKUs (matching brand prefixes) to the cache. Runs automatically every Sunday at 06:00 UTC.
+              </p>
+            </div>
+            <Button
+              onClick={() => discoverMutation.mutate()}
+              disabled={discoverMutation.isPending}
+              variant="outline"
+            >
+              {discoverMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Discovering...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="mr-2 h-4 w-4" />
+                  Run discovery now
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+
         {/* Brand Selection */}
         <div className="space-y-2">
           <Label>Select a brand</Label>
