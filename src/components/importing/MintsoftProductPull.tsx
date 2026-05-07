@@ -26,6 +26,7 @@ export function MintsoftProductPull() {
   const queryClient = useQueryClient();
   const [selectedBrandId, setSelectedBrandId] = useState<string>("");
   const [customPrefix, setCustomPrefix] = useState<string>("");
+  const [singleSku, setSingleSku] = useState<string>("");
   const [preview, setPreview] = useState<PreviewResult | null>(null);
 
   // Fetch brands with prefixes
