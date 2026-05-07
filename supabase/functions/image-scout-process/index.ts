@@ -1,8 +1,9 @@
-// Image Scout — robust multi-candidate agent.
-// Strategy: build a ranked list of candidate image URLs from (1) brand pattern,
-// (2) Firecrawl search on brand domain, (3) Google CSE image search (brand site),
-// (4) Google CSE image search (open web). Walk candidates until one passes the
-// resolution gate. Then bg-remove via Lovable AI and upload.
+// Image Scout — Firecrawl + Lovable AI flow.
+// 1) Resolve brand → strip prefix to native part number.
+// 2) Firecrawl /search with brand+native variants (prefer site:brand.tld).
+// 3) Firecrawl /scrape each top result → extract og:image + <img> URLs.
+// 4) Lovable AI vision pass picks the real product image from candidates.
+// 5) Aspect-ratio + resolution gates → bg-remove → upload.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
@@ -15,10 +16,12 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
 const FIRECRAWL_API_KEY = Deno.env.get("FIRECRAWL_API_KEY") ?? "";
-const GOOGLE_CSE_API_KEY = Deno.env.get("GOOGLE_CSE_API_KEY") ?? "";
-const GOOGLE_CSE_CX = Deno.env.get("GOOGLE_CSE_CX") ?? "";
 
-const MIN_DIM = 380; // relaxed from 500
+const MIN_DIM = 380;
+const MIN_AR = 0.5;   // reject very wide/tall (banners)
+const MAX_AR = 2.0;
+const MAX_SCRAPE_PAGES = 6;
+const MAX_CANDIDATES_TO_TRY = 10;
 
 const supa = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
 
@@ -65,7 +68,6 @@ async function getBrand(brandId: string | null): Promise<Brand> {
   return data as Brand;
 }
 
-// Strip brand prefix from SKU. e.g. "FA1-076.682.005" → "076.682.005"
 function stripPrefix(sku: string, prefix: string | null): string {
   if (!prefix) return sku;
   const upPrefix = prefix.toUpperCase();
@@ -84,7 +86,7 @@ async function fetchBytes(url: string): Promise<{ bytes: Uint8Array; ct: string 
     const ct = r.headers.get("content-type") ?? "";
     if (!ct.startsWith("image/") && !url.match(/\.(jpg|jpeg|png|webp)(\?|$)/i)) return null;
     const buf = new Uint8Array(await r.arrayBuffer());
-    if (buf.length < 2000) return null; // tiny — likely placeholder/icon
+    if (buf.length < 2000) return null;
     return { bytes: buf, ct: ct || "image/jpeg" };
   } catch {
     return null;
@@ -147,7 +149,7 @@ async function bgRemoveAndNormalise(bytes: Uint8Array, mime: string): Promise<Ui
       }],
     }),
   });
-  if (!r.ok) { console.error("AI gateway", r.status, await r.text()); return null; }
+  if (!r.ok) { console.error("AI gateway bgRemove", r.status, await r.text()); return null; }
   const j = await r.json();
   const imgs = j?.choices?.[0]?.message?.images;
   if (Array.isArray(imgs) && imgs[0]?.image_url?.url) {
@@ -166,57 +168,7 @@ async function uploadFinal(sku: string, bytes: Uint8Array): Promise<string> {
   return path;
 }
 
-// ---------------- candidate discovery ----------------
-
-async function extractImagesFromPage(pageUrl: string, originUrl: string): Promise<string[]> {
-  const out: string[] = [];
-  let html = "";
-  if (FIRECRAWL_API_KEY) {
-    try {
-      const r = await fetch("https://api.firecrawl.dev/v2/scrape", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${FIRECRAWL_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ url: pageUrl, formats: ["html"], onlyMainContent: false }),
-      });
-      if (r.ok) {
-        const j = await r.json();
-        html = j?.data?.html || j?.html || "";
-      }
-    } catch { /* ignore */ }
-  }
-  if (!html) {
-    try {
-      const r = await fetch(pageUrl, { headers: { "User-Agent": "Mozilla/5.0 ImageScout/1.0" } });
-      if (r.ok) html = await r.text();
-    } catch { /* ignore */ }
-  }
-  if (!html) return out;
-
-  const push = (u: string | undefined) => {
-    if (!u) return;
-    try {
-      const abs = new URL(u, originUrl).toString();
-      if (/\.(jpg|jpeg|png|webp)(\?|$)/i.test(abs) && !out.includes(abs)) out.push(abs);
-    } catch { /* skip */ }
-  };
-
-  // Priority: og:image, twitter:image, then all <img src> and srcset
-  const og = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)/i); push(og?.[1]);
-  const tw = html.match(/<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)/i); push(tw?.[1]);
-
-  const imgs = html.matchAll(/<img[^>]+(?:src|data-src|data-lazy-src)=["']([^"']+)["'][^>]*>/gi);
-  for (const m of imgs) push(m[1]);
-
-  const srcsets = html.matchAll(/srcset=["']([^"']+)["']/gi);
-  for (const m of srcsets) {
-    for (const part of m[1].split(",")) {
-      const u = part.trim().split(/\s+/)[0]; push(u);
-    }
-  }
-
-  // De-prioritise obvious logos/icons/sprites
-  return out.filter((u) => !/logo|sprite|icon|placeholder|favicon|loader|spinner/i.test(u));
-}
+// ---------------- Firecrawl ----------------
 
 async function firecrawlSearch(query: string, limit = 5): Promise<Array<{ url: string; title?: string }>> {
   if (!FIRECRAWL_API_KEY) return [];
@@ -226,98 +178,158 @@ async function firecrawlSearch(query: string, limit = 5): Promise<Array<{ url: s
       headers: { Authorization: `Bearer ${FIRECRAWL_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({ query, limit }),
     });
-    if (!r.ok) return [];
+    if (!r.ok) { console.error("firecrawl search", r.status, await r.text()); return []; }
     const j = await r.json();
-    const results: any[] = j?.data || j?.web?.results || j?.web || [];
-    return results.map((r: any) => ({ url: r.url, title: r.title })).filter((x) => x.url);
-  } catch {
+    const results: any[] = j?.data?.web || j?.data || j?.web?.results || j?.web || [];
+    return results.map((x: any) => ({ url: x.url, title: x.title })).filter((x) => x.url);
+  } catch (e) {
+    console.error("firecrawl search exception", e);
     return [];
   }
 }
 
-async function googleImageSearch(query: string, restrictDomain?: string | null): Promise<Candidate[]> {
-  if (!GOOGLE_CSE_API_KEY || !GOOGLE_CSE_CX) return [];
-  const u = new URL("https://www.googleapis.com/customsearch/v1");
-  u.searchParams.set("key", GOOGLE_CSE_API_KEY);
-  u.searchParams.set("cx", GOOGLE_CSE_CX);
-  u.searchParams.set("q", query);
-  u.searchParams.set("searchType", "image");
-  u.searchParams.set("num", "10");
-  if (restrictDomain) u.searchParams.set("siteSearch", restrictDomain);
+async function firecrawlScrapeImages(pageUrl: string): Promise<string[]> {
+  if (!FIRECRAWL_API_KEY) return [];
   try {
-    const r = await fetch(u.toString());
-    if (!r.ok) { console.error("CSE", r.status, await r.text()); return []; }
+    const r = await fetch("https://api.firecrawl.dev/v2/scrape", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${FIRECRAWL_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ url: pageUrl, formats: ["html", "links"], onlyMainContent: false }),
+    });
+    if (!r.ok) return [];
     const j = await r.json();
-    const items: any[] = j?.items ?? [];
-    items.sort((a, b) => ((b.image?.width || 0) * (b.image?.height || 0)) - ((a.image?.width || 0) * (a.image?.height || 0)));
-    return items
-      .filter((it) => !/logo|sprite|icon|favicon|placeholder/i.test(it.link || ""))
-      .map((it) => ({ imageUrl: it.link, pageUrl: it.image?.contextLink ?? null, source: restrictDomain ? `cse:${restrictDomain}` : "cse:open" }));
+    const html: string = j?.data?.html || j?.html || "";
+    const links: string[] = j?.data?.links || j?.links || [];
+    const out: string[] = [];
+    const push = (u: string | undefined) => {
+      if (!u) return;
+      try {
+        const abs = new URL(u, pageUrl).toString();
+        if (/\.(jpg|jpeg|png|webp)(\?|$)/i.test(abs) && !out.includes(abs)) out.push(abs);
+      } catch { /* skip */ }
+    };
+    if (html) {
+      const og = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)/i); push(og?.[1]);
+      const tw = html.match(/<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)/i); push(tw?.[1]);
+      for (const m of html.matchAll(/<img[^>]+(?:src|data-src|data-lazy-src)=["']([^"']+)["']/gi)) push(m[1]);
+      for (const m of html.matchAll(/srcset=["']([^"']+)["']/gi)) {
+        for (const part of m[1].split(",")) push(part.trim().split(/\s+/)[0]);
+      }
+    }
+    for (const l of links) push(l);
+    return out.filter((u) => !/logo|sprite|icon|placeholder|favicon|loader|spinner|banner|hero[-_/]/i.test(u));
   } catch (e) {
-    console.error("CSE failed", e);
+    console.error("firecrawl scrape exception", e);
     return [];
   }
 }
+
+// ---------------- AI candidate ranking ----------------
+
+async function aiPickBestImage(
+  sku: string,
+  cleanSku: string,
+  brandName: string,
+  candidates: Candidate[],
+): Promise<number[]> {
+  // returns ordered indices, best first
+  if (candidates.length === 0) return [];
+  if (candidates.length === 1) return [0];
+  try {
+    const list = candidates.map((c, i) => `${i}: ${c.imageUrl} (page: ${c.pageUrl ?? "-"}, src: ${c.source})`).join("\n");
+    const prompt = `You help find the best product photograph for an automotive part.
+Brand: ${brandName || "(unknown)"}
+SKU: ${sku}
+Native part number: ${cleanSku}
+
+Here is a list of candidate image URLs scraped from search results:
+${list}
+
+Rank these from MOST LIKELY to be the actual product photo to LEAST LIKELY.
+Reject obvious banners, logos, category headers, related-product thumbnails, and unrelated images.
+Prefer URLs whose filename or path contains the part number (${cleanSku}).
+Respond ONLY with a JSON array of indices, best first, e.g. [3,0,7].`;
+    const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "google/gemini-3-flash-preview",
+        messages: [{ role: "user", content: prompt }],
+      }),
+    });
+    if (!r.ok) { console.error("AI rank", r.status, await r.text()); return candidates.map((_, i) => i); }
+    const j = await r.json();
+    const txt: string = j?.choices?.[0]?.message?.content ?? "";
+    const m = txt.match(/\[[\s\S]*?\]/);
+    if (!m) return candidates.map((_, i) => i);
+    const arr = JSON.parse(m[0]);
+    if (!Array.isArray(arr)) return candidates.map((_, i) => i);
+    const filtered = arr.filter((n: any) => Number.isInteger(n) && n >= 0 && n < candidates.length);
+    // append any not mentioned
+    for (let i = 0; i < candidates.length; i++) if (!filtered.includes(i)) filtered.push(i);
+    return filtered;
+  } catch (e) {
+    console.error("aiPickBestImage exception", e);
+    return candidates.map((_, i) => i);
+  }
+}
+
+// ---------------- candidate discovery ----------------
 
 async function buildCandidates(job: Job, brand: Brand): Promise<{ candidates: Candidate[]; notes: string[] }> {
   const candidates: Candidate[] = [];
   const notes: string[] = [];
   const cleanSku = stripPrefix(job.sku, brand?.prefix ?? null);
   const brandName = brand?.name ?? "";
+  const brandDomain = brand?.image_search_domain ?? null;
   const searchTerm = (job.override_search_term && job.override_search_term.trim()) || cleanSku;
 
-  // 1. Direct source URL (user-provided product page)
+  notes.push(`sku=${job.sku} clean=${cleanSku} brand=${brandName || "?"} domain=${brandDomain || "?"}`);
+
+  // 1. Direct source URL
   if (job.source_url) {
-    const imgs = await extractImagesFromPage(job.source_url, job.source_url);
-    for (const i of imgs.slice(0, 10)) candidates.push({ imageUrl: i, pageUrl: job.source_url, source: "source_url" });
-    notes.push(`source_url page → ${imgs.length} candidate images`);
+    const imgs = await firecrawlScrapeImages(job.source_url);
+    for (const i of imgs.slice(0, 12)) candidates.push({ imageUrl: i, pageUrl: job.source_url, source: "source_url" });
+    notes.push(`source_url → ${imgs.length} imgs`);
   }
 
-  // 2. Brand image_url_pattern
-  if (brand?.image_url_pattern) {
-    if (brand.image_url_pattern.includes("{sku}") || brand.image_url_pattern.includes("{cleansku}")) {
-      const url = brand.image_url_pattern
-        .replaceAll("{sku}", encodeURIComponent(job.sku))
-        .replaceAll("{cleansku}", encodeURIComponent(cleanSku));
-      // If pattern is direct image URL, push as candidate; otherwise treat as page
-      if (/\.(jpg|jpeg|png|webp)(\?|$)/i.test(url)) {
-        candidates.push({ imageUrl: url, pageUrl: null, source: "brand_pattern" });
-        notes.push(`brand pattern direct image → ${url}`);
-      } else {
-        const imgs = await extractImagesFromPage(url, url);
-        for (const i of imgs.slice(0, 10)) candidates.push({ imageUrl: i, pageUrl: url, source: "brand_pattern_page" });
-        notes.push(`brand pattern page → ${imgs.length} candidate images`);
-      }
+  // 2. Brand pattern (only if fully templated)
+  if (brand?.image_url_pattern && (brand.image_url_pattern.includes("{sku}") || brand.image_url_pattern.includes("{cleansku}"))) {
+    const url = brand.image_url_pattern
+      .replaceAll("{sku}", encodeURIComponent(job.sku))
+      .replaceAll("{cleansku}", encodeURIComponent(cleanSku));
+    if (/\.(jpg|jpeg|png|webp)(\?|$)/i.test(url)) {
+      candidates.push({ imageUrl: url, pageUrl: null, source: "brand_pattern" });
+      notes.push(`brand_pattern direct → ${url}`);
     }
   }
 
-  // 3. Firecrawl search on brand domain (find product page, then extract images)
-  if (FIRECRAWL_API_KEY && brand?.image_search_domain) {
-    const q = `site:${brand.image_search_domain} ${searchTerm}`;
-    const results = await firecrawlSearch(q, 3);
-    notes.push(`firecrawl site search "${q}" → ${results.length} pages`);
-    for (const r of results.slice(0, 3)) {
-      const imgs = await extractImagesFromPage(r.url, r.url);
-      for (const i of imgs.slice(0, 6)) candidates.push({ imageUrl: i, pageUrl: r.url, source: "firecrawl_brand" });
-    }
+  // 3. Firecrawl search — brand domain first
+  const queries: string[] = [];
+  if (brandDomain) {
+    queries.push(`site:${brandDomain} ${searchTerm}`);
+    queries.push(`${brandName} ${searchTerm} site:${brandDomain}`);
   }
+  queries.push(`${brandName} ${searchTerm}`.trim());
+  queries.push(`"${searchTerm}" ${brandName}`.trim());
+  if (cleanSku !== job.sku) queries.push(`${searchTerm} part`);
 
-  // 4. Google CSE — restricted to brand domain
-  if (GOOGLE_CSE_API_KEY && brand?.image_search_domain) {
-    const cse = await googleImageSearch(`${brandName} ${searchTerm}`, brand.image_search_domain);
-    notes.push(`CSE on ${brand.image_search_domain} → ${cse.length} images`);
-    candidates.push(...cse);
-  }
-
-  // 5. Google CSE — open web (always run as fallback)
-  if (GOOGLE_CSE_API_KEY) {
-    const cse = await googleImageSearch(`${brandName} ${searchTerm} part`.trim());
-    notes.push(`CSE open web → ${cse.length} images`);
-    candidates.push(...cse);
-    if (cleanSku !== job.sku) {
-      const cse2 = await googleImageSearch(searchTerm);
-      notes.push(`CSE open web (clean sku) → ${cse2.length} images`);
-      candidates.push(...cse2);
+  const seenPages = new Set<string>();
+  let scraped = 0;
+  for (const q of queries) {
+    if (scraped >= MAX_SCRAPE_PAGES) break;
+    const results = await firecrawlSearch(q, 4);
+    notes.push(`search "${q}" → ${results.length} pages`);
+    for (const r of results) {
+      if (scraped >= MAX_SCRAPE_PAGES) break;
+      if (seenPages.has(r.url)) continue;
+      seenPages.add(r.url);
+      scraped++;
+      const imgs = await firecrawlScrapeImages(r.url);
+      const onBrand = brandDomain && r.url.includes(brandDomain);
+      for (const i of imgs.slice(0, 8)) candidates.push({
+        imageUrl: i, pageUrl: r.url, source: onBrand ? "firecrawl_brand" : "firecrawl_open",
+      });
     }
   }
 
@@ -327,6 +339,7 @@ async function buildCandidates(job: Job, brand: Brand): Promise<{ candidates: Ca
     if (seen.has(c.imageUrl)) return false;
     seen.add(c.imageUrl); return true;
   });
+  notes.push(`total candidates: ${dedup.length}`);
   return { candidates: dedup, notes };
 }
 
@@ -335,9 +348,10 @@ async function buildCandidates(job: Job, brand: Brand): Promise<{ candidates: Ca
 async function processJob(job: Job): Promise<{ outcome: string; detail?: string }> {
   await setJobStatus(job.id, "running", { started_at: new Date().toISOString() });
   const brand = await getBrand(job.brand_id);
+  const cleanSku = stripPrefix(job.sku, brand?.prefix ?? null);
 
   const { candidates, notes } = await buildCandidates(job, brand);
-  console.log(`Job ${job.sku}: ${candidates.length} candidates. Notes: ${notes.join(" | ")}`);
+  console.log(`Job ${job.sku}: ${candidates.length} candidates. ${notes.join(" | ")}`);
 
   if (candidates.length === 0) {
     await recordResult(job, "no_match", { notes: `no candidates. ${notes.join(" | ")}` });
@@ -345,28 +359,30 @@ async function processJob(job: Job): Promise<{ outcome: string; detail?: string 
     return { outcome: "no_match" };
   }
 
-  // Walk candidates until one passes the resolution gate
+  // AI ranking
+  const order = await aiPickBestImage(job.sku, cleanSku, brand?.name ?? "", candidates);
+  const ranked = order.map((i) => candidates[i]);
+
   let bestSmall: { c: Candidate; dims: { w: number; h: number } } | null = null;
   let attempted = 0;
-  const MAX_ATTEMPTS = 12;
 
-  for (const c of candidates) {
-    if (attempted >= MAX_ATTEMPTS) break;
+  for (const c of ranked) {
+    if (attempted >= MAX_CANDIDATES_TO_TRY) break;
     attempted++;
     const fetched = await fetchBytes(c.imageUrl);
     if (!fetched) continue;
     const dims = imageDims(fetched.bytes);
     if (!dims) continue;
+    const ar = dims.w / dims.h;
+    if (ar < MIN_AR || ar > MAX_AR) continue; // banner/strip — skip
 
     if (dims.w >= MIN_DIM && dims.h >= MIN_DIM) {
-      // Try bg-remove
       const cleaned = await bgRemoveAndNormalise(fetched.bytes, fetched.ct);
       if (!cleaned) {
-        // Upload raw as needs-review fallback then keep walking
         await recordResult(job, "watermark_review", {
           source_page_url: c.pageUrl, source_image_url: c.imageUrl,
           raw_width: dims.w, raw_height: dims.h,
-          notes: `bg-removal failed via ${c.source}; review`,
+          notes: `bg-removal failed via ${c.source}; review. ${notes.join(" | ")}`,
         });
         await setJobStatus(job.id, "needs_review", { finished_at: new Date().toISOString() });
         return { outcome: "watermark_review" };
@@ -376,7 +392,7 @@ async function processJob(job: Job): Promise<{ outcome: string; detail?: string 
         await recordResult(job, "stored", {
           source_page_url: c.pageUrl, source_image_url: c.imageUrl,
           raw_width: dims.w, raw_height: dims.h, storage_path: path,
-          notes: `via ${c.source} (attempt ${attempted}/${candidates.length})`,
+          notes: `via ${c.source} (attempt ${attempted}/${ranked.length}). ${notes.join(" | ")}`,
         });
         await setJobStatus(job.id, "success", { finished_at: new Date().toISOString() });
         return { outcome: "stored", detail: path };
@@ -386,19 +402,17 @@ async function processJob(job: Job): Promise<{ outcome: string; detail?: string 
         continue;
       }
     } else {
-      // remember best small one in case nothing larger appears
       if (!bestSmall || (dims.w * dims.h > bestSmall.dims.w * bestSmall.dims.h)) {
         bestSmall = { c, dims };
       }
     }
   }
 
-  // No large image found — flag for review with the best small candidate
   if (bestSmall) {
     await recordResult(job, "low_res", {
       source_page_url: bestSmall.c.pageUrl, source_image_url: bestSmall.c.imageUrl,
       raw_width: bestSmall.dims.w, raw_height: bestSmall.dims.h,
-      notes: `${attempted} candidates tried, all under ${MIN_DIM}px. Best: ${bestSmall.dims.w}x${bestSmall.dims.h} via ${bestSmall.c.source}`,
+      notes: `${attempted} candidates tried, all under ${MIN_DIM}px or wrong aspect. Best: ${bestSmall.dims.w}x${bestSmall.dims.h} via ${bestSmall.c.source}. ${notes.join(" | ")}`,
     });
     await setJobStatus(job.id, "needs_review", { finished_at: new Date().toISOString(), error: "low resolution" });
     return { outcome: "low_res" };
