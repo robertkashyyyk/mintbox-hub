@@ -484,6 +484,78 @@ export default function ImageScout() {
           </Card>
         </TabsContent>
 
+        <TabsContent value="candidates">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Scored candidates</CardTitle>
+                <CardDescription>
+                  All images discovered per job, ranked by deterministic confidence score. Higher score = better match.
+                </CardDescription>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => candidatesQ.refetch()}>
+                <RefreshCw className="h-4 w-4 mr-1" /> Refresh
+              </Button>
+            </CardHeader>
+            <CardContent className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Image</TableHead>
+                    <TableHead>SKU</TableHead>
+                    <TableHead>Score</TableHead>
+                    <TableHead>Domain</TableHead>
+                    <TableHead>Template</TableHead>
+                    <TableHead>Size</TableHead>
+                    <TableHead>Reasoning</TableHead>
+                    <TableHead>Source</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {candidatesQ.data?.map((c) => {
+                    const reasons: string[] = Array.isArray(c.confidence_reasoning)
+                      ? c.confidence_reasoning
+                      : (c.confidence_reasoning?.reasons ?? []);
+                    return (
+                      <TableRow key={c.id}>
+                        <TableCell>
+                          <a href={c.image_url} target="_blank" rel="noreferrer">
+                            <img src={c.image_url} alt={c.sku} className="h-12 w-12 object-contain bg-muted rounded" />
+                          </a>
+                        </TableCell>
+                        <TableCell className="font-mono text-xs">{c.sku}</TableCell>
+                        <TableCell>
+                          <Badge variant={c.confidence_score >= 60 ? "default" : c.confidence_score >= 30 ? "secondary" : "outline"}>
+                            {c.confidence_score}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-xs">{c.source_domain ?? "—"}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground max-w-[180px] truncate" title={c.from_template ?? ""}>
+                          {c.from_template ?? "—"}
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          {c.image_width && c.image_height ? `${c.image_width}×${c.image_height}` : "—"}
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground max-w-md whitespace-pre-wrap break-words">
+                          {reasons.length ? reasons.join(", ") : "—"}
+                        </TableCell>
+                        <TableCell>
+                          {c.source_url && (
+                            <a href={c.source_url} target="_blank" rel="noreferrer" className="text-xs text-primary underline">Page</a>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                  {!candidatesQ.data?.length && (
+                    <TableRow><TableCell colSpan={8} className="text-center text-sm text-muted-foreground py-8">No candidates yet — run a job to populate.</TableCell></TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         <TabsContent value="log">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
