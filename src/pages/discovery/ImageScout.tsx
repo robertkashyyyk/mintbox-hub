@@ -444,7 +444,7 @@ export default function ImageScout() {
                             </a>
                           ) : "—"}
                         </TableCell>
-                        <TableCell className="text-xs text-muted-foreground max-w-md truncate">
+                        <TableCell className="text-xs text-muted-foreground max-w-md whitespace-pre-wrap break-words">
                           {j.error || r?.notes || ""}
                         </TableCell>
                       </TableRow>
