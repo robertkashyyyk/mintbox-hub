@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Maximize2, RefreshCw, Package, Clock, Target, TrendingUp } from "lucide-react";
+import { Maximize2, RefreshCw, Package, Clock, Target, TrendingUp, Volume2, VolumeX } from "lucide-react";
 import { format } from "date-fns";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
