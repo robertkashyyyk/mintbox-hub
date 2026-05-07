@@ -53,15 +53,31 @@ function roundTo95(price: number): number {
   return Math.max(0.95, Math.round(best * 100) / 100);
 }
 
-// Suggested price for target POR.
-// POR = profit / (price * 1.2)  — per-unit basis.
-// profit = price - cost - fees_per_unit
-// → price = (cost + fees) / (1 - target_por * 1.2)
-function suggestedPrice(cost: number, feesPerUnit: number, targetPor: number): number {
-  const denom = 1 - targetPor * 1.2;
-  if (denom <= 0) return 0;
-  const raw = (cost + feesPerUnit) / denom;
-  return roundTo95(raw);
+// Suggested INC-VAT retail price for target POR.
+// All amounts ex-VAT unless noted. VAT rate fixed at 20% (matches view).
+//   p_ex      = ex-VAT price we're solving for
+//   cost      = unit cost (ex-VAT)
+//   courier   = courier £ per unit (fixed, scales with shipment not price)
+//   feeRate   = channel fee as a fraction of inc-VAT GMV (e.g. 0.105 for ~10.5%)
+//   target    = target POR (fraction of inc-VAT GMV)
+//
+//   profit_per_unit = p_ex - cost - courier - p_ex*1.2*feeRate
+//   POR = profit_per_unit / (p_ex * 1.2) = target
+//   ⇒ p_ex (1 - 1.2*feeRate - 1.2*target) = cost + courier
+//   ⇒ p_ex = (cost + courier) / (1 - 1.2*(feeRate + target))
+// Displayed retail = p_ex * 1.2, rounded to nearest .95.
+function suggestedRetailPrice(
+  cost: number,
+  courierPerUnit: number,
+  feeRate: number,
+  targetPor: number,
+): { retailIncVat: number; exVat: number } {
+  const denom = 1 - 1.2 * (feeRate + targetPor);
+  if (denom <= 0) return { retailIncVat: 0, exVat: 0 };
+  const exVat = (cost + courierPerUnit) / denom;
+  const retailIncVat = roundTo95(exVat * 1.2);
+  // Recompute the ex-VAT that the rounded retail implies, for projection
+  return { retailIncVat, exVat: retailIncVat / 1.2 };
 }
 
 // ---------- previous ISO week ----------
