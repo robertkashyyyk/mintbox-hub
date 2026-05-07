@@ -250,12 +250,25 @@ const PackingAreaDisplay = () => {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
               <Package className="h-4 w-4" />
+              New Orders
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-5xl font-bold text-foreground">{newOrders}</div>
+            <p className="text-sm text-muted-foreground mt-2">Awaiting pick list</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <Clock className="h-4 w-4" />
               Awaiting Picking
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-5xl font-bold text-warning">{awaiting}</div>
-            <p className="text-sm text-muted-foreground mt-2">{newOrders} new behind</p>
+            <p className="text-sm text-muted-foreground mt-2">On pick lists, not yet picked</p>
           </CardContent>
         </Card>
 
@@ -268,7 +281,7 @@ const PackingAreaDisplay = () => {
           </CardHeader>
           <CardContent>
             <div className="text-5xl font-bold text-success">{despatchedToday}</div>
-            <p className="text-sm text-muted-foreground mt-2">Since 00:00</p>
+            <p className="text-sm text-muted-foreground mt-2">Since 00:00 UK</p>
           </CardContent>
         </Card>
 
@@ -276,30 +289,12 @@ const PackingAreaDisplay = () => {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
               <Target className="h-4 w-4" />
-              This Hour
+              On Backorder
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-5xl font-bold">{Number(thisHour)}</div>
-            <div className="mt-2">
-              <div className="h-2 w-full bg-muted rounded overflow-hidden">
-                <div className="h-full bg-pd-accent" style={{ width: `${hourlyProgress}%` }} />
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">Target: {TARGET_PER_HOUR}/hr</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <Clock className="h-4 w-4" />
-              Picked (queued)
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-5xl font-bold">{liveQuery.data?.picked ?? 0}</div>
-            <p className="text-sm text-muted-foreground mt-2">Ready to pack</p>
+            <div className="text-5xl font-bold text-destructive">{liveQuery.data?.backorder ?? 0}</div>
+            <p className="text-sm text-muted-foreground mt-2">Awaiting stock</p>
           </CardContent>
         </Card>
       </div>
