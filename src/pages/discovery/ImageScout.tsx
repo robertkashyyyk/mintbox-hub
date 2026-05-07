@@ -982,7 +982,7 @@ export default function ImageScout() {
                     </div>
                   )}
 
-
+                  <DialogFooter className="flex flex-wrap gap-2">
                     <Button size="sm" variant="outline" disabled={setCandStatusMut.isPending} onClick={() => setCandStatusMut.mutate({ id: openCandidate.id, status: "shortlisted" })}>Shortlist</Button>
                     <Button size="sm" variant="outline" disabled={setCandStatusMut.isPending} onClick={() => setCandStatusMut.mutate({ id: openCandidate.id, status: "manual_required" })}>Manual required</Button>
                     <Button size="sm" variant="destructive" disabled={setCandStatusMut.isPending} onClick={() => setCandStatusMut.mutate({ id: openCandidate.id, status: "dismissed" })}>Dismiss</Button>
