@@ -260,10 +260,12 @@ export default function ImageScout() {
             Find, process, and store product images for SKUs that are missing them.
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => navigate("/discovery/image-scout/brand-profiles")}>
-          <SettingsIcon className="h-4 w-4 mr-1" /> Brand Profiles
-        </Button>
-        <Button variant="ghost" onClick={() => navigate("/discovery")}>← Discovery</Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => navigate("/discovery/image-scout/brand-profiles")}>
+            <SettingsIcon className="h-4 w-4 mr-1" /> Brand Profiles
+          </Button>
+          <Button variant="ghost" onClick={() => navigate("/discovery")}>← Discovery</Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
