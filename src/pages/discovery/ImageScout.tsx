@@ -126,6 +126,21 @@ export default function ImageScout() {
     },
   });
 
+  const candidatesQ = useQuery({
+    queryKey: ["image-scout-candidates"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("image_scout_candidates")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .order("confidence_score", { ascending: false })
+        .limit(200);
+      if (error) throw error;
+      return data as any[];
+    },
+    refetchInterval: 10000,
+  });
+
   const enqueue = useMutation({
     mutationFn: async (payload: { skus: string[]; runNow: boolean }) => {
       const rows = payload.skus.map((sku) => {
