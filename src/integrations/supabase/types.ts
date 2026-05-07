@@ -202,6 +202,99 @@ export type Database = {
         }
         Relationships: []
       }
+      brand_image_profile_suggestions: {
+        Row: {
+          brand_id: string
+          id: string
+          kind: string
+          last_used: string
+          promoted: boolean
+          success_count: number
+          value: string
+        }
+        Insert: {
+          brand_id: string
+          id?: string
+          kind: string
+          last_used?: string
+          promoted?: boolean
+          success_count?: number
+          value: string
+        }
+        Update: {
+          brand_id?: string
+          id?: string
+          kind?: string
+          last_used?: string
+          promoted?: boolean
+          success_count?: number
+          value?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "brand_image_profile_suggestions_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "brand_image_profile_suggestions_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands_missing_base_multiplier"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      brand_image_profiles: {
+        Row: {
+          blocked_domains: string[]
+          brand_id: string
+          image_rules: Json
+          notes: string | null
+          preferred_domains: string[]
+          search_templates: string[]
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          blocked_domains?: string[]
+          brand_id: string
+          image_rules?: Json
+          notes?: string | null
+          preferred_domains?: string[]
+          search_templates?: string[]
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          blocked_domains?: string[]
+          brand_id?: string
+          image_rules?: Json
+          notes?: string | null
+          preferred_domains?: string[]
+          search_templates?: string[]
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "brand_image_profiles_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: true
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "brand_image_profiles_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: true
+            referencedRelation: "brands_missing_base_multiplier"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       brands: {
         Row: {
           base_multiplier: number | null
@@ -1039,6 +1132,65 @@ export type Database = {
             columns: ["brand_id"]
             isOneToOne: false
             referencedRelation: "brands_missing_base_multiplier"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      image_scout_candidates: {
+        Row: {
+          brand_id: string | null
+          confidence_reasoning: Json
+          confidence_score: number
+          created_at: string
+          from_template: string | null
+          id: string
+          image_height: number | null
+          image_url: string
+          image_width: number | null
+          job_id: string | null
+          picked: boolean
+          sku: string
+          source_domain: string | null
+          source_url: string | null
+        }
+        Insert: {
+          brand_id?: string | null
+          confidence_reasoning?: Json
+          confidence_score?: number
+          created_at?: string
+          from_template?: string | null
+          id?: string
+          image_height?: number | null
+          image_url: string
+          image_width?: number | null
+          job_id?: string | null
+          picked?: boolean
+          sku: string
+          source_domain?: string | null
+          source_url?: string | null
+        }
+        Update: {
+          brand_id?: string | null
+          confidence_reasoning?: Json
+          confidence_score?: number
+          created_at?: string
+          from_template?: string | null
+          id?: string
+          image_height?: number | null
+          image_url?: string
+          image_width?: number | null
+          job_id?: string | null
+          picked?: boolean
+          sku?: string
+          source_domain?: string | null
+          source_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "image_scout_candidates_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "image_scout_jobs"
             referencedColumns: ["id"]
           },
         ]
