@@ -68,10 +68,18 @@ const PackingAreaDisplay = () => {
   });
 
   // Cut-off alarm logic
+  // Trigger if (before cut-off and after 9am) AND any of:
+  //   - AwaitingPicking < 100
+  //   - New > 200
+  //   - New >= AwaitingPicking * 2
   const minsToCutoff = (16 * 60 + 30) - (today.getHours() * 60 + today.getMinutes());
   const awaiting = liveQuery.data?.awaiting ?? 0;
   const newOrders = liveQuery.data?.newOrders ?? 0;
-  const alarmActive = minsToCutoff > 15 && minsToCutoff <= 210 && awaiting < 30 && newOrders > awaiting * 2;
+  const inWindow = minsToCutoff > 0 && minsToCutoff <= (16 * 60 + 30) - (9 * 60); // 9:00 → 16:30
+  const trigLowAwaiting = awaiting < 100;
+  const trigNewHigh = newOrders > 200;
+  const trigNewVsAwaiting = awaiting > 0 ? newOrders >= awaiting * 2 : newOrders > 0;
+  const alarmActive = inWindow && (trigLowAwaiting || trigNewHigh || trigNewVsAwaiting);
   const alarmTier: "amber" | "red" | "critical" | null = !alarmActive
     ? null
     : minsToCutoff <= 60
@@ -79,6 +87,10 @@ const PackingAreaDisplay = () => {
       : minsToCutoff <= 150
         ? "red"
         : "amber";
+
+  const cutoffH = Math.max(0, Math.floor(minsToCutoff / 60));
+  const cutoffM = Math.max(0, minsToCutoff % 60);
+  const cutoffPast = minsToCutoff <= 0;
 
   const [soundEnabled, setSoundEnabled] = useState(false);
   const audioCtxRef = useRef<AudioContext | null>(null);
