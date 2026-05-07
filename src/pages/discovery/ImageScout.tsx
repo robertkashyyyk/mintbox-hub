@@ -403,9 +403,16 @@ export default function ImageScout() {
 
         <TabsContent value="log">
           <Card>
-            <CardHeader>
-              <CardTitle>Recent jobs & results</CardTitle>
-              <CardDescription>Live (refreshes every 5s).</CardDescription>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Recent jobs & results</CardTitle>
+                <CardDescription>
+                  Live (refreshes every 5s).{logStatusFilter ? ` Filtered: ${logStatusFilter}` : ""}
+                </CardDescription>
+              </div>
+              {logStatusFilter && (
+                <Button size="sm" variant="ghost" onClick={() => setLogStatusFilter(null)}>Clear filter</Button>
+              )}
             </CardHeader>
             <CardContent className="overflow-x-auto">
               <Table>
