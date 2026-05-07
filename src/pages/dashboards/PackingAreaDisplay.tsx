@@ -66,6 +66,72 @@ const PackingAreaDisplay = () => {
   const awaiting = liveQuery.data?.awaiting ?? 0;
   const newOrders = liveQuery.data?.newOrders ?? 0;
   const alarmActive = minsToCutoff > 15 && minsToCutoff <= 210 && awaiting < 30 && newOrders > awaiting * 2;
+  const alarmTier: "amber" | "red" | "critical" | null = !alarmActive
+    ? null
+    : minsToCutoff <= 60
+      ? "critical"
+      : minsToCutoff <= 150
+        ? "red"
+        : "amber";
+
+  const [soundEnabled, setSoundEnabled] = useState(false);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const lastChimeRef = useRef<number>(0);
+
+  const playKlaxon = () => {
+    const ctx = audioCtxRef.current;
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    const beeps = alarmTier === "critical" ? 4 : alarmTier === "red" ? 2 : 1;
+    const freq = alarmTier === "critical" ? 880 : alarmTier === "red" ? 660 : 520;
+    for (let i = 0; i < beeps; i++) {
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = "square";
+      o.frequency.value = freq;
+      g.gain.setValueAtTime(0, now + i * 0.45);
+      g.gain.linearRampToValueAtTime(0.18, now + i * 0.45 + 0.02);
+      g.gain.linearRampToValueAtTime(0, now + i * 0.45 + 0.35);
+      o.connect(g).connect(ctx.destination);
+      o.start(now + i * 0.45);
+      o.stop(now + i * 0.45 + 0.4);
+    }
+  };
+
+  useEffect(() => {
+    if (!alarmActive || !soundEnabled) return;
+    const intervalMs = alarmTier === "critical" ? 30_000 : alarmTier === "red" ? 60_000 : 120_000;
+    const tick = () => {
+      const now = Date.now();
+      if (now - lastChimeRef.current >= intervalMs - 500) {
+        lastChimeRef.current = now;
+        playKlaxon();
+      }
+    };
+    tick();
+    const t = setInterval(tick, 5_000);
+    return () => clearInterval(t);
+  }, [alarmActive, alarmTier, soundEnabled]);
+
+  const enableSound = () => {
+    if (!audioCtxRef.current) {
+      const Ctx = (window as any).AudioContext || (window as any).webkitAudioContext;
+      audioCtxRef.current = new Ctx();
+    }
+    audioCtxRef.current?.resume?.();
+    setSoundEnabled(true);
+    const ctx = audioCtxRef.current!;
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = "sine";
+    o.frequency.value = 880;
+    g.gain.setValueAtTime(0.001, ctx.currentTime);
+    g.gain.linearRampToValueAtTime(0.15, ctx.currentTime + 0.02);
+    g.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.25);
+    o.connect(g).connect(ctx.destination);
+    o.start();
+    o.stop(ctx.currentTime + 0.3);
+  };
 
   const handleFullscreen = () => {
     const el = containerRef.current;
