@@ -105,8 +105,13 @@ const PurchaseOrderDetail = () => {
 
   if (isLoading || !data) return <div className="p-8 text-muted-foreground">Loading PO…</div>;
 
-  const { po, lines } = data;
+  const { po, lines, pidMap } = data;
   const linesMissingCost = lines.filter((l) => !l.unit_cost || Number(l.unit_cost) <= 0);
+  const linesNoMintsoftId = lines.filter((l) => !pidMap[l.sku]);
+  const supplierMapped = !!po.suppliers?.mintsoft_supplier_id;
+  const sendableLines = lines.filter((l) =>
+    pidMap[l.sku] && Number(l.unit_cost || 0) > 0 && Number(l.qty_ordered || 0) > 0
+  );
   const canSend = po.status === "draft" || po.status === "approved";
   const totalQty = lines.reduce((a, l) => a + Number(l.qty_ordered || 0), 0);
   const totalCost = lines.reduce((a, l) => a + Number(l.qty_ordered || 0) * Number(l.unit_cost || 0), 0);
@@ -124,18 +129,25 @@ const PurchaseOrderDetail = () => {
           <p className="text-foreground/60">
             Supplier: <span className="text-foreground">{po.suppliers?.name || "—"}</span>
             {po.suppliers?.ordering_method && <> · Method: <span className="text-foreground">{po.suppliers.ordering_method}</span></>}
+            {po.suppliers && (
+              <> · Mintsoft: <span className={supplierMapped ? "text-foreground" : "text-destructive"}>
+                {supplierMapped ? `#${po.suppliers.mintsoft_supplier_id}` : "not mapped"}
+              </span></>
+            )}
           </p>
         </div>
         <div className="flex items-center gap-3">
           <Badge variant={po.status === "sent" ? "default" : "outline"} className="text-sm">
             {po.status}
             {po.status === "sent" && !po.mintsoft_po_id && " — Awaiting ASN"}
+            {po.status === "sent" && po.mintsoft_po_id && ` — Mintsoft #${po.mintsoft_po_id}`}
           </Badge>
           {canSend && (
-            <Button variant="outline"
-              disabled={sendPo.isPending || linesMissingCost.length > 0 || lines.length === 0}
+            <Button
+              disabled={sendPo.isPending || sendableLines.length === 0 || !supplierMapped}
               onClick={() => sendPo.mutate()}>
-              <Send className="h-4 w-4" /> {sendPo.isPending ? "Sending…" : "Mark as Sent"}
+              <Send className="h-4 w-4 mr-2" />
+              {sendPo.isPending ? "Sending…" : `Send to Mintsoft${sendableLines.length < lines.length ? ` (${sendableLines.length}/${lines.length})` : ""}`}
             </Button>
           )}
         </div>
@@ -150,13 +162,44 @@ const PurchaseOrderDetail = () => {
         </Alert>
       )}
 
-      {linesMissingCost.length > 0 && canSend && (
+      {po.mintsoft_send_error && canSend && (
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>Cost validation gate</AlertTitle>
+          <AlertTitle>Last Mintsoft send failed</AlertTitle>
+          <AlertDescription>{po.mintsoft_send_error}</AlertDescription>
+        </Alert>
+      )}
+
+      {!supplierMapped && canSend && (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Supplier not mapped to Mintsoft</AlertTitle>
           <AlertDescription>
-            {linesMissingCost.length} line{linesMissingCost.length === 1 ? "" : "s"} have no unit cost.
-            Add a cost on every line before sending this PO.
+            "{po.suppliers?.name}" has no Mintsoft Supplier ID. Open Suppliers admin and set it before sending —
+            without it Mintsoft cannot accept the PO.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {linesMissingCost.length > 0 && canSend && (
+        <Alert className="border-warning/50">
+          <AlertTriangle className="h-4 w-4 text-warning" />
+          <AlertTitle>{linesMissingCost.length} line{linesMissingCost.length === 1 ? "" : "s"} missing cost</AlertTitle>
+          <AlertDescription>
+            These lines will be skipped when sending to Mintsoft. Edit the cost and click Save — it will be
+            pushed to Mintsoft and removed from Missing Costs automatically. Then click Send to Mintsoft again
+            to push the remaining lines.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {linesNoMintsoftId.length > 0 && canSend && (
+        <Alert className="border-warning/50">
+          <AlertTriangle className="h-4 w-4 text-warning" />
+          <AlertTitle>{linesNoMintsoftId.length} SKU{linesNoMintsoftId.length === 1 ? "" : "s"} not in Mintsoft yet</AlertTitle>
+          <AlertDescription>
+            These will be skipped on send: {linesNoMintsoftId.slice(0, 6).map((l) => l.sku).join(", ")}
+            {linesNoMintsoftId.length > 6 && ` +${linesNoMintsoftId.length - 6} more`}.
           </AlertDescription>
         </Alert>
       )}
