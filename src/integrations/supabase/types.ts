@@ -1149,9 +1149,13 @@ export type Database = {
           image_width: number | null
           job_id: string | null
           picked: boolean
+          review_notes: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
           sku: string
           source_domain: string | null
           source_url: string | null
+          status: Database["public"]["Enums"]["image_scout_candidate_status"]
         }
         Insert: {
           brand_id?: string | null
@@ -1165,9 +1169,13 @@ export type Database = {
           image_width?: number | null
           job_id?: string | null
           picked?: boolean
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           sku: string
           source_domain?: string | null
           source_url?: string | null
+          status?: Database["public"]["Enums"]["image_scout_candidate_status"]
         }
         Update: {
           brand_id?: string | null
@@ -1181,9 +1189,13 @@ export type Database = {
           image_width?: number | null
           job_id?: string | null
           picked?: boolean
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           sku?: string
           source_domain?: string | null
           source_url?: string | null
+          status?: Database["public"]["Enums"]["image_scout_candidate_status"]
         }
         Relationships: [
           {
@@ -4144,6 +4156,12 @@ export type Database = {
       app_capability: "none" | "read" | "propose" | "execute" | "admin"
       app_role: "super_user" | "senior_user" | "simple_user"
       catalogue_status: "draft" | "published" | "archived"
+      image_scout_candidate_status:
+        | "new"
+        | "shortlisted"
+        | "dismissed"
+        | "manual_required"
+        | "approved"
       prefix_style: "hyphen" | "slash"
       rbac_role:
         | "systems_controller"
@@ -4293,6 +4311,13 @@ export const Constants = {
       app_capability: ["none", "read", "propose", "execute", "admin"],
       app_role: ["super_user", "senior_user", "simple_user"],
       catalogue_status: ["draft", "published", "archived"],
+      image_scout_candidate_status: [
+        "new",
+        "shortlisted",
+        "dismissed",
+        "manual_required",
+        "approved",
+      ],
       prefix_style: ["hyphen", "slash"],
       rbac_role: [
         "systems_controller",
