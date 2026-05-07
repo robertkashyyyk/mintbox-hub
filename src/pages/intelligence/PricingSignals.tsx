@@ -471,9 +471,9 @@ const PricingSignals = () => {
                   </TableHeader>
                   <TableBody>
                     {isLoading ? (
-                      <TableRow><TableCell colSpan={11} className="text-center py-8 text-muted-foreground">Loading…</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={12} className="text-center py-8 text-muted-foreground">Loading…</TableCell></TableRow>
                     ) : flaggedRows.length === 0 ? (
-                      <TableRow><TableCell colSpan={11} className="text-center py-8 text-muted-foreground">No flagged SKUs in this view.</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={12} className="text-center py-8 text-muted-foreground">No flagged SKUs in this view.</TableCell></TableRow>
                     ) : (
                       flaggedRows.slice(0, 500).map((r) => {
                         const { retailIncVat } = suggestedRetailPrice(r.avgCost, r.avgCourier, r.feeRate, targetPor / 100);
