@@ -206,6 +206,26 @@ export function AppSidebar() {
   }, [currentPath]);
 
   // NOW conditional return is safe - all hooks already ran
+  // Wait for the RBAC toggle to resolve before rendering ANY sidebar,
+  // otherwise non-super users briefly see the legacy menu and then it vanishes
+  // when RbacSidebar takes over.
+  if (rbacLoading) {
+    return (
+      <Sidebar>
+        <SidebarContent className="pt-4">
+          <div className="px-4 space-y-4">
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className="space-y-2">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-8 w-full" />
+                <Skeleton className="h-8 w-full" />
+              </div>
+            ))}
+          </div>
+        </SidebarContent>
+      </Sidebar>
+    );
+  }
   if (rbacEnabled) {
     return <RbacSidebar />;
   }
