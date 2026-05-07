@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Search, Download, Loader2, Package, Sparkles } from "lucide-react";
+import { Search, Download, Loader2, Package, Sparkles, Target } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 interface PreviewResult {
