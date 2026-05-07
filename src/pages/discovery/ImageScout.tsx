@@ -179,7 +179,44 @@ export default function ImageScout() {
     },
   });
 
-  const stats = useMemo(() => {
+  const retryJob = useMutation({
+    mutationFn: async (job: Job) => {
+      const { data, error } = await supabase
+        .from("image_scout_jobs")
+        .insert({
+          sku: job.sku,
+          brand_id: job.brand_id,
+          mode: job.mode,
+          source_url: job.source_url,
+          override_search_term: job.override_search_term,
+        })
+        .select("id")
+        .single();
+      if (error) throw error;
+      const { error: invErr } = await supabase.functions.invoke("image-scout-process", {
+        body: { job_id: data.id },
+      });
+      if (invErr) throw invErr;
+    },
+    onSuccess: () => {
+      toast.success("Retry queued and processed");
+      qc.invalidateQueries({ queryKey: ["image-scout-jobs"] });
+      qc.invalidateQueries({ queryKey: ["image-scout-results"] });
+    },
+    onError: (e) => toast.error((e as Error).message),
+  });
+
+  const deleteJob = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("image_scout_jobs").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Job deleted");
+      qc.invalidateQueries({ queryKey: ["image-scout-jobs"] });
+    },
+    onError: (e) => toast.error((e as Error).message),
+  });
     const j = jobsQ.data ?? [];
     return {
       queued: j.filter((x) => x.status === "queued").length,
