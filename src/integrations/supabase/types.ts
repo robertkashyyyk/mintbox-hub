@@ -2412,7 +2412,10 @@ export type Database = {
           created_at: string | null
           created_by: string | null
           id: string
+          mintsoft_asn_reference: string | null
           mintsoft_po_id: number | null
+          mintsoft_send_attempted_at: string | null
+          mintsoft_send_error: string | null
           notes: string | null
           po_number: string | null
           received_at: string | null
@@ -2431,7 +2434,10 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           id?: string
+          mintsoft_asn_reference?: string | null
           mintsoft_po_id?: number | null
+          mintsoft_send_attempted_at?: string | null
+          mintsoft_send_error?: string | null
           notes?: string | null
           po_number?: string | null
           received_at?: string | null
@@ -2450,7 +2456,10 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           id?: string
+          mintsoft_asn_reference?: string | null
           mintsoft_po_id?: number | null
+          mintsoft_send_attempted_at?: string | null
+          mintsoft_send_error?: string | null
           notes?: string | null
           po_number?: string | null
           received_at?: string | null
