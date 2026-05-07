@@ -103,10 +103,12 @@ const StockHealth = () => {
       {summary && (() => {
         const cat = summary.byCategory ?? {};
         const healthy = cat["Healthy"] ?? 0;
-        const problemKeys = ["Unhealthy", "Low Stock", "Critical", "Out of Stock", "Dead Stock", "Missing Baseline"];
+        const problemKeys = ["Unhealthy", "Low Stock", "Critical", "Out of Stock", "Dead Stock"];
         const overstockKeys = ["Overstock", "Extreme Overstock"];
         const problems = problemKeys.reduce((s, k) => s + (cat[k] ?? 0), 0);
         const overstock = overstockKeys.reduce((s, k) => s + (cat[k] ?? 0), 0);
+        const nonSelling = cat["Non Selling"] ?? 0;
+        const missingBaseline = cat["Missing Baseline"] ?? 0;
         const total = summary.totalSkus || 1;
         const pct = (n: number) => `${((n / total) * 100).toFixed(1)}%`;
 
