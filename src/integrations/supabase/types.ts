@@ -1397,6 +1397,116 @@ export type Database = {
           },
         ]
       }
+      image_scout_qa_run_items: {
+        Row: {
+          best_candidate_url: string | null
+          brand: string | null
+          candidate_id: string | null
+          candidates_found: number
+          confidence_score: number | null
+          created_at: string
+          id: string
+          job_id: string | null
+          job_outcome: string | null
+          part_number: string | null
+          processed_storage_path: string | null
+          processing_status: string | null
+          run_id: string
+          safety_flags: string[]
+          sku: string
+          source_domain: string | null
+          status: string | null
+          updated_at: string
+        }
+        Insert: {
+          best_candidate_url?: string | null
+          brand?: string | null
+          candidate_id?: string | null
+          candidates_found?: number
+          confidence_score?: number | null
+          created_at?: string
+          id?: string
+          job_id?: string | null
+          job_outcome?: string | null
+          part_number?: string | null
+          processed_storage_path?: string | null
+          processing_status?: string | null
+          run_id: string
+          safety_flags?: string[]
+          sku: string
+          source_domain?: string | null
+          status?: string | null
+          updated_at?: string
+        }
+        Update: {
+          best_candidate_url?: string | null
+          brand?: string | null
+          candidate_id?: string | null
+          candidates_found?: number
+          confidence_score?: number | null
+          created_at?: string
+          id?: string
+          job_id?: string | null
+          job_outcome?: string | null
+          part_number?: string | null
+          processed_storage_path?: string | null
+          processing_status?: string | null
+          run_id?: string
+          safety_flags?: string[]
+          sku?: string
+          source_domain?: string | null
+          status?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "image_scout_qa_run_items_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "image_scout_qa_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      image_scout_qa_runs: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          label: string
+          notes: string | null
+          sku_count: number
+          status: string
+          summary: Json
+          updated_at: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          label: string
+          notes?: string | null
+          sku_count?: number
+          status?: string
+          summary?: Json
+          updated_at?: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          label?: string
+          notes?: string | null
+          sku_count?: number
+          status?: string
+          summary?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
       image_scout_results: {
         Row: {
           created_at: string
