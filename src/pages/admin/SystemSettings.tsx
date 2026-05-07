@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { Settings, Shield, AlertTriangle, ArrowLeft, Package } from "lucide-react";
+import { Settings, Shield, AlertTriangle, ArrowLeft, Package, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
@@ -16,32 +16,18 @@ const SystemSettings = () => {
   const { toast } = useToast();
 
   const { data: rbacEnabled, isLoading } = useAppSetting<boolean>('use_rbac_navigation');
-  const { data: lsaThreshold, isLoading: lsaLoading } = useAppSetting<number>('lsa.ingest_min_threshold');
   const { data: lsaMinThreshold, isLoading: lsaMinLoading } = useAppSetting<number>('lsa.min_threshold');
+  const { data: poSuppHours, isLoading: poSuppLoading } = useAppSetting<number>('buying.po_suppression_hours');
   const updateSetting = useUpdateAppSetting();
 
-  const [lsaInput, setLsaInput] = useState<string>("");
   const [lsaMinInput, setLsaMinInput] = useState<string>("");
-  useEffect(() => {
-    if (lsaThreshold !== null && lsaThreshold !== undefined) setLsaInput(String(lsaThreshold));
-  }, [lsaThreshold]);
+  const [poSuppInput, setPoSuppInput] = useState<string>("");
   useEffect(() => {
     if (lsaMinThreshold !== null && lsaMinThreshold !== undefined) setLsaMinInput(String(lsaMinThreshold));
   }, [lsaMinThreshold]);
-
-  const handleLsaSave = async () => {
-    const n = Number(lsaInput);
-    if (!Number.isFinite(n) || n < 0) {
-      toast({ title: "Invalid value", description: "Enter a non-negative number.", variant: "destructive" });
-      return;
-    }
-    try {
-      await updateSetting.mutateAsync({ key: 'lsa.ingest_min_threshold', value: n });
-      toast({ title: "LSA threshold updated", description: `Daily SFTP feed will skip rows with LSA ≤ ${n}.` });
-    } catch {
-      toast({ title: "Error", description: "Failed to save threshold.", variant: "destructive" });
-    }
-  };
+  useEffect(() => {
+    if (poSuppHours !== null && poSuppHours !== undefined) setPoSuppInput(String(poSuppHours));
+  }, [poSuppHours]);
 
   const handleLsaMinSave = async () => {
     const n = Number(lsaMinInput);
@@ -51,12 +37,25 @@ const SystemSettings = () => {
     }
     try {
       await updateSetting.mutateAsync({ key: 'lsa.min_threshold', value: n });
-      toast({ title: "LSA min threshold updated", description: `SKUs with LSA ≤ ${n} are now excluded from LSA Calibration & Buy Recommendations.` });
+      toast({ title: "LSA min threshold updated", description: `SKUs with LSA ≤ ${n} are now excluded from ingestion, LSA Calibration & Buy Recommendations.` });
     } catch {
       toast({ title: "Error", description: "Failed to save threshold.", variant: "destructive" });
     }
   };
 
+  const handlePoSuppSave = async () => {
+    const n = Number(poSuppInput);
+    if (!Number.isFinite(n) || n <= 0 || !Number.isInteger(n)) {
+      toast({ title: "Invalid value", description: "Enter a positive integer (hours).", variant: "destructive" });
+      return;
+    }
+    try {
+      await updateSetting.mutateAsync({ key: 'buying.po_suppression_hours', value: n });
+      toast({ title: "PO suppression window updated", description: `Suppliers with a sent PO are hidden for ${n} hours.` });
+    } catch {
+      toast({ title: "Error", description: "Failed to save setting.", variant: "destructive" });
+    }
+  };
 
   const handleRbacToggle = async (checked: boolean) => {
     try {
@@ -115,60 +114,19 @@ const SystemSettings = () => {
             <CardHeader>
               <div className="flex items-center gap-2">
                 <Package className="h-5 w-5 text-pd-accent" />
-                <CardTitle>Low Stock Alert (LSA) Ingestion</CardTitle>
+                <CardTitle>LSA Minimum Threshold</CardTitle>
               </div>
               <CardDescription>
-                Controls the daily SFTP low-stock-alert import. Rows with LSA at or below this value are ignored.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2 max-w-xs">
-                <Label htmlFor="lsa-threshold" className="text-base font-medium">
-                  Minimum LSA threshold
-                </Label>
-                <p className="text-sm text-muted-foreground">
-                  Default is <strong>1</strong> — only rows where LSA is <strong>2 or higher</strong> are persisted.
-                </p>
-                <div className="flex gap-2">
-                  <Input
-                    id="lsa-threshold"
-                    type="number"
-                    min={0}
-                    value={lsaInput}
-                    onChange={(e) => setLsaInput(e.target.value)}
-                    disabled={lsaLoading || updateSetting.isPending}
-                  />
-                  <Button onClick={handleLsaSave} disabled={lsaLoading || updateSetting.isPending}>
-                    Save
-                  </Button>
-                </div>
-              </div>
-              <Alert>
-                <AlertTriangle className="h-4 w-4" />
-                <AlertDescription>
-                  Applies on the next scheduled SFTP pull. Increasing this value will skip more rows; decreasing it (e.g. to 0) will ingest every row from the feed.
-                </AlertDescription>
-              </Alert>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <Package className="h-5 w-5 text-pd-accent" />
-                <CardTitle>LSA "Unset" Sentinel Threshold</CardTitle>
-              </div>
-              <CardDescription>
-                SKUs with a Mintsoft LowStockAlertLevel at or below this value are treated as having no meaningful LSA configured, and are excluded from LSA Calibration and Buy Recommendations.
+                The single source of truth for what counts as a "meaningful" LSA. Mintsoft uses LSA = 1 as the "not set" sentinel, so SKUs at or below this value are skipped during the daily SFTP ingest <strong>and</strong> excluded from LSA Calibration / Buy Recommendations.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2 max-w-xs">
                 <Label htmlFor="lsa-min-threshold" className="text-base font-medium">
-                  Minimum LSA threshold (exclusion)
+                  LSA min threshold
                 </Label>
                 <p className="text-sm text-muted-foreground">
-                  Default is <strong>1</strong> — Mintsoft uses LSA = 1 as the "not set" sentinel.
+                  Default is <strong>1</strong>. Only SKUs with LSA <strong>&gt; this value</strong> are considered to have a real LSA configured.
                 </p>
                 <div className="flex gap-2">
                   <Input
@@ -188,7 +146,49 @@ const SystemSettings = () => {
               <Alert>
                 <AlertTriangle className="h-4 w-4" />
                 <AlertDescription>
-                  Affects which SKUs appear in LSA Calibration and which feed Buy Recommendations' LSA-driven ordering. Back-orders are still considered regardless.
+                  Applied consistently across SFTP ingest, LSA Calibration, and Buy Recommendations. Back-orders are still considered for buying regardless of LSA.
+                </AlertDescription>
+              </Alert>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Clock className="h-5 w-5 text-pd-accent" />
+                <CardTitle>PO Suppression Window</CardTitle>
+              </div>
+              <CardDescription>
+                After a Draft PO is marked as <strong>Sent</strong> to Mintsoft, hide that supplier from the Buy Recommendations summary for this many hours, to avoid double-ordering while waiting for ASN conversion.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2 max-w-xs">
+                <Label htmlFor="po-supp-hours" className="text-base font-medium">
+                  Suppression window (hours)
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  Default is <strong>22</strong>. If no ASN is detected within this window, the supplier reappears with a "PO Pending — No ASN Yet" warning.
+                </p>
+                <div className="flex gap-2">
+                  <Input
+                    id="po-supp-hours"
+                    type="number"
+                    min={1}
+                    step={1}
+                    value={poSuppInput}
+                    onChange={(e) => setPoSuppInput(e.target.value)}
+                    disabled={poSuppLoading || updateSetting.isPending}
+                  />
+                  <Button onClick={handlePoSuppSave} disabled={poSuppLoading || updateSetting.isPending}>
+                    Save
+                  </Button>
+                </div>
+              </div>
+              <Alert>
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>
+                  Once Mintsoft converts the PO to an ASN, suppression lifts immediately regardless of this window — ordering math then naturally accounts for OnOrder.
                 </AlertDescription>
               </Alert>
             </CardContent>

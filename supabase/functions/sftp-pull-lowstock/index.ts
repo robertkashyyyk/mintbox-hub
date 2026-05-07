@@ -51,7 +51,7 @@ Deno.serve(async (req) => {
     let lsaMinThreshold = LSA_MIN_THRESHOLD_DEFAULT;
     try {
       const { data: setting } = await supabase
-        .from("app_settings").select("value").eq("key", "lsa.ingest_min_threshold").maybeSingle();
+        .from("app_settings").select("value").eq("key", "lsa.min_threshold").maybeSingle();
       const v = Number(setting?.value);
       if (Number.isFinite(v)) lsaMinThreshold = v;
     } catch (_) { /* keep default */ }
