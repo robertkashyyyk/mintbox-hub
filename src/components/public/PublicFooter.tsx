@@ -1,34 +1,8 @@
 import { Link } from "react-router-dom";
-import { Phone, Mail, MapPin, Clock, LogIn, ArrowRight } from "lucide-react";
+import { Phone, Mail, MapPin, Clock, LogIn } from "lucide-react";
 
 const PublicFooter = () => (
   <footer className="bg-pd-charcoal text-foreground/70">
-    {/* Pre-footer CTA */}
-    <div className="relative overflow-hidden">
-      <div className="absolute inset-0 bg-gradient-to-r from-pd-accent/20 to-pd-graphite" />
-      <div className="container mx-auto px-4 py-16 relative text-center">
-        <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-3">
-          Need the right part?
-        </h2>
-        <p className="text-foreground/70 mb-8 max-w-lg mx-auto text-lg">
-          Get in touch — we'll help you find exactly what you need, fast.
-        </p>
-        <div className="flex flex-col sm:flex-row gap-3 justify-center">
-          <Link
-            to="/contact"
-            className="inline-flex items-center justify-center gap-2 px-8 py-3.5 bg-pd-accent text-foreground font-semibold rounded-md hover:bg-pd-accent-light transition-colors"
-          >
-            Contact Us <ArrowRight className="h-4 w-4" />
-          </Link>
-          <a
-            href="tel:+442870322970"
-            className="inline-flex items-center justify-center gap-2 px-8 py-3.5 border border-foreground/30 text-foreground font-medium rounded-md hover:bg-foreground/10 transition-colors"
-          >
-            <Phone className="h-4 w-4" /> Call Now
-          </a>
-        </div>
-      </div>
-    </div>
 
     <div className="container mx-auto px-4 py-14 grid md:grid-cols-4 gap-10 text-sm">
       {/* Column 1 */}
