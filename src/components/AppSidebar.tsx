@@ -6,7 +6,7 @@ import {
   ShoppingCart, RefreshCw, Copy,
   Users, Key, CreditCard, LogOut, UserCircle, Gauge,
   ChevronDown, ChevronRight, LayoutDashboard, Settings,
-  Images, Clock, Plug, Truck, AlertTriangle, Sliders
+  Images, Clock, Plug, Truck, AlertTriangle, Sliders, Beaker
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -85,6 +85,7 @@ export function AppSidebar() {
         { title: "Pending Images", url: "/discovery/pending-images", icon: Clock },
         { title: "Image Scout", url: "/discovery/image-scout", icon: Search },
         { title: "Image Scout Brands", url: "/discovery/image-scout/brand-profiles", icon: Tag },
+        { title: "Image Scout QA Run", url: "/discovery/image-scout/qa-run", icon: Beaker },
       ],
     },
     {
