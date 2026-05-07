@@ -25,14 +25,10 @@ const ACTIVE_STATUSES: { id: number; name: string }[] = [
 const PAGE_SIZE = 100;
 const MAX_PAGES = 50; // safety cap → 5000 per status
 
-async function countStatus(baseUrl: string, apiKey: string, statusId: number, despatchedToday: boolean) {
+async function countStatus(baseUrl: string, apiKey: string, statusId: number) {
   let total = 0;
-  const todayUk = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/London' }));
-  const dateStr = `${todayUk.getFullYear()}-${String(todayUk.getMonth() + 1).padStart(2, '0')}-${String(todayUk.getDate()).padStart(2, '0')}`;
-  const dateFilter = despatchedToday ? `&DespatchedFrom=${dateStr}` : '';
-
   for (let page = 1; page <= MAX_PAGES; page++) {
-    const url = `${baseUrl}/api/Order/List?OrderStatusId=${statusId}${dateFilter}&PageNo=${page}&Limit=${PAGE_SIZE}`;
+    const url = `${baseUrl}/api/Order/List?OrderStatusId=${statusId}&PageNo=${page}&Limit=${PAGE_SIZE}`;
     const res = await fetch(url, { headers: { 'ms-apikey': apiKey } });
     if (!res.ok) throw new Error(`Mintsoft ${res.status} on status ${statusId} page ${page}`);
     const arr = await res.json();
