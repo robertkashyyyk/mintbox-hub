@@ -682,6 +682,7 @@ export default function ImageScout() {
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
 
               {/* Saved presets */}
               <div className="flex flex-wrap items-center gap-2">
