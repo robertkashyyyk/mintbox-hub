@@ -476,9 +476,10 @@ const PricingSignals = () => {
                       <TableRow><TableCell colSpan={11} className="text-center py-8 text-muted-foreground">No flagged SKUs in this view.</TableCell></TableRow>
                     ) : (
                       flaggedRows.slice(0, 500).map((r) => {
-                        const newPrice = suggestedPrice(r.avgCost, r.avgFees, targetPor / 100);
-                        const delta = newPrice - r.avgPrice;
-                        const reachable = newPrice > 0;
+                        const { retailIncVat } = suggestedRetailPrice(r.avgCost, r.avgCourier, r.feeRate, targetPor / 100);
+                        const currentRetailIncVat = r.avgPrice * 1.2;
+                        const delta = retailIncVat - currentRetailIncVat;
+                        const reachable = retailIncVat > 0;
                         return (
                           <TableRow key={r.sku}>
                             <TableCell>
@@ -498,10 +499,11 @@ const PricingSignals = () => {
                             <TableCell className="text-right tabular-nums">{r.qty.toLocaleString()}</TableCell>
                             <TableCell className="text-right tabular-nums">{fmtGBP(r.avgPrice)}</TableCell>
                             <TableCell className="text-right tabular-nums">{fmtGBP(r.avgCost)}</TableCell>
-                            <TableCell className="text-right tabular-nums">{fmtGBP(r.avgFees)}</TableCell>
+                            <TableCell className="text-right tabular-nums">{fmtGBP(r.avgCourier)}</TableCell>
+                            <TableCell className="text-right tabular-nums">{(r.feeRate * 100).toFixed(1)}%</TableCell>
                             <TableCell className="text-right tabular-nums">{r.currentPor.toFixed(1)}%</TableCell>
                             <TableCell className="text-right tabular-nums font-semibold">
-                              {reachable ? fmtGBP(newPrice) : <span className="text-muted-foreground">unreachable</span>}
+                              {reachable ? fmtGBP(retailIncVat) : <span className="text-muted-foreground">unreachable</span>}
                             </TableCell>
                             <TableCell className={`text-right tabular-nums ${delta >= 0 ? "text-band-good" : "text-band-loss"}`}>
                               {reachable ? `${delta >= 0 ? "+" : ""}${fmtGBP(delta)}` : "—"}
