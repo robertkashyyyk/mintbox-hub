@@ -3812,6 +3812,16 @@ export type Database = {
           profit_total: number
         }[]
       }
+      get_status_snapshots_hourly_today: {
+        Args: never
+        Returns: {
+          awaiting_count: number
+          backorder_count: number
+          hr: string
+          new_count: number
+          picked_count: number
+        }[]
+      }
       get_stock_health_summary: {
         Args: { p_brand_id?: string; p_exclude_dirt?: boolean }
         Returns: {
