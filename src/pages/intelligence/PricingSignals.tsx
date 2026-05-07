@@ -591,6 +591,27 @@ const PricingSignals = () => {
             </CardContent>
           </Card>
         </TabsContent>
+
+        <TabsContent value="competitive" className="mt-4">
+          <PlaceholderArea
+            title="Competitive"
+            blurb="Benchmark our prices against eBay/marketplace data captured by Price Hunter — surface SKUs where we're materially above or below the field, with one-click reprice suggestions."
+          />
+        </TabsContent>
+
+        <TabsContent value="elasticity" className="mt-4">
+          <PlaceholderArea
+            title="Elasticity"
+            blurb="Estimate price sensitivity per SKU from historical price/volume movements. Suggest the price point that maximises projected weekly profit, not just margin."
+          />
+        </TabsContent>
+
+        <TabsContent value="dynamic" className="mt-4">
+          <PlaceholderArea
+            title="Dynamic"
+            blurb="Rules-based auto-repricing: time-of-day, stock cover, age, and competitive position triggers pushed continuously to 3D."
+          />
+        </TabsContent>
       </Tabs>
     </div>
   );
