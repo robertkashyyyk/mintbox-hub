@@ -217,6 +217,8 @@ export default function ImageScout() {
     },
     onError: (e) => toast.error((e as Error).message),
   });
+
+  const stats = useMemo(() => {
     const j = jobsQ.data ?? [];
     return {
       queued: j.filter((x) => x.status === "queued").length,
