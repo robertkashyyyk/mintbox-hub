@@ -175,6 +175,7 @@ const App = () => (
             <Route path="/discovery/bulk-images" element={<BulkImageUpload />} />
             <Route path="/discovery/pending-images" element={<PendingImages />} />
             <Route path="/discovery/image-scout" element={<ImageScout />} />
+            <Route path="/discovery/image-scout/brand-profiles" element={<ImageScoutBrandProfiles />} />
 
             {/* Intelligence Sub-Routes */}
             <Route path="/intelligence/velocity" element={<VelocityCoverage />} />
