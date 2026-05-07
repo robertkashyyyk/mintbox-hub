@@ -102,7 +102,8 @@ export const useStockHealth = () => {
       }
 
       if (filters.onlyProblems) {
-        query = query.neq("health_category", "Healthy");
+        // Real operational problems only — exclude Healthy, overstock, informational and unknown buckets
+        query = query.in("health_category", ["Unhealthy", "Low Stock", "Critical", "Out of Stock", "Dead Stock"]);
       }
 
       if (filters.excludeDirt && dirtSkus.length > 0) {
