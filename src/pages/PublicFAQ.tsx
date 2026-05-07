@@ -21,7 +21,7 @@ const PublicFAQ = () => (
       <div className="container mx-auto px-4 text-center max-w-3xl">
         <p className="text-pd-accent text-sm font-semibold uppercase tracking-wider mb-3">Support</p>
         <h1 className="text-3xl md:text-5xl font-bold text-foreground mb-5">Frequently Asked Questions</h1>
-        <p className="text-foreground/50 text-lg leading-relaxed">
+        <p className="text-foreground/75 text-lg leading-relaxed">
           Common questions about our products, services and how to work with us.
         </p>
       </div>
@@ -33,9 +33,9 @@ const PublicFAQ = () => (
           <AccordionItem
             key={i}
             value={`faq-${i}`}
-            className="border border-pd-steel-light/20 rounded-xl bg-card px-5 data-[state=open]:border-pd-accent/30 transition-colors"
+            className="border border-pd-steel-light/20 rounded-xl bg-pd-offwhite px-5 data-[state=open]:border-pd-accent/40 data-[state=open]:bg-pd-offwhite transition-colors"
           >
-            <AccordionTrigger className="text-pd-charcoal font-medium text-left hover:no-underline py-5">
+            <AccordionTrigger className="text-pd-charcoal font-semibold text-left hover:no-underline hover:text-pd-accent py-5">
               {f.q}
             </AccordionTrigger>
             <AccordionContent className="text-pd-steel text-sm pb-5 leading-relaxed">
