@@ -43,7 +43,7 @@ const PackingAreaDisplay = () => {
 
   // Tick clock every 30s for cut-off countdown
   useEffect(() => {
-    const t = setInterval(() => force((n) => n + 1), 30_000);
+    const t = setInterval(() => force((n) => n + 1), 15_000);
     return () => clearInterval(t);
   }, []);
 
@@ -68,10 +68,18 @@ const PackingAreaDisplay = () => {
   });
 
   // Cut-off alarm logic
+  // Trigger if (before cut-off and after 9am) AND any of:
+  //   - AwaitingPicking < 100
+  //   - New > 200
+  //   - New >= AwaitingPicking * 2
   const minsToCutoff = (16 * 60 + 30) - (today.getHours() * 60 + today.getMinutes());
   const awaiting = liveQuery.data?.awaiting ?? 0;
   const newOrders = liveQuery.data?.newOrders ?? 0;
-  const alarmActive = minsToCutoff > 15 && minsToCutoff <= 210 && awaiting < 30 && newOrders > awaiting * 2;
+  const inWindow = minsToCutoff > 0 && minsToCutoff <= (16 * 60 + 30) - (9 * 60); // 9:00 → 16:30
+  const trigLowAwaiting = awaiting < 100;
+  const trigNewHigh = newOrders > 200;
+  const trigNewVsAwaiting = awaiting > 0 ? newOrders >= awaiting * 2 : newOrders > 0;
+  const alarmActive = inWindow && (trigLowAwaiting || trigNewHigh || trigNewVsAwaiting);
   const alarmTier: "amber" | "red" | "critical" | null = !alarmActive
     ? null
     : minsToCutoff <= 60
@@ -79,6 +87,10 @@ const PackingAreaDisplay = () => {
       : minsToCutoff <= 150
         ? "red"
         : "amber";
+
+  const cutoffH = Math.max(0, Math.floor(minsToCutoff / 60));
+  const cutoffM = Math.max(0, minsToCutoff % 60);
+  const cutoffPast = minsToCutoff <= 0;
 
   const [soundEnabled, setSoundEnabled] = useState(false);
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -148,16 +160,33 @@ const PackingAreaDisplay = () => {
 
   return (
     <div ref={containerRef} className="space-y-6 bg-background p-2">
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex items-center justify-between gap-4">
+        <div className="min-w-0">
           <h1 className="text-3xl font-bold tracking-tight text-foreground">Packing Area</h1>
-          <p className="text-foreground/60">
-            Live packing & despatch · Cut-off 16:30
-            {minsToCutoff > 0 && minsToCutoff < 600 && (
-              <span className="ml-2 font-semibold">· {Math.floor(minsToCutoff / 60)}h {minsToCutoff % 60}m to cut-off</span>
-            )}
-          </p>
+          <p className="text-foreground/60">Live packing & despatch · Cut-off 16:30</p>
         </div>
+
+        {/* Big cut-off countdown */}
+        <div className="flex flex-col items-center px-6">
+          <div className="text-xs uppercase tracking-wider text-muted-foreground">
+            {cutoffPast ? "Past cut-off" : "Time to 16:30 cut-off"}
+          </div>
+          <div
+            className={
+              "font-bold tabular-nums leading-none mt-1 " +
+              (cutoffPast
+                ? "text-5xl text-muted-foreground"
+                : minsToCutoff <= 60
+                  ? "text-6xl text-destructive"
+                  : minsToCutoff <= 150
+                    ? "text-6xl text-warning"
+                    : "text-6xl text-foreground")
+            }
+          >
+            {cutoffPast ? "—" : `${cutoffH}h ${String(cutoffM).padStart(2, "0")}m`}
+          </div>
+        </div>
+
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="text-xs">
             Updated: {liveQuery.dataUpdatedAt ? format(new Date(liveQuery.dataUpdatedAt), "HH:mm:ss") : "--"}
@@ -204,7 +233,11 @@ const PackingAreaDisplay = () => {
                 ⚠ NEW PICK LISTS REQUIRED
               </div>
               <p className="text-sm text-foreground/70 mt-1">
-                Awaiting Picking is low ({awaiting}) vs {newOrders} new orders · {Math.floor(minsToCutoff / 60)}h {minsToCutoff % 60}m to 16:30 cut-off
+                {[
+                  trigLowAwaiting && `Awaiting Picking ${awaiting} (<100)`,
+                  trigNewHigh && `New ${newOrders} (>200)`,
+                  trigNewVsAwaiting && !trigLowAwaiting && `New ${newOrders} ≥ 2× Awaiting ${awaiting}`,
+                ].filter(Boolean).join(" · ")} · {cutoffH}h {String(cutoffM).padStart(2, "0")}m to 16:30 cut-off
                 {!soundEnabled && " · click Enable sound for audible alarm"}
               </p>
             </div>
