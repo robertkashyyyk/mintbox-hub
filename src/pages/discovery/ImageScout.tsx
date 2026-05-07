@@ -11,7 +11,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Sparkles, Play, RefreshCw, ListChecks, AlertCircle, ImageIcon, History, RotateCw, Trash2, Target, Settings as SettingsIcon, ExternalLink } from "lucide-react";
+import { Sparkles, Play, RefreshCw, ListChecks, AlertCircle, ImageIcon, History, RotateCw, Trash2, Target, Settings as SettingsIcon, ExternalLink, Copy, ShieldAlert } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { getProductImageUrl } from "@/lib/imageUrl";
@@ -135,6 +136,27 @@ export default function ImageScout() {
   const [candMaxScore, setCandMaxScore] = useState<string>("");
   const [candSort, setCandSort] = useState<"score_desc" | "score_asc" | "created_desc" | "created_asc">("created_desc");
   const [openCandidate, setOpenCandidate] = useState<any | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // Saved filter presets
+  const PRESETS: Record<string, { label: string; apply: () => void }> = {
+    high_conf_new: {
+      label: "High confidence · new",
+      apply: () => { setCandStatus("new"); setCandMinScore("60"); setCandMaxScore(""); setCandPicked("all"); setCandSort("score_desc"); },
+    },
+    needs_manual: {
+      label: "Needs manual review",
+      apply: () => { setCandStatus("manual_required"); setCandMinScore(""); setCandMaxScore(""); setCandPicked("all"); setCandSort("created_desc"); },
+    },
+    approved: {
+      label: "Approved candidates",
+      apply: () => { setCandStatus("approved"); setCandMinScore(""); setCandMaxScore(""); setCandPicked("all"); setCandSort("created_desc"); },
+    },
+    low_conf: {
+      label: "Low confidence rejects",
+      apply: () => { setCandStatus("all"); setCandMinScore(""); setCandMaxScore("30"); setCandPicked("all"); setCandSort("score_asc"); },
+    },
+  };
 
   const candidatesQ = useQuery({
     queryKey: ["image-scout-candidates", candBrand, candStatus, candPicked, candMinScore, candMaxScore, candSort],
@@ -161,21 +183,90 @@ export default function ImageScout() {
     refetchInterval: 10000,
   });
 
+  // Duplicate image detection — count of distinct SKUs sharing each image_url
+  const dupMap = useMemo(() => {
+    const m = new Map<string, Set<string>>();
+    (candidatesQ.data ?? []).forEach((c: any) => {
+      if (!c.image_url) return;
+      if (!m.has(c.image_url)) m.set(c.image_url, new Set());
+      m.get(c.image_url)!.add(c.sku);
+    });
+    return m;
+  }, [candidatesQ.data]);
+
+  // Quality warnings derived per-candidate
+  const BLOCKED_DOMAINS = useMemo(() => new Set([
+    "pinterest.com", "facebook.com", "instagram.com", "youtube.com",
+    "ebay.co.uk", "ebay.com", "amazon.co.uk", "amazon.com",
+  ]), []);
+  function getWarnings(c: any): string[] {
+    const w: string[] = [];
+    const w_px = c.image_width ?? 0;
+    const h_px = c.image_height ?? 0;
+    if (w_px && h_px && (w_px < 400 || h_px < 400)) w.push("Low resolution");
+    if (!c.source_url) w.push("Missing source URL");
+    if (c.source_domain && BLOCKED_DOMAINS.has(String(c.source_domain).replace(/^www\./, ""))) w.push("Blocked domain");
+    const url = String(c.image_url ?? "").toLowerCase();
+    const partRaw = c.sku?.includes("-") ? c.sku.split("-").slice(1).join("-") : c.sku;
+    const partNorm = String(partRaw ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
+    const urlNorm = url.replace(/[^a-z0-9]/g, "");
+    if (partNorm && !urlNorm.includes(partNorm)) w.push("No exact part-number match");
+    if (/(packag|carton|box|wrap|label)/i.test(url)) w.push("Suspected packaging image");
+    if (/(diagram|exploded|schematic|drawing|blueprint)/i.test(url)) w.push("Suspected diagram");
+    return w;
+  }
+
   const setCandStatusMut = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+    mutationFn: async ({ id, status, notes }: { id: string; status: string; notes?: string }) => {
       const { data: { user } } = await supabase.auth.getUser();
       const { error } = await supabase
         .from("image_scout_candidates")
-        .update({ status: status as any, reviewed_by: user?.id ?? null, reviewed_at: new Date().toISOString() })
+        .update({ status: status as any, reviewed_by: user?.id ?? null, reviewed_at: new Date().toISOString(), review_notes: notes ?? null })
         .eq("id", id);
       if (error) throw error;
     },
     onSuccess: (_d, vars) => {
       toast.success(`Marked as ${vars.status}`);
       qc.invalidateQueries({ queryKey: ["image-scout-candidates"] });
+      qc.invalidateQueries({ queryKey: ["image-scout-candidate-events"] });
       setOpenCandidate((prev: any) => prev ? { ...prev, status: vars.status } : prev);
     },
     onError: (e) => toast.error((e as Error).message),
+  });
+
+  const bulkStatusMut = useMutation({
+    mutationFn: async ({ ids, status }: { ids: string[]; status: string }) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      const { error } = await supabase
+        .from("image_scout_candidates")
+        .update({ status: status as any, reviewed_by: user?.id ?? null, reviewed_at: new Date().toISOString() })
+        .in("id", ids);
+      if (error) throw error;
+    },
+    onSuccess: (_d, vars) => {
+      toast.success(`${vars.ids.length} candidate(s) → ${vars.status}`);
+      setSelectedIds(new Set());
+      qc.invalidateQueries({ queryKey: ["image-scout-candidates"] });
+      qc.invalidateQueries({ queryKey: ["image-scout-candidate-events"] });
+    },
+    onError: (e) => toast.error((e as Error).message),
+  });
+
+  // Audit trail for the open candidate
+  const candEventsQ = useQuery({
+    queryKey: ["image-scout-candidate-events", openCandidate?.id],
+    queryFn: async () => {
+      if (!openCandidate?.id) return [] as any[];
+      const { data, error } = await supabase
+        .from("image_scout_candidate_events")
+        .select("*")
+        .eq("candidate_id", openCandidate.id)
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      return data as any[];
+    },
+    enabled: !!openCandidate?.id,
   });
 
   const enqueue = useMutation({
@@ -592,11 +683,44 @@ export default function ImageScout() {
                   </Select>
                 </div>
               </div>
+
+              {/* Saved presets */}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs text-muted-foreground uppercase">Presets:</span>
+                {Object.entries(PRESETS).map(([k, p]) => (
+                  <Button key={k} size="sm" variant="outline" className="h-7" onClick={p.apply}>{p.label}</Button>
+                ))}
+              </div>
+
+              {/* Bulk action bar */}
+              {selectedIds.size > 0 && (
+                <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/40 p-2">
+                  <span className="text-xs">{selectedIds.size} selected</span>
+                  <Button size="sm" variant="outline" disabled={bulkStatusMut.isPending}
+                    onClick={() => bulkStatusMut.mutate({ ids: [...selectedIds], status: "shortlisted" })}>Shortlist</Button>
+                  <Button size="sm" variant="outline" disabled={bulkStatusMut.isPending}
+                    onClick={() => bulkStatusMut.mutate({ ids: [...selectedIds], status: "manual_required" })}>Manual required</Button>
+                  <Button size="sm" disabled={bulkStatusMut.isPending}
+                    onClick={() => bulkStatusMut.mutate({ ids: [...selectedIds], status: "approved" })}>Approve</Button>
+                  <Button size="sm" variant="destructive" disabled={bulkStatusMut.isPending}
+                    onClick={() => bulkStatusMut.mutate({ ids: [...selectedIds], status: "dismissed" })}>Dismiss</Button>
+                  <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())}>Clear</Button>
+                </div>
+              )}
             </CardHeader>
             <CardContent className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-8">
+                      <Checkbox
+                        checked={!!candidatesQ.data?.length && candidatesQ.data.every((c: any) => selectedIds.has(c.id))}
+                        onCheckedChange={(v) => {
+                          if (v) setSelectedIds(new Set(candidatesQ.data?.map((c: any) => c.id) ?? []));
+                          else setSelectedIds(new Set());
+                        }}
+                      />
+                    </TableHead>
                     <TableHead>Image</TableHead>
                     <TableHead>SKU</TableHead>
                     <TableHead>Brand</TableHead>
@@ -605,6 +729,7 @@ export default function ImageScout() {
                     <TableHead>Status</TableHead>
                     <TableHead>Domain</TableHead>
                     <TableHead>Size</TableHead>
+                    <TableHead>Flags</TableHead>
                     <TableHead>Created</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -612,8 +737,24 @@ export default function ImageScout() {
                   {candidatesQ.data?.map((c) => {
                     const brandName = brandsQ.data?.find((b) => b.id === c.brand_id)?.name;
                     const partNumber = c.sku?.includes("-") ? c.sku.split("-").slice(1).join("-") : c.sku;
+                    const dupSet = dupMap.get(c.image_url);
+                    const dupSkus = dupSet ? dupSet.size : 1;
+                    const warnings = getWarnings(c);
+                    const checked = selectedIds.has(c.id);
                     return (
                       <TableRow key={c.id} className="cursor-pointer hover:bg-muted/40" onClick={() => setOpenCandidate({ ...c, _brandName: brandName, _partNumber: partNumber })}>
+                        <TableCell onClick={(e) => e.stopPropagation()}>
+                          <Checkbox
+                            checked={checked}
+                            onCheckedChange={(v) => {
+                              setSelectedIds((prev) => {
+                                const next = new Set(prev);
+                                if (v) next.add(c.id); else next.delete(c.id);
+                                return next;
+                              });
+                            }}
+                          />
+                        </TableCell>
                         <TableCell>
                           <img src={c.image_url} alt={c.sku} className="h-12 w-12 object-contain bg-muted rounded" />
                         </TableCell>
@@ -628,12 +769,24 @@ export default function ImageScout() {
                         <TableCell><CandidateStatusBadge status={c.status} /></TableCell>
                         <TableCell className="text-xs">{c.source_domain ?? "—"}</TableCell>
                         <TableCell className="text-xs">{c.image_width && c.image_height ? `${c.image_width}×${c.image_height}` : "—"}</TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap gap-1">
+                            {dupSkus > 1 && (
+                              <Badge variant="outline" className="gap-1"><Copy className="h-3 w-3" /> Used by {dupSkus} SKUs</Badge>
+                            )}
+                            {warnings.map((w) => (
+                              <Badge key={w} variant="outline" className="gap-1 text-warning border-warning/40">
+                                <ShieldAlert className="h-3 w-3" /> {w}
+                              </Badge>
+                            ))}
+                          </div>
+                        </TableCell>
                         <TableCell className="text-xs text-muted-foreground">{new Date(c.created_at).toLocaleString()}</TableCell>
                       </TableRow>
                     );
                   })}
                   {!candidatesQ.data?.length && (
-                    <TableRow><TableCell colSpan={9} className="text-center text-sm text-muted-foreground py-8">No candidates match these filters.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={11} className="text-center text-sm text-muted-foreground py-8">No candidates match these filters.</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>
@@ -686,8 +839,54 @@ export default function ImageScout() {
                           ).map((r: string, i: number) => (<li key={i}>{r}</li>))}
                         </ul>
                       </div>
+                      {(() => {
+                        const ws = getWarnings(openCandidate);
+                        const dupSet = dupMap.get(openCandidate.image_url);
+                        const dupSkus = dupSet ? dupSet.size : 1;
+                        if (!ws.length && dupSkus <= 1) return null;
+                        return (
+                          <div>
+                            <div className="text-xs text-muted-foreground uppercase mb-1">Quality flags</div>
+                            <div className="flex flex-wrap gap-1">
+                              {dupSkus > 1 && (
+                                <Badge variant="outline" className="gap-1"><Copy className="h-3 w-3" /> Used by {dupSkus} SKUs ({[...(dupSet ?? [])].join(", ")})</Badge>
+                              )}
+                              {ws.map((w) => (
+                                <Badge key={w} variant="outline" className="gap-1 text-warning border-warning/40">
+                                  <ShieldAlert className="h-3 w-3" /> {w}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
+
+                  {/* Audit history */}
+                  <div className="border-t pt-3">
+                    <div className="text-xs text-muted-foreground uppercase mb-2">Audit history</div>
+                    {candEventsQ.isLoading && <div className="text-xs text-muted-foreground">Loading…</div>}
+                    {!candEventsQ.isLoading && !candEventsQ.data?.length && (
+                      <div className="text-xs text-muted-foreground">No status changes recorded yet.</div>
+                    )}
+                    {!!candEventsQ.data?.length && (
+                      <ul className="space-y-1 text-xs max-h-40 overflow-auto">
+                        {candEventsQ.data.map((ev: any) => (
+                          <li key={ev.id} className="flex items-center justify-between gap-2 border-b border-border/50 pb-1">
+                            <span>
+                              <span className="text-muted-foreground">{ev.action}:</span>{" "}
+                              <span className="font-medium">{ev.old_status ?? "—"}</span>{" → "}
+                              <span className="font-medium">{ev.new_status ?? "—"}</span>
+                              {ev.notes && <span className="text-muted-foreground"> · {ev.notes}</span>}
+                            </span>
+                            <span className="text-muted-foreground">{new Date(ev.created_at).toLocaleString()}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+
                   <DialogFooter className="flex flex-wrap gap-2">
                     <Button size="sm" variant="outline" disabled={setCandStatusMut.isPending} onClick={() => setCandStatusMut.mutate({ id: openCandidate.id, status: "shortlisted" })}>Shortlist</Button>
                     <Button size="sm" variant="outline" disabled={setCandStatusMut.isPending} onClick={() => setCandStatusMut.mutate({ id: openCandidate.id, status: "manual_required" })}>Manual required</Button>
