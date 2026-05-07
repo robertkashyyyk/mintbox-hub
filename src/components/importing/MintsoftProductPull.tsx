@@ -266,6 +266,48 @@ export function MintsoftProductPull() {
           </div>
         </div>
 
+        {/* Single SKU Fetch */}
+        <div className="p-4 border rounded-lg bg-muted/30 space-y-3">
+          <div>
+            <h4 className="font-medium flex items-center gap-2">
+              <Target className="h-4 w-4" />
+              Fetch a single SKU
+            </h4>
+            <p className="text-sm text-muted-foreground mt-1">
+              Hit Mintsoft's Search endpoint directly — perfect for one-offs without scanning the full catalog. Imports immediately if found.
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Input
+              value={singleSku}
+              onChange={(e) => setSingleSku(e.target.value)}
+              placeholder="e.g., FA1-076.682.005"
+              className="font-mono"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && singleSku.trim() && !singleSkuMutation.isPending) {
+                  singleSkuMutation.mutate(singleSku.trim());
+                }
+              }}
+            />
+            <Button
+              onClick={() => singleSkuMutation.mutate(singleSku.trim())}
+              disabled={!singleSku.trim() || singleSkuMutation.isPending}
+            >
+              {singleSkuMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Fetching...
+                </>
+              ) : (
+                <>
+                  <Target className="mr-2 h-4 w-4" />
+                  Fetch SKU
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+
         {/* Brand Selection */}
         <div className="space-y-2">
           <Label>Select a brand</Label>
