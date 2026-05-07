@@ -269,6 +269,40 @@ export default function ImageScout() {
     enabled: !!openCandidate?.id,
   });
 
+  // Processed asset for the open candidate (Approved Image Pipeline)
+  const approvedAssetQ = useQuery({
+    queryKey: ["image-scout-approved-asset", openCandidate?.id],
+    queryFn: async () => {
+      if (!openCandidate?.id) return null;
+      const { data, error } = await supabase
+        .from("approved_product_images" as any)
+        .select("*")
+        .eq("candidate_id", openCandidate.id)
+        .maybeSingle();
+      if (error) throw error;
+      return data as any;
+    },
+    enabled: !!openCandidate?.id,
+    refetchInterval: (q) => {
+      const s = (q.state.data as any)?.processing_status;
+      return s === "pending" || s === "processing" ? 3000 : false;
+    },
+  });
+
+  const reprocessAsset = useMutation({
+    mutationFn: async (rowId: string) => {
+      const { error } = await supabase.functions.invoke("image-scout-enhance", {
+        body: { row_id: rowId, reprocess: true },
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Reprocessing started");
+      qc.invalidateQueries({ queryKey: ["image-scout-approved-asset"] });
+    },
+    onError: (e) => toast.error((e as Error).message),
+  });
+
   const enqueue = useMutation({
     mutationFn: async (payload: { skus: string[]; runNow: boolean }) => {
       const rows = payload.skus.map((sku) => {
@@ -886,6 +920,67 @@ export default function ImageScout() {
                       </ul>
                     )}
                   </div>
+
+                  {/* Processed Asset (Approved Image Pipeline) */}
+                  {openCandidate.status === "approved" && (
+                    <div className="border-t pt-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="text-xs text-muted-foreground uppercase">Processed asset</div>
+                        {approvedAssetQ.data && (
+                          <Button size="sm" variant="outline" disabled={reprocessAsset.isPending}
+                            onClick={() => reprocessAsset.mutate(approvedAssetQ.data.id)}>
+                            <RotateCw className="h-3 w-3 mr-1" /> Reprocess
+                          </Button>
+                        )}
+                      </div>
+                      {!approvedAssetQ.data && <div className="text-xs text-muted-foreground">Pipeline row not yet created.</div>}
+                      {approvedAssetQ.data && (() => {
+                        const a = approvedAssetQ.data;
+                        const procUrl = a.processed_storage_path
+                          ? supabase.storage.from("image-scout-processed").getPublicUrl(a.processed_storage_path).data.publicUrl
+                          : null;
+                        const origDl = async () => {
+                          if (!a.original_storage_path) return;
+                          const { data } = await supabase.storage.from("image-scout-originals")
+                            .createSignedUrl(a.original_storage_path, 60);
+                          if (data?.signedUrl) window.open(data.signedUrl, "_blank");
+                        };
+                        return (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div className="bg-muted rounded p-2 flex items-center justify-center min-h-[160px]">
+                              {procUrl
+                                ? <img src={procUrl} alt="processed" className="max-h-[220px] object-contain" />
+                                : <span className="text-xs text-muted-foreground">No processed image yet</span>}
+                            </div>
+                            <div className="space-y-1 text-xs">
+                              <DetailRow label="Status" value={a.processing_status} />
+                              <DetailRow label="Provider" value={a.processing_provider} />
+                              <DetailRow label="Version" value={a.processing_version} />
+                              <DetailRow label="Dimensions" value={a.width && a.height ? `${a.width}×${a.height}px` : "—"} />
+                              {a.processing_error && <DetailRow label="Error" value={a.processing_error} />}
+                              {!!(a.safety_flags?.length) && (
+                                <div className="flex flex-wrap gap-1 pt-1">
+                                  {a.safety_flags.map((f: string) => (
+                                    <Badge key={f} variant="outline" className="gap-1 text-warning border-warning/40">
+                                      <ShieldAlert className="h-3 w-3" /> {f}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              )}
+                              <div className="flex gap-2 pt-2">
+                                <Button size="sm" variant="outline" onClick={origDl} disabled={!a.original_storage_path}>Download original</Button>
+                                {procUrl && (
+                                  <Button size="sm" variant="outline" asChild>
+                                    <a href={procUrl} target="_blank" rel="noreferrer" download>Download processed</a>
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
 
                   <DialogFooter className="flex flex-wrap gap-2">
                     <Button size="sm" variant="outline" disabled={setCandStatusMut.isPending} onClick={() => setCandStatusMut.mutate({ id: openCandidate.id, status: "shortlisted" })}>Shortlist</Button>

@@ -145,6 +145,80 @@ export type Database = {
         }
         Relationships: []
       }
+      approved_product_images: {
+        Row: {
+          approved_at: string
+          approved_by: string | null
+          brand: string | null
+          candidate_id: string
+          created_at: string
+          height: number | null
+          id: string
+          original_storage_path: string | null
+          part_number: string | null
+          processed_storage_path: string | null
+          processing_error: string | null
+          processing_provider: string
+          processing_status: Database["public"]["Enums"]["approved_image_status"]
+          processing_version: string
+          safety_flags: string[]
+          sku: string
+          source_image_url: string | null
+          updated_at: string
+          width: number | null
+        }
+        Insert: {
+          approved_at?: string
+          approved_by?: string | null
+          brand?: string | null
+          candidate_id: string
+          created_at?: string
+          height?: number | null
+          id?: string
+          original_storage_path?: string | null
+          part_number?: string | null
+          processed_storage_path?: string | null
+          processing_error?: string | null
+          processing_provider?: string
+          processing_status?: Database["public"]["Enums"]["approved_image_status"]
+          processing_version?: string
+          safety_flags?: string[]
+          sku: string
+          source_image_url?: string | null
+          updated_at?: string
+          width?: number | null
+        }
+        Update: {
+          approved_at?: string
+          approved_by?: string | null
+          brand?: string | null
+          candidate_id?: string
+          created_at?: string
+          height?: number | null
+          id?: string
+          original_storage_path?: string | null
+          part_number?: string | null
+          processed_storage_path?: string | null
+          processing_error?: string | null
+          processing_provider?: string
+          processing_status?: Database["public"]["Enums"]["approved_image_status"]
+          processing_version?: string
+          safety_flags?: string[]
+          sku?: string
+          source_image_url?: string | null
+          updated_at?: string
+          width?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "approved_product_images_candidate_id_fkey"
+            columns: ["candidate_id"]
+            isOneToOne: true
+            referencedRelation: "image_scout_candidates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       backorder_age_snapshot: {
         Row: {
           bo_fresh_0_1: number
@@ -4217,6 +4291,12 @@ export type Database = {
       alert_type: "LowStock" | "RemoteStock" | "BackOrders" | "Inventory"
       app_capability: "none" | "read" | "propose" | "execute" | "admin"
       app_role: "super_user" | "senior_user" | "simple_user"
+      approved_image_status:
+        | "pending"
+        | "processing"
+        | "completed"
+        | "failed"
+        | "manual_required"
       catalogue_status: "draft" | "published" | "archived"
       image_scout_candidate_status:
         | "new"
@@ -4372,6 +4452,13 @@ export const Constants = {
       alert_type: ["LowStock", "RemoteStock", "BackOrders", "Inventory"],
       app_capability: ["none", "read", "propose", "execute", "admin"],
       app_role: ["super_user", "senior_user", "simple_user"],
+      approved_image_status: [
+        "pending",
+        "processing",
+        "completed",
+        "failed",
+        "manual_required",
+      ],
       catalogue_status: ["draft", "published", "archived"],
       image_scout_candidate_status: [
         "new",
