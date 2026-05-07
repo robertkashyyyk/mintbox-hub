@@ -78,9 +78,101 @@ async function setJobStatus(id: string, status: string, patch: Record<string, un
 async function getBrand(brandId: string | null): Promise<Brand> {
   if (!brandId) return null;
   const { data } = await supa.from("brands")
-    .select("name, prefix, image_url_pattern, image_search_domain")
+    .select("id, name, prefix, image_url_pattern, image_search_domain")
     .eq("id", brandId).maybeSingle();
   return data as Brand;
+}
+
+async function getBrandProfile(brandId: string | null): Promise<BrandProfile> {
+  if (!brandId) return null;
+  const { data } = await supa.from("brand_image_profiles")
+    .select("preferred_domains, blocked_domains, search_templates, image_rules")
+    .eq("brand_id", brandId).maybeSingle();
+  return data as BrandProfile;
+}
+
+function hostOf(u: string | null | undefined): string | null {
+  if (!u) return null;
+  try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return null; }
+}
+
+function expandTemplate(tpl: string, vars: { brand: string; part_number: string; sku: string }): string {
+  return tpl
+    .replaceAll("{brand}", vars.brand)
+    .replaceAll("{part_number}", vars.part_number)
+    .replaceAll("{cleansku}", vars.part_number)
+    .replaceAll("{sku}", vars.sku)
+    .trim();
+}
+
+function scoreCandidate(
+  c: Candidate,
+  ctx: { partNumber: string; brand: string; preferred: Set<string>; blocked: Set<string>; manufacturerHost?: string | null },
+): { score: number; reasoning: string[]; rejected: boolean } {
+  const reasoning: string[] = [];
+  let score = 0;
+  const host = hostOf(c.pageUrl) || hostOf(c.imageUrl);
+  if (host && ctx.blocked.has(host)) {
+    return { score: -999, reasoning: [`blocked: ${host}`], rejected: true };
+  }
+  const url = c.imageUrl.toLowerCase();
+  const page = (c.pageText || "").toLowerCase();
+  const pn = ctx.partNumber.toLowerCase();
+  const brand = ctx.brand.toLowerCase();
+
+  if (pn && page.includes(pn)) { score += 25; reasoning.push("+25 part# on page"); }
+  if (brand && page.includes(brand)) { score += 15; reasoning.push("+15 brand on page"); }
+  if (pn && url.includes(pn)) { score += 10; reasoning.push("+10 part# in image url"); }
+
+  if (host && ctx.preferred.has(host)) { score += 20; reasoning.push(`+20 preferred domain ${host}`); }
+  if (host && ctx.manufacturerHost && host.endsWith(ctx.manufacturerHost)) { score += 10; reasoning.push("+10 manufacturer domain"); }
+
+  const w = c.imageUrl.match(/(\d{3,4})x(\d{3,4})/);
+  if (w) {
+    const dim = parseInt(w[1]);
+    if (dim >= 800) { score += 15; reasoning.push("+15 likely ≥800px"); }
+    if (dim >= 1500) { score += 5; reasoning.push("+5 likely ≥1500px"); }
+  }
+
+  if (/diagram|schematic|exploded|fitment-chart/i.test(url + " " + page)) { score -= 20; reasoning.push("-20 diagram hint"); }
+  if (/lifestyle|vehicle-fitted|installed-on/i.test(url + " " + page)) { score -= 15; reasoning.push("-15 lifestyle hint"); }
+  if (/watermark/i.test(url)) { score -= 10; reasoning.push("-10 watermark hint"); }
+  if (/thumb|_sm|small|icon|logo|sprite|placeholder/i.test(url)) { score -= 15; reasoning.push("-15 thumbnail/icon hint"); }
+
+  return { score, reasoning, rejected: false };
+}
+
+async function recordCandidates(jobId: string, sku: string, brandId: string | null, ranked: Candidate[], pickedUrl?: string | null) {
+  if (ranked.length === 0) return;
+  const rows = ranked.map((c) => ({
+    job_id: jobId,
+    sku,
+    brand_id: brandId,
+    source_url: c.pageUrl,
+    image_url: c.imageUrl,
+    source_domain: hostOf(c.pageUrl) || hostOf(c.imageUrl),
+    from_template: c.fromTemplate ?? null,
+    confidence_score: c.score ?? 0,
+    confidence_reasoning: c.reasoning ?? [],
+    picked: pickedUrl ? c.imageUrl === pickedUrl : false,
+  }));
+  await supa.from("image_scout_candidates").insert(rows);
+}
+
+async function recordSuggestion(brandId: string, kind: "domain" | "template", value: string) {
+  if (!value) return;
+  // upsert with increment
+  const { data: existing } = await supa.from("brand_image_profile_suggestions")
+    .select("id, success_count").eq("brand_id", brandId).eq("kind", kind).eq("value", value).maybeSingle();
+  if (existing) {
+    await supa.from("brand_image_profile_suggestions")
+      .update({ success_count: (existing.success_count ?? 0) + 1, last_used: new Date().toISOString() })
+      .eq("id", existing.id);
+  } else {
+    await supa.from("brand_image_profile_suggestions").insert({
+      brand_id: brandId, kind, value, success_count: 1,
+    });
+  }
 }
 
 function stripPrefix(sku: string, prefix: string | null): string {
