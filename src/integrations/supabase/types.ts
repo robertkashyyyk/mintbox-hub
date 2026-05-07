@@ -2861,6 +2861,80 @@ export type Database = {
           },
         ]
       }
+      threeds_reprice_pushes: {
+        Row: {
+          csv_preview: string | null
+          error_message: string | null
+          id: string
+          pushed_at: string
+          pushed_by: string | null
+          row_count: number
+          sftp_path: string | null
+          status: string
+          store_id: string
+        }
+        Insert: {
+          csv_preview?: string | null
+          error_message?: string | null
+          id?: string
+          pushed_at?: string
+          pushed_by?: string | null
+          row_count?: number
+          sftp_path?: string | null
+          status?: string
+          store_id: string
+        }
+        Update: {
+          csv_preview?: string | null
+          error_message?: string | null
+          id?: string
+          pushed_at?: string
+          pushed_by?: string | null
+          row_count?: number
+          sftp_path?: string | null
+          status?: string
+          store_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "threeds_reprice_pushes_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "threeds_stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      threeds_stores: {
+        Row: {
+          created_at: string
+          enabled: boolean
+          id: string
+          mintsoft_channel: string
+          sftp_filename: string
+          store_name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          mintsoft_channel: string
+          sftp_filename: string
+          store_name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          mintsoft_channel?: string
+          sftp_filename?: string
+          store_name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       upload_history: {
         Row: {
           created_at: string
