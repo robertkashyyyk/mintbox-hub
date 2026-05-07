@@ -89,6 +89,10 @@ export const useSkuDatabase = () => {
   const { data: productsData, isLoading } = useQuery({
     queryKey: ["products-cache-filtered", page, sort, filters],
     queryFn: async () => {
+      const imagesJoin = filters.hasImages
+        ? `product_images!inner (public_url, is_primary)`
+        : `product_images!product_images_product_id_fkey (public_url, is_primary)`;
+
       let query = supabase
         .from("products_cache")
         .select(`
@@ -119,19 +123,11 @@ export const useSkuDatabase = () => {
           product_category_links (
             product_categories (name)
           ),
-          product_images!product_images_product_id_fkey (
-            public_url,
-            is_primary
-          )
+          ${imagesJoin}
         `, { count: 'exact' });
 
       // Exclude quarantined products from general view
       query = query.eq("quarantined", false);
-
-      // Server-side has-images filter
-      if (filters.hasImages) {
-        query = query.not("product_images", "is", null);
-      }
 
       // Apply text search
       if (filters.search) {
