@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Sparkles, Play, RefreshCw, ListChecks, AlertCircle, ImageIcon, History, RotateCw, Trash2 } from "lucide-react";
+import { Sparkles, Play, RefreshCw, ListChecks, AlertCircle, ImageIcon, History, RotateCw, Trash2, Target, Settings as SettingsIcon } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { getProductImageUrl } from "@/lib/imageUrl";
@@ -124,6 +124,21 @@ export default function ImageScout() {
       if (error) throw error;
       return data as Result[];
     },
+  });
+
+  const candidatesQ = useQuery({
+    queryKey: ["image-scout-candidates"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("image_scout_candidates")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .order("confidence_score", { ascending: false })
+        .limit(200);
+      if (error) throw error;
+      return data as any[];
+    },
+    refetchInterval: 10000,
   });
 
   const enqueue = useMutation({
@@ -245,7 +260,12 @@ export default function ImageScout() {
             Find, process, and store product images for SKUs that are missing them.
           </p>
         </div>
-        <Button variant="ghost" onClick={() => navigate("/discovery")}>← Discovery</Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => navigate("/discovery/image-scout/brand-profiles")}>
+            <SettingsIcon className="h-4 w-4 mr-1" /> Brand Profiles
+          </Button>
+          <Button variant="ghost" onClick={() => navigate("/discovery")}>← Discovery</Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -261,6 +281,7 @@ export default function ImageScout() {
           <TabsTrigger value="run"><Play className="h-4 w-4 mr-1" /> Run Agent</TabsTrigger>
           <TabsTrigger value="queue"><ListChecks className="h-4 w-4 mr-1" /> Missing Images ({missingQ.data?.length ?? 0})</TabsTrigger>
           <TabsTrigger value="review"><AlertCircle className="h-4 w-4 mr-1" /> Needs Review ({reviewQ.data?.length ?? 0})</TabsTrigger>
+          <TabsTrigger value="candidates"><Target className="h-4 w-4 mr-1" /> Candidates ({candidatesQ.data?.length ?? 0})</TabsTrigger>
           <TabsTrigger value="log"><History className="h-4 w-4 mr-1" /> Job Log</TabsTrigger>
         </TabsList>
 
@@ -459,6 +480,78 @@ export default function ImageScout() {
                 </Card>
                 );
               })}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="candidates">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Scored candidates</CardTitle>
+                <CardDescription>
+                  All images discovered per job, ranked by deterministic confidence score. Higher score = better match.
+                </CardDescription>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => candidatesQ.refetch()}>
+                <RefreshCw className="h-4 w-4 mr-1" /> Refresh
+              </Button>
+            </CardHeader>
+            <CardContent className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Image</TableHead>
+                    <TableHead>SKU</TableHead>
+                    <TableHead>Score</TableHead>
+                    <TableHead>Domain</TableHead>
+                    <TableHead>Template</TableHead>
+                    <TableHead>Size</TableHead>
+                    <TableHead>Reasoning</TableHead>
+                    <TableHead>Source</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {candidatesQ.data?.map((c) => {
+                    const reasons: string[] = Array.isArray(c.confidence_reasoning)
+                      ? c.confidence_reasoning
+                      : (c.confidence_reasoning?.reasons ?? []);
+                    return (
+                      <TableRow key={c.id}>
+                        <TableCell>
+                          <a href={c.image_url} target="_blank" rel="noreferrer">
+                            <img src={c.image_url} alt={c.sku} className="h-12 w-12 object-contain bg-muted rounded" />
+                          </a>
+                        </TableCell>
+                        <TableCell className="font-mono text-xs">{c.sku}</TableCell>
+                        <TableCell>
+                          <Badge variant={c.confidence_score >= 60 ? "default" : c.confidence_score >= 30 ? "secondary" : "outline"}>
+                            {c.confidence_score}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-xs">{c.source_domain ?? "—"}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground max-w-[180px] truncate" title={c.from_template ?? ""}>
+                          {c.from_template ?? "—"}
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          {c.image_width && c.image_height ? `${c.image_width}×${c.image_height}` : "—"}
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground max-w-md whitespace-pre-wrap break-words">
+                          {reasons.length ? reasons.join(", ") : "—"}
+                        </TableCell>
+                        <TableCell>
+                          {c.source_url && (
+                            <a href={c.source_url} target="_blank" rel="noreferrer" className="text-xs text-primary underline">Page</a>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                  {!candidatesQ.data?.length && (
+                    <TableRow><TableCell colSpan={8} className="text-center text-sm text-muted-foreground py-8">No candidates yet — run a job to populate.</TableCell></TableRow>
+                  )}
+                </TableBody>
+              </Table>
             </CardContent>
           </Card>
         </TabsContent>

@@ -83,6 +83,7 @@ export function AppSidebar() {
         { title: "Bulk Image Upload", url: "/discovery/bulk-images", icon: Images },
         { title: "Pending Images", url: "/discovery/pending-images", icon: Clock },
         { title: "Image Scout", url: "/discovery/image-scout", icon: Search },
+        { title: "Image Scout Brands", url: "/discovery/image-scout/brand-profiles", icon: Tag },
       ],
     },
     {
