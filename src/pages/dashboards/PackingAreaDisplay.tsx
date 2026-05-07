@@ -233,7 +233,11 @@ const PackingAreaDisplay = () => {
                 ⚠ NEW PICK LISTS REQUIRED
               </div>
               <p className="text-sm text-foreground/70 mt-1">
-                Awaiting Picking is low ({awaiting}) vs {newOrders} new orders · {Math.floor(minsToCutoff / 60)}h {minsToCutoff % 60}m to 16:30 cut-off
+                {[
+                  trigLowAwaiting && `Awaiting Picking ${awaiting} (<100)`,
+                  trigNewHigh && `New ${newOrders} (>200)`,
+                  trigNewVsAwaiting && !trigLowAwaiting && `New ${newOrders} ≥ 2× Awaiting ${awaiting}`,
+                ].filter(Boolean).join(" · ")} · {cutoffH}h {String(cutoffM).padStart(2, "0")}m to 16:30 cut-off
                 {!soundEnabled && " · click Enable sound for audible alarm"}
               </p>
             </div>
