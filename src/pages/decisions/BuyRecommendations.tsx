@@ -333,6 +333,7 @@ const BuyRecommendations = () => {
                     {filteredSupplierGroups.map((g) => {
                       const key = g.supplierId || "__unmapped__";
                       const unmapped = !g.supplierId;
+                      const overdue = g.supplierId ? suppressionMap.get(g.supplierId)?.overdueNoAsn : false;
                       return (
                         <TableRow
                           key={key}
@@ -350,9 +351,14 @@ const BuyRecommendations = () => {
                           <TableCell className="text-right tabular-nums">{g.totalUnits.toLocaleString()}</TableCell>
                           <TableCell className="text-right tabular-nums">{formatGBP(g.totalSpend)}</TableCell>
                           <TableCell>
-                            <div className="flex gap-1">
+                            <div className="flex gap-1 flex-wrap">
                               {g.hasBackorder && <Badge className="bg-warning text-warning-foreground">BO</Badge>}
                               {unmapped && <Badge variant="destructive">No supplier</Badge>}
+                              {overdue && (
+                                <Badge variant="destructive" className="gap-1">
+                                  <Clock className="h-3 w-3" /> PO Pending — No ASN Yet
+                                </Badge>
+                              )}
                             </div>
                           </TableCell>
                           <TableCell><ChevronRight className="h-4 w-4 text-muted-foreground" /></TableCell>
