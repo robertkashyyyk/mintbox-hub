@@ -488,6 +488,30 @@ export default function ImageScout() {
                         <TableCell className="text-xs text-muted-foreground max-w-md whitespace-pre-wrap break-words">
                           {j.error || r?.notes || ""}
                         </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex gap-1 justify-end">
+                            {canAct && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={retryJob.isPending}
+                                onClick={() => retryJob.mutate(j)}
+                                title="Retry"
+                              >
+                                <RotateCw className="h-3 w-3" />
+                              </Button>
+                            )}
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              disabled={deleteJob.isPending}
+                              onClick={() => deleteJob.mutate(j.id)}
+                              title="Delete"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </TableCell>
                       </TableRow>
                     );
                   })}
