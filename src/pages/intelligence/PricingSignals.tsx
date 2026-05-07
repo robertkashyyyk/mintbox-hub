@@ -326,6 +326,9 @@ const PricingSignals = () => {
       <Tabs defaultValue="loss-changes" className="w-full">
         <TabsList>
           <TabsTrigger value="loss-changes">Loss Changes</TabsTrigger>
+          <TabsTrigger value="competitive">Competitive</TabsTrigger>
+          <TabsTrigger value="elasticity">Elasticity</TabsTrigger>
+          <TabsTrigger value="dynamic">Dynamic</TabsTrigger>
         </TabsList>
 
         <TabsContent value="loss-changes" className="space-y-5 mt-4">
