@@ -28,7 +28,7 @@ const PurchaseOrderDetail = () => {
       const sb = supabase as any;
       const [poRes, linesRes] = await Promise.all([
         sb.from("purchase_orders")
-          .select("*, suppliers(name, contact_email, ordering_method)")
+          .select("*, suppliers(name, contact_email, ordering_method, mintsoft_supplier_id)")
           .eq("id", id).single(),
         sb.from("purchase_order_lines")
           .select("*")
@@ -37,20 +37,48 @@ const PurchaseOrderDetail = () => {
       ]);
       if (poRes.error) throw poRes.error;
       if (linesRes.error) throw linesRes.error;
-      return { po: poRes.data as any, lines: (linesRes.data || []) as any[] };
+      const lines = (linesRes.data || []) as any[];
+      const skus = lines.map((l) => l.sku);
+      let pidMap: Record<string, number> = {};
+      if (skus.length) {
+        const { data: pcs } = await sb.from("products_cache")
+          .select("sku, mintsoft_product_id").in("sku", skus);
+        for (const r of pcs || []) {
+          if (r.mintsoft_product_id) pidMap[r.sku] = r.mintsoft_product_id;
+        }
+      }
+      return { po: poRes.data as any, lines, pidMap };
     },
     enabled: !!id,
   });
 
   const saveLine = useMutation({
-    mutationFn: async ({ lineId, patch }: { lineId: string; patch: any }) => {
+    mutationFn: async ({ lineId, patch, sku, mintsoftProductId, pushCost }:
+      { lineId: string; patch: any; sku: string; mintsoftProductId?: number; pushCost?: number }) => {
       const sb = supabase as any;
       const { error } = await sb.from("purchase_order_lines").update(patch).eq("id", lineId);
       if (error) throw error;
+
+      // If a cost was edited and we have a Mintsoft product id, push to Mintsoft
+      // (this also mirrors back into products_cache automatically).
+      if (pushCost && pushCost > 0 && mintsoftProductId) {
+        const { data, error: fnErr } = await supabase.functions.invoke("update-product-cost", {
+          body: { items: [{ mintsoft_product_id: mintsoftProductId, sku, cost_price: pushCost }] },
+        });
+        if (fnErr) throw new Error(fnErr.message);
+        const result = (data as any)?.results?.[0];
+        if (result && !result.ok) throw new Error(result.error || "Mintsoft cost push failed");
+      }
     },
-    onSuccess: () => {
+    onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ["po-detail", id] });
-      setEdits({});
+      setEdits((prev) => {
+        const { [vars.lineId]: _drop, ...rest } = prev;
+        return rest;
+      });
+      if (vars.pushCost) {
+        toast({ title: "Cost saved", description: `${vars.sku} updated and pushed to Mintsoft.` });
+      }
     },
     onError: (e: any) => toast({ title: "Save failed", description: e.message, variant: "destructive" }),
   });
@@ -61,20 +89,29 @@ const PurchaseOrderDetail = () => {
         body: { po_id: id },
       });
       if (error) throw new Error(error.message);
-      if ((data as any)?.error) throw new Error((data as any).error + ((data as any).bad_skus ? `: ${(data as any).bad_skus.join(", ")}` : ""));
-      return data;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      return data as { mintsoft_po_id?: number; lines_sent?: number; skipped?: { sku: string; reason: string }[] };
     },
-    onSuccess: () => {
-      toast({ title: "PO sent", description: "Status moved to Sent — Awaiting ASN." });
+    onSuccess: (data) => {
+      const skipped = data?.skipped?.length || 0;
+      toast({
+        title: "PO sent to Mintsoft",
+        description: `Mintsoft PO #${data?.mintsoft_po_id ?? "?"} created · ${data?.lines_sent} lines${skipped ? ` · ${skipped} skipped (fix and resend)` : ""}.`,
+      });
       refetch();
     },
-    onError: (e: any) => toast({ title: "Cannot send", description: e.message, variant: "destructive" }),
+    onError: (e: any) => toast({ title: "Cannot send to Mintsoft", description: e.message, variant: "destructive" }),
   });
 
   if (isLoading || !data) return <div className="p-8 text-muted-foreground">Loading PO…</div>;
 
-  const { po, lines } = data;
+  const { po, lines, pidMap } = data;
   const linesMissingCost = lines.filter((l) => !l.unit_cost || Number(l.unit_cost) <= 0);
+  const linesNoMintsoftId = lines.filter((l) => !pidMap[l.sku]);
+  const supplierMapped = !!po.suppliers?.mintsoft_supplier_id;
+  const sendableLines = lines.filter((l) =>
+    pidMap[l.sku] && Number(l.unit_cost || 0) > 0 && Number(l.qty_ordered || 0) > 0
+  );
   const canSend = po.status === "draft" || po.status === "approved";
   const totalQty = lines.reduce((a, l) => a + Number(l.qty_ordered || 0), 0);
   const totalCost = lines.reduce((a, l) => a + Number(l.qty_ordered || 0) * Number(l.unit_cost || 0), 0);
@@ -92,18 +129,25 @@ const PurchaseOrderDetail = () => {
           <p className="text-foreground/60">
             Supplier: <span className="text-foreground">{po.suppliers?.name || "—"}</span>
             {po.suppliers?.ordering_method && <> · Method: <span className="text-foreground">{po.suppliers.ordering_method}</span></>}
+            {po.suppliers && (
+              <> · Mintsoft: <span className={supplierMapped ? "text-foreground" : "text-destructive"}>
+                {supplierMapped ? `#${po.suppliers.mintsoft_supplier_id}` : "not mapped"}
+              </span></>
+            )}
           </p>
         </div>
         <div className="flex items-center gap-3">
           <Badge variant={po.status === "sent" ? "default" : "outline"} className="text-sm">
             {po.status}
             {po.status === "sent" && !po.mintsoft_po_id && " — Awaiting ASN"}
+            {po.status === "sent" && po.mintsoft_po_id && ` — Mintsoft #${po.mintsoft_po_id}`}
           </Badge>
           {canSend && (
-            <Button variant="outline"
-              disabled={sendPo.isPending || linesMissingCost.length > 0 || lines.length === 0}
+            <Button
+              disabled={sendPo.isPending || sendableLines.length === 0 || !supplierMapped}
               onClick={() => sendPo.mutate()}>
-              <Send className="h-4 w-4" /> {sendPo.isPending ? "Sending…" : "Mark as Sent"}
+              <Send className="h-4 w-4 mr-2" />
+              {sendPo.isPending ? "Sending…" : `Send to Mintsoft${sendableLines.length < lines.length ? ` (${sendableLines.length}/${lines.length})` : ""}`}
             </Button>
           )}
         </div>
@@ -118,13 +162,44 @@ const PurchaseOrderDetail = () => {
         </Alert>
       )}
 
-      {linesMissingCost.length > 0 && canSend && (
+      {po.mintsoft_send_error && canSend && (
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>Cost validation gate</AlertTitle>
+          <AlertTitle>Last Mintsoft send failed</AlertTitle>
+          <AlertDescription>{po.mintsoft_send_error}</AlertDescription>
+        </Alert>
+      )}
+
+      {!supplierMapped && canSend && (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Supplier not mapped to Mintsoft</AlertTitle>
           <AlertDescription>
-            {linesMissingCost.length} line{linesMissingCost.length === 1 ? "" : "s"} have no unit cost.
-            Add a cost on every line before sending this PO.
+            "{po.suppliers?.name}" has no Mintsoft Supplier ID. Open Suppliers admin and set it before sending —
+            without it Mintsoft cannot accept the PO.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {linesMissingCost.length > 0 && canSend && (
+        <Alert className="border-warning/50">
+          <AlertTriangle className="h-4 w-4 text-warning" />
+          <AlertTitle>{linesMissingCost.length} line{linesMissingCost.length === 1 ? "" : "s"} missing cost</AlertTitle>
+          <AlertDescription>
+            These lines will be skipped when sending to Mintsoft. Edit the cost and click Save — it will be
+            pushed to Mintsoft and removed from Missing Costs automatically. Then click Send to Mintsoft again
+            to push the remaining lines.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {linesNoMintsoftId.length > 0 && canSend && (
+        <Alert className="border-warning/50">
+          <AlertTriangle className="h-4 w-4 text-warning" />
+          <AlertTitle>{linesNoMintsoftId.length} SKU{linesNoMintsoftId.length === 1 ? "" : "s"} not in Mintsoft yet</AlertTitle>
+          <AlertDescription>
+            These will be skipped on send: {linesNoMintsoftId.slice(0, 6).map((l) => l.sku).join(", ")}
+            {linesNoMintsoftId.length > 6 && ` +${linesNoMintsoftId.length - 6} more`}.
           </AlertDescription>
         </Alert>
       )}
@@ -194,9 +269,12 @@ const PurchaseOrderDetail = () => {
                           <Button variant="outline" size="sm"
                             onClick={() => saveLine.mutate({
                               lineId: l.id,
+                              sku: l.sku,
+                              mintsoftProductId: pidMap[l.sku],
+                              pushCost: e.cost !== undefined && cost > 0 ? cost : undefined,
                               patch: { qty_ordered: qty, unit_cost: cost },
                             })}>
-                            Save
+                            Save{e.cost !== undefined && pidMap[l.sku] ? " & push" : ""}
                           </Button>
                         )}
                       </TableCell>
