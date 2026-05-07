@@ -460,12 +460,13 @@ const PricingSignals = () => {
                       <TableHead>Product</TableHead>
                       <TableHead>Band</TableHead>
                       <TableHead className="text-right">Qty</TableHead>
-                      <TableHead className="text-right">Avg price</TableHead>
+                      <TableHead className="text-right">Avg price (ex-VAT)</TableHead>
                       <TableHead className="text-right">Avg cost</TableHead>
-                      <TableHead className="text-right">Avg fees</TableHead>
+                      <TableHead className="text-right">Courier / unit</TableHead>
+                      <TableHead className="text-right">Channel fee %</TableHead>
                       <TableHead className="text-right">Current POR</TableHead>
-                      <TableHead className="text-right">Suggested @ {targetPor}%</TableHead>
-                      <TableHead className="text-right">Δ price</TableHead>
+                      <TableHead className="text-right">Suggested @ {targetPor}% (inc-VAT)</TableHead>
+                      <TableHead className="text-right">Δ vs current (inc-VAT)</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
