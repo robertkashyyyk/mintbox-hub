@@ -1,41 +1,82 @@
-## Why orders 132292+ haven't arrived
+## What we're building
 
-The 15-minute cron is running fine — but inside each run, the work is ordered like this today:
+A new page **Decisions → 3D Reprice** where you pick a store (= channel), see every SKU recently sold on that channel with its profit/loss data, tick the ones to reprice, type new prices, then click **Push to 3D** to SFTP a `SKU,Price` CSV up to the droplet for 3D's scheduled import to pick up.
 
-```
-[terminal sweep: DESPATCHED, CANCELLED, etc. — last 10 days]  ← runs FIRST
-       ↓ (eats most/all of the 50s budget)
-[hot:  NEW, AWAITINGPICKING, ONBACKORDER, ...]                ← rarely reached
-[cold: everything else, round-robin]                          ← never reached
-```
+Per-channel — so the same SKU can be repriced differently on each store (or left alone on stores where it's healthy).
 
-The terminal sweep alone has to walk ~30–40k orders (10 days × ~3–4k/day, 100 per page, 50-page cap per status, multiple terminal statuses). It usually consumes the entire 50s budget. Result: `highest_order_id_seen=131710` (the newest DESPATCHED) recurs every run, and `NEW` orders 132280–132291 only got in because one lucky run (09:45) made it past the sweep before timing out.
+## Pieces
 
-## Fix — three small, surgical changes to `sync-mintsoft-orders`
+### 1. Database
 
-### 1. Reverse the priority order
-Hot statuses go FIRST, terminal sweep LAST.
+`**threeds_stores**` — maps channel name → 3D store identity → SFTP filename.
 
 ```text
-[hot: NEW, AWAITINGPICKING, ONBACKORDER, ...]  ← ~5–10s, always finishes
-[cold: round-robin, advance cursor]            ← whatever fits
-[terminal sweep: DESPATCHED last 10 days]      ← uses leftover budget
+id | store_name              | mintsoft_channel        | sftp_filename            | enabled
+---+-------------------------+-------------------------+--------------------------+--------
+ 1 | CPI                     | eBay - CPI              | reprice_cpi.csv          | true
+ 2 | ASC                     | eBay - ASC              | reprice_asc.csv          | true
+ 3 | Universal               | eBay - Universal        | reprice_universal.csv    | true
+ 4 | 123 Autocare            | eBay - 123 Autocare     | reprice_123autocare.csv  | true
+ 5 | The Stop Shop           | eBay - The Stop Shop    | reprice_stopshop.csv     | true
 ```
 
-Hot statuses are small (a few hundred orders total at any moment) so they finish in seconds. Today's order will be in the system within 15 min, guaranteed.
+Seeded with the 5 eBay channels. Editable in admin if names change.
 
-### 2. Cap the terminal sweep
-Lower the per-status page cap for terminal statuses from 50 → **10** pages (1,000 orders per terminal status per run). Combined with the 10-day floor, that's plenty to catch status changes from NEW→DESPATCHED on recent orders without eating the budget. The dedicated `reconcile-order-ghosts` cron (separate function, runs every 15 min on its own schedule) handles deeper reconciliation.
+`**threeds_reprice_pushes**` — audit log: store_id, pushed_at, pushed_by, row_count, csv_preview, sftp_path, status, error.
 
-### 3. Add a hard "freshness floor" to the run log
-Log `oldest_new_order_id_processed` and `oldest_status_in_run` so a glance at `edge_function_runs` immediately tells us "did this run reach NEW?" — no more guessing why `highest_order_id_seen` keeps repeating.
+### 2. Read API (RPC)
 
-## Files changed
-- `supabase/functions/sync-mintsoft-orders/index.ts` — reorder `statusIdsToFetch`, cap terminal page count, expand log details
+`get_threeds_reprice_candidates(p_channel text, p_days int default 90)` returns one row per SKU sold on that channel:
 
-## What you'll see after deploy
-- Next 15-min run: 132292+ should appear (NEW status fetched first)
-- `highest_order_id_seen` in the run log should track today's max order ID, not 131710
-- Terminal sweep still runs, just with a smaller bite per cycle — plus the separate ghost-reconciler is unaffected
+- sku, product_name
+- units_sold, revenue, cost_total, fees_total, courier_total, profit, por_pct
+- current_retail_price (from `products_cache`)
+- current_stock, brand_name
 
-No schema or cron-schedule changes. Pure logic re-ordering inside the edge function.
+Built off `order_line_economics` filtered by channel. You see everything; you decide what to reprice.
+
+### 3. UI page `/decisions/threeds-reprice`
+
+- Store picker (5 tabs / dropdown)
+- Filter chips: "Loss-makers only" · "PoR < X%" · search
+- Sortable table: SKU · Brand · Units · Revenue · Profit · PoR% · Current Price · **New Price** input · checkbox
+- Footer: "X rows selected · Push to 3D" button
+- Right side: recent pushes for this store (date, count, status)
+
+### 4. Edge function `threeds-reprice-push`
+
+Body: `{ store_id, rows: [{ sku, new_price }] }`
+
+1. Validate store exists + is enabled
+2. Build CSV: `SKU,Price\n` + rows
+3. Connect via `npm:ssh2-sftp-client` using `THREEDS_SFTP_HOST/PORT/USER/PASSWORD`
+4. PUT to `/uploads/{sftp_filename}` (overwrites — 3D picks up latest)
+5. Log to `threeds_reprice_pushes`
+6. Return `{ ok: true, row_count, sftp_path }`
+
+verify_jwt = true, super_user / senior_user only.
+
+### 5. Navigation
+
+Add to `AppSidebar` + `RbacSidebar` under Decisions, plus `docs/NAVIGATION.md` and a `system_areas` row (`threeds_reprice`) with role permissions.
+
+## Out of scope for v1
+
+- No automation / cron — manual click only
+- No SSH key auth — password from secrets
+- No per-channel rules engine — pure manual cherry-pick
+- Amazon / Manual Input channels — not pushed (only the 5 eBay stores)
+- Droplet-side setup (creating `/home/mintsoft_export/uploads/`, `chmod`) — assumed done. I'll surface a clear error if the path is wrong.
+
+## Open assumptions to confirm by clicking through
+
+- SFTP target path: `uploads/{filename}` relative to `mintsoft_export` home. If 3D needs a different folder, edit `sftp_filename` to include path (e.g. `cpi/reprice.csv`).
+- File overwritten each push (latest = canonical). If 3D needs append-only or timestamped names, easy switch.
+
+## After approval
+
+I'll build in this order: migrations → RPC → edge function → UI page → nav. Then we test with one store, one SKU, one row to confirm the file lands on the droplet.  
+  
+Please note path needs be something for 3D so i selected /reprice
+
+&nbsp;
