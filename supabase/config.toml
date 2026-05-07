@@ -68,3 +68,6 @@ verify_jwt = false
 
 [functions.image-scout-process]
 verify_jwt = false
+
+[functions.threeds-probe]
+verify_jwt = false
