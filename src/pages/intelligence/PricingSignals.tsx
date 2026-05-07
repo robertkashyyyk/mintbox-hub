@@ -247,6 +247,7 @@ const PricingSignals = () => {
   const flaggedRows = useMemo(() => {
     let rows = skuRollups.filter((r) => r.band !== "ok");
     if (bandFilter !== "all") rows = rows.filter((r) => r.band === bandFilter);
+    if (brandFilter !== "all") rows = rows.filter((r) => r.brand_id === brandFilter);
     const q = search.trim().toLowerCase();
     if (q) {
       rows = rows.filter((r) =>
@@ -256,7 +257,7 @@ const PricingSignals = () => {
     }
     rows.sort((a, b) => BAND_META[a.band].sortOrder - BAND_META[b.band].sortOrder || a.profitTotal - b.profitTotal);
     return rows;
-  }, [skuRollups, bandFilter, search]);
+  }, [skuRollups, bandFilter, brandFilter, search]);
 
   // Projected impact at the target POR
   const projection = useMemo(() => {
