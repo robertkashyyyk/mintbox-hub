@@ -1,82 +1,82 @@
-## What we're building
+## Image Scout v2 — Slice 1
 
-A new page **Decisions → 3D Reprice** where you pick a store (= channel), see every SKU recently sold on that channel with its profit/loss data, tick the ones to reprice, type new prices, then click **Push to 3D** to SFTP a `SKU,Price` CSV up to the droplet for 3D's scheduled import to pick up.
+Ship the foundation: brand-aware retrieval rules + per-candidate confidence scoring + a manual editor for brand profiles, with auto-suggestions powered by retrieval history. No review queue, no enhancement engine yet.
 
-Per-channel — so the same SKU can be repriced differently on each store (or left alone on stores where it's healthy).
+## What changes
 
-## Pieces
+### 1. Brand image profiles (new)
 
-### 1. Database
+New table `brand_image_profiles` keyed to `brands.id`:
 
-`**threeds_stores**` — maps channel name → 3D store identity → SFTP filename.
+- `preferred_domains text[]` — site:domain priority list
+- `blocked_domains text[]` — never return results from these
+- `search_templates text[]` — e.g. `"{brand} {part_number}"`, `"{part_number} site:autodoc.co.uk"`
+- `image_rules jsonb` — `{prefer_product_only, reject_diagrams, reject_watermarks, prefer_white_background}`
+- `notes text`, `updated_at`, `updated_by`
 
-```text
-id | store_name              | mintsoft_channel        | sftp_filename            | enabled
----+-------------------------+-------------------------+--------------------------+--------
- 1 | CPI                     | eBay - CPI              | reprice_cpi.csv          | true
- 2 | ASC                     | eBay - ASC              | reprice_asc.csv          | true
- 3 | Universal               | eBay - Universal        | reprice_universal.csv    | true
- 4 | 123 Autocare            | eBay - 123 Autocare     | reprice_123autocare.csv  | true
- 5 | The Stop Shop           | eBay - The Stop Shop    | reprice_stopshop.csv     | true
-```
+Manual editor at `/discovery/image-scout/brand-profiles` (super_user / senior_user). Lists every brand from `brands`, shows current profile or "no profile yet", inline edit dialog with chips for domains and templates.
 
-Seeded with the 5 eBay channels. Editable in admin if names change.
+### 2. Candidate gathering (rewrite of `image-scout-process`)
 
-`**threeds_reprice_pushes**` — audit log: store_id, pushed_at, pushed_by, row_count, csv_preview, sftp_path, status, error.
+Today the function picks one image. New flow:
 
-### 2. Read API (RPC)
+1. Detect brand by SKU prefix → load `brand_image_profiles` row (fall back to defaults).
+2. Strip prefix → `clean_part_number`.
+3. Expand `search_templates` → run each via Google CSE + Firecrawl scrape of preferred domains.
+4. Filter results against `blocked_domains`.
+5. Collect ALL candidates (target ~10-20 per SKU) into a new `image_scout_candidates` table:
+   - `sku`, `brand_id`, `source_url`, `image_url`, `image_width`, `image_height`, `from_template`, `from_domain`, `confidence_score numeric`, `confidence_reasoning jsonb`, `created_at`
+6. Score each candidate (see below).
+7. Auto-pick the top scorer ≥ threshold; otherwise leave for manual selection on the SKU detail page.
 
-`get_threeds_reprice_candidates(p_channel text, p_days int default 90)` returns one row per SKU sold on that channel:
+### 3. Confidence scoring
 
-- sku, product_name
-- units_sold, revenue, cost_total, fees_total, courier_total, profit, por_pct
-- current_retail_price (from `products_cache`)
-- current_stock, brand_name
+Pure deterministic function in the edge runtime (no LLM). Inputs: candidate metadata + page text snippet from CSE/Firecrawl.
 
-Built off `order_line_economics` filtered by channel. You see everything; you decide what to reprice.
+Positive signals (configurable weights, defaults shown):
 
-### 3. UI page `/decisions/threeds-reprice`
+- Part number on page (+25), brand on page (+15)
+- Image ≥ 800×800 (+15), ≥ 1500×1500 (+5 more)
+- Source domain in preferred list (+20), official manufacturer (+10 extra)
+- Filename contains part number (+10)
+- White-ish background heuristic from URL/CDN hints (+5)
 
-- Store picker (5 tabs / dropdown)
-- Filter chips: "Loss-makers only" · "PoR < X%" · search
-- Sortable table: SKU · Brand · Units · Revenue · Profit · PoR% · Current Price · **New Price** input · checkbox
-- Footer: "X rows selected · Push to 3D" button
-- Right side: recent pushes for this store (date, count, status)
+Negative signals:
 
-### 4. Edge function `threeds-reprice-push`
+- Source in blocked list → reject outright
+- URL/page text contains "diagram", "schematic", "exploded view" (-20)
+- "lifestyle", "vehicle", "car interior" (-15)
+- Image < 400×400 (-30)
+- Watermark hint in URL (-10)
 
-Body: `{ store_id, rows: [{ sku, new_price }] }`
+`confidence_reasoning` stores the matched rules so the UI can explain the score.
 
-1. Validate store exists + is enabled
-2. Build CSV: `SKU,Price\n` + rows
-3. Connect via `npm:ssh2-sftp-client` using `THREEDS_SFTP_HOST/PORT/USER/PASSWORD`
-4. PUT to `/uploads/{sftp_filename}` (overwrites — 3D picks up latest)
-5. Log to `threeds_reprice_pushes`
-6. Return `{ ok: true, row_count, sftp_path }`
+### 4. Auto-suggestion loop
 
-verify_jwt = true, super_user / senior_user only.
+When a SKU's image is approved (existing path) or a candidate is manually picked:
 
-### 5. Navigation
+- Increment usage counter on the source domain in a new `brand_image_profile_suggestions` table (`brand_id`, `domain`, `template`, `success_count`, `last_used`).
+- Brand profile editor shows a "Suggested additions" panel: top 5 unused domains and templates with success counts and a "promote" button that pushes them into `preferred_domains` / `search_templates`.
 
-Add to `AppSidebar` + `RbacSidebar` under Decisions, plus `docs/NAVIGATION.md` and a `system_areas` row (`threeds_reprice`) with role permissions.
+### 5. UI
 
-## Out of scope for v1
+- `/discovery/image-scout/brand-profiles` — list + editor.
+- `/discovery/image-scout` — existing dashboard gets a new "Candidates" tab per SKU showing the scored candidates with thumbnails, score, reasoning, and "Use this image" action.
+- Subpage header pattern (bold h1 + teal ghost back button), semantic tokens only.
 
-- No automation / cron — manual click only
-- No SSH key auth — password from secrets
-- No per-channel rules engine — pure manual cherry-pick
-- Amazon / Manual Input channels — not pushed (only the 5 eBay stores)
-- Droplet-side setup (creating `/home/mintsoft_export/uploads/`, `chmod`) — assumed done. I'll surface a clear error if the path is wrong.
+### 6. Out of scope (slice 1)
 
-## Open assumptions to confirm by clicking through
+- Full review queue states (Pending/Approved/Rejected/Manual/Regenerate) — current approve/reject flow stays.
+- Enhancement engine (Photoroom + Real-ESRGAN) — wire in slice 2.
+- Bing API, TecDoc, per-brand custom scrapers.
 
-- SFTP target path: `uploads/{filename}` relative to `mintsoft_export` home. If 3D needs a different folder, edit `sftp_filename` to include path (e.g. `cpi/reprice.csv`).
-- File overwritten each push (latest = canonical). If 3D needs append-only or timestamped names, easy switch.
+## Order of build
 
-## After approval
+1. Migration: `brand_image_profiles`, `image_scout_candidates`, `brand_image_profile_suggestions` + RLS.
+2. Refactor `image-scout-process` to gather + score candidates.
+3. Brand profiles editor page + nav (AppSidebar + RbacSidebar + system_areas + role_area_permissions).
+4. Candidates tab on Image Scout SKU detail.
+5. Auto-suggestion writer + "Suggested additions" panel.
+6. Seed Meyle, Febi, Bosch profiles as first examples.
 
-I'll build in this order: migrations → RPC → edge function → UI page → nav. Then we test with one store, one SKU, one row to confirm the file lands on the droplet.  
-  
-Please note path needs be something for 3D so i selected /reprice
-
-&nbsp;
+After this lands and we've watched it run on a few hundred SKUs, slice 2 = full review queue + Photoroom/Real-ESRGAN enhancement pipeline.
