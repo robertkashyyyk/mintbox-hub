@@ -269,6 +269,40 @@ export default function ImageScout() {
     enabled: !!openCandidate?.id,
   });
 
+  // Processed asset for the open candidate (Approved Image Pipeline)
+  const approvedAssetQ = useQuery({
+    queryKey: ["image-scout-approved-asset", openCandidate?.id],
+    queryFn: async () => {
+      if (!openCandidate?.id) return null;
+      const { data, error } = await supabase
+        .from("approved_product_images" as any)
+        .select("*")
+        .eq("candidate_id", openCandidate.id)
+        .maybeSingle();
+      if (error) throw error;
+      return data as any;
+    },
+    enabled: !!openCandidate?.id,
+    refetchInterval: (q) => {
+      const s = (q.state.data as any)?.processing_status;
+      return s === "pending" || s === "processing" ? 3000 : false;
+    },
+  });
+
+  const reprocessAsset = useMutation({
+    mutationFn: async (rowId: string) => {
+      const { error } = await supabase.functions.invoke("image-scout-enhance", {
+        body: { row_id: rowId, reprocess: true },
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Reprocessing started");
+      qc.invalidateQueries({ queryKey: ["image-scout-approved-asset"] });
+    },
+    onError: (e) => toast.error((e as Error).message),
+  });
+
   const enqueue = useMutation({
     mutationFn: async (payload: { skus: string[]; runNow: boolean }) => {
       const rows = payload.skus.map((sku) => {
