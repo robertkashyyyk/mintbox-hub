@@ -428,7 +428,7 @@ export default function ImageScout() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {jobsQ.data?.map((j) => {
+                  {jobsQ.data?.filter((j) => !logStatusFilter || j.status === logStatusFilter).map((j) => {
                     const r = resultsQ.data?.find((x) => x.sku === j.sku && (!j.finished_at || new Date(x.created_at) >= new Date(j.created_at)));
                     return (
                       <TableRow key={j.id}>
