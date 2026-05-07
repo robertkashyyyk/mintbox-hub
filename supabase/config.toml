@@ -62,3 +62,6 @@ verify_jwt = false
 [functions.mintsoft-create-po]
 verify_jwt = true
 
+[functions.mintsoft-discover-new-products]
+verify_jwt = false
+
