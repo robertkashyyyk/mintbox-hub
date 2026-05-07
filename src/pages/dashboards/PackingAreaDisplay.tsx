@@ -34,7 +34,7 @@ const PackingAreaDisplay = () => {
       return {
         awaiting: byStatus["AWAITINGPICKING"] ?? 0,
         newOrders: byStatus["NEW"] ?? 0,
-        picked: byStatus["PICKED"] ?? 0,
+        backorder: byStatus["ONBACKORDER"] ?? 0,
         capturedAt,
         hourly: (despatchedHist.data as Array<{ hr: string; despatched: number }> | null) ?? [],
       };
