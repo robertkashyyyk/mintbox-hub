@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Sparkles, Play, RefreshCw, ListChecks, AlertCircle, ImageIcon, History } from "lucide-react";
+import { Sparkles, Play, RefreshCw, ListChecks, AlertCircle, ImageIcon, History, RotateCw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { getProductImageUrl } from "@/lib/imageUrl";
@@ -177,6 +177,45 @@ export default function ImageScout() {
       qc.invalidateQueries({ queryKey: ["image-scout-review"] });
       qc.invalidateQueries({ queryKey: ["image-scout-results"] });
     },
+  });
+
+  const retryJob = useMutation({
+    mutationFn: async (job: Job) => {
+      const { data, error } = await supabase
+        .from("image_scout_jobs")
+        .insert({
+          sku: job.sku,
+          brand_id: job.brand_id,
+          mode: job.mode,
+          source_url: job.source_url,
+          override_search_term: job.override_search_term,
+        })
+        .select("id")
+        .single();
+      if (error) throw error;
+      const { error: invErr } = await supabase.functions.invoke("image-scout-process", {
+        body: { job_id: data.id },
+      });
+      if (invErr) throw invErr;
+    },
+    onSuccess: () => {
+      toast.success("Retry queued and processed");
+      qc.invalidateQueries({ queryKey: ["image-scout-jobs"] });
+      qc.invalidateQueries({ queryKey: ["image-scout-results"] });
+    },
+    onError: (e) => toast.error((e as Error).message),
+  });
+
+  const deleteJob = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("image_scout_jobs").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Job deleted");
+      qc.invalidateQueries({ queryKey: ["image-scout-jobs"] });
+    },
+    onError: (e) => toast.error((e as Error).message),
   });
 
   const stats = useMemo(() => {
@@ -425,11 +464,13 @@ export default function ImageScout() {
                     <TableHead>Outcome</TableHead>
                     <TableHead>Stored</TableHead>
                     <TableHead>Notes / Error</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {jobsQ.data?.filter((j) => !logStatusFilter || j.status === logStatusFilter).map((j) => {
                     const r = resultsQ.data?.find((x) => x.sku === j.sku && (!j.finished_at || new Date(x.created_at) >= new Date(j.created_at)));
+                    const canAct = j.status === "failed" || j.status === "needs_review" || j.status === "success";
                     return (
                       <TableRow key={j.id}>
                         <TableCell className="text-xs">{new Date(j.created_at).toLocaleString()}</TableCell>
@@ -446,6 +487,30 @@ export default function ImageScout() {
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground max-w-md whitespace-pre-wrap break-words">
                           {j.error || r?.notes || ""}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex gap-1 justify-end">
+                            {canAct && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={retryJob.isPending}
+                                onClick={() => retryJob.mutate(j)}
+                                title="Retry"
+                              >
+                                <RotateCw className="h-3 w-3" />
+                              </Button>
+                            )}
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              disabled={deleteJob.isPending}
+                              onClick={() => deleteJob.mutate(j.id)}
+                              title="Delete"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     );
