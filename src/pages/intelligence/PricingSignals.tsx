@@ -133,9 +133,11 @@ const PricingSignals = () => {
   const weekKey = `${year}-W${String(week).padStart(2, "0")}`;
 
   const [bandFilter, setBandFilter] = useState<"all" | Band>("all");
+  const [brandFilter, setBrandFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [targetPor, setTargetPor] = useState<number>(20); // %
   const [selected, setSelected] = useState<Record<string, boolean>>({});
+  const [priceOverrides, setPriceOverrides] = useState<Record<string, number>>({}); // inc-VAT
 
   // Pull previous-week lines (paged through 1k limit)
   const { data: lines = [], isLoading } = useQuery({
