@@ -3618,6 +3618,13 @@ export type Database = {
           despatched_count: number
         }[]
       }
+      get_despatch_hourly_today: {
+        Args: never
+        Returns: {
+          despatched: number
+          hr: string
+        }[]
+      }
       get_despatch_performance: {
         Args: { from_date: string; to_date: string }
         Returns: {
@@ -3647,6 +3654,15 @@ export type Database = {
           under_48h: number
           under_6h: number
           under_72h: number
+        }[]
+      }
+      get_despatch_today_vs_7d: {
+        Args: never
+        Returns: {
+          avg7_pct: number
+          today_on_time: number
+          today_pct: number
+          today_total: number
         }[]
       }
       get_edge_function_runs: {
