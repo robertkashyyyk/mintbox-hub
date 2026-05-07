@@ -254,14 +254,15 @@ const PricingSignals = () => {
 
     for (const r of flaggedRows) {
       currentProfit += r.profitTotal;
-      const newPrice = suggestedPrice(r.avgCost, r.avgFees, targetFrac);
-      if (newPrice <= 0) {
-        // can't reach target — keep current profit unchanged
+      const { retailIncVat, exVat } = suggestedRetailPrice(r.avgCost, r.avgCourier, r.feeRate, targetFrac);
+      if (retailIncVat <= 0) {
         projectedProfit += r.profitTotal;
         unfeasible += 1;
         continue;
       }
-      const newProfitPerUnit = newPrice - r.avgCost - r.avgFees;
+      // Recompute fees & profit at the new ex-VAT price
+      const newChannelFeePerUnit = exVat * 1.2 * r.feeRate;
+      const newProfitPerUnit = exVat - r.avgCost - r.avgCourier - newChannelFeePerUnit;
       projectedProfit += newProfitPerUnit * r.qty;
       affectedSkus += 1;
     }
