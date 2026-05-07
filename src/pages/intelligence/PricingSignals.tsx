@@ -491,6 +491,7 @@ const PricingSignals = () => {
                       </TableHead>
                       <TableHead>SKU</TableHead>
                       <TableHead>Product</TableHead>
+                      <TableHead>Brand</TableHead>
                       <TableHead>Band</TableHead>
                       <TableHead className="text-right">Qty</TableHead>
                       <TableHead className="text-right">Avg price (ex-VAT)</TableHead>
@@ -498,21 +499,24 @@ const PricingSignals = () => {
                       <TableHead className="text-right">Courier / unit</TableHead>
                       <TableHead className="text-right">Channel fee %</TableHead>
                       <TableHead className="text-right">Current POR</TableHead>
-                      <TableHead className="text-right">Suggested @ {targetPor}% (inc-VAT)</TableHead>
-                      <TableHead className="text-right">Δ vs current (inc-VAT)</TableHead>
+                      <TableHead className="text-right">New price (inc-VAT)</TableHead>
+                      <TableHead className="text-right">Δ vs current</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {isLoading ? (
-                      <TableRow><TableCell colSpan={12} className="text-center py-8 text-muted-foreground">Loading…</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={13} className="text-center py-8 text-muted-foreground">Loading…</TableCell></TableRow>
                     ) : flaggedRows.length === 0 ? (
-                      <TableRow><TableCell colSpan={12} className="text-center py-8 text-muted-foreground">No flagged SKUs in this view.</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={13} className="text-center py-8 text-muted-foreground">No flagged SKUs in this view.</TableCell></TableRow>
                     ) : (
                       flaggedRows.slice(0, 500).map((r) => {
-                        const { retailIncVat } = suggestedRetailPrice(r.avgCost, r.avgCourier, r.feeRate, targetPor / 100);
+                        const suggested = suggestedRetailPrice(r.avgCost, r.avgCourier, r.feeRate, targetPor / 100).retailIncVat;
+                        const override = priceOverrides[r.sku];
+                        const newPrice = override && override > 0 ? override : suggested;
                         const currentRetailIncVat = r.avgPrice * 1.2;
-                        const delta = retailIncVat - currentRetailIncVat;
-                        const reachable = retailIncVat > 0;
+                        const delta = newPrice - currentRetailIncVat;
+                        const reachable = newPrice > 0;
+                        const isOverride = !!(override && override > 0);
                         return (
                           <TableRow key={r.sku}>
                             <TableCell>
@@ -524,6 +528,7 @@ const PricingSignals = () => {
                             </TableCell>
                             <TableCell className="font-mono text-xs">{r.sku}</TableCell>
                             <TableCell className="max-w-xs truncate">{r.product_name || "—"}</TableCell>
+                            <TableCell className="text-xs text-muted-foreground">{brandName(r.brand_id)}</TableCell>
                             <TableCell>
                               <Badge variant="outline" className={BAND_META[r.band].tone}>
                                 {BAND_META[r.band].label}
@@ -535,8 +540,35 @@ const PricingSignals = () => {
                             <TableCell className="text-right tabular-nums">{fmtGBP(r.avgCourier)}</TableCell>
                             <TableCell className="text-right tabular-nums">{(r.feeRate * 100).toFixed(1)}%</TableCell>
                             <TableCell className="text-right tabular-nums">{r.currentPor.toFixed(1)}%</TableCell>
-                            <TableCell className="text-right tabular-nums font-semibold">
-                              {reachable ? fmtGBP(retailIncVat) : <span className="text-muted-foreground">unreachable</span>}
+                            <TableCell className="text-right tabular-nums">
+                              <div className="flex items-center justify-end gap-1">
+                                <span className="text-muted-foreground text-xs">£</span>
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  value={isOverride ? override : (suggested > 0 ? suggested.toFixed(2) : "")}
+                                  onChange={(e) => {
+                                    const v = parseFloat(e.target.value);
+                                    setPriceOverrides((p) => {
+                                      const next = { ...p };
+                                      if (!isFinite(v) || v <= 0) delete next[r.sku];
+                                      else next[r.sku] = v;
+                                      return next;
+                                    });
+                                  }}
+                                  className={`h-8 w-24 text-right tabular-nums ${isOverride ? "border-pd-accent" : ""}`}
+                                  placeholder={suggested > 0 ? suggested.toFixed(2) : "—"}
+                                />
+                                {isOverride && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setPriceOverrides((p) => { const n = { ...p }; delete n[r.sku]; return n; })}
+                                    className="text-xs text-muted-foreground hover:text-foreground"
+                                    title="Reset to suggested"
+                                  >×</button>
+                                )}
+                              </div>
                             </TableCell>
                             <TableCell className={`text-right tabular-nums ${delta >= 0 ? "text-band-good" : "text-band-loss"}`}>
                               {reachable ? `${delta >= 0 ? "+" : ""}${fmtGBP(delta)}` : "—"}
