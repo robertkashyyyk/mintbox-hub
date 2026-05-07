@@ -89,6 +89,7 @@ import LsaCalibration from "./pages/decisions/LsaCalibration";
 import LiquidationCandidates from "./pages/decisions/LiquidationCandidates";
 import PriceMoves from "./pages/decisions/PriceMoves";
 import BundleSuggestions from "./pages/decisions/BundleSuggestions";
+import ThreedsReprice from "./pages/decisions/ThreedsReprice";
 
 // Admin Pages
 import BillingUsage from "./pages/admin/BillingUsage";
@@ -193,6 +194,7 @@ const App = () => (
             <Route path="/decisions/liquidation" element={<LiquidationCandidates />} />
             <Route path="/decisions/price-moves" element={<PriceMoves />} />
             <Route path="/decisions/bundles" element={<BundleSuggestions />} />
+            <Route path="/decisions/threeds-reprice" element={<ThreedsReprice />} />
 
             {/* Execution Sub-Routes */}
             <Route path="/execution/purchase-orders" element={<PurchaseOrders />} />

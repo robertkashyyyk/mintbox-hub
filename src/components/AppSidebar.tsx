@@ -122,6 +122,7 @@ export function AppSidebar() {
         { title: "Liquidation Candidates", url: "/decisions/liquidation", icon: Flame },
         { title: "Price Moves", url: "/decisions/price-moves", icon: TrendingDown },
         { title: "Bundle Suggestions", url: "/decisions/bundles", icon: Package },
+        { title: "3D Reprice", url: "/decisions/threeds-reprice", icon: Plug },
       ],
     },
     {
