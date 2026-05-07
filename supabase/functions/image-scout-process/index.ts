@@ -486,9 +486,10 @@ async function buildCandidates(job: Job, brand: Brand, profile: BrandProfile): P
 async function processJob(job: Job): Promise<{ outcome: string; detail?: string }> {
   await setJobStatus(job.id, "running", { started_at: new Date().toISOString() });
   const brand = await getBrand(job.brand_id);
+  const profile = await getBrandProfile(job.brand_id);
   const cleanSku = stripPrefix(job.sku, brand?.prefix ?? null);
 
-  const { candidates, notes } = await buildCandidates(job, brand);
+  const { candidates, notes } = await buildCandidates(job, brand, profile);
   console.log(`Job ${job.sku}: ${candidates.length} candidates. ${notes.join(" | ")}`);
 
   if (candidates.length === 0) {
@@ -497,12 +498,33 @@ async function processJob(job: Job): Promise<{ outcome: string; detail?: string 
     return { outcome: "no_match" };
   }
 
-  // AI ranking
-  const order = await aiPickBestImage(job.sku, cleanSku, brand?.name ?? "", candidates);
-  const ranked = order.map((i) => candidates[i]);
+  // Candidates are already scored & sorted. Optionally augment with AI ranking on the top 12.
+  const topForAi = candidates.slice(0, 12);
+  const aiOrder = await aiPickBestImage(job.sku, cleanSku, brand?.name ?? "", topForAi);
+  const ranked: Candidate[] = [
+    ...aiOrder.map((i) => topForAi[i]),
+    ...candidates.slice(12),
+  ];
 
   let bestSmall: { c: Candidate; dims: { w: number; h: number } } | null = null;
   let attempted = 0;
+  let pickedUrl: string | null = null;
+
+  const finalize = async (outcome: string, status: string, fields: Record<string, unknown>, picked?: string | null) => {
+    pickedUrl = picked ?? null;
+    await recordCandidates(job.id, job.sku, job.brand_id, candidates, pickedUrl);
+    if (pickedUrl && job.brand_id) {
+      const winner = candidates.find((c) => c.imageUrl === pickedUrl);
+      const host = hostOf(winner?.pageUrl) || hostOf(winner?.imageUrl);
+      const preferred = new Set((profile?.preferred_domains ?? []).map((d) => d.replace(/^www\./, "")));
+      if (host && !preferred.has(host)) await recordSuggestion(job.brand_id, "domain", host);
+      if (winner?.fromTemplate && !(profile?.search_templates ?? []).includes(winner.fromTemplate)) {
+        await recordSuggestion(job.brand_id, "template", winner.fromTemplate);
+      }
+    }
+    await recordResult(job, outcome, fields);
+    await setJobStatus(job.id, status, { finished_at: new Date().toISOString(), ...(fields.error ? { error: fields.error } : {}) });
+  };
 
   for (const c of ranked) {
     if (attempted >= MAX_CANDIDATES_TO_TRY) break;
@@ -512,27 +534,25 @@ async function processJob(job: Job): Promise<{ outcome: string; detail?: string 
     const dims = imageDims(fetched.bytes);
     if (!dims) continue;
     const ar = dims.w / dims.h;
-    if (ar < MIN_AR || ar > MAX_AR) continue; // banner/strip — skip
+    if (ar < MIN_AR || ar > MAX_AR) continue;
 
     if (dims.w >= MIN_DIM && dims.h >= MIN_DIM) {
       const cleaned = await bgRemoveAndNormalise(fetched.bytes, fetched.ct);
       if (!cleaned) {
-        await recordResult(job, "watermark_review", {
+        await finalize("watermark_review", "needs_review", {
           source_page_url: c.pageUrl, source_image_url: c.imageUrl,
           raw_width: dims.w, raw_height: dims.h,
-          notes: `bg-removal failed via ${c.source}; review. ${notes.join(" | ")}`,
+          notes: `bg-removal failed via ${c.source} (score ${c.score}); review. ${notes.join(" | ")}`,
         });
-        await setJobStatus(job.id, "needs_review", { finished_at: new Date().toISOString() });
         return { outcome: "watermark_review" };
       }
       try {
         const path = await uploadFinal(job.sku, cleaned);
-        await recordResult(job, "stored", {
+        await finalize("stored", "success", {
           source_page_url: c.pageUrl, source_image_url: c.imageUrl,
           raw_width: dims.w, raw_height: dims.h, storage_path: path,
-          notes: `via ${c.source} (attempt ${attempted}/${ranked.length}). ${notes.join(" | ")}`,
-        });
-        await setJobStatus(job.id, "success", { finished_at: new Date().toISOString() });
+          notes: `via ${c.source} score=${c.score} tpl="${c.fromTemplate ?? "-"}" (attempt ${attempted}/${ranked.length}). ${notes.join(" | ")}`,
+        }, c.imageUrl);
         return { outcome: "stored", detail: path };
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
@@ -547,17 +567,19 @@ async function processJob(job: Job): Promise<{ outcome: string; detail?: string 
   }
 
   if (bestSmall) {
-    await recordResult(job, "low_res", {
+    await finalize("low_res", "needs_review", {
       source_page_url: bestSmall.c.pageUrl, source_image_url: bestSmall.c.imageUrl,
       raw_width: bestSmall.dims.w, raw_height: bestSmall.dims.h,
       notes: `${attempted} candidates tried, all under ${MIN_DIM}px or wrong aspect. Best: ${bestSmall.dims.w}x${bestSmall.dims.h} via ${bestSmall.c.source}. ${notes.join(" | ")}`,
+      error: "low resolution",
     });
-    await setJobStatus(job.id, "needs_review", { finished_at: new Date().toISOString(), error: "low resolution" });
     return { outcome: "low_res" };
   }
 
-  await recordResult(job, "no_match", { notes: `tried ${attempted} candidates, none usable. ${notes.join(" | ")}` });
-  await setJobStatus(job.id, "failed", { finished_at: new Date().toISOString(), error: `tried ${attempted} candidates` });
+  await finalize("no_match", "failed", {
+    notes: `tried ${attempted} candidates, none usable. ${notes.join(" | ")}`,
+    error: `tried ${attempted} candidates`,
+  });
   return { outcome: "no_match" };
 }
 
