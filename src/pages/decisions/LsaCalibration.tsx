@@ -209,11 +209,16 @@ const LsaCalibration = () => {
     onError: (e: any) => toast({ title: "Update failed", description: e?.message ?? String(e), variant: "destructive" }),
   });
 
+  const selectedRows = useMemo(
+    () => filtered.filter((r) => selected[r.sku]),
+    [filtered, selected]
+  );
+
   const pushSelectedOrDirty = () => {
-    const selectedDirty = dirtyRows.filter((r) => selected[r.sku]);
-    const target = selectedDirty.length > 0 ? selectedDirty : dirtyRows;
+    // Priority: explicit selection > dirty rows
+    const target = selectedRows.length > 0 ? selectedRows : dirtyRows;
     if (!target.length) {
-      toast({ title: "Nothing to push", description: "No proposed changes detected.", variant: "destructive" });
+      toast({ title: "Nothing to push", description: "Select rows or change proposed values first.", variant: "destructive" });
       return;
     }
     updateMintsoft.mutate(target);
