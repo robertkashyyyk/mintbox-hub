@@ -281,16 +281,27 @@ const BuyRecommendations = () => {
   if (!supplierView) {
     return (
       <div className="space-y-6">
-        <div className="flex items-start justify-between gap-4 flex-wrap">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
             <h1 className="text-3xl font-bold tracking-tight text-foreground">Buy Recommendations</h1>
             <p className="text-foreground/60">Pick a supplier to review SKUs and create a draft PO.</p>
           </div>
-          {pendingCount > 0 && (
-            <Badge className="bg-pd-accent text-pd-accent-foreground">
-              {pendingCount} SKU{pendingCount === 1 ? "" : "s"} suppressed (PO sent)
-            </Badge>
-          )}
+          <div className="flex items-center gap-3">
+            <Button
+              variant="outlineDark"
+              size="sm"
+              onClick={refreshStock}
+              disabled={refreshing}
+            >
+              {refreshing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+              Refresh stock
+            </Button>
+            {pendingCount > 0 && (
+              <Badge className="bg-pd-accent text-pd-accent-foreground">
+                {pendingCount} SKU{pendingCount === 1 ? "" : "s"} suppressed (PO sent)
+              </Badge>
+            )}
+          </div>
         </div>
 
         <div className="grid gap-4 md:grid-cols-4">
