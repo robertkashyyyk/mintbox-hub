@@ -519,6 +519,24 @@ Deno.serve(async (req) => {
         const { error } = await supabase.from("order_lines").upsert(upsertPayloads, { onConflict: "mintsoft_order_id,line_index" });
         if (error) console.error("Upsert error:", error);
         else linesInserted += upsertPayloads.length;
+
+        // Write history rows for newly-inserted lines so terminal-only first
+        // sightings (e.g. order found already DESPATCHED) still count in
+        // get_despatch_hourly_today and feed the bouncing detector.
+        const histRows = upsertPayloads
+          .filter((p: any) => p.order_status)
+          .map((p: any) => ({
+            mintsoft_order_id: p.mintsoft_order_id,
+            line_index: p.line_index,
+            from_status: null,
+            to_status: p.order_status,
+            changed_at: now,
+          }));
+        for (let i = 0; i < histRows.length; i += 500) {
+          const batch = histRows.slice(i, i + 500);
+          const { error: hErr } = await supabase.from("order_status_history").insert(batch);
+          if (hErr) console.error("new-order history insert error:", hErr);
+        }
       }
 
       console.log(`Chunk ${c + CHUNK}/${newOrders.length}: ${linesInserted} lines saved so far`);
