@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { Settings, Shield, AlertTriangle, ArrowLeft, Package, Clock, Gauge, SlidersHorizontal } from "lucide-react";
+import { Settings, Shield, AlertTriangle, ArrowLeft, Package, Clock, Gauge, SlidersHorizontal, Truck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
@@ -10,6 +10,8 @@ import { useAppSetting, useUpdateAppSetting } from "@/hooks/useAppSettings";
 import { useToast } from "@/hooks/use-toast";
 import { AccessGate } from "@/components/AccessGate";
 import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 interface ToleranceBands {
   critical: number;
