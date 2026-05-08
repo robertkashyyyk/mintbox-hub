@@ -42,6 +42,8 @@ const LsaCalibration = () => {
   const [statusFilter, setStatusFilter] = useState<string>(ALL);
   const [proposed, setProposed] = useState<Record<string, number>>({});
   const [selected, setSelected] = useState<Record<string, boolean>>({});
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(100);
 
   const brands = useMemo(() => {
     const m = new Map<string, string>();
@@ -59,6 +61,20 @@ const LsaCalibration = () => {
       return true;
     });
   }, [rows, search, brandFilter, statusFilter]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setPage(1);
+  }, [search, brandFilter, statusFilter, pageSize]);
+
+  // Paged slice
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const pageStart = (safePage - 1) * pageSize;
+  const pageRows = useMemo(
+    () => filtered.slice(pageStart, pageStart + pageSize),
+    [filtered, pageStart, pageSize]
+  );
 
   // Trim selections outside current view
   useEffect(() => {
@@ -92,7 +108,7 @@ const LsaCalibration = () => {
     [filtered, proposed]
   );
 
-  const allOnPageSelected = filtered.length > 0 && filtered.every((r) => selected[r.sku]);
+  const allOnPageSelected = pageRows.length > 0 && pageRows.every((r) => selected[r.sku]);
 
   const applyTargetToFiltered = () => {
     setProposed((prev) => {
@@ -251,11 +267,18 @@ const LsaCalibration = () => {
                     <Checkbox
                       checked={allOnPageSelected}
                       onCheckedChange={() => {
-                        if (allOnPageSelected) setSelected({});
-                        else {
-                          const n: Record<string, boolean> = {};
-                          for (const r of filtered) n[r.sku] = true;
-                          setSelected(n);
+                        if (allOnPageSelected) {
+                          setSelected((prev) => {
+                            const next = { ...prev };
+                            for (const r of pageRows) delete next[r.sku];
+                            return next;
+                          });
+                        } else {
+                          setSelected((prev) => {
+                            const next = { ...prev };
+                            for (const r of pageRows) next[r.sku] = true;
+                            return next;
+                          });
                         }
                       }}
                     />
@@ -282,7 +305,7 @@ const LsaCalibration = () => {
                     No SKUs match the current filters.
                   </TableCell></TableRow>
                 ) : (
-                  filtered.map((r) => {
+                  pageRows.map((r) => {
                     const meta = STATUS_META[r.status as StatusKey];
                     const p = proposedFor(r);
                     const dirty = Math.round(p) !== Math.round(r.current_lsa);
@@ -328,11 +351,32 @@ const LsaCalibration = () => {
                 )}
               </TableBody>
             </Table>
-            {filtered.length > 1000 && (
-              <div className="p-3 text-center text-xs text-muted-foreground border-t">
-                Rendering {filtered.length.toLocaleString()} rows — narrow filters if the page feels sluggish.
+            {/* Pagination footer */}
+            <div className="flex items-center justify-between gap-4 p-3 border-t flex-wrap">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <span>Rows per page</span>
+                <Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v))}>
+                  <SelectTrigger className="h-8 w-[90px]"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {[50, 100, 200, 500, 1000].map((n) => (
+                      <SelectItem key={n} value={String(n)}>{n}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <span className="ml-2">
+                  {filtered.length === 0
+                    ? "0 rows"
+                    : `${(pageStart + 1).toLocaleString()}–${Math.min(pageStart + pageSize, filtered.length).toLocaleString()} of ${filtered.length.toLocaleString()}`}
+                </span>
               </div>
-            )}
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={() => setPage(1)} disabled={safePage <= 1}>« First</Button>
+                <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={safePage <= 1}>‹ Prev</Button>
+                <span className="text-sm text-muted-foreground tabular-nums">Page {safePage} of {totalPages}</span>
+                <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={safePage >= totalPages}>Next ›</Button>
+                <Button variant="outline" size="sm" onClick={() => setPage(totalPages)} disabled={safePage >= totalPages}>Last »</Button>
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>
