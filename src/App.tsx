@@ -179,6 +179,7 @@ const App = () => (
             <Route path="/discovery/image-scout" element={<ImageScout />} />
             <Route path="/discovery/image-scout/brand-profiles" element={<ImageScoutBrandProfiles />} />
             <Route path="/discovery/image-scout/qa-run" element={<ImageScoutQARun />} />
+            <Route path="/discovery/image-scout/calibration" element={<ImageScoutCalibration />} />
 
             {/* Intelligence Sub-Routes */}
             <Route path="/intelligence/velocity" element={<VelocityCoverage />} />
