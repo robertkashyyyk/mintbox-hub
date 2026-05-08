@@ -1,6 +1,10 @@
 // Mintsoft LSA bulk update
-// POST { items: [{ sku: string, mintsoft_product_id: number, low_stock_alert_level: number }] }
-// Pulls full product object from Mintsoft, sets LowStockAlertLevel, posts back, mirrors to products_cache.
+// POST { items: [{ sku, mintsoft_product_id, low_stock_alert_level }] }
+// Sends MINIMAL payload {ID, LowStockAlertLevel} to /api/Product (Mintsoft's
+// update endpoint), then verifies by re-fetching the product. Echoing the full
+// product object back triggers silent validation failures
+// (e.g. "One or more pallet sizes are not valid!") where Mintsoft returns
+// HTTP 200 with Success:false, so we MUST check that flag and verify.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0'
 
 const corsHeaders = {
@@ -43,7 +47,7 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     )
 
-    const results: Array<{ sku: string; ok: boolean; error?: string }> = []
+    const results: Array<{ sku: string; ok: boolean; error?: string; verified?: number }> = []
 
     for (const it of items) {
       try {
@@ -52,21 +56,13 @@ Deno.serve(async (req) => {
           continue
         }
 
-        // 1. Fetch current product
-        const getRes = await fetch(`${MINTSOFT_BASE}/api/Product/${it.mintsoft_product_id}`, {
-          headers: { 'ms-apikey': MS_KEY, Accept: 'application/json' },
-        })
-        if (!getRes.ok) {
-          const txt = await getRes.text()
-          results.push({ sku: it.sku, ok: false, error: `GET ${getRes.status}: ${txt.slice(0, 200)}` })
-          continue
+        const targetLsa = Math.round(it.low_stock_alert_level)
+
+        // 1. POST minimal payload — Mintsoft treats this as an update when ID is present.
+        const payload = {
+          ID: it.mintsoft_product_id,
+          LowStockAlertLevel: targetLsa,
         }
-        const product = await getRes.json()
-
-        // 2. Mutate LSA
-        product.LowStockAlertLevel = Math.round(it.low_stock_alert_level)
-
-        // 3. POST back full product
         const postRes = await fetch(`${MINTSOFT_BASE}/api/Product`, {
           method: 'POST',
           headers: {
@@ -74,21 +70,49 @@ Deno.serve(async (req) => {
             'Content-Type': 'application/json',
             Accept: 'application/json',
           },
-          body: JSON.stringify(product),
+          body: JSON.stringify(payload),
         })
+        const postText = await postRes.text()
         if (!postRes.ok) {
-          const txt = await postRes.text()
-          results.push({ sku: it.sku, ok: false, error: `POST ${postRes.status}: ${txt.slice(0, 200)}` })
+          results.push({ sku: it.sku, ok: false, error: `POST ${postRes.status}: ${postText.slice(0, 200)}` })
+          continue
+        }
+        // Mintsoft can return 200 with Success:false — must check.
+        let parsed: any = null
+        try { parsed = JSON.parse(postText) } catch { /* ignore */ }
+        if (parsed && parsed.Success === false) {
+          results.push({ sku: it.sku, ok: false, error: `Mintsoft rejected: ${parsed.Message ?? postText.slice(0, 200)}` })
           continue
         }
 
-        // 4. Mirror to local cache
+        // 2. Verify by re-fetching
+        const verifyRes = await fetch(`${MINTSOFT_BASE}/api/Product/${it.mintsoft_product_id}`, {
+          headers: { 'ms-apikey': MS_KEY, Accept: 'application/json' },
+        })
+        if (!verifyRes.ok) {
+          const txt = await verifyRes.text()
+          results.push({ sku: it.sku, ok: false, error: `Verify GET ${verifyRes.status}: ${txt.slice(0, 200)}` })
+          continue
+        }
+        const verified = await verifyRes.json()
+        const verifiedLsa = Number(verified?.LowStockAlertLevel ?? 0)
+        if (Math.round(verifiedLsa) !== targetLsa) {
+          results.push({
+            sku: it.sku,
+            ok: false,
+            error: `Mintsoft accepted but LSA still ${verifiedLsa} (expected ${targetLsa})`,
+            verified: verifiedLsa,
+          })
+          continue
+        }
+
+        // 3. Mirror to local cache (only after Mintsoft confirms)
         await admin
           .from('products_cache')
-          .update({ low_stock_alert_level: it.low_stock_alert_level })
+          .update({ low_stock_alert_level: targetLsa })
           .eq('sku', it.sku)
 
-        results.push({ sku: it.sku, ok: true })
+        results.push({ sku: it.sku, ok: true, verified: verifiedLsa })
       } catch (e: any) {
         results.push({ sku: it.sku, ok: false, error: e?.message ?? String(e) })
       }
