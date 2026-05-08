@@ -5,11 +5,26 @@ import { Maximize2, RefreshCw, Package, Clock, Target, TrendingUp, Volume2, Volu
 import { format } from "date-fns";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
+import { BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 import { useEffect, useRef, useState } from "react";
 
 const REFRESH_MS = 60_000;
-const TARGET_PER_HOUR = 40;
+const TARGET_PER_HOUR = 80;
+const TARGET_PER_HALFHOUR = 40;
+
+// Half-hour throughput colour bands (count → semantic token)
+const bandForCount = (n: number): string => {
+  if (n < 8) return "hsl(var(--destructive))"; // dark red
+  if (n < 16) return "hsl(0 75% 60%)"; // red
+  if (n < 24) return "hsl(25 90% 55%)"; // orange
+  if (n < 32) return "hsl(var(--warning))"; // yellow
+  if (n < 40) return "hsl(140 55% 45%)"; // green
+  if (n < 50) return "hsl(200 80% 60%)"; // light blue
+  return "hsl(240 60% 60%)"; // indigo
+};
+
+// SLA targets (% of today's despatches that should be inside each window)
+const SLA_TARGETS = { under_6h: 60, under_12h: 85, under_24h: 95 } as const;
 
 const PackingAreaDisplay = () => {
   const containerRef = useRef<HTMLDivElement>(null);
