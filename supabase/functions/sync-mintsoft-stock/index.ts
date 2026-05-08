@@ -89,22 +89,50 @@ Deno.serve(async (req) => {
 
     // Fetch stock levels from Mintsoft
     // WarehouseId=5 is 'Coleraine Live'
-    const stockUrl = `${settings.base_url}/api/Product/StockLevels?WarehouseId=5`;
-    
-    console.log(`Fetching from Mintsoft: ${stockUrl}`);
-    
-    const stockResponse = await fetch(stockUrl, {
-      headers: {
-        "ms-apikey": mintsoftApiKey,
-        "Content-Type": "application/json",
-      },
-    });
+    let stockData: MintsoftStockItem[] = [];
 
-    if (!stockResponse.ok) {
-      throw new Error(`Mintsoft API error: ${stockResponse.status} ${stockResponse.statusText}`);
+    if (scopeSkus && scopeSkus.length > 0) {
+      // Per-SKU fetch — pulling the entire warehouse list (~200k rows) just to
+      // refresh 40-100 SKUs times out. Hit StockLevels with &SKU= for each one
+      // and fan them out in small concurrent batches.
+      console.log(`Fetching ${scopeSkus.length} SKUs individually from Mintsoft...`);
+      const concurrency = 8;
+      let idx = 0;
+      let failed = 0;
+      const workers = Array.from({ length: concurrency }, async () => {
+        while (true) {
+          const i = idx++;
+          if (i >= scopeSkus!.length) return;
+          const sku = scopeSkus![i];
+          const url = `${settings.base_url}/api/Product/StockLevels?WarehouseId=5&SKU=${encodeURIComponent(sku)}`;
+          try {
+            const r = await fetch(url, {
+              headers: { "ms-apikey": mintsoftApiKey, "Content-Type": "application/json" },
+            });
+            if (!r.ok) { failed++; continue; }
+            const arr = await r.json();
+            if (Array.isArray(arr)) {
+              for (const it of arr) stockData.push(it);
+            }
+          } catch (e) {
+            failed++;
+            console.error(`Fetch failed for ${sku}:`, e);
+          }
+        }
+      });
+      await Promise.all(workers);
+      console.log(`Per-SKU fetch complete: ${stockData.length} rows, ${failed} failures`);
+    } else {
+      const stockUrl = `${settings.base_url}/api/Product/StockLevels?WarehouseId=5`;
+      console.log(`Fetching from Mintsoft: ${stockUrl}`);
+      const stockResponse = await fetch(stockUrl, {
+        headers: { "ms-apikey": mintsoftApiKey, "Content-Type": "application/json" },
+      });
+      if (!stockResponse.ok) {
+        throw new Error(`Mintsoft API error: ${stockResponse.status} ${stockResponse.statusText}`);
+      }
+      stockData = await stockResponse.json();
     }
-
-    const stockData: MintsoftStockItem[] = await stockResponse.json();
     console.log(`Received ${stockData.length} stock items from Mintsoft`);
 
     // Build a SKU set we already track
