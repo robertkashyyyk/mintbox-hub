@@ -273,6 +273,7 @@ const Brands = () => {
                   <TableHead>Prefix Style</TableHead>
                   <TableHead>Family</TableHead>
                   <TableHead>Base Multiplier</TableHead>
+                  <TableHead>Auto LSA</TableHead>
                   <TableHead className="text-right">Product Count</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -299,6 +300,13 @@ const Brands = () => {
                         <span className="font-medium">{brand.base_multiplier}</span>
                       ) : (
                         <span className="text-destructive font-bold bg-destructive/10 px-2 py-1 rounded">Missing</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {brand.auto_update_lsa ? (
+                        <Badge className="bg-pd-accent/15 text-pd-accent border-pd-accent/40" variant="outline">On</Badge>
+                      ) : (
+                        <span className="text-muted-foreground text-xs">Off</span>
                       )}
                     </TableCell>
                     <TableCell className="text-right font-medium">
