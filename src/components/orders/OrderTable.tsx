@@ -182,7 +182,7 @@ export default function OrderTable({
                   </span>
                 </TableHead>
               ))}
-              <TableHead>PO Status</TableHead>
+              <TableHead>On Order</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
