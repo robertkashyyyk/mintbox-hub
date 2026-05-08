@@ -12,7 +12,7 @@ import {
   Inbox,
   Activity,
 } from "lucide-react";
-import DiagnosticBanner from "@/components/DiagnosticBanner";
+
 import OrderFilters from "@/components/orders/OrderFilters";
 import OrderTable from "@/components/orders/OrderTable";
 import OrderDetail from "@/components/orders/OrderDetail";
@@ -71,7 +71,6 @@ const SalesOrders = () => {
         </div>
       </div>
 
-      <DiagnosticBanner />
 
       {/* 4 focused metric cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

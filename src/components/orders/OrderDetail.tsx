@@ -51,9 +51,9 @@ export default function OrderDetail({ line, onClose }: OrderDetailProps) {
           <div className="flex flex-wrap gap-2">
             <StatusPill kind={line.problem_kind} />
             <Badge variant="outline" className="text-xs">{line.order_status}</Badge>
-            {line.on_active_po && (
+            {line.on_order_qty > 0 && (
               <Badge variant="outline" className="text-xs bg-emerald-500/10 text-emerald-400 border-emerald-500/30">
-                <ShoppingCart className="h-3 w-3 mr-1" /> On active PO
+                <ShoppingCart className="h-3 w-3 mr-1" /> On Order
               </Badge>
             )}
           </div>
@@ -107,9 +107,9 @@ export default function OrderDetail({ line, onClose }: OrderDetailProps) {
                 <p className="font-medium">{line.on_order_qty}</p>
               </div>
               <div className="col-span-2">
-                <span className="text-muted-foreground text-xs">Active PO</span>
-                <p className={`font-medium ${line.on_active_po ? "text-emerald-400" : "text-destructive"}`}>
-                  {line.on_active_po ? "Yes — SKU is on a draft / sent PO" : "No active purchase order for this SKU"}
+                <span className="text-muted-foreground text-xs">On Order</span>
+                <p className={`font-medium ${line.on_order_qty > 0 ? "text-emerald-400" : "text-destructive"}`}>
+                  {line.on_order_qty > 0 ? `Yes — ${line.on_order_qty} on order with supplier` : "Not on order with supplier"}
                 </p>
               </div>
             </div>
