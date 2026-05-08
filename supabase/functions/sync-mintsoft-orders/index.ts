@@ -250,11 +250,18 @@ Deno.serve(async (req) => {
     const rotatedCold = coldStatusIds.length > 0
       ? [...coldStatusIds.slice(coldCursor % coldStatusIds.length), ...coldStatusIds.slice(0, coldCursor % coldStatusIds.length)]
       : [];
-    // Final order: HOT first (today's NEW/AWAITINGPICKING — small + critical),
-    // then rotated COLD, then terminal sweep LAST (largest, can be truncated
-    // safely because reconcile-order-ghosts handles deeper terminal reconciliation).
-    const statusIdsToFetch = [...hotStatusIds, ...rotatedCold, ...liveTailTerminalIds];
-    console.log(`Status priority: ${hotStatusIds.length} hot + ${rotatedCold.length} cold (cursor=${coldCursor}) + ${liveTailTerminalIds.length} terminal`);
+    // Guaranteed terminal seed: always pull the first few pages of each terminal
+    // status BEFORE hot/cold so today's despatches always land in order_status_history
+    // even when the rest of the run gets truncated. Newest-first + ~500 rows
+    // comfortably covers a UK day. Capped tightly so it can't starve hot.
+    const terminalSeedIds = ignoreDateFilter ? terminalStatusIds : [];
+    // Final order: terminal SEED first (small, fast, guaranteed), then HOT
+    // (today's NEW/AWAITINGPICKING — small + critical), then rotated COLD,
+    // then a deeper terminal sweep LAST (can be truncated safely because
+    // reconcile-order-ghosts handles deeper terminal reconciliation).
+    const statusIdsToFetch = [...terminalSeedIds, ...hotStatusIds, ...rotatedCold, ...liveTailTerminalIds];
+    const terminalSeedSet = new Set(terminalSeedIds);
+    console.log(`Status priority: ${terminalSeedIds.length} terminal-seed + ${hotStatusIds.length} hot + ${rotatedCold.length} cold (cursor=${coldCursor}) + ${liveTailTerminalIds.length} terminal-deep`);
 
     // 1. Fetch order headers across statuses in priority order
     let allOrders: MintsoftOrder[] = [];
