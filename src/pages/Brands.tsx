@@ -171,6 +171,7 @@ const Brands = () => {
       family: brand.family || "",
       remote_stock_feed_type: brand.remote_stock_feed_type || "",
       base_multiplier: brand.base_multiplier?.toString() || "",
+      auto_update_lsa: !!brand.auto_update_lsa,
     });
   };
 
@@ -194,6 +195,7 @@ const Brands = () => {
       family: editFormData.family || null,
       remote_stock_feed_type: editFormData.remote_stock_feed_type || null,
       base_multiplier: editFormData.base_multiplier ? Number(editFormData.base_multiplier) : null,
+      auto_update_lsa: editFormData.auto_update_lsa,
     };
     
     updateBrandMutation.mutate({
