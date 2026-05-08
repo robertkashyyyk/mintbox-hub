@@ -281,6 +281,7 @@ const Brands = () => {
                   <TableHead>Family</TableHead>
                   <TableHead>Base Multiplier</TableHead>
                   <TableHead>Auto LSA</TableHead>
+                  <TableHead>Stock Sync</TableHead>
                   <TableHead>Applied</TableHead>
                   <TableHead className="text-right">Product Count</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
