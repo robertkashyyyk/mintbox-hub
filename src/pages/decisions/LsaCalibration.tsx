@@ -305,7 +305,7 @@ const LsaCalibration = () => {
                     No SKUs match the current filters.
                   </TableCell></TableRow>
                 ) : (
-                  filtered.map((r) => {
+                  pageRows.map((r) => {
                     const meta = STATUS_META[r.status as StatusKey];
                     const p = proposedFor(r);
                     const dirty = Math.round(p) !== Math.round(r.current_lsa);
@@ -351,11 +351,32 @@ const LsaCalibration = () => {
                 )}
               </TableBody>
             </Table>
-            {filtered.length > 1000 && (
-              <div className="p-3 text-center text-xs text-muted-foreground border-t">
-                Rendering {filtered.length.toLocaleString()} rows — narrow filters if the page feels sluggish.
+            {/* Pagination footer */}
+            <div className="flex items-center justify-between gap-4 p-3 border-t flex-wrap">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <span>Rows per page</span>
+                <Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v))}>
+                  <SelectTrigger className="h-8 w-[90px]"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {[50, 100, 200, 500, 1000].map((n) => (
+                      <SelectItem key={n} value={String(n)}>{n}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <span className="ml-2">
+                  {filtered.length === 0
+                    ? "0 rows"
+                    : `${(pageStart + 1).toLocaleString()}–${Math.min(pageStart + pageSize, filtered.length).toLocaleString()} of ${filtered.length.toLocaleString()}`}
+                </span>
               </div>
-            )}
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={() => setPage(1)} disabled={safePage <= 1}>« First</Button>
+                <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={safePage <= 1}>‹ Prev</Button>
+                <span className="text-sm text-muted-foreground tabular-nums">Page {safePage} of {totalPages}</span>
+                <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={safePage >= totalPages}>Next ›</Button>
+                <Button variant="outline" size="sm" onClick={() => setPage(totalPages)} disabled={safePage >= totalPages}>Last »</Button>
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>
