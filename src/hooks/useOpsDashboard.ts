@@ -81,6 +81,7 @@ export const useOpsDashboard = () => {
         startOfDay,
         stageAgeingResult,
         hourlyFlowResult,
+        despatchLedgerToday,
       ] = await Promise.all([
         // Today's new orders (placed today) — count distinct via RPC-style query
         supabase
