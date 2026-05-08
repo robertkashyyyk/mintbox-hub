@@ -124,46 +124,26 @@ Deno.serve(async (req) => {
       if (!orders.length) { stopped = "empty_page"; break; }
       scanned += orders.length;
 
-      // Build per-page batch updates: only update lines where tracking_number IS NULL
-      const pageRows: Array<{ id: number; tn: string }> = [];
+      // Targeted updates only: scan every order's tracking, but only WRITE
+      // to order_lines for orders whose tracking matches a pending penalty.
+      // This keeps each page to ~0 db writes in the common case so we can
+      // scan deep history quickly.
       for (const o of orders) {
         const tn = (o.TrackingNumber || o.TrackingNo || o.Consignment || "").toString().trim();
         if (!tn || !o.ID) continue;
-        pageRows.push({ id: o.ID, tn });
         const upper = tn.toUpperCase();
-        if (targetsRemaining.has(upper)) {
-          targetsRemaining.delete(upper);
-          trackingMatches++;
-          matchedOrderIds.push(o.ID);
-        }
-      }
+        if (!targetsRemaining.has(upper)) continue;
 
-      if (pageRows.length) {
-        // Update each order's lines that lack tracking. Batch via in() per page
-        // to keep it to one round-trip per page.
-        const orderIds = pageRows.map(r => r.id);
-        const { data: lines } = await supabase
+        targetsRemaining.delete(upper);
+        trackingMatches++;
+        matchedOrderIds.push(o.ID);
+        const { error, count } = await supabase
           .from("order_lines")
-          .select("mintsoft_order_id, line_index")
-          .in("mintsoft_order_id", orderIds)
-          .is("tracking_number", null);
-        if (lines && lines.length) {
-          const tnByOrder = new Map(pageRows.map(r => [r.id, r.tn]));
-          // Group line ids per tracking value to UPDATE in one statement each.
-          // Postgres-via-PostgREST: do per-order updates (cheap because each
-          // order has 1-3 lines on average).
-          for (const id of orderIds) {
-            const tn = tnByOrder.get(id);
-            if (!tn) continue;
-            const { error, count } = await supabase
-              .from("order_lines")
-              .update({ tracking_number: tn })
-              .eq("mintsoft_order_id", id)
-              .is("tracking_number", null)
-              .select("mintsoft_order_id", { count: "exact", head: true });
-            if (!error) updatedRows += count ?? 0;
-          }
-        }
+          .update({ tracking_number: tn })
+          .eq("mintsoft_order_id", o.ID)
+          .is("tracking_number", null)
+          .select("mintsoft_order_id", { count: "exact", head: true });
+        if (!error) updatedRows += count ?? 0;
       }
 
       // Early exit: every still-unresolved penalty tracking number has been
