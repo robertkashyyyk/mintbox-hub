@@ -42,6 +42,8 @@ const LsaCalibration = () => {
   const [statusFilter, setStatusFilter] = useState<string>(ALL);
   const [proposed, setProposed] = useState<Record<string, number>>({});
   const [selected, setSelected] = useState<Record<string, boolean>>({});
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(100);
 
   const brands = useMemo(() => {
     const m = new Map<string, string>();
