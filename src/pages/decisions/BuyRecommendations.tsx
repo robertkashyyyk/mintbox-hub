@@ -75,16 +75,18 @@ const BuyRecommendations = () => {
   const { suppressionMap, hours: suppressionHours } = useSentPoSuppression();
   const [refreshing, setRefreshing] = useState(false);
 
-  const refreshStock = async () => {
+  const refreshStock = async (skus?: string[]) => {
     setRefreshing(true);
-    const { data, error } = await supabase.functions.invoke("sync-mintsoft-stock");
+    const { data, error } = await supabase.functions.invoke("sync-mintsoft-stock", {
+      body: skus && skus.length > 0 ? { skus } : {},
+    });
     setRefreshing(false);
     if (error) {
       toast({ title: "Refresh failed", description: error.message, variant: "destructive" });
     } else {
       toast({
         title: "Stock refreshed from Mintsoft",
-        description: `Updated ${(data as any)?.updated ?? 0} SKUs.`,
+        description: `Updated ${(data as any)?.updated ?? 0} SKUs${skus ? ` for this supplier` : ""}.`,
       });
       qc.invalidateQueries({ queryKey: ["buy-recommendations"] });
       qc.invalidateQueries({ queryKey: ["buy-recommendations-summary"] });
@@ -290,22 +292,11 @@ const BuyRecommendations = () => {
             <h1 className="text-3xl font-bold tracking-tight text-foreground">Buy Recommendations</h1>
             <p className="text-foreground/60">Pick a supplier to review SKUs and create a draft PO.</p>
           </div>
-          <div className="flex items-center gap-3">
-            <Button
-              variant="outlineDark"
-              size="sm"
-              onClick={refreshStock}
-              disabled={refreshing}
-            >
-              {refreshing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-              Refresh stock
-            </Button>
-            {pendingCount > 0 && (
-              <Badge className="bg-pd-accent text-pd-accent-foreground">
-                {pendingCount} SKU{pendingCount === 1 ? "" : "s"} suppressed (PO sent)
-              </Badge>
-            )}
-          </div>
+          {pendingCount > 0 && (
+            <Badge className="bg-pd-accent text-pd-accent-foreground">
+              {pendingCount} SKU{pendingCount === 1 ? "" : "s"} suppressed (PO sent)
+            </Badge>
+          )}
         </div>
 
         <div className="grid gap-4 md:grid-cols-4">
@@ -430,6 +421,16 @@ const BuyRecommendations = () => {
               {selectionSummary.count} selected • {selectionSummary.units.toLocaleString()} units • {formatGBP(selectionSummary.cost)}
             </span>
           )}
+          <Button
+            variant="outlineDark"
+            size="sm"
+            onClick={() => refreshStock(currentSupplier?.rows.map((r) => r.sku) || [])}
+            disabled={refreshing || !currentSupplier}
+            title="Pull live stock from Mintsoft for this supplier's SKUs only"
+          >
+            {refreshing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+            Refresh stock
+          </Button>
           <Button
             disabled={creating || selectionSummary.count === 0 || !currentSupplier?.supplierId}
             onClick={createDraftPo}
