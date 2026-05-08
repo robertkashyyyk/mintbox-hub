@@ -592,6 +592,29 @@ const Brands = () => {
               />
             </div>
 
+            <div className="space-y-2">
+              <Label htmlFor="stock_sync_interval_hours">Stock Sync Interval (hours)</Label>
+              <Select
+                value={editFormData.stock_sync_interval_hours}
+                onValueChange={(v) => setEditFormData({ ...editFormData, stock_sync_interval_hours: v })}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">Every 1 hour (high velocity)</SelectItem>
+                  <SelectItem value="2">Every 2 hours</SelectItem>
+                  <SelectItem value="4">Every 4 hours</SelectItem>
+                  <SelectItem value="6">Every 6 hours</SelectItem>
+                  <SelectItem value="12">Every 12 hours</SelectItem>
+                  <SelectItem value="24">Once a day (default)</SelectItem>
+                  <SelectItem value="48">Every 2 days</SelectItem>
+                  <SelectItem value="168">Once a week</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                The rotator runs every 15 minutes and refreshes brands whose data is older than this interval.
+              </p>
+            </div>
+
             <div className="rounded-md border border-border p-3 space-y-3">
               <div className="flex items-center justify-between">
                 <div>
