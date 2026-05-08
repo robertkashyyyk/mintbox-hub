@@ -305,12 +305,12 @@ const PackingAreaDisplay = () => {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
               <Clock className="h-4 w-4" />
-              Awaiting Picking
+              Awaiting Packing
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-5xl font-bold text-warning">{awaiting}</div>
-            <p className="text-sm text-muted-foreground mt-2">On pick lists, not yet picked</p>
+            <p className="text-sm text-muted-foreground mt-2">On pick lists or not yet packed</p>
           </CardContent>
         </Card>
 
