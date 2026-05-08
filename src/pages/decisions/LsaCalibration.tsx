@@ -94,27 +94,27 @@ const LsaCalibration = () => {
   }, [inDetail, brandParam, brandSummary, rows]);
 
 
+  // Brand list (for the inline brand selector inside detail mode)
   const brands = useMemo(() => {
     const m = new Map<string, string>();
-    for (const r of rows) if (r.brand_id && r.brand_name) m.set(r.brand_id, r.brand_name);
+    for (const b of brandSummary) if (b.brand_id && b.brand_name) m.set(b.brand_id, b.brand_name);
     return Array.from(m.entries()).map(([id, name]) => ({ id, name }))
       .sort((a, b) => a.name.localeCompare(b.name));
-  }, [rows]);
+  }, [brandSummary]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return rows.filter((r) => {
-      if (brandFilter !== ALL && r.brand_id !== brandFilter) return false;
       if (statusFilter !== ALL && r.status !== statusFilter) return false;
       if (q && !(r.sku.toLowerCase().includes(q) || (r.product_name || "").toLowerCase().includes(q))) return false;
       return true;
     });
-  }, [rows, search, brandFilter, statusFilter]);
+  }, [rows, search, statusFilter]);
 
   // Reset to page 1 when filters change
   useEffect(() => {
     setPage(1);
-  }, [search, brandFilter, statusFilter, pageSize]);
+  }, [search, statusFilter, pageSize, brandParam]);
 
   // Paged slice
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
