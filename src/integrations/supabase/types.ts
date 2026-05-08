@@ -386,6 +386,7 @@ export type Database = {
           remote_stock_feed_type:
             | Database["public"]["Enums"]["remote_stock_feed_type"]
             | null
+          stock_sync_interval_hours: number
         }
         Insert: {
           auto_update_lsa?: boolean
@@ -403,6 +404,7 @@ export type Database = {
           remote_stock_feed_type?:
             | Database["public"]["Enums"]["remote_stock_feed_type"]
             | null
+          stock_sync_interval_hours?: number
         }
         Update: {
           auto_update_lsa?: boolean
@@ -420,6 +422,7 @@ export type Database = {
           remote_stock_feed_type?:
             | Database["public"]["Enums"]["remote_stock_feed_type"]
             | null
+          stock_sync_interval_hours?: number
         }
         Relationships: []
       }
@@ -4139,6 +4142,7 @@ export type Database = {
           prefix_style: Database["public"]["Enums"]["prefix_style"]
           product_count: number
           remote_stock_feed_type: Database["public"]["Enums"]["remote_stock_feed_type"]
+          stock_sync_interval_hours: number
         }[]
       }
       get_buy_recommendations: {

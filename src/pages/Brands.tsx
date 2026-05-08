@@ -64,6 +64,7 @@ const Brands = () => {
     remote_stock_feed_type: "" as any,
     base_multiplier: "",
     auto_update_lsa: false,
+    stock_sync_interval_hours: "24",
   });
   const [runningLsaBrandId, setRunningLsaBrandId] = useState<string | null>(null);
   const [addFormData, setAddFormData] = useState({
@@ -73,6 +74,7 @@ const Brands = () => {
     family: "",
     remote_stock_feed_type: "" as any,
     base_multiplier: "",
+    stock_sync_interval_hours: "24",
   });
 
   const { data: brands, isLoading } = useQuery({
@@ -103,6 +105,7 @@ const Brands = () => {
         family: "",
         remote_stock_feed_type: "",
         base_multiplier: "",
+        stock_sync_interval_hours: "24",
       });
     },
     onError: (error) => {
@@ -172,6 +175,7 @@ const Brands = () => {
       remote_stock_feed_type: brand.remote_stock_feed_type || "",
       base_multiplier: brand.base_multiplier?.toString() || "",
       auto_update_lsa: !!brand.auto_update_lsa,
+      stock_sync_interval_hours: (brand.stock_sync_interval_hours ?? 24).toString(),
     });
   };
 
@@ -188,6 +192,7 @@ const Brands = () => {
       return;
     }
     
+    const interval = Math.max(1, Math.min(168, Number(editFormData.stock_sync_interval_hours) || 24));
     const updates = {
       name: editFormData.name,
       prefix: editFormData.prefix,
@@ -196,6 +201,7 @@ const Brands = () => {
       remote_stock_feed_type: editFormData.remote_stock_feed_type || null,
       base_multiplier: editFormData.base_multiplier ? Number(editFormData.base_multiplier) : null,
       auto_update_lsa: editFormData.auto_update_lsa,
+      stock_sync_interval_hours: interval,
     };
     
     updateBrandMutation.mutate({
@@ -235,6 +241,7 @@ const Brands = () => {
       family: addFormData.family || null,
       remote_stock_feed_type: addFormData.remote_stock_feed_type || null,
       base_multiplier: addFormData.base_multiplier ? Number(addFormData.base_multiplier) : null,
+      stock_sync_interval_hours: Math.max(1, Math.min(168, Number(addFormData.stock_sync_interval_hours) || 24)),
     });
   };
 
@@ -274,6 +281,7 @@ const Brands = () => {
                   <TableHead>Family</TableHead>
                   <TableHead>Base Multiplier</TableHead>
                   <TableHead>Auto LSA</TableHead>
+                  <TableHead>Stock Sync</TableHead>
                   <TableHead>Applied</TableHead>
                   <TableHead className="text-right">Product Count</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -309,6 +317,11 @@ const Brands = () => {
                       ) : (
                         <span className="text-muted-foreground text-xs">Off</span>
                       )}
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-xs text-muted-foreground">
+                        every {brand.stock_sync_interval_hours ?? 24}h
+                      </span>
                     </TableCell>
                     <TableCell>
                       <TooltipProvider>
@@ -577,6 +590,29 @@ const Brands = () => {
                   setEditFormData({ ...editFormData, base_multiplier: e.target.value })
                 }
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="stock_sync_interval_hours">Stock Sync Interval (hours)</Label>
+              <Select
+                value={editFormData.stock_sync_interval_hours}
+                onValueChange={(v) => setEditFormData({ ...editFormData, stock_sync_interval_hours: v })}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">Every 1 hour (high velocity)</SelectItem>
+                  <SelectItem value="2">Every 2 hours</SelectItem>
+                  <SelectItem value="4">Every 4 hours</SelectItem>
+                  <SelectItem value="6">Every 6 hours</SelectItem>
+                  <SelectItem value="12">Every 12 hours</SelectItem>
+                  <SelectItem value="24">Once a day (default)</SelectItem>
+                  <SelectItem value="48">Every 2 days</SelectItem>
+                  <SelectItem value="168">Once a week</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                The rotator runs every 15 minutes and refreshes brands whose data is older than this interval.
+              </p>
             </div>
 
             <div className="rounded-md border border-border p-3 space-y-3">

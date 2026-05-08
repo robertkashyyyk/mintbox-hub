@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -11,7 +12,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-  Search, Truck, Package, PoundSterling, Loader2, FilePlus2, ArrowLeft, ChevronRight, AlertTriangle, Clock,
+  Search, Truck, Package, PoundSterling, Loader2, FilePlus2, ArrowLeft, ChevronRight, AlertTriangle, Clock, RefreshCw,
 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
@@ -64,9 +65,27 @@ interface SupplierGroup {
 const BuyRecommendations = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const qc = useQueryClient();
   const { data: rows = [], isLoading } = useBuyRecommendationsRpc({ includePending: true });
   const { data: summary } = useBuyRecommendationsSummary();
   const { suppressionMap, hours: suppressionHours } = useSentPoSuppression();
+  const [refreshing, setRefreshing] = useState(false);
+
+  const refreshStock = async () => {
+    setRefreshing(true);
+    const { data, error } = await supabase.functions.invoke("sync-mintsoft-stock");
+    setRefreshing(false);
+    if (error) {
+      toast({ title: "Refresh failed", description: error.message, variant: "destructive" });
+    } else {
+      toast({
+        title: "Stock refreshed from Mintsoft",
+        description: `Updated ${(data as any)?.updated ?? 0} SKUs.`,
+      });
+      qc.invalidateQueries({ queryKey: ["buy-recommendations"] });
+      qc.invalidateQueries({ queryKey: ["buy-recommendations-summary"] });
+    }
+  };
 
   // Mode: null = supplier summary, otherwise the chosen supplierId (or "__unmapped__")
   const [supplierView, setSupplierView] = useState<string | null>(null);
