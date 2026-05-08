@@ -3615,6 +3615,35 @@ export type Database = {
           },
         ]
       }
+      lsa_brand_summary: {
+        Row: {
+          brand_id: string | null
+          brand_name: string | null
+          critical: number | null
+          excess: number | null
+          high: number | null
+          low: number | null
+          refreshed_at: string | null
+          target: number | null
+          total: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "products_cache_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "products_cache_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands_missing_base_multiplier"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       menu_for_user: {
         Row: {
           capability: Database["public"]["Enums"]["app_capability"] | null
@@ -4437,6 +4466,7 @@ export type Database = {
           sku_count: number
         }[]
       }
+      refresh_lsa_brand_summary: { Args: never; Returns: undefined }
       refresh_sku_health_now: { Args: never; Returns: undefined }
       user_area_capability: {
         Args: { area_key: string; uid?: string }
