@@ -197,7 +197,7 @@ function computeDomainRows(
   const urlSkus = new Map<string, Set<string>>();
   filtered.forEach((c) => {
     if (!c.source_domain) return;
-    const k = (c as any).image_url || c.id;
+    const k = c.image_url || c.id;
     if (!urlSkus.has(k)) urlSkus.set(k, new Set());
     urlSkus.get(k)!.add(c.sku);
   });
@@ -252,7 +252,7 @@ function computeDomainRows(
   for (const row of rows) {
     const list = groups.get(row.domain)!;
     const dup = list.filter((c) => {
-      const k = (c as any).image_url || c.id;
+      const k = c.image_url || c.id;
       return (urlSkus.get(k)?.size || 0) > 1;
     }).length;
     row.duplicateRate = pct(dup, list.length);
