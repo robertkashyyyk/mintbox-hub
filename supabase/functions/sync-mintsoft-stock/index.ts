@@ -42,14 +42,27 @@ Deno.serve(async (req) => {
       throw new Error("MINTSOFT_API_KEY not configured");
     }
 
-    // Get all SKUs from products_cache that need syncing
-    const { data: products, error: productsError } = await supabase
-      .from("products_cache")
-      .select("sku");
+    // Get all SKUs from products_cache that need syncing.
+    // Page through to bypass PostgREST's default 1000-row cap — without this we
+    // were silently only refreshing the first 1000 of ~200k products every run.
+    const allSkus: string[] = [];
+    const pageSize = 1000;
+    let from = 0;
+    while (true) {
+      const { data: page, error: pErr } = await supabase
+        .from("products_cache")
+        .select("sku")
+        .order("sku", { ascending: true })
+        .range(from, from + pageSize - 1);
+      if (pErr) throw pErr;
+      if (!page || page.length === 0) break;
+      for (const p of page) allSkus.push(p.sku);
+      if (page.length < pageSize) break;
+      from += pageSize;
+    }
+    const products = allSkus.map((sku) => ({ sku }));
 
-    if (productsError) throw productsError;
-
-    if (!products || products.length === 0) {
+    if (products.length === 0) {
       console.log("No products found to sync");
       return new Response(
         JSON.stringify({ message: "No products to sync" }),
@@ -79,41 +92,37 @@ Deno.serve(async (req) => {
     const stockData: MintsoftStockItem[] = await stockResponse.json();
     console.log(`Received ${stockData.length} stock items from Mintsoft`);
 
-    // Create a map of SKU to stock data
-    const stockMap = new Map(
-      stockData.map((item) => [item.SKU, item])
-    );
+    // Build a SKU set we already track
+    const knownSkus = new Set(products.map((p) => p.sku));
+    const now = new Date().toISOString();
 
-    // Update products in batches
+    // Compose update payloads for all SKUs we know about that Mintsoft returned.
+    // Use chunked upserts (sku is unique) instead of per-SKU UPDATEs — this drops
+    // a 10k-product sync from ~minutes to ~seconds and lets us run inline from a
+    // user "Refresh stock" click.
+    const updates = stockData
+      .filter((it) => knownSkus.has(it.SKU))
+      .map((it) => ({
+        sku: it.SKU,
+        current_stock: it.AvailableQuantity || 0,
+        back_order_qty: it.BackOrderQuantity || 0,
+        on_order: it.OnOrderQuantity || 0,
+        last_stock_sync: now,
+      }));
+
     let updated = 0;
-    const batchSize = 50;
-
-    for (let i = 0; i < products.length; i += batchSize) {
-      const batch = products.slice(i, i + batchSize);
-      
-      for (const product of batch) {
-        const stockInfo = stockMap.get(product.sku);
-        
-        if (stockInfo) {
-          const { error: updateError } = await supabase
-            .from("products_cache")
-            .update({
-              current_stock: stockInfo.AvailableQuantity || 0,
-              back_order_qty: stockInfo.BackOrderQuantity || 0,
-              on_order: stockInfo.OnOrderQuantity || 0,
-              last_stock_sync: new Date().toISOString(),
-            })
-            .eq("sku", product.sku);
-
-          if (updateError) {
-            console.error(`Error updating SKU ${product.sku}:`, updateError);
-          } else {
-            updated++;
-          }
-        }
+    const batchSize = 500;
+    for (let i = 0; i < updates.length; i += batchSize) {
+      const batch = updates.slice(i, i + batchSize);
+      const { error: upErr } = await supabase
+        .from("products_cache")
+        .upsert(batch, { onConflict: "sku" });
+      if (upErr) {
+        console.error("Batch upsert error:", upErr);
+      } else {
+        updated += batch.length;
       }
-      
-      console.log(`Processed batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(products.length / batchSize)}`);
+      console.log(`Upserted ${Math.min(i + batchSize, updates.length)}/${updates.length}`);
     }
 
     console.log(`Stock sync complete. Updated ${updated} products.`);
