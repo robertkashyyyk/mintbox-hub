@@ -159,7 +159,12 @@ export const useOpsDashboard = () => {
       const queueNew = Number(queues.new_count) || 0;
       const queueAwaitingPicking = Number(queues.awaiting_picking_count) || 0;
       const queueOnBackorder = Number(queues.onbackorder_count) || 0;
-      const despatchedTodayCount = Number(queues.despatched_today_count) || 0;
+      // Authoritative count from despatch_ledger (poller-maintained); fall back
+      // to the order_lines-derived count if the poller hasn't run yet.
+      const ledgerCount = (despatchLedgerToday as any)?.count;
+      const despatchedTodayCount = typeof ledgerCount === "number" && ledgerCount > 0
+        ? ledgerCount
+        : (Number(queues.despatched_today_count) || 0);
       // Count distinct orders for today's new
       const todayOrderIds = new Set(
         ((todayReality.data as any[]) || []).map((r: any) => r.mintsoft_order_id)
