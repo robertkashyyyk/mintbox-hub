@@ -17,19 +17,35 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json().catch(() => ({}));
-    const { penalty_id, penalty_ids } = body;
+    const { penalty_id, penalty_ids, mode, limit } = body;
     const ids: string[] = penalty_ids ?? (penalty_id ? [penalty_id] : []);
-    if (ids.length === 0) return json({ error: "penalty_id or penalty_ids required" }, 400);
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    const { data: penalties, error } = await supabase
-      .from("carrier_penalties")
-      .select("id, tracking_number, mintsoft_order_id, sku, resolution_status, carrier_id")
-      .in("id", ids);
+    let penaltiesQuery;
+    if (mode === "auto") {
+      // Pull all unresolved penalties that have a tracking number, oldest first
+      const { data, error } = await supabase
+        .from("carrier_penalties")
+        .select("id, tracking_number, mintsoft_order_id, sku, resolution_status, carrier_id")
+        .neq("resolution_status", "resolved")
+        .not("tracking_number", "is", null)
+        .is("sku", null)
+        .order("created_at", { ascending: true })
+        .limit(typeof limit === "number" ? limit : 200);
+      if (error) return json({ error: error.message }, 500);
+      penaltiesQuery = { data, error: null };
+    } else {
+      if (ids.length === 0) return json({ error: "penalty_id, penalty_ids, or mode:auto required" }, 400);
+      penaltiesQuery = await supabase
+        .from("carrier_penalties")
+        .select("id, tracking_number, mintsoft_order_id, sku, resolution_status, carrier_id")
+        .in("id", ids);
+    }
+    const { data: penalties, error } = penaltiesQuery as any;
     if (error) return json({ error: error.message }, 500);
 
     let resolved = 0;
