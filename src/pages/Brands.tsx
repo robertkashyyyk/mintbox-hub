@@ -192,6 +192,7 @@ const Brands = () => {
       return;
     }
     
+    const interval = Math.max(1, Math.min(168, Number(editFormData.stock_sync_interval_hours) || 24));
     const updates = {
       name: editFormData.name,
       prefix: editFormData.prefix,
@@ -200,6 +201,7 @@ const Brands = () => {
       remote_stock_feed_type: editFormData.remote_stock_feed_type || null,
       base_multiplier: editFormData.base_multiplier ? Number(editFormData.base_multiplier) : null,
       auto_update_lsa: editFormData.auto_update_lsa,
+      stock_sync_interval_hours: interval,
     };
     
     updateBrandMutation.mutate({
