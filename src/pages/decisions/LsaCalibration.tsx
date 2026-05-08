@@ -149,8 +149,13 @@ const LsaCalibration = () => {
   };
 
   // Seed Proposed from the calculated Target LSA (fall back to current if target missing)
-  const proposedFor = (r: LsaCalibrationRow) =>
-    proposed[r.sku] ?? Math.round(Number(r.target_lsa) || Number(r.current_lsa) || 0);
+  const proposedFor = (r: LsaCalibrationRow) => {
+    if (proposed[r.sku] !== undefined) return proposed[r.sku];
+    const t = Number(r.target_lsa);
+    if (Number.isFinite(t)) return Math.round(t);
+    const c = Number(r.current_lsa);
+    return Number.isFinite(c) ? Math.round(c) : 0;
+  };
 
   const dirtyRows = useMemo(
     () => filtered.filter((r) => Math.round(proposedFor(r)) !== Math.round(r.current_lsa)),
