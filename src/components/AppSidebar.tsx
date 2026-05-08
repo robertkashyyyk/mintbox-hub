@@ -6,7 +6,7 @@ import {
   ShoppingCart, RefreshCw, Copy,
   Users, Key, CreditCard, LogOut, UserCircle, Gauge,
   ChevronDown, ChevronRight, LayoutDashboard, Settings,
-  Images, Clock, Plug, Truck, AlertTriangle, Sliders, Beaker
+  Images, Clock, Plug, Truck, AlertTriangle, Sliders, Beaker, BarChart3
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
