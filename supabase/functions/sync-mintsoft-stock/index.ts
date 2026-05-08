@@ -139,12 +139,26 @@ Deno.serve(async (req) => {
     const knownSkus = new Set(products.map((p) => p.sku));
     const now = new Date().toISOString();
 
-    // Compose update payloads for all SKUs we know about that Mintsoft returned.
-    // Use chunked upserts (sku is unique) instead of per-SKU UPDATEs — this drops
-    // a 10k-product sync from ~minutes to ~seconds and lets us run inline from a
-    // user "Refresh stock" click.
+    // Only update SKUs that already exist in products_cache. Upsert would try to
+    // INSERT for missing rows, but products_cache.name is NOT NULL, which makes
+    // the entire batch fail and silently produces "0 updated".
+    const candidateSkus = stockData.map((it) => it.SKU).filter((s) => knownSkus.has(s));
+    const existingSkus = new Set<string>();
+    if (candidateSkus.length > 0) {
+      const chunk = 500;
+      for (let i = 0; i < candidateSkus.length; i += chunk) {
+        const slice = candidateSkus.slice(i, i + chunk);
+        const { data: existing, error: exErr } = await supabase
+          .from("products_cache")
+          .select("sku")
+          .in("sku", slice);
+        if (exErr) throw exErr;
+        for (const r of existing || []) existingSkus.add(r.sku);
+      }
+    }
+
     const updates = stockData
-      .filter((it) => knownSkus.has(it.SKU))
+      .filter((it) => existingSkus.has(it.SKU))
       .map((it) => ({
         sku: it.SKU,
         current_stock: it.AvailableQuantity || 0,
@@ -153,20 +167,32 @@ Deno.serve(async (req) => {
         last_stock_sync: now,
       }));
 
+    const skippedMissing = candidateSkus.length - existingSkus.size;
+    if (skippedMissing > 0) {
+      console.log(`Skipping ${skippedMissing} SKUs not present in products_cache (would require INSERT).`);
+    }
+
     let updated = 0;
-    const batchSize = 500;
-    for (let i = 0; i < updates.length; i += batchSize) {
-      const batch = updates.slice(i, i + batchSize);
+    let lastError: string | null = null;
+    // Per-SKU UPDATE to avoid one bad row failing an entire batch upsert.
+    for (const u of updates) {
       const { error: upErr } = await supabase
         .from("products_cache")
-        .upsert(batch, { onConflict: "sku" });
+        .update({
+          current_stock: u.current_stock,
+          back_order_qty: u.back_order_qty,
+          on_order: u.on_order,
+          last_stock_sync: u.last_stock_sync,
+        })
+        .eq("sku", u.sku);
       if (upErr) {
-        console.error("Batch upsert error:", upErr);
+        lastError = upErr.message;
+        console.error(`Update failed for ${u.sku}:`, upErr.message);
       } else {
-        updated += batch.length;
+        updated++;
       }
-      console.log(`Upserted ${Math.min(i + batchSize, updates.length)}/${updates.length}`);
     }
+    if (lastError) console.log(`Last update error: ${lastError}`);
 
     console.log(`Stock sync complete. Updated ${updated} products.`);
 
