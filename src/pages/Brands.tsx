@@ -556,6 +556,62 @@ const Brands = () => {
                 }
               />
             </div>
+
+            <div className="rounded-md border border-border p-3 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="text-sm font-medium">Auto Update LSA on Mintsoft</Label>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    On the schedule set in System Settings, calculated Target LSA will be pushed to every SKU in this brand.
+                  </p>
+                </div>
+                <Switch
+                  checked={editFormData.auto_update_lsa}
+                  onCheckedChange={(v) => setEditFormData({ ...editFormData, auto_update_lsa: v })}
+                />
+              </div>
+
+              {editingBrand?.last_lsa_auto_update_at && (
+                <p className="text-xs text-muted-foreground">
+                  Last run: {new Date(editingBrand.last_lsa_auto_update_at).toLocaleString()}
+                  {editingBrand.last_lsa_auto_update_summary
+                    ? ` • Updated: ${editingBrand.last_lsa_auto_update_summary.updated ?? 0}, Failed: ${editingBrand.last_lsa_auto_update_summary.failed ?? 0}`
+                    : ""}
+                </p>
+              )}
+
+              {editFormData.auto_update_lsa && editingBrand && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={runningLsaBrandId === editingBrand.id}
+                  onClick={async () => {
+                    setRunningLsaBrandId(editingBrand.id);
+                    const { data, error } = await supabase.functions.invoke("auto-update-lsa-cron", {
+                      body: { brand_id: editingBrand.id },
+                    });
+                    setRunningLsaBrandId(null);
+                    if (error) {
+                      toast({ title: "Run failed", description: error.message, variant: "destructive" });
+                    } else {
+                      const s = (data as any)?.per_brand?.[editingBrand.name];
+                      toast({
+                        title: (data as any)?.dry_run ? "Dry run complete" : "Run complete",
+                        description: s
+                          ? `Candidates: ${s.candidates}, Updated: ${s.updated}, Failed: ${s.failed}`
+                          : "See agent_runs for details",
+                      });
+                      queryClient.invalidateQueries({ queryKey: ["brands-with-count"] });
+                    }
+                  }}
+                >
+                  {runningLsaBrandId === editingBrand.id
+                    ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Running…</>
+                    : <><Zap className="h-4 w-4 mr-2" />Run Auto LSA Update Now</>}
+                </Button>
+              )}
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditingBrand(null)}>
