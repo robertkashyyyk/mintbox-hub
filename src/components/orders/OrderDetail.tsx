@@ -51,9 +51,9 @@ export default function OrderDetail({ line, onClose }: OrderDetailProps) {
           <div className="flex flex-wrap gap-2">
             <StatusPill kind={line.problem_kind} />
             <Badge variant="outline" className="text-xs">{line.order_status}</Badge>
-            {line.on_active_po && (
+            {line.on_order_qty > 0 && (
               <Badge variant="outline" className="text-xs bg-emerald-500/10 text-emerald-400 border-emerald-500/30">
-                <ShoppingCart className="h-3 w-3 mr-1" /> On active PO
+                <ShoppingCart className="h-3 w-3 mr-1" /> On Order
               </Badge>
             )}
           </div>
