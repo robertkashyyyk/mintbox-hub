@@ -13,6 +13,8 @@ const corsHeaders = {
 const SUPA_URL = Deno.env.get('SUPABASE_URL')!
 const SUPA_SERVICE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const SUPA_ANON = Deno.env.get('SUPABASE_ANON_KEY')!
+const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')
+const FROM_EMAIL = 'PartsDoc Hub <noreply@updates.kashyyyk.co.uk>'
 
 const HARD_CAP_PER_BRAND = 5000
 const PUSH_BATCH_SIZE = 50
@@ -114,8 +116,86 @@ Deno.serve(async (req) => {
   }
 
   await finishRun(admin, runId, totalFailed > 0 ? 'completed_with_errors' : 'completed', finalSummary)
+
+  // Send summary email (best-effort; never fails the run)
+  try {
+    const { data: recipRow } = await admin.from('app_settings')
+      .select('value').eq('key', 'lsa.auto_update_recipients').maybeSingle()
+    const emails: string[] = Array.isArray((recipRow?.value as any)?.emails)
+      ? (recipRow!.value as any).emails
+      : []
+    if (emails.length > 0 && RESEND_API_KEY) {
+      await sendSummaryEmail(emails, finalSummary, !!forcedBrandId)
+    }
+  } catch (e) {
+    console.error('auto-lsa email send failed:', (e as Error).message)
+  }
+
   return ok(finalSummary)
 })
+
+async function sendSummaryEmail(to: string[], summary: any, manual: boolean) {
+  const subject = `[Auto LSA${summary.dry_run ? ' • DRY RUN' : ''}${manual ? ' • Manual' : ''}] ` +
+    `${summary.total_updated} updated · ${summary.total_failed} failed · ${summary.brands_processed} brand(s)`
+
+  const rows = Object.values(summary.per_brand || {}).map((b: any) => `
+    <tr>
+      <td style="padding:6px 10px;border-bottom:1px solid #eee;">${escapeHtml(b.brand_name)}</td>
+      <td style="padding:6px 10px;border-bottom:1px solid #eee;text-align:right;">${b.candidates}</td>
+      <td style="padding:6px 10px;border-bottom:1px solid #eee;text-align:right;color:#0a7d4f;">${b.updated}</td>
+      <td style="padding:6px 10px;border-bottom:1px solid #eee;text-align:right;color:${b.failed > 0 ? '#b00020' : '#666'};">${b.failed}</td>
+      <td style="padding:6px 10px;border-bottom:1px solid #eee;text-align:right;color:#666;">${b.capped ? 'capped' : ''}</td>
+    </tr>`).join('')
+
+  const html = `
+    <div style="font-family:Arial,sans-serif;color:#222;max-width:680px;">
+      <h2 style="margin:0 0 8px;">Auto LSA Update Summary</h2>
+      <p style="color:#666;margin:0 0 16px;">
+        ${manual ? 'Manual' : 'Scheduled'} run${summary.dry_run ? ' (dry run — no Mintsoft writes)' : ''} •
+        ${new Date(summary.started_at).toUTCString()}
+      </p>
+      <table style="border-collapse:collapse;width:100%;font-size:14px;">
+        <thead>
+          <tr style="background:#f5f5f5;">
+            <th style="padding:6px 10px;text-align:left;">Brand</th>
+            <th style="padding:6px 10px;text-align:right;">Candidates</th>
+            <th style="padding:6px 10px;text-align:right;">Updated</th>
+            <th style="padding:6px 10px;text-align:right;">Failed</th>
+            <th style="padding:6px 10px;text-align:right;">Notes</th>
+          </tr>
+        </thead>
+        <tbody>${rows || '<tr><td colspan="5" style="padding:10px;color:#666;">No brands processed.</td></tr>'}</tbody>
+        <tfoot>
+          <tr style="background:#fafafa;font-weight:bold;">
+            <td style="padding:6px 10px;">Total</td>
+            <td style="padding:6px 10px;text-align:right;">—</td>
+            <td style="padding:6px 10px;text-align:right;color:#0a7d4f;">${summary.total_updated}</td>
+            <td style="padding:6px 10px;text-align:right;color:${summary.total_failed > 0 ? '#b00020' : '#666'};">${summary.total_failed}</td>
+            <td></td>
+          </tr>
+        </tfoot>
+      </table>
+      <p style="color:#999;font-size:12px;margin-top:16px;">
+        Candidates = SKUs whose target LSA differs from current. Updated/Failed reflect verified Mintsoft writes.
+      </p>
+    </div>`
+
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${RESEND_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ from: FROM_EMAIL, to, subject, html }),
+  })
+  if (!res.ok) console.error('Resend error:', res.status, await res.text())
+}
+
+function escapeHtml(s: string): string {
+  return String(s ?? '').replace(/[&<>"']/g, c => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string
+  ))
+}
 
 async function processBrand(
   admin: ReturnType<typeof createClient>,
