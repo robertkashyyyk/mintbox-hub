@@ -26,6 +26,18 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
 
+    // Optional scope: refresh only this list of SKUs (used by per-supplier "Refresh stock" buttons).
+    let scopeSkus: string[] | null = null;
+    try {
+      if (req.method === "POST") {
+        const body = await req.json().catch(() => null);
+        if (body && Array.isArray(body.skus) && body.skus.length > 0) {
+          scopeSkus = body.skus.map((s: unknown) => String(s)).filter(Boolean);
+          console.log(`Scoped sync requested for ${scopeSkus.length} SKUs`);
+        }
+      }
+    } catch (_) { /* no body */ }
+
     // Get Mintsoft credentials
     const { data: settings } = await supabase
       .from("mintsoft_settings")
@@ -42,23 +54,26 @@ Deno.serve(async (req) => {
       throw new Error("MINTSOFT_API_KEY not configured");
     }
 
-    // Get all SKUs from products_cache that need syncing.
-    // Page through to bypass PostgREST's default 1000-row cap — without this we
-    // were silently only refreshing the first 1000 of ~200k products every run.
+    // Build the list of SKUs we will accept updates for.
     const allSkus: string[] = [];
-    const pageSize = 1000;
-    let from = 0;
-    while (true) {
-      const { data: page, error: pErr } = await supabase
-        .from("products_cache")
-        .select("sku")
-        .order("sku", { ascending: true })
-        .range(from, from + pageSize - 1);
-      if (pErr) throw pErr;
-      if (!page || page.length === 0) break;
-      for (const p of page) allSkus.push(p.sku);
-      if (page.length < pageSize) break;
-      from += pageSize;
+    if (scopeSkus) {
+      allSkus.push(...scopeSkus);
+    } else {
+      // Page through to bypass PostgREST's default 1000-row cap.
+      const pageSize = 1000;
+      let from = 0;
+      while (true) {
+        const { data: page, error: pErr } = await supabase
+          .from("products_cache")
+          .select("sku")
+          .order("sku", { ascending: true })
+          .range(from, from + pageSize - 1);
+        if (pErr) throw pErr;
+        if (!page || page.length === 0) break;
+        for (const p of page) allSkus.push(p.sku);
+        if (page.length < pageSize) break;
+        from += pageSize;
+      }
     }
     const products = allSkus.map((sku) => ({ sku }));
 
