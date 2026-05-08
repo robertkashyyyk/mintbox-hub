@@ -62,6 +62,20 @@ const LsaCalibration = () => {
     });
   }, [rows, search, brandFilter, statusFilter]);
 
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setPage(1);
+  }, [search, brandFilter, statusFilter, pageSize]);
+
+  // Paged slice
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const pageStart = (safePage - 1) * pageSize;
+  const pageRows = useMemo(
+    () => filtered.slice(pageStart, pageStart + pageSize),
+    [filtered, pageStart, pageSize]
+  );
+
   // Trim selections outside current view
   useEffect(() => {
     setSelected((prev) => {
