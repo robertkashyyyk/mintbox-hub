@@ -107,9 +107,9 @@ export default function OrderDetail({ line, onClose }: OrderDetailProps) {
                 <p className="font-medium">{line.on_order_qty}</p>
               </div>
               <div className="col-span-2">
-                <span className="text-muted-foreground text-xs">Active PO</span>
-                <p className={`font-medium ${line.on_active_po ? "text-emerald-400" : "text-destructive"}`}>
-                  {line.on_active_po ? "Yes — SKU is on a draft / sent PO" : "No active purchase order for this SKU"}
+                <span className="text-muted-foreground text-xs">On Order</span>
+                <p className={`font-medium ${line.on_order_qty > 0 ? "text-emerald-400" : "text-destructive"}`}>
+                  {line.on_order_qty > 0 ? `Yes — ${line.on_order_qty} on order with supplier` : "Not on order with supplier"}
                 </p>
               </div>
             </div>
