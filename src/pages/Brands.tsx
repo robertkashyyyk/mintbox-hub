@@ -310,6 +310,27 @@ const Brands = () => {
                         <span className="text-muted-foreground text-xs">Off</span>
                       )}
                     </TableCell>
+                    <TableCell>
+                      <TooltipProvider>
+                        <div className="flex items-center gap-1.5">
+                          {brand.auto_update_lsa && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="inline-flex items-center justify-center h-6 w-6 rounded-md bg-pd-accent/15 text-pd-accent border border-pd-accent/40">
+                                  <Zap className="h-3.5 w-3.5" />
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Assigned to Auto LSA</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          )}
+                          {!brand.auto_update_lsa && (
+                            <span className="text-muted-foreground text-xs">—</span>
+                          )}
+                        </div>
+                      </TooltipProvider>
+                    </TableCell>
                     <TableCell className="text-right font-medium">
                       {brand.product_count}
                     </TableCell>
