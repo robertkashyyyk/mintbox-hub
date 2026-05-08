@@ -422,6 +422,16 @@ const BuyRecommendations = () => {
             </span>
           )}
           <Button
+            variant="outlineDark"
+            size="sm"
+            onClick={() => refreshStock(currentSupplier?.rows.map((r) => r.sku) || [])}
+            disabled={refreshing || !currentSupplier}
+            title="Pull live stock from Mintsoft for this supplier's SKUs only"
+          >
+            {refreshing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+            Refresh stock
+          </Button>
+          <Button
             disabled={creating || selectionSummary.count === 0 || !currentSupplier?.supplierId}
             onClick={createDraftPo}
           >
