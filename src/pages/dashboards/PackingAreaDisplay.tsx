@@ -5,11 +5,26 @@ import { Maximize2, RefreshCw, Package, Clock, Target, TrendingUp, Volume2, Volu
 import { format } from "date-fns";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
+import { BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 import { useEffect, useRef, useState } from "react";
 
 const REFRESH_MS = 60_000;
-const TARGET_PER_HOUR = 40;
+const TARGET_PER_HOUR = 80;
+const TARGET_PER_HALFHOUR = 40;
+
+// Half-hour throughput colour bands (count → semantic token)
+const bandForCount = (n: number): string => {
+  if (n < 8) return "hsl(var(--destructive))"; // dark red
+  if (n < 16) return "hsl(0 75% 60%)"; // red
+  if (n < 24) return "hsl(25 90% 55%)"; // orange
+  if (n < 32) return "hsl(var(--warning))"; // yellow
+  if (n < 40) return "hsl(140 55% 45%)"; // green
+  if (n < 50) return "hsl(200 80% 60%)"; // light blue
+  return "hsl(240 60% 60%)"; // indigo
+};
+
+// SLA targets (% of today's despatches that should be inside each window)
+const SLA_TARGETS = { under_6h: 60, under_12h: 85, under_24h: 95 } as const;
 
 const PackingAreaDisplay = () => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -20,9 +35,19 @@ const PackingAreaDisplay = () => {
     queryKey: ["packing-live"],
     refetchInterval: REFRESH_MS,
     queryFn: async () => {
-      const [snap, despatchedHist] = await Promise.all([
+      const [snap, despatchedHist, sla] = await Promise.all([
         supabase.rpc("get_mintsoft_status_latest" as any).then((r) => r),
-        supabase.rpc("get_despatch_hourly_today" as any).then((r) => r),
+        supabase.rpc("get_despatch_halfhourly_today" as any).then((r) => r),
+        (async () => {
+          const today = new Date();
+          const iso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+          return supabase.rpc("get_despatch_performance_buckets" as any, {
+            from_date: iso,
+            to_date: iso,
+            bucket: "day",
+            channels: null,
+          });
+        })(),
       ]);
       const rows = (snap.data as Array<{ status: string; count: number; captured_at: string }> | null) ?? [];
       const byStatus: Record<string, number> = {};
@@ -31,12 +56,16 @@ const PackingAreaDisplay = () => {
         byStatus[r.status] = Number(r.count);
         if (!capturedAt || r.captured_at > capturedAt) capturedAt = r.captured_at;
       }
+      const slaRows = (sla.data as Array<any> | null) ?? [];
+      // pick the rolled-up "all channels" row (channel IS NULL)
+      const slaRow = slaRows.find((r) => r.channel == null) ?? slaRows[0] ?? null;
       return {
         awaiting: byStatus["AWAITINGPICKING"] ?? 0,
         newOrders: byStatus["NEW"] ?? 0,
         backorder: byStatus["ONBACKORDER"] ?? 0,
         capturedAt,
-        hourly: (despatchedHist.data as Array<{ hr: string; despatched: number }> | null) ?? [],
+        halfHourly: (despatchedHist.data as Array<{ slot: string; despatched: number }> | null) ?? [],
+        sla: slaRow,
       };
     },
   });
@@ -47,25 +76,38 @@ const PackingAreaDisplay = () => {
     return () => clearInterval(t);
   }, []);
 
-  const hourly = liveQuery.data?.hourly ?? [];
-  const despatchedToday = hourly.reduce((s, r) => s + Number(r.despatched ?? 0), 0);
-  const nowHourKey = format(new Date(), "HH:00");
-  const thisHour = hourly.find((r) => format(new Date(r.hr), "HH:00") === nowHourKey)?.despatched ?? 0;
-  const hourlyProgress = Math.min(100, (Number(thisHour) / TARGET_PER_HOUR) * 100);
+  const halfHourly = liveQuery.data?.halfHourly ?? [];
+  const despatchedToday = halfHourly.reduce((s, r) => s + Number(r.despatched ?? 0), 0);
 
-  // Build 8am–5pm buckets for chart
+  // Build 08:00 → 17:00 in 30-minute slots for the chart
   const today = new Date();
-  const chartData = Array.from({ length: 10 }, (_, i) => {
-    const h = 8 + i;
-    const label = `${h.toString().padStart(2, "0")}:00`;
-    const row = hourly.find((r) => new Date(r.hr).getHours() === h);
-    const isFuture = h > today.getHours();
+  const nowMins = today.getHours() * 60 + today.getMinutes();
+  const chartData = Array.from({ length: 18 }, (_, i) => {
+    const totalMins = 8 * 60 + i * 30;
+    const h = Math.floor(totalMins / 60);
+    const m = totalMins % 60;
+    const label = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+    const row = halfHourly.find((r) => {
+      const d = new Date(r.slot);
+      return d.getHours() === h && d.getMinutes() === m;
+    });
+    const isFuture = totalMins > nowMins;
+    const count = isFuture ? 0 : Number(row?.despatched ?? 0);
     return {
-      hour: label,
-      despatched: isFuture ? 0 : Number(row?.despatched ?? 0),
+      slot: label,
+      despatched: count,
       future: isFuture,
+      fill: isFuture ? "hsl(var(--muted))" : bandForCount(count),
     };
   });
+
+  // Current-half-hour progress
+  const currentSlotMins = Math.floor(nowMins / 30) * 30;
+  const currentSlot = chartData.find((r) => {
+    const [hh, mm] = r.slot.split(":").map(Number);
+    return hh * 60 + mm === currentSlotMins;
+  });
+  const thisHalfHourCount = currentSlot?.despatched ?? 0;
 
   // Cut-off alarm logic
   // Trigger if (before cut-off and after 9am) AND any of:
@@ -299,16 +341,70 @@ const PackingAreaDisplay = () => {
         </Card>
       </div>
 
+      {(() => {
+        const sla = liveQuery.data?.sla as any;
+        const total = Number(sla?.total ?? 0);
+        const pct = (n: number) => (total > 0 ? Math.round((Number(n ?? 0) / total) * 1000) / 10 : 0);
+        const items = [
+          { key: "under_6h", label: "≤ 6 hrs", value: Number(sla?.under_6h ?? 0), target: SLA_TARGETS.under_6h },
+          { key: "under_12h", label: "≤ 12 hrs", value: Number(sla?.under_12h ?? 0), target: SLA_TARGETS.under_12h },
+          { key: "under_24h", label: "≤ 24 hrs", value: Number(sla?.under_24h ?? 0), target: SLA_TARGETS.under_24h },
+        ];
+        return (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2">
+                <Clock className="h-5 w-5" /> Despatch SLA — today
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">
+                % of {total} despatches inside each window (order received → despatched)
+              </p>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 md:grid-cols-3">
+                {items.map((it) => {
+                  const p = pct(it.value);
+                  const hit = p >= it.target;
+                  return (
+                    <div key={it.key} className="rounded-md border border-border p-4">
+                      <div className="flex items-baseline justify-between">
+                        <span className="text-sm text-muted-foreground">{it.label}</span>
+                        <span className="text-xs text-muted-foreground">target {it.target}%</span>
+                      </div>
+                      <div className={`text-4xl font-bold tabular-nums mt-1 ${hit ? "text-success" : p >= it.target - 10 ? "text-warning" : "text-destructive"}`}>
+                        {p}%
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        {it.value} of {total}
+                      </div>
+                      <div className="mt-2 h-2 w-full rounded bg-muted overflow-hidden">
+                        <div
+                          className={hit ? "h-full bg-success" : p >= it.target - 10 ? "h-full bg-warning" : "h-full bg-destructive"}
+                          style={{ width: `${Math.min(100, p)}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
+
       <Card>
         <CardHeader>
-          <CardTitle>Despatch by Hour (today)</CardTitle>
+          <CardTitle>Despatch by 30-minute slot (today)</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Target {TARGET_PER_HALFHOUR}/30-min ({TARGET_PER_HOUR}/hr) · current slot: <span className="font-semibold text-foreground">{thisHalfHourCount}</span>
+          </p>
         </CardHeader>
         <CardContent>
           <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="hour" stroke="hsl(var(--muted-foreground))" />
+                <XAxis dataKey="slot" stroke="hsl(var(--muted-foreground))" interval={0} tick={{ fontSize: 11 }} />
                 <YAxis stroke="hsl(var(--muted-foreground))" />
                 <Tooltip
                   contentStyle={{
@@ -317,10 +413,35 @@ const PackingAreaDisplay = () => {
                     color: "hsl(var(--foreground))",
                   }}
                 />
-                <ReferenceLine y={TARGET_PER_HOUR} stroke="hsl(var(--warning))" strokeDasharray="3 3" label={{ value: `Target ${TARGET_PER_HOUR}/hr`, fill: "hsl(var(--warning))", fontSize: 11 }} />
-                <Bar dataKey="despatched" fill="hsl(var(--pd-accent))" radius={[4, 4, 0, 0]} />
+                <ReferenceLine
+                  y={TARGET_PER_HALFHOUR}
+                  stroke="hsl(var(--warning))"
+                  strokeDasharray="3 3"
+                  label={{ value: `Target ${TARGET_PER_HALFHOUR}/30m`, fill: "hsl(var(--warning))", fontSize: 11 }}
+                />
+                <Bar dataKey="despatched" radius={[4, 4, 0, 0]}>
+                  {chartData.map((entry, idx) => (
+                    <Cell key={`c-${idx}`} fill={entry.fill} />
+                  ))}
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-3 text-xs text-muted-foreground">
+            {[
+              { c: bandForCount(0), l: "<8" },
+              { c: bandForCount(8), l: "8–15" },
+              { c: bandForCount(16), l: "16–23" },
+              { c: bandForCount(24), l: "24–31" },
+              { c: bandForCount(32), l: "32–39" },
+              { c: bandForCount(40), l: "40–49" },
+              { c: bandForCount(50), l: "50+" },
+            ].map((b) => (
+              <span key={b.l} className="flex items-center gap-1.5">
+                <span className="inline-block h-3 w-3 rounded-sm" style={{ background: b.c }} />
+                {b.l}
+              </span>
+            ))}
           </div>
         </CardContent>
       </Card>

@@ -4260,6 +4260,13 @@ export type Database = {
           despatched_count: number
         }[]
       }
+      get_despatch_halfhourly_today: {
+        Args: never
+        Returns: {
+          despatched: number
+          slot: string
+        }[]
+      }
       get_despatch_hourly_today: {
         Args: never
         Returns: {
