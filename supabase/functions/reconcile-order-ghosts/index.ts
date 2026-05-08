@@ -180,6 +180,15 @@ Deno.serve(async (req) => {
         .map((r) => r.id);
 
       if (ghostIds.length > 0) {
+        // Capture (mintsoft_order_id, line, from_status) BEFORE we flip them
+        // so we can write a proper history row for each.
+        const ghostMeta = openRows.filter((r) => ghostIds.includes(r.id));
+        // Need line_index too — re-fetch in the same batch for accuracy.
+        const { data: metaRows } = await supabase
+          .from("order_lines")
+          .select("id, mintsoft_order_id, line_index, order_status")
+          .in("id", ghostIds);
+
         for (let i = 0; i < ghostIds.length; i += 500) {
           const batch = ghostIds.slice(i, i + 500);
           const { error: upErr } = await supabase
@@ -194,6 +203,22 @@ Deno.serve(async (req) => {
           if (upErr) console.error("Update error:", upErr);
           else ghostsClosed += batch.length;
         }
+
+        // Persist transitions so get_despatch_hourly_today + bouncing detector see them
+        const histRows = (metaRows || []).map((r: any) => ({
+          mintsoft_order_id: r.mintsoft_order_id,
+          line_index: r.line_index,
+          from_status: r.order_status,
+          to_status: "DESPATCHED",
+          changed_at: now,
+        }));
+        for (let i = 0; i < histRows.length; i += 500) {
+          const batch = histRows.slice(i, i + 500);
+          const { error: hErr } = await supabase.from("order_status_history").insert(batch);
+          if (hErr) console.error("ghost history insert error:", hErr);
+        }
+        // ghostMeta is unused beyond intent documentation
+        void ghostMeta;
       }
 
       if (openRows.length < PAGE) break;
