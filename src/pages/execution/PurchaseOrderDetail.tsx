@@ -239,7 +239,7 @@ const PurchaseOrderDetail = () => {
           <AlertTitle>{linesMissingCost.length} line{linesMissingCost.length === 1 ? "" : "s"} missing cost</AlertTitle>
           <AlertDescription>
             These lines will be skipped when sending to Mintsoft. Edit the cost and click Save — it will be
-            pushed to Mintsoft and removed from Missing Costs automatically. Then click Send to Mintsoft again
+            pushed to Mintsoft and removed from Missing Costs automatically. Then click Create ASN in Mintsoft again
             to push the remaining lines.
           </AlertDescription>
         </Alert>
