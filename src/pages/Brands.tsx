@@ -241,6 +241,7 @@ const Brands = () => {
       family: addFormData.family || null,
       remote_stock_feed_type: addFormData.remote_stock_feed_type || null,
       base_multiplier: addFormData.base_multiplier ? Number(addFormData.base_multiplier) : null,
+      stock_sync_interval_hours: Math.max(1, Math.min(168, Number(addFormData.stock_sync_interval_hours) || 24)),
     });
   };
 
