@@ -152,6 +152,14 @@ Deno.serve(async (req) => {
       order_number: string | null;
     }> = [];
 
+    // Mintsoft sorts the despatched list newest-first by OrderDate (not by
+    // despatch timestamp), so an order placed days ago and despatched today
+    // can sit deep in the list. We page until OrderDate falls more than
+    // ORDER_AGE_DAYS days behind today (anything older was certainly
+    // despatched before today) OR we hit the page cap.
+    const ORDER_AGE_DAYS = 14;
+    const orderAgeFloor = new Date(Date.now() - ORDER_AGE_DAYS * 24 * 3600 * 1000);
+
     while (pageNo <= PAGE_CAP) {
       if (isOutOfTime()) { stopped = "timeout"; break; }
       const url = new URL(`${baseUrl}/api/Order/List`);
@@ -168,14 +176,12 @@ Deno.serve(async (req) => {
       if (!orders.length) { stopped = "empty_page"; break; }
       scanned += orders.length;
 
-      let crossedFloor = false;
+      let oldestOrderDateOnPage: Date | null = null;
       for (const o of orders) {
         const ts = extractDespatchedAt(o);
         if (!ts) continue;
-        if (ts < yesterdayStart) { crossedFloor = true; continue; }
         const uk = ukDateOf(ts);
-        // Only ledger today — yesterday rows already exist from prior runs.
-        if (uk !== today) continue;
+        if (uk !== today) continue; // only ledger today's despatches
         ledgerRows.push({
           uk_date: uk,
           mintsoft_order_id: o.ID,
@@ -184,7 +190,16 @@ Deno.serve(async (req) => {
           order_number: o.OrderNumber || o.ExternalOrderReference || null,
         });
       }
-      if (crossedFloor) { stopped = "crossed_floor"; break; }
+      // Decide whether to keep paging based on OrderDate, not DespatchDate.
+      for (const o of orders) {
+        if (!o.OrderDate) continue;
+        const od = new Date(o.OrderDate);
+        if (!oldestOrderDateOnPage || od < oldestOrderDateOnPage) oldestOrderDateOnPage = od;
+      }
+      if (oldestOrderDateOnPage && oldestOrderDateOnPage < orderAgeFloor) {
+        stopped = "order_age_floor";
+        break;
+      }
       if (orders.length < 100) { stopped = "short_page"; break; }
       pageNo++;
     }
