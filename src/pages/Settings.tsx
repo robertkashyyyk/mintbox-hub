@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Settings as SettingsIcon, Bell, Palette, Monitor, Download, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { AutoLsaScheduleCard } from "@/components/settings/AutoLsaScheduleCard";
 
 const Settings = () => {
   const { toast } = useToast();
@@ -41,6 +42,8 @@ const Settings = () => {
       </div>
 
       <div className="grid gap-6">
+        <AutoLsaScheduleCard />
+
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
