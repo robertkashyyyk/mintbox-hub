@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { Settings, Shield, AlertTriangle, ArrowLeft, Package, Clock, Gauge, SlidersHorizontal } from "lucide-react";
+import { Settings, Shield, AlertTriangle, ArrowLeft, Package, Clock, Gauge, SlidersHorizontal, Truck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
@@ -10,6 +10,8 @@ import { useAppSetting, useUpdateAppSetting } from "@/hooks/useAppSettings";
 import { useToast } from "@/hooks/use-toast";
 import { AccessGate } from "@/components/AccessGate";
 import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 interface ToleranceBands {
   critical: number;
@@ -35,6 +37,47 @@ const SystemSettings = () => {
   const [tolInput, setTolInput] = useState<{ critical: string; low: string; high: string; excess: string }>({
     critical: "", low: "", high: "", excess: ""
   });
+  const [dispatchedIdsInput, setDispatchedIdsInput] = useState<string>("");
+  const [savingDispatched, setSavingDispatched] = useState(false);
+
+  const { data: mintsoftSettings, refetch: refetchMintsoft } = useQuery({
+    queryKey: ["mintsoft-settings-system"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("mintsoft_settings")
+        .select("dispatched_status_ids")
+        .single();
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  useEffect(() => {
+    if (mintsoftSettings?.dispatched_status_ids) {
+      setDispatchedIdsInput(mintsoftSettings.dispatched_status_ids.join(", "));
+    }
+  }, [mintsoftSettings]);
+
+  const handleSaveDispatchedIds = async () => {
+    setSavingDispatched(true);
+    try {
+      const idsArray = dispatchedIdsInput
+        .split(",")
+        .map(id => parseInt(id.trim()))
+        .filter(id => !isNaN(id));
+      const { error } = await supabase
+        .from("mintsoft_settings")
+        .update({ dispatched_status_ids: idsArray })
+        .eq("id", true);
+      if (error) throw error;
+      toast({ title: "Dispatched status IDs saved", description: `${idsArray.length} status ID(s) configured.` });
+      refetchMintsoft();
+    } catch (e) {
+      toast({ title: "Error", description: e instanceof Error ? e.message : "Failed to save", variant: "destructive" });
+    } finally {
+      setSavingDispatched(false);
+    }
+  };
 
   useEffect(() => {
     if (lsaMinThreshold !== null && lsaMinThreshold !== undefined) setLsaMinInput(String(lsaMinThreshold));
@@ -325,6 +368,38 @@ const SystemSettings = () => {
                   Defaults: Critical 0.5, Low 0.85, High 1.15, Excess 1.5. Anything between Low and High counts as on-target.
                 </AlertDescription>
               </Alert>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Truck className="h-5 w-5 text-pd-accent" />
+                <CardTitle>Dispatched Status IDs</CardTitle>
+              </div>
+              <CardDescription>
+                Mintsoft order status IDs that count as "dispatched / closed". Used by Order Telemetry, sync jobs and dashboards to know when an order has left the open pipeline.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="dispatched-ids">Status IDs (comma-separated)</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="dispatched-ids"
+                    placeholder="e.g. 7, 12, 18"
+                    value={dispatchedIdsInput}
+                    onChange={(e) => setDispatchedIdsInput(e.target.value)}
+                    disabled={savingDispatched}
+                  />
+                  <Button onClick={handleSaveDispatchedIds} disabled={savingDispatched}>
+                    Save
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Tip: Use the Mintsoft Status Inspector (in any sync tool) to look up the right IDs for your tenant.
+                </p>
+              </div>
             </CardContent>
           </Card>
         </div>

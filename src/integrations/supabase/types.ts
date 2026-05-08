@@ -3815,6 +3815,49 @@ export type Database = {
         }
         Relationships: []
       }
+      order_telemetry_open_lines: {
+        Row: {
+          bounce_back_count: number | null
+          brand_id: string | null
+          brand_name: string | null
+          channel: string | null
+          channel_order_ref: string | null
+          current_stock: number | null
+          customer_name: string | null
+          days_on_backorder: number | null
+          id: number | null
+          last_backordered_at: string | null
+          last_status_change_at: string | null
+          line_index: number | null
+          mintsoft_order_id: number | null
+          on_active_po: boolean | null
+          on_order_qty: number | null
+          order_date: string | null
+          order_status: string | null
+          order_status_id: number | null
+          problem_kind: string | null
+          product_name: string | null
+          qty: number | null
+          sku: string | null
+          warehouse_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_lines_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_lines_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands_missing_base_multiplier"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       products_need_ordering: {
         Row: {
           back_order_qty: number | null
