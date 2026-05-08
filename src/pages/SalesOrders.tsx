@@ -12,7 +12,7 @@ import {
   Inbox,
   Activity,
 } from "lucide-react";
-import DiagnosticBanner from "@/components/DiagnosticBanner";
+
 import OrderFilters from "@/components/orders/OrderFilters";
 import OrderTable from "@/components/orders/OrderTable";
 import OrderDetail from "@/components/orders/OrderDetail";
