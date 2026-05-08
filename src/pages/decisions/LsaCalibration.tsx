@@ -400,9 +400,9 @@ const LsaCalibration = () => {
           <Button variant="outline" onClick={applyTargetToFiltered}>
             <Sparkles className="h-4 w-4 mr-2" /> Apply Target to filtered
           </Button>
-          <Button onClick={pushSelectedOrDirty} disabled={updateMintsoft.isPending || dirtyRows.length === 0}>
+          <Button onClick={pushSelectedOrDirty} disabled={updateMintsoft.isPending || (selectedRows.length === 0 && dirtyRows.length === 0)}>
             {updateMintsoft.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
-            Update Mintsoft ({dirtyRows.filter((r) => selected[r.sku]).length || dirtyRows.length})
+            Update Mintsoft ({selectedRows.length || dirtyRows.length})
           </Button>
         </div>
       </div>
