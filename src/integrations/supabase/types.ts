@@ -371,12 +371,15 @@ export type Database = {
       }
       brands: {
         Row: {
+          auto_update_lsa: boolean
           base_multiplier: number | null
           created_at: string | null
           family: string | null
           id: string
           image_search_domain: string | null
           image_url_pattern: string | null
+          last_lsa_auto_update_at: string | null
+          last_lsa_auto_update_summary: Json | null
           name: string
           prefix: string | null
           prefix_style: Database["public"]["Enums"]["prefix_style"] | null
@@ -385,12 +388,15 @@ export type Database = {
             | null
         }
         Insert: {
+          auto_update_lsa?: boolean
           base_multiplier?: number | null
           created_at?: string | null
           family?: string | null
           id?: string
           image_search_domain?: string | null
           image_url_pattern?: string | null
+          last_lsa_auto_update_at?: string | null
+          last_lsa_auto_update_summary?: Json | null
           name: string
           prefix?: string | null
           prefix_style?: Database["public"]["Enums"]["prefix_style"] | null
@@ -399,12 +405,15 @@ export type Database = {
             | null
         }
         Update: {
+          auto_update_lsa?: boolean
           base_multiplier?: number | null
           created_at?: string | null
           family?: string | null
           id?: string
           image_search_domain?: string | null
           image_url_pattern?: string | null
+          last_lsa_auto_update_at?: string | null
+          last_lsa_auto_update_summary?: Json | null
           name?: string
           prefix?: string | null
           prefix_style?: Database["public"]["Enums"]["prefix_style"] | null
@@ -4083,6 +4092,25 @@ export type Database = {
       capability_rank: {
         Args: { c: Database["public"]["Enums"]["app_capability"] }
         Returns: number
+      }
+      get_brands_with_product_counts: {
+        Args: never
+        Returns: {
+          auto_update_lsa: boolean
+          base_multiplier: number
+          created_at: string
+          family: string
+          id: string
+          image_search_domain: string
+          image_url_pattern: string
+          last_lsa_auto_update_at: string
+          last_lsa_auto_update_summary: Json
+          name: string
+          prefix: string
+          prefix_style: Database["public"]["Enums"]["prefix_style"]
+          product_count: number
+          remote_stock_feed_type: Database["public"]["Enums"]["remote_stock_feed_type"]
+        }[]
       }
       get_buy_recommendations: {
         Args: {

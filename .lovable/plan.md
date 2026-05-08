@@ -1,82 +1,66 @@
-## Image Scout v2 — Slice 1
+## 1. Brands page is slow — fix root cause
 
-Ship the foundation: brand-aware retrieval rules + per-candidate confidence scoring + a manual editor for brand profiles, with auto-suggestions powered by retrieval history. No review queue, no enhancement engine yet.
+The page currently runs **57 separate `count(*)` queries** (one per brand, sequentially via `ilike`). That's the source of the lag, not a network issue.
 
-## What changes
+**Fix**: replace it with one Postgres RPC `get_brands_with_product_counts()` that returns all brands + their product counts in a single round-trip using a `LEFT JOIN LATERAL` against `products_cache`. Should drop load time from ~5–15s to under 500ms.
 
-### 1. Brand image profiles (new)
+## 2. Per-brand "Auto Update LSA" toggle
 
-New table `brand_image_profiles` keyed to `brands.id`:
+Add to the `brands` table:
+- `auto_update_lsa` boolean (default false)
+- `last_lsa_auto_update_at` timestamptz (for visibility)
+- `last_lsa_auto_update_summary` jsonb (counts updated/failed)
 
-- `preferred_domains text[]` — site:domain priority list
-- `blocked_domains text[]` — never return results from these
-- `search_templates text[]` — e.g. `"{brand} {part_number}"`, `"{part_number} site:autodoc.co.uk"`
-- `image_rules jsonb` — `{prefer_product_only, reject_diagrams, reject_watermarks, prefer_white_background}`
-- `notes text`, `updated_at`, `updated_by`
+In **Brands → Edit Brand dialog**: add a Switch labelled "Auto Update LSA on Mintsoft" with helper text explaining it pushes calculated Target LSA to every SKU in this brand on the configured schedule.
 
-Manual editor at `/discovery/image-scout/brand-profiles` (super_user / senior_user). Lists every brand from `brands`, shows current profile or "no profile yet", inline edit dialog with chips for domains and templates.
+The Brands table will also show a small badge (`Auto LSA: On`) in a new column so you can see at a glance which brands are enrolled.
 
-### 2. Candidate gathering (rewrite of `image-scout-process`)
+## 3. System Settings → "Auto LSA Cron"
 
-Today the function picks one image. New flow:
+New section in `/settings` (Systems Controllers / Super User only) with:
+- **Enabled** master switch
+- **Frequency**: Daily / Weekly / Monthly
+- **Day of week** (when Weekly) — Mon–Sun
+- **Day of month** (when Monthly) — 1–28
+- **Time** — HH:MM (UK time)
+- **Dry run** toggle (logs what would change without pushing)
 
-1. Detect brand by SKU prefix → load `brand_image_profiles` row (fall back to defaults).
-2. Strip prefix → `clean_part_number`.
-3. Expand `search_templates` → run each via Google CSE + Firecrawl scrape of preferred domains.
-4. Filter results against `blocked_domains`.
-5. Collect ALL candidates (target ~10-20 per SKU) into a new `image_scout_candidates` table:
-   - `sku`, `brand_id`, `source_url`, `image_url`, `image_width`, `image_height`, `from_template`, `from_domain`, `confidence_score numeric`, `confidence_reasoning jsonb`, `created_at`
-6. Score each candidate (see below).
-7. Auto-pick the top scorer ≥ threshold; otherwise leave for manual selection on the SKU detail page.
+Stored in `app_settings` under key `lsa.auto_update_schedule` as JSON.
 
-### 3. Confidence scoring
+A persistent pg_cron job runs every 15 minutes calling a new edge function `auto-update-lsa-cron`. The function:
+1. Reads schedule from `app_settings`, decides if "now" is a fire window.
+2. Loads all brands with `auto_update_lsa = true`.
+3. For each brand, calls `get_lsa_calibration(brand_id, …)` paginated.
+4. Filters to rows where `target_lsa != current_lsa` (skips dirt: quarantined, discontinued, no mintsoft id, LSA ≤ min).
+5. Pushes in batches of 50 to the existing `mintsoft-update-lsa` edge function.
+6. Writes summary back to `brands.last_lsa_auto_update_*` and an audit row in `agent_runs`.
 
-Pure deterministic function in the edge runtime (no LLM). Inputs: candidate metadata + page text snippet from CSE/Firecrawl.
+## 4. Manual "Run now" button
 
-Positive signals (configurable weights, defaults shown):
+Inside the Edit Brand dialog (when Auto Update LSA is on), a **Run Auto LSA Update Now** button that triggers the same edge function for that single brand — useful for testing the toggle without waiting for the cron.
 
-- Part number on page (+25), brand on page (+15)
-- Image ≥ 800×800 (+15), ≥ 1500×1500 (+5 more)
-- Source domain in preferred list (+20), official manufacturer (+10 extra)
-- Filename contains part number (+10)
-- White-ish background heuristic from URL/CDN hints (+5)
+## 5. Safety rails
 
-Negative signals:
+- Cron is **disabled by default** until you flip the master switch in Settings.
+- Per-brand toggle is also **off by default**.
+- Hard cap: max 5,000 SKU updates per brand per run (logged warning if hit).
+- Reuses existing `mintsoft-update-lsa` function (already battle-tested from manual LSA Calibration page).
+- Full audit trail in `agent_runs` (who/when/what).
 
-- Source in blocked list → reject outright
-- URL/page text contains "diagram", "schematic", "exploded view" (-20)
-- "lifestyle", "vehicle", "car interior" (-15)
-- Image < 400×400 (-30)
-- Watermark hint in URL (-10)
+## Technical details
 
-`confidence_reasoning` stores the matched rules so the UI can explain the score.
+**New files**
+- `supabase/functions/auto-update-lsa-cron/index.ts` — schedule evaluator + per-brand pusher
+- `src/components/settings/AutoLsaScheduleCard.tsx` — settings UI block
 
-### 4. Auto-suggestion loop
+**Modified files**
+- `src/pages/Brands.tsx` — uses RPC, adds toggle column, adds Auto LSA fields to edit dialog
+- `src/pages/Settings.tsx` — mounts new schedule card
 
-When a SKU's image is approved (existing path) or a candidate is manually picked:
+**Migrations**
+- Add columns to `brands`
+- Create `get_brands_with_product_counts()` RPC
+- Seed default `app_settings` row for `lsa.auto_update_schedule`
+- Schedule pg_cron `auto-update-lsa-cron` every 15 minutes
 
-- Increment usage counter on the source domain in a new `brand_image_profile_suggestions` table (`brand_id`, `domain`, `template`, `success_count`, `last_used`).
-- Brand profile editor shows a "Suggested additions" panel: top 5 unused domains and templates with success counts and a "promote" button that pushes them into `preferred_domains` / `search_templates`.
-
-### 5. UI
-
-- `/discovery/image-scout/brand-profiles` — list + editor.
-- `/discovery/image-scout` — existing dashboard gets a new "Candidates" tab per SKU showing the scored candidates with thumbnails, score, reasoning, and "Use this image" action.
-- Subpage header pattern (bold h1 + teal ghost back button), semantic tokens only.
-
-### 6. Out of scope (slice 1)
-
-- Full review queue states (Pending/Approved/Rejected/Manual/Regenerate) — current approve/reject flow stays.
-- Enhancement engine (Photoroom + Real-ESRGAN) — wire in slice 2.
-- Bing API, TecDoc, per-brand custom scrapers.
-
-## Order of build
-
-1. Migration: `brand_image_profiles`, `image_scout_candidates`, `brand_image_profile_suggestions` + RLS.
-2. Refactor `image-scout-process` to gather + score candidates.
-3. Brand profiles editor page + nav (AppSidebar + RbacSidebar + system_areas + role_area_permissions).
-4. Candidates tab on Image Scout SKU detail.
-5. Auto-suggestion writer + "Suggested additions" panel.
-6. Seed Meyle, Febi, Bosch profiles as first examples.
-
-After this lands and we've watched it run on a few hundred SKUs, slice 2 = full review queue + Photoroom/Real-ESRGAN enhancement pipeline.
+Yes, all of this is possible and safe. Ready to build it on approval.
