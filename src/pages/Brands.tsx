@@ -175,6 +175,7 @@ const Brands = () => {
       remote_stock_feed_type: brand.remote_stock_feed_type || "",
       base_multiplier: brand.base_multiplier?.toString() || "",
       auto_update_lsa: !!brand.auto_update_lsa,
+      stock_sync_interval_hours: (brand.stock_sync_interval_hours ?? 24).toString(),
     });
   };
 
