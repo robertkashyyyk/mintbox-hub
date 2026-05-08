@@ -16,6 +16,7 @@ type Candidate = {
   sku: string;
   brand_id: string | null;
   source_domain: string | null;
+  image_url: string | null;
   confidence_score: number | null;
   status: string;
   created_at: string;
