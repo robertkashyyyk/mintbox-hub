@@ -267,11 +267,18 @@ const LsaCalibration = () => {
                     <Checkbox
                       checked={allOnPageSelected}
                       onCheckedChange={() => {
-                        if (allOnPageSelected) setSelected({});
-                        else {
-                          const n: Record<string, boolean> = {};
-                          for (const r of filtered) n[r.sku] = true;
-                          setSelected(n);
+                        if (allOnPageSelected) {
+                          setSelected((prev) => {
+                            const next = { ...prev };
+                            for (const r of pageRows) delete next[r.sku];
+                            return next;
+                          });
+                        } else {
+                          setSelected((prev) => {
+                            const next = { ...prev };
+                            for (const r of pageRows) next[r.sku] = true;
+                            return next;
+                          });
                         }
                       }}
                     />
