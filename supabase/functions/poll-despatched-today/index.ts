@@ -66,7 +66,11 @@ function ukMidnightUtc(ukDate: string): Date {
 }
 
 function extractDespatchedAt(o: MintsoftOrder): Date | null {
-  const candidate = o.DespatchedDate || o.DispatchedDate || o.ShippedDate || o.OrderDate;
+  // Prefer the actual Mintsoft despatch timestamp; fall back to LastUpdated
+  // (which is bumped when status flips to DESPATCHED). OrderDate is the worst
+  // fallback and only used if nothing else exists.
+  const candidate = o.DespatchDate || o.DespatchedDate || o.DispatchedDate
+    || o.ShippedDate || o.LastUpdated || o.OrderDate;
   if (!candidate) return null;
   const d = new Date(candidate);
   return isNaN(d.getTime()) ? null : d;
