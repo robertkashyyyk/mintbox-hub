@@ -57,7 +57,7 @@ function useCalibrationData() {
       const [candR, apprR, brandR, profileR, eventR, runR] = await Promise.all([
         supabase
           .from("image_scout_candidates")
-          .select("id,sku,brand_id,source_domain,confidence_score,status,created_at,reviewed_at,reviewed_by")
+          .select("id,sku,brand_id,source_domain,image_url,confidence_score,status,created_at,reviewed_at,reviewed_by")
           .gte("created_at", since)
           .order("created_at", { ascending: false })
           .limit(ROW_CAP),
