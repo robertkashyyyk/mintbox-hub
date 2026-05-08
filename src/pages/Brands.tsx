@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useState } from "react";
-import { Pencil, Trash2, Plus } from "lucide-react";
+import { Pencil, Trash2, Plus, Loader2, Zap } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -13,6 +13,8 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -61,7 +63,9 @@ const Brands = () => {
     family: "",
     remote_stock_feed_type: "" as any,
     base_multiplier: "",
+    auto_update_lsa: false,
   });
+  const [runningLsaBrandId, setRunningLsaBrandId] = useState<string | null>(null);
   const [addFormData, setAddFormData] = useState({
     name: "",
     prefix: "",
@@ -74,35 +78,9 @@ const Brands = () => {
   const { data: brands, isLoading } = useQuery({
     queryKey: ["brands-with-count"],
     queryFn: async () => {
-      // Fetch brands
-      const { data: brandsData, error: brandsError } = await supabase
-        .from("brands")
-        .select("*")
-        .order("name");
-
-      if (brandsError) throw brandsError;
-
-      // For each brand, count products in products_cache
-      const brandsWithCount = await Promise.all(
-        (brandsData || []).map(async (brand) => {
-          const separator = brand.prefix_style === "slash" ? "/" : "-";
-          const prefixPattern = `${brand.prefix}${separator}%`;
-
-          const { count, error } = await supabase
-            .from("products_cache")
-            .select("*", { count: "exact", head: true })
-            .ilike("sku", prefixPattern);
-
-          if (error) {
-            console.error(`Error counting products for ${brand.name}:`, error);
-            return { ...brand, product_count: 0 };
-          }
-
-          return { ...brand, product_count: count || 0 };
-        })
-      );
-
-      return brandsWithCount;
+      const { data, error } = await (supabase as any).rpc("get_brands_with_product_counts");
+      if (error) throw error;
+      return data as any[];
     },
   });
 
@@ -193,6 +171,7 @@ const Brands = () => {
       family: brand.family || "",
       remote_stock_feed_type: brand.remote_stock_feed_type || "",
       base_multiplier: brand.base_multiplier?.toString() || "",
+      auto_update_lsa: !!brand.auto_update_lsa,
     });
   };
 
@@ -216,6 +195,7 @@ const Brands = () => {
       family: editFormData.family || null,
       remote_stock_feed_type: editFormData.remote_stock_feed_type || null,
       base_multiplier: editFormData.base_multiplier ? Number(editFormData.base_multiplier) : null,
+      auto_update_lsa: editFormData.auto_update_lsa,
     };
     
     updateBrandMutation.mutate({
@@ -293,6 +273,7 @@ const Brands = () => {
                   <TableHead>Prefix Style</TableHead>
                   <TableHead>Family</TableHead>
                   <TableHead>Base Multiplier</TableHead>
+                  <TableHead>Auto LSA</TableHead>
                   <TableHead className="text-right">Product Count</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -319,6 +300,13 @@ const Brands = () => {
                         <span className="font-medium">{brand.base_multiplier}</span>
                       ) : (
                         <span className="text-destructive font-bold bg-destructive/10 px-2 py-1 rounded">Missing</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {brand.auto_update_lsa ? (
+                        <Badge className="bg-pd-accent/15 text-pd-accent border-pd-accent/40" variant="outline">On</Badge>
+                      ) : (
+                        <span className="text-muted-foreground text-xs">Off</span>
                       )}
                     </TableCell>
                     <TableCell className="text-right font-medium">
@@ -567,6 +555,62 @@ const Brands = () => {
                   setEditFormData({ ...editFormData, base_multiplier: e.target.value })
                 }
               />
+            </div>
+
+            <div className="rounded-md border border-border p-3 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="text-sm font-medium">Auto Update LSA on Mintsoft</Label>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    On the schedule set in System Settings, calculated Target LSA will be pushed to every SKU in this brand.
+                  </p>
+                </div>
+                <Switch
+                  checked={editFormData.auto_update_lsa}
+                  onCheckedChange={(v) => setEditFormData({ ...editFormData, auto_update_lsa: v })}
+                />
+              </div>
+
+              {editingBrand?.last_lsa_auto_update_at && (
+                <p className="text-xs text-muted-foreground">
+                  Last run: {new Date(editingBrand.last_lsa_auto_update_at).toLocaleString()}
+                  {editingBrand.last_lsa_auto_update_summary
+                    ? ` • Updated: ${editingBrand.last_lsa_auto_update_summary.updated ?? 0}, Failed: ${editingBrand.last_lsa_auto_update_summary.failed ?? 0}`
+                    : ""}
+                </p>
+              )}
+
+              {editFormData.auto_update_lsa && editingBrand && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={runningLsaBrandId === editingBrand.id}
+                  onClick={async () => {
+                    setRunningLsaBrandId(editingBrand.id);
+                    const { data, error } = await supabase.functions.invoke("auto-update-lsa-cron", {
+                      body: { brand_id: editingBrand.id },
+                    });
+                    setRunningLsaBrandId(null);
+                    if (error) {
+                      toast({ title: "Run failed", description: error.message, variant: "destructive" });
+                    } else {
+                      const s = (data as any)?.per_brand?.[editingBrand.name];
+                      toast({
+                        title: (data as any)?.dry_run ? "Dry run complete" : "Run complete",
+                        description: s
+                          ? `Candidates: ${s.candidates}, Updated: ${s.updated}, Failed: ${s.failed}`
+                          : "See agent_runs for details",
+                      });
+                      queryClient.invalidateQueries({ queryKey: ["brands-with-count"] });
+                    }
+                  }}
+                >
+                  {runningLsaBrandId === editingBrand.id
+                    ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Running…</>
+                    : <><Zap className="h-4 w-4 mr-2" />Run Auto LSA Update Now</>}
+                </Button>
+              )}
             </div>
           </div>
           <DialogFooter>
