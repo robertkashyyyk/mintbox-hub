@@ -23,9 +23,11 @@ const isOutOfTime = () => Date.now() - START > MAX_RUNTIME_MS;
 interface MintsoftOrder {
   ID: number;
   OrderDate?: string | null;
+  DespatchDate?: string | null;       // <-- the real Mintsoft field
   DespatchedDate?: string | null;
   DispatchedDate?: string | null;
   ShippedDate?: string | null;
+  LastUpdated?: string | null;        // bumped when status flips to DESPATCHED
   OrderStatusId?: number;
   OrderStatus?: string | { ID: number; ExternalName: string } | null;
   OrderNumber?: string | null;
