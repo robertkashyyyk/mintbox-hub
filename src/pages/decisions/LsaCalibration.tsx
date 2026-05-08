@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,8 +13,9 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { ArrowLeft, Gauge, Loader2, Search, Sparkles } from "lucide-react";
+import { ArrowLeft, Gauge, Loader2, RefreshCw, Search, Sparkles } from "lucide-react";
 import { useLsaCalibration, type LsaCalibrationRow } from "@/hooks/useLsaCalibration";
+import { useLsaBrandSummary } from "@/hooks/useLsaBrandSummary";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -34,38 +35,86 @@ const LsaCalibration = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const qc = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  const { data: rows = [], isLoading } = useLsaCalibration();
+  const brandParam = searchParams.get("brand");      // null = brand grid
+  const statusParam = searchParams.get("status") as StatusKey | null;
+  const inDetail = !!brandParam;
+
+  // ---- Brand-grid mode ----
+  const { data: brandSummary = [], isLoading: brandsLoading, refetch: refetchBrandSummary, isRefetching } = useLsaBrandSummary();
+  const [brandSearch, setBrandSearch] = useState("");
+
+  const filteredBrands = useMemo(() => {
+    const q = brandSearch.trim().toLowerCase();
+    if (!q) return brandSummary;
+    return brandSummary.filter(b => (b.brand_name || "").toLowerCase().includes(q));
+  }, [brandSummary, brandSearch]);
+
+  const totals = useMemo(() => {
+    const t = { total: 0, critical: 0, low: 0, target: 0, high: 0, excess: 0 };
+    for (const b of brandSummary) {
+      t.total += b.total; t.critical += b.critical; t.low += b.low;
+      t.target += b.target; t.high += b.high; t.excess += b.excess;
+    }
+    return t;
+  }, [brandSummary]);
+
+  const refreshSummary = async () => {
+    const { error } = await (supabase as any).rpc("refresh_lsa_brand_summary");
+    if (error) {
+      toast({ title: "Refresh failed", description: error.message, variant: "destructive" });
+    } else {
+      await refetchBrandSummary();
+      toast({ title: "Brand summary refreshed" });
+    }
+  };
+
+  // ---- Detail mode ----
+  const { data: rows = [], isLoading } = useLsaCalibration(inDetail ? brandParam : null);
 
   const [search, setSearch] = useState("");
-  const [brandFilter, setBrandFilter] = useState<string>(ALL);
-  const [statusFilter, setStatusFilter] = useState<string>(ALL);
+  const [statusFilter, setStatusFilter] = useState<string>(statusParam ?? ALL);
   const [proposed, setProposed] = useState<Record<string, number>>({});
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(100);
 
+  // sync status param into local state on enter
+  useEffect(() => {
+    if (inDetail) setStatusFilter(statusParam ?? ALL);
+  }, [brandParam, statusParam, inDetail]);
+
+  const detailBrandName = useMemo(() => {
+    if (!inDetail) return "";
+    const fromSummary = brandSummary.find(b => b.brand_id === brandParam);
+    if (fromSummary?.brand_name) return fromSummary.brand_name;
+    const fromRows = rows.find(r => r.brand_id === brandParam);
+    return fromRows?.brand_name || "Brand";
+  }, [inDetail, brandParam, brandSummary, rows]);
+
+
+  // Brand list (for the inline brand selector inside detail mode)
   const brands = useMemo(() => {
     const m = new Map<string, string>();
-    for (const r of rows) if (r.brand_id && r.brand_name) m.set(r.brand_id, r.brand_name);
+    for (const b of brandSummary) if (b.brand_id && b.brand_name) m.set(b.brand_id, b.brand_name);
     return Array.from(m.entries()).map(([id, name]) => ({ id, name }))
       .sort((a, b) => a.name.localeCompare(b.name));
-  }, [rows]);
+  }, [brandSummary]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return rows.filter((r) => {
-      if (brandFilter !== ALL && r.brand_id !== brandFilter) return false;
       if (statusFilter !== ALL && r.status !== statusFilter) return false;
       if (q && !(r.sku.toLowerCase().includes(q) || (r.product_name || "").toLowerCase().includes(q))) return false;
       return true;
     });
-  }, [rows, search, brandFilter, statusFilter]);
+  }, [rows, search, statusFilter]);
 
   // Reset to page 1 when filters change
   useEffect(() => {
     setPage(1);
-  }, [search, brandFilter, statusFilter, pageSize]);
+  }, [search, statusFilter, pageSize, brandParam]);
 
   // Paged slice
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
@@ -170,15 +219,170 @@ const LsaCalibration = () => {
     updateMintsoft.mutate(target);
   };
 
+  // Helpers for nav between brand-grid and detail
+  const goToBrand = (brandId: string | null, status?: StatusKey) => {
+    const next = new URLSearchParams();
+    if (brandId) next.set("brand", brandId);
+    if (status) next.set("status", status);
+    setSearchParams(next, { replace: false });
+  };
+  const backToBrands = () => setSearchParams(new URLSearchParams(), { replace: false });
+
+  // ============================================================
+  // BRAND GRID MODE
+  // ============================================================
+  if (!inDetail) {
+    return (
+      <div className="space-y-6 p-6 max-w-full overflow-hidden">
+        <div className="flex items-center justify-between">
+          <div className="space-y-1">
+            <Button variant="ghost" size="sm" onClick={() => navigate("/decisions")} className="text-pd-accent">
+              <ArrowLeft className="h-4 w-4 mr-2" /> Decisions
+            </Button>
+            <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+              <Gauge className="h-6 w-6 text-pd-accent" /> LSA Calibration
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              Pick a brand to review and update its Low Stock Alerts. Click any number to drill straight into that bucket.
+              {brandSummary[0]?.refreshed_at && (
+                <span className="ml-2 text-xs">
+                  · Summary refreshed {new Date(brandSummary[0].refreshed_at).toLocaleString("en-GB")}
+                </span>
+              )}
+            </p>
+          </div>
+          <Button variant="outline" onClick={refreshSummary} disabled={isRefetching}>
+            {isRefetching ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+            Refresh summary
+          </Button>
+        </div>
+
+        {/* Totals across all brands */}
+        <div className="grid gap-3 md:grid-cols-5">
+          {ALL_STATUSES.map((s) => (
+            <Card key={s}>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">{STATUS_META[s].label}</CardTitle>
+                <Badge variant="outline" className={STATUS_META[s].cls}>{totals[s].toLocaleString()}</Badge>
+              </CardHeader>
+              <CardContent className="pt-0 text-xs text-muted-foreground">across all brands</CardContent>
+            </Card>
+          ))}
+        </div>
+
+        {/* Brand search */}
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-4 flex-wrap">
+              <div className="relative flex-1 min-w-[240px] max-w-md">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search brand..."
+                  value={brandSearch}
+                  onChange={(e) => setBrandSearch(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+              <div className="ml-auto text-sm text-muted-foreground">
+                {filteredBrands.length} of {brandSummary.length} brand{brandSummary.length === 1 ? "" : "s"} ·{" "}
+                {totals.total.toLocaleString()} SKUs in scope
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Brand grid */}
+        <Card>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Brand</TableHead>
+                    <TableHead className="text-right">Total</TableHead>
+                    <TableHead className="text-right">Critical</TableHead>
+                    <TableHead className="text-right">Low</TableHead>
+                    <TableHead className="text-right">Target</TableHead>
+                    <TableHead className="text-right">High</TableHead>
+                    <TableHead className="text-right">Excess</TableHead>
+                    <TableHead className="w-[140px]"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {brandsLoading ? (
+                    <TableRow><TableCell colSpan={8} className="text-center py-12">
+                      <Loader2 className="h-5 w-5 animate-spin mx-auto text-muted-foreground" />
+                    </TableCell></TableRow>
+                  ) : filteredBrands.length === 0 ? (
+                    <TableRow><TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
+                      No brands match your search.
+                    </TableCell></TableRow>
+                  ) : (
+                    filteredBrands.map((b) => {
+                      const brandKey = b.brand_id ?? "__none__";
+                      const StatusCell = ({ status, value }: { status: StatusKey; value: number }) => (
+                        <TableCell className="text-right tabular-nums">
+                          {value > 0 ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className={`h-auto px-2 py-1 ${STATUS_META[status].cls}`}
+                              onClick={() => goToBrand(b.brand_id, status)}
+                              disabled={!b.brand_id}
+                            >
+                              {value.toLocaleString()}
+                            </Button>
+                          ) : (
+                            <span className="text-muted-foreground">0</span>
+                          )}
+                        </TableCell>
+                      );
+                      return (
+                        <TableRow key={brandKey}>
+                          <TableCell className="font-medium">
+                            {b.brand_name || <span className="text-muted-foreground italic">Unmapped</span>}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums font-medium">{b.total.toLocaleString()}</TableCell>
+                          <StatusCell status="critical" value={b.critical} />
+                          <StatusCell status="low"      value={b.low} />
+                          <StatusCell status="target"   value={b.target} />
+                          <StatusCell status="high"     value={b.high} />
+                          <StatusCell status="excess"   value={b.excess} />
+                          <TableCell className="text-right">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => goToBrand(b.brand_id)}
+                              disabled={!b.brand_id}
+                            >
+                              Open all →
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // ============================================================
+  // DETAIL MODE (single brand)
+  // ============================================================
   return (
     <div className="space-y-6 p-6 max-w-full overflow-hidden">
       <div className="flex items-center justify-between">
         <div className="space-y-1">
-          <Button variant="ghost" size="sm" onClick={() => navigate("/decisions")} className="text-pd-accent">
-            <ArrowLeft className="h-4 w-4 mr-2" /> Decisions
+          <Button variant="ghost" size="sm" onClick={backToBrands} className="text-pd-accent">
+            <ArrowLeft className="h-4 w-4 mr-2" /> Back to brands
           </Button>
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-            <Gauge className="h-6 w-6 text-pd-accent" /> LSA Calibration
+            <Gauge className="h-6 w-6 text-pd-accent" /> {detailBrandName}
           </h1>
           <p className="text-sm text-muted-foreground">
             Compare current Low Stock Alerts to target (weekly velocity × base multiplier) and push corrections back to Mintsoft.
@@ -198,7 +402,7 @@ const LsaCalibration = () => {
         </div>
       </div>
 
-      {/* Status summary */}
+      {/* Status summary (this brand only) */}
       <div className="grid gap-3 md:grid-cols-5">
         {ALL_STATUSES.map((s) => (
           <Card key={s} className={statusFilter === s ? "ring-1 ring-pd-accent" : ""}>
@@ -231,10 +435,10 @@ const LsaCalibration = () => {
             </div>
             <div className="flex items-center gap-2">
               <Label className="text-sm">Brand</Label>
-              <Select value={brandFilter} onValueChange={setBrandFilter}>
+              <Select value={brandParam ?? ALL} onValueChange={(v) => goToBrand(v === ALL ? null : v)}>
                 <SelectTrigger className="w-[220px]"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={ALL}>All brands</SelectItem>
+                  <SelectItem value={ALL}>← All brands</SelectItem>
                   {brands.map((b) => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}
                 </SelectContent>
               </Select>
