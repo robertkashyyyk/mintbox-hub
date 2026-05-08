@@ -105,6 +105,7 @@ const Brands = () => {
         family: "",
         remote_stock_feed_type: "",
         base_multiplier: "",
+        stock_sync_interval_hours: "24",
       });
     },
     onError: (error) => {
