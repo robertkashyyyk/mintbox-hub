@@ -16,16 +16,35 @@ export interface LsaCalibrationRow {
   status: "critical" | "low" | "target" | "high" | "excess";
 }
 
+export interface LsaCalibrationProgress {
+  loaded: number;
+  total?: number;
+}
+
+const CHUNK_SIZE = 800;
+
 export const useLsaCalibration = (brandId?: string | null) => {
   return useQuery({
     queryKey: ["lsa-calibration", brandId ?? null],
     queryFn: async () => {
       const sb = supabase as any;
-      const { data, error } = await sb
-        .rpc("get_lsa_calibration", { p_brand_id: brandId ?? null })
-        .range(0, 49999);
-      if (error) throw error;
-      return (data || []) as LsaCalibrationRow[];
+      const all: LsaCalibrationRow[] = [];
+      let offset = 0;
+      let chunk: LsaCalibrationRow[] = [];
+
+      do {
+        const { data, error } = await sb.rpc("get_lsa_calibration", {
+          p_brand_id: brandId ?? null,
+          p_limit: CHUNK_SIZE,
+          p_offset: offset,
+        });
+        if (error) throw error;
+        chunk = (data || []) as LsaCalibrationRow[];
+        all.push(...chunk);
+        offset += CHUNK_SIZE;
+      } while (chunk.length === CHUNK_SIZE);
+
+      return all;
     },
     staleTime: 30_000,
   });
