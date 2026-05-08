@@ -139,9 +139,9 @@ Deno.serve(async (req) => {
     const knownSkus = new Set(products.map((p) => p.sku));
     const now = new Date().toISOString();
 
-    // Only update SKUs that already exist in products_cache. Upsert would try to
-    // INSERT for missing rows, but products_cache.name is NOT NULL, which makes
-    // the entire batch fail and silently produces "0 updated".
+    // Find which scoped SKUs are already in products_cache. For any that are missing,
+    // insert a minimal stub row (name = sku) so the stock UPDATE can land. The
+    // mintsoft-enrich-batch cron will fill in the real name/cost/brand later.
     const candidateSkus = stockData.map((it) => it.SKU).filter((s) => knownSkus.has(s));
     const existingSkus = new Set<string>();
     if (candidateSkus.length > 0) {
@@ -157,6 +157,27 @@ Deno.serve(async (req) => {
       }
     }
 
+    const missingSkus = candidateSkus.filter((s) => !existingSkus.has(s));
+    let stubsCreated = 0;
+    if (missingSkus.length > 0) {
+      console.log(`Creating ${missingSkus.length} stub product rows for new SKUs...`);
+      const stubs = missingSkus.map((sku) => ({
+        sku,
+        name: sku, // placeholder; enrich-batch will overwrite with real name
+        discovery_source: "stock_sync_stub",
+      }));
+      const { error: stubErr, data: stubData } = await supabase
+        .from("products_cache")
+        .insert(stubs)
+        .select("sku");
+      if (stubErr) {
+        console.error("Stub insert error:", stubErr.message);
+      } else {
+        stubsCreated = stubData?.length ?? missingSkus.length;
+        for (const s of missingSkus) existingSkus.add(s);
+      }
+    }
+
     const updates = stockData
       .filter((it) => existingSkus.has(it.SKU))
       .map((it) => ({
@@ -166,11 +187,6 @@ Deno.serve(async (req) => {
         on_order: it.OnOrderQuantity || 0,
         last_stock_sync: now,
       }));
-
-    const skippedMissing = candidateSkus.length - existingSkus.size;
-    if (skippedMissing > 0) {
-      console.log(`Skipping ${skippedMissing} SKUs not present in products_cache (would require INSERT).`);
-    }
 
     let updated = 0;
     let lastError: string | null = null;
