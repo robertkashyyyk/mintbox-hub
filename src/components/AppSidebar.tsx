@@ -86,6 +86,7 @@ export function AppSidebar() {
         { title: "Image Scout", url: "/discovery/image-scout", icon: Search },
         { title: "Image Scout Brands", url: "/discovery/image-scout/brand-profiles", icon: Tag },
         { title: "Image Scout QA Run", url: "/discovery/image-scout/qa-run", icon: Beaker },
+        { title: "Image Scout Calibration", url: "/discovery/image-scout/calibration", icon: BarChart3 },
       ],
     },
     {
