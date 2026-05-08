@@ -250,11 +250,18 @@ Deno.serve(async (req) => {
     const rotatedCold = coldStatusIds.length > 0
       ? [...coldStatusIds.slice(coldCursor % coldStatusIds.length), ...coldStatusIds.slice(0, coldCursor % coldStatusIds.length)]
       : [];
-    // Final order: HOT first (today's NEW/AWAITINGPICKING — small + critical),
-    // then rotated COLD, then terminal sweep LAST (largest, can be truncated
-    // safely because reconcile-order-ghosts handles deeper terminal reconciliation).
-    const statusIdsToFetch = [...hotStatusIds, ...rotatedCold, ...liveTailTerminalIds];
-    console.log(`Status priority: ${hotStatusIds.length} hot + ${rotatedCold.length} cold (cursor=${coldCursor}) + ${liveTailTerminalIds.length} terminal`);
+    // Guaranteed terminal seed: always pull the first few pages of each terminal
+    // status BEFORE hot/cold so today's despatches always land in order_status_history
+    // even when the rest of the run gets truncated. Newest-first + ~500 rows
+    // comfortably covers a UK day. Capped tightly so it can't starve hot.
+    const terminalSeedIds = ignoreDateFilter ? terminalStatusIds : [];
+    // Final order: terminal SEED first (small, fast, guaranteed), then HOT
+    // (today's NEW/AWAITINGPICKING — small + critical), then rotated COLD,
+    // then a deeper terminal sweep LAST (can be truncated safely because
+    // reconcile-order-ghosts handles deeper terminal reconciliation).
+    const statusIdsToFetch = [...terminalSeedIds, ...hotStatusIds, ...rotatedCold, ...liveTailTerminalIds];
+    const terminalSeedSet = new Set(terminalSeedIds);
+    console.log(`Status priority: ${terminalSeedIds.length} terminal-seed + ${hotStatusIds.length} hot + ${rotatedCold.length} cold (cursor=${coldCursor}) + ${liveTailTerminalIds.length} terminal-deep`);
 
     // 1. Fetch order headers across statuses in priority order
     let allOrders: MintsoftOrder[] = [];
@@ -264,7 +271,8 @@ Deno.serve(async (req) => {
       let timedOut = false;
       for (let sIdx = 0; sIdx < statusIdsToFetch.length; sIdx++) {
         const statusId = statusIdsToFetch[sIdx];
-        const isTerminal = liveTailTerminalIds.includes(statusId);
+        const isTerminalSeed = terminalSeedSet.has(statusId) && sIdx < terminalSeedIds.length;
+        const isTerminal = !isTerminalSeed && liveTailTerminalIds.includes(statusId);
         const isCold = rotatedCold.includes(statusId) && !isTerminal && !hotStatusIds.includes(statusId);
         if (isTimeRunningOut()) { timedOut = true; break; }
         let pageNo = 1;
@@ -282,15 +290,15 @@ Deno.serve(async (req) => {
             const orderDateObj = new Date(o.OrderDate);
             if (orderDateObj < MIN_DATE) return false;
             // Terminal sweep: hard 10-day floor (Mintsoft returns newest first)
-            if (isTerminal && orderDateObj < liveTailTerminalFloor) { stopPaging = true; return false; }
+            if ((isTerminal || isTerminalSeed) && orderDateObj < liveTailTerminalFloor) { stopPaging = true; return false; }
             if (!ignoreDateFilter && orderDateObj < fromDateObj) return false;
             seenOrderIds.add(o.ID);
             return true;
           });
           allOrders = allOrders.concat(filtered);
-          // Terminal sweep capped at 10 pages (1000 orders) per status per run
-          // to prevent it from starving the hot queue. Hot/cold use 50.
-          const pageCap = isTerminal ? 10 : 50;
+          // Terminal SEED capped at 5 pages (500 orders, newest-first ≈ today's despatches).
+          // Deep terminal sweep: 10 pages. Hot/cold: 50.
+          const pageCap = isTerminalSeed ? 5 : (isTerminal ? 10 : 50);
           if (stopPaging || orders.length < 100 || pageNo >= pageCap) break;
           pageNo++;
           if (isTimeRunningOut()) { timedOut = true; statusFullyDone = false; break; }
