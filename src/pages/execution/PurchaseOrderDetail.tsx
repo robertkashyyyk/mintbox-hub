@@ -11,7 +11,34 @@ import {
 } from "@/components/ui/table";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Send, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Send, AlertTriangle, Download, ChevronDown } from "lucide-react";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
+const stripPrefix = (sku: string): string => {
+  const slash = sku.indexOf("/");
+  const dash = sku.indexOf("-");
+  let idx = -1;
+  if (slash >= 0 && dash >= 0) idx = Math.min(slash, dash);
+  else idx = Math.max(slash, dash);
+  return idx > 0 ? sku.slice(idx + 1) : sku;
+};
+
+const csvEscape = (v: string | number) => {
+  const s = String(v ?? "");
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+};
+
+const downloadCsv = (filename: string, rows: (string | number)[][]) => {
+  const csv = rows.map((r) => r.map(csvEscape).join(",")).join("\n");
+  const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+};
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP", minimumFractionDigits: 2 }).format(n || 0);
@@ -142,12 +169,37 @@ const PurchaseOrderDetail = () => {
             {po.status === "sent" && !po.mintsoft_po_id && " — Awaiting ASN"}
             {po.status === "sent" && po.mintsoft_po_id && ` — Mintsoft #${po.mintsoft_po_id}`}
           </Badge>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline">
+                <Download className="h-4 w-4 mr-2" />
+                Download CSV
+                <ChevronDown className="h-4 w-4 ml-2" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => {
+                const rows: (string | number)[][] = [["SKU", "Quantity", "Cost Price", "Comments"]];
+                for (const l of lines) rows.push([l.sku, Number(l.qty_ordered || 0), Number(l.unit_cost || 0), ""]);
+                downloadCsv(`${po.po_number || po.id.slice(0, 8)}-with-prefix.csv`, rows);
+              }}>
+                With prefix (PREFIX-SKU)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => {
+                const rows: (string | number)[][] = [["SKU", "Quantity", "Cost Price", "Comments"]];
+                for (const l of lines) rows.push([stripPrefix(l.sku), Number(l.qty_ordered || 0), Number(l.unit_cost || 0), ""]);
+                downloadCsv(`${po.po_number || po.id.slice(0, 8)}-supplier.csv`, rows);
+              }}>
+                Without prefix (supplier-friendly)
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           {canSend && (
             <Button
               disabled={sendPo.isPending || sendableLines.length === 0 || !supplierMapped}
               onClick={() => sendPo.mutate()}>
               <Send className="h-4 w-4 mr-2" />
-              {sendPo.isPending ? "Sending…" : `Send to Mintsoft${sendableLines.length < lines.length ? ` (${sendableLines.length}/${lines.length})` : ""}`}
+              {sendPo.isPending ? "Creating…" : `Create ASN in Mintsoft${sendableLines.length < lines.length ? ` (${sendableLines.length}/${lines.length})` : ""}`}
             </Button>
           )}
         </div>
@@ -187,7 +239,7 @@ const PurchaseOrderDetail = () => {
           <AlertTitle>{linesMissingCost.length} line{linesMissingCost.length === 1 ? "" : "s"} missing cost</AlertTitle>
           <AlertDescription>
             These lines will be skipped when sending to Mintsoft. Edit the cost and click Save — it will be
-            pushed to Mintsoft and removed from Missing Costs automatically. Then click Send to Mintsoft again
+            pushed to Mintsoft and removed from Missing Costs automatically. Then click Create ASN in Mintsoft again
             to push the remaining lines.
           </AlertDescription>
         </Alert>
