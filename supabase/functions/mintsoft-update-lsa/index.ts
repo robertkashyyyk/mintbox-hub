@@ -56,7 +56,11 @@ Deno.serve(async (req) => {
           continue
         }
 
-        const targetLsa = Math.round(it.low_stock_alert_level)
+        // Mintsoft rejects LowStockAlertLevel = 0 on some products (e.g. Liqui Moly).
+        // Our system treats LSA <= lsa.min_threshold (default 1) as "off" anyway,
+        // so coerce a proposed 0 up to 1 — invisible to our logic, accepted by Mintsoft.
+        const requestedLsa = Math.round(it.low_stock_alert_level)
+        const targetLsa = requestedLsa <= 0 ? 1 : requestedLsa
 
         // 1. POST minimal payload — Mintsoft treats this as an update when ID is present.
         const payload = {
