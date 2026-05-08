@@ -71,7 +71,6 @@ const SalesOrders = () => {
         </div>
       </div>
 
-      <DiagnosticBanner />
 
       {/* 4 focused metric cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
