@@ -954,6 +954,36 @@ export type Database = {
         }
         Relationships: []
       }
+      despatch_ledger: {
+        Row: {
+          channel: string | null
+          despatched_at: string
+          first_seen_at: string
+          id: string
+          mintsoft_order_id: number
+          order_number: string | null
+          uk_date: string
+        }
+        Insert: {
+          channel?: string | null
+          despatched_at: string
+          first_seen_at?: string
+          id?: string
+          mintsoft_order_id: number
+          order_number?: string | null
+          uk_date: string
+        }
+        Update: {
+          channel?: string | null
+          despatched_at?: string
+          first_seen_at?: string
+          id?: string
+          mintsoft_order_id?: number
+          order_number?: string | null
+          uk_date?: string
+        }
+        Relationships: []
+      }
       download_history: {
         Row: {
           brand_id: string
@@ -4275,6 +4305,15 @@ export type Database = {
           today_on_time: number
           today_pct: number
           today_total: number
+        }[]
+      }
+      get_despatched_today_authoritative: {
+        Args: never
+        Returns: {
+          despatched_count: number
+          last_despatched_at: string
+          last_poll_at: string
+          uk_date: string
         }[]
       }
       get_edge_function_runs: {
