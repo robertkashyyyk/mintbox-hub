@@ -64,6 +64,7 @@ const Brands = () => {
     remote_stock_feed_type: "" as any,
     base_multiplier: "",
     auto_update_lsa: false,
+    stock_sync_interval_hours: "24",
   });
   const [runningLsaBrandId, setRunningLsaBrandId] = useState<string | null>(null);
   const [addFormData, setAddFormData] = useState({
@@ -73,6 +74,7 @@ const Brands = () => {
     family: "",
     remote_stock_feed_type: "" as any,
     base_multiplier: "",
+    stock_sync_interval_hours: "24",
   });
 
   const { data: brands, isLoading } = useQuery({
