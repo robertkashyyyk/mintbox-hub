@@ -139,6 +139,12 @@ export const useOpsDashboard = () => {
 
         // Hourly flow
         supabase.rpc("get_ops_hourly_flow" as any),
+
+        // Authoritative despatched-today count from the dedicated ledger
+        supabase
+          .from("despatch_ledger" as any)
+          .select("*", { count: "exact", head: true })
+          .eq("uk_date", todayStr),
       ]);
 
       // Parse queue counts from RPC
