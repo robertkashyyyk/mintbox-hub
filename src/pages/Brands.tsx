@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useState } from "react";
-import { Pencil, Trash2, Plus } from "lucide-react";
+import { Pencil, Trash2, Plus, Loader2, Zap } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -13,6 +13,8 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -61,7 +63,9 @@ const Brands = () => {
     family: "",
     remote_stock_feed_type: "" as any,
     base_multiplier: "",
+    auto_update_lsa: false,
   });
+  const [runningLsaBrandId, setRunningLsaBrandId] = useState<string | null>(null);
   const [addFormData, setAddFormData] = useState({
     name: "",
     prefix: "",
@@ -74,35 +78,9 @@ const Brands = () => {
   const { data: brands, isLoading } = useQuery({
     queryKey: ["brands-with-count"],
     queryFn: async () => {
-      // Fetch brands
-      const { data: brandsData, error: brandsError } = await supabase
-        .from("brands")
-        .select("*")
-        .order("name");
-
-      if (brandsError) throw brandsError;
-
-      // For each brand, count products in products_cache
-      const brandsWithCount = await Promise.all(
-        (brandsData || []).map(async (brand) => {
-          const separator = brand.prefix_style === "slash" ? "/" : "-";
-          const prefixPattern = `${brand.prefix}${separator}%`;
-
-          const { count, error } = await supabase
-            .from("products_cache")
-            .select("*", { count: "exact", head: true })
-            .ilike("sku", prefixPattern);
-
-          if (error) {
-            console.error(`Error counting products for ${brand.name}:`, error);
-            return { ...brand, product_count: 0 };
-          }
-
-          return { ...brand, product_count: count || 0 };
-        })
-      );
-
-      return brandsWithCount;
+      const { data, error } = await (supabase as any).rpc("get_brands_with_product_counts");
+      if (error) throw error;
+      return data as any[];
     },
   });
 
