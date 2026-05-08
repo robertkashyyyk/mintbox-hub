@@ -37,6 +37,47 @@ const SystemSettings = () => {
   const [tolInput, setTolInput] = useState<{ critical: string; low: string; high: string; excess: string }>({
     critical: "", low: "", high: "", excess: ""
   });
+  const [dispatchedIdsInput, setDispatchedIdsInput] = useState<string>("");
+  const [savingDispatched, setSavingDispatched] = useState(false);
+
+  const { data: mintsoftSettings, refetch: refetchMintsoft } = useQuery({
+    queryKey: ["mintsoft-settings-system"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("mintsoft_settings")
+        .select("dispatched_status_ids")
+        .single();
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  useEffect(() => {
+    if (mintsoftSettings?.dispatched_status_ids) {
+      setDispatchedIdsInput(mintsoftSettings.dispatched_status_ids.join(", "));
+    }
+  }, [mintsoftSettings]);
+
+  const handleSaveDispatchedIds = async () => {
+    setSavingDispatched(true);
+    try {
+      const idsArray = dispatchedIdsInput
+        .split(",")
+        .map(id => parseInt(id.trim()))
+        .filter(id => !isNaN(id));
+      const { error } = await supabase
+        .from("mintsoft_settings")
+        .update({ dispatched_status_ids: idsArray })
+        .eq("id", true);
+      if (error) throw error;
+      toast({ title: "Dispatched status IDs saved", description: `${idsArray.length} status ID(s) configured.` });
+      refetchMintsoft();
+    } catch (e) {
+      toast({ title: "Error", description: e instanceof Error ? e.message : "Failed to save", variant: "destructive" });
+    } finally {
+      setSavingDispatched(false);
+    }
+  };
 
   useEffect(() => {
     if (lsaMinThreshold !== null && lsaMinThreshold !== undefined) setLsaMinInput(String(lsaMinThreshold));
