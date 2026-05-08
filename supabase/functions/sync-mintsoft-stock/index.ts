@@ -42,14 +42,27 @@ Deno.serve(async (req) => {
       throw new Error("MINTSOFT_API_KEY not configured");
     }
 
-    // Get all SKUs from products_cache that need syncing
-    const { data: products, error: productsError } = await supabase
-      .from("products_cache")
-      .select("sku");
+    // Get all SKUs from products_cache that need syncing.
+    // Page through to bypass PostgREST's default 1000-row cap — without this we
+    // were silently only refreshing the first 1000 of ~200k products every run.
+    const allSkus: string[] = [];
+    const pageSize = 1000;
+    let from = 0;
+    while (true) {
+      const { data: page, error: pErr } = await supabase
+        .from("products_cache")
+        .select("sku")
+        .order("sku", { ascending: true })
+        .range(from, from + pageSize - 1);
+      if (pErr) throw pErr;
+      if (!page || page.length === 0) break;
+      for (const p of page) allSkus.push(p.sku);
+      if (page.length < pageSize) break;
+      from += pageSize;
+    }
+    const products = allSkus.map((sku) => ({ sku }));
 
-    if (productsError) throw productsError;
-
-    if (!products || products.length === 0) {
+    if (products.length === 0) {
       console.log("No products found to sync");
       return new Response(
         JSON.stringify({ message: "No products to sync" }),
