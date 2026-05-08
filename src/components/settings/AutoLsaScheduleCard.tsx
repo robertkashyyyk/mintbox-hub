@@ -5,7 +5,8 @@ import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Gauge, Loader2 } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Gauge, Loader2, Mail } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -31,23 +32,37 @@ export const AutoLsaScheduleCard = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [running, setRunning] = useState(false);
+  const [recipients, setRecipients] = useState<string>("");
 
   useEffect(() => {
     (async () => {
-      const { data } = await supabase.from("app_settings")
-        .select("value").eq("key", "lsa.auto_update_schedule").maybeSingle();
-      if (data?.value) setS({ ...DEFAULT, ...(data.value as any) });
+      const [sched, recips] = await Promise.all([
+        supabase.from("app_settings").select("value").eq("key", "lsa.auto_update_schedule").maybeSingle(),
+        supabase.from("app_settings").select("value").eq("key", "lsa.auto_update_recipients").maybeSingle(),
+      ]);
+      if (sched.data?.value) setS({ ...DEFAULT, ...(sched.data.value as any) });
+      const list = (recips.data?.value as any)?.emails as string[] | undefined;
+      if (Array.isArray(list)) setRecipients(list.join(", "));
       setLoading(false);
     })();
   }, []);
 
+  const parseEmails = (raw: string): string[] =>
+    Array.from(new Set(
+      raw.split(/[\s,;\n]+/).map(e => e.trim().toLowerCase()).filter(e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e))
+    ));
+
   const save = async () => {
     setSaving(true);
-    const { error } = await supabase.from("app_settings")
-      .upsert({ key: "lsa.auto_update_schedule", value: s as any });
+    const emails = parseEmails(recipients);
+    const [r1, r2] = await Promise.all([
+      supabase.from("app_settings").upsert({ key: "lsa.auto_update_schedule", value: s as any }),
+      supabase.from("app_settings").upsert({ key: "lsa.auto_update_recipients", value: { emails } as any }),
+    ]);
     setSaving(false);
+    const error = r1.error || r2.error;
     if (error) toast({ title: "Save failed", description: error.message, variant: "destructive" });
-    else toast({ title: "Schedule saved" });
+    else toast({ title: "Saved", description: `${emails.length} recipient(s) configured` });
   };
 
   const runNow = async () => {
@@ -127,6 +142,21 @@ export const AutoLsaScheduleCard = () => {
                 <Input type="time" value={s.time_uk}
                   onChange={(e) => setS({ ...s, time_uk: e.target.value })} />
               </div>
+            </div>
+
+            <div className="space-y-2 pt-2 border-t">
+              <Label className="flex items-center gap-2">
+                <Mail className="h-4 w-4" /> Summary email recipients
+              </Label>
+              <Textarea
+                value={recipients}
+                onChange={(e) => setRecipients(e.target.value)}
+                placeholder="alice@example.com, bob@example.com"
+                rows={2}
+              />
+              <p className="text-xs text-muted-foreground">
+                A summary email is sent after every auto run (manual or scheduled). Comma, space, or newline separated. Leave blank to disable.
+              </p>
             </div>
 
             <div className="flex items-center gap-2 pt-2">
