@@ -4186,23 +4186,41 @@ export type Database = {
           status: string
         }[]
       }
-      get_lsa_calibration: {
-        Args: { p_brand_id?: string }
-        Returns: {
-          base_multiplier: number
-          brand_id: string
-          brand_name: string
-          current_lsa: number
-          current_stock: number
-          product_name: string
-          sku: string
-          status: string
-          supplier_id: string
-          supplier_name: string
-          target_lsa: number
-          weekly_velocity: number
-        }[]
-      }
+      get_lsa_calibration:
+        | {
+            Args: { p_brand_id?: string }
+            Returns: {
+              base_multiplier: number
+              brand_id: string
+              brand_name: string
+              current_lsa: number
+              current_stock: number
+              product_name: string
+              sku: string
+              status: string
+              supplier_id: string
+              supplier_name: string
+              target_lsa: number
+              weekly_velocity: number
+            }[]
+          }
+        | {
+            Args: { p_brand_id?: string; p_limit?: number; p_offset?: number }
+            Returns: {
+              base_multiplier: number
+              brand_id: string
+              brand_name: string
+              current_lsa: number
+              current_stock: number
+              product_name: string
+              sku: string
+              status: string
+              supplier_id: string
+              supplier_name: string
+              target_lsa: number
+              weekly_velocity: number
+            }[]
+          }
       get_mintsoft_despatch_hourly_today: {
         Args: never
         Returns: {
