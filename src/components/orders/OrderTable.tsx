@@ -89,19 +89,16 @@ function BouncerBadge({ count }: { count: number }) {
 }
 
 function PoStatusBadge({ line }: { line: OpenOrderLine }) {
-  if (line.on_active_po) {
+  if (line.on_order_qty > 0) {
     return (
       <Badge variant="outline" className="text-xs bg-emerald-500/10 text-emerald-400 border-emerald-500/30">
-        <ShoppingCart className="h-3 w-3 mr-1" /> On PO
+        <ShoppingCart className="h-3 w-3 mr-1" /> On Order
       </Badge>
     );
   }
-  if (line.current_stock > 0) {
-    return <span className="text-muted-foreground text-xs">In stock</span>;
-  }
   return (
     <Badge variant="outline" className="text-xs bg-destructive/15 text-destructive border-destructive/40">
-      <AlertCircle className="h-3 w-3 mr-1" /> Not on PO
+      <AlertCircle className="h-3 w-3 mr-1" /> Not on Order
     </Badge>
   );
 }
