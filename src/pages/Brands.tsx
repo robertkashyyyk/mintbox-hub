@@ -319,6 +319,11 @@ const Brands = () => {
                       )}
                     </TableCell>
                     <TableCell>
+                      <span className="text-xs text-muted-foreground">
+                        every {brand.stock_sync_interval_hours ?? 24}h
+                      </span>
+                    </TableCell>
+                    <TableCell>
                       <TooltipProvider>
                         <div className="flex items-center gap-1.5">
                           {brand.auto_update_lsa && (
