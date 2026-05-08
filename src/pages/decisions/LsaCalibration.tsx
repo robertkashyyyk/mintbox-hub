@@ -108,7 +108,7 @@ const LsaCalibration = () => {
     [filtered, proposed]
   );
 
-  const allOnPageSelected = filtered.length > 0 && filtered.every((r) => selected[r.sku]);
+  const allOnPageSelected = pageRows.length > 0 && pageRows.every((r) => selected[r.sku]);
 
   const applyTargetToFiltered = () => {
     setProposed((prev) => {
