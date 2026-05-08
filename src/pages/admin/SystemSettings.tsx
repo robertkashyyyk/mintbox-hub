@@ -370,6 +370,38 @@ const SystemSettings = () => {
               </Alert>
             </CardContent>
           </Card>
+
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Truck className="h-5 w-5 text-pd-accent" />
+                <CardTitle>Dispatched Status IDs</CardTitle>
+              </div>
+              <CardDescription>
+                Mintsoft order status IDs that count as "dispatched / closed". Used by Order Telemetry, sync jobs and dashboards to know when an order has left the open pipeline.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="dispatched-ids">Status IDs (comma-separated)</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="dispatched-ids"
+                    placeholder="e.g. 7, 12, 18"
+                    value={dispatchedIdsInput}
+                    onChange={(e) => setDispatchedIdsInput(e.target.value)}
+                    disabled={savingDispatched}
+                  />
+                  <Button onClick={handleSaveDispatchedIds} disabled={savingDispatched}>
+                    Save
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Tip: Use the Mintsoft Status Inspector (in any sync tool) to look up the right IDs for your tenant.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </AccessGate>
