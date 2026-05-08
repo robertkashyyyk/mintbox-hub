@@ -49,11 +49,15 @@ function OrderStatusBadge({ status }: { status: string | null }) {
     NEW: "bg-blue-500/15 text-blue-400 border-blue-500/30",
     AWAITINGPICKING: "bg-amber-500/15 text-amber-400 border-amber-500/30",
     ONBACKORDER: "bg-purple-500/15 text-purple-400 border-purple-500/30",
-    PICKED: "bg-teal-500/15 text-teal-400 border-teal-500/30",
+    PICKED: "bg-amber-500/15 text-amber-400 border-amber-500/30",
+  };
+  const labels: Record<string, string> = {
+    AWAITINGPICKING: "AWAITING PICKING",
+    PICKED: "AWAITING PICKING",
   };
   return (
     <Badge variant="outline" className={`text-xs whitespace-nowrap ${styles[normalized] || ""}`}>
-      {status}
+      {labels[normalized] || status}
     </Badge>
   );
 }
