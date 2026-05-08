@@ -35,9 +35,19 @@ const PackingAreaDisplay = () => {
     queryKey: ["packing-live"],
     refetchInterval: REFRESH_MS,
     queryFn: async () => {
-      const [snap, despatchedHist] = await Promise.all([
+      const [snap, despatchedHist, sla] = await Promise.all([
         supabase.rpc("get_mintsoft_status_latest" as any).then((r) => r),
-        supabase.rpc("get_despatch_hourly_today" as any).then((r) => r),
+        supabase.rpc("get_despatch_halfhourly_today" as any).then((r) => r),
+        (async () => {
+          const today = new Date();
+          const iso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+          return supabase.rpc("get_despatch_performance_buckets" as any, {
+            from_date: iso,
+            to_date: iso,
+            bucket: "day",
+            channels: null,
+          });
+        })(),
       ]);
       const rows = (snap.data as Array<{ status: string; count: number; captured_at: string }> | null) ?? [];
       const byStatus: Record<string, number> = {};
@@ -46,12 +56,16 @@ const PackingAreaDisplay = () => {
         byStatus[r.status] = Number(r.count);
         if (!capturedAt || r.captured_at > capturedAt) capturedAt = r.captured_at;
       }
+      const slaRows = (sla.data as Array<any> | null) ?? [];
+      // pick the rolled-up "all channels" row (channel IS NULL)
+      const slaRow = slaRows.find((r) => r.channel == null) ?? slaRows[0] ?? null;
       return {
         awaiting: byStatus["AWAITINGPICKING"] ?? 0,
         newOrders: byStatus["NEW"] ?? 0,
         backorder: byStatus["ONBACKORDER"] ?? 0,
         capturedAt,
-        hourly: (despatchedHist.data as Array<{ hr: string; despatched: number }> | null) ?? [],
+        halfHourly: (despatchedHist.data as Array<{ slot: string; despatched: number }> | null) ?? [],
+        sla: slaRow,
       };
     },
   });
@@ -62,25 +76,38 @@ const PackingAreaDisplay = () => {
     return () => clearInterval(t);
   }, []);
 
-  const hourly = liveQuery.data?.hourly ?? [];
-  const despatchedToday = hourly.reduce((s, r) => s + Number(r.despatched ?? 0), 0);
-  const nowHourKey = format(new Date(), "HH:00");
-  const thisHour = hourly.find((r) => format(new Date(r.hr), "HH:00") === nowHourKey)?.despatched ?? 0;
-  const hourlyProgress = Math.min(100, (Number(thisHour) / TARGET_PER_HOUR) * 100);
+  const halfHourly = liveQuery.data?.halfHourly ?? [];
+  const despatchedToday = halfHourly.reduce((s, r) => s + Number(r.despatched ?? 0), 0);
 
-  // Build 8am–5pm buckets for chart
+  // Build 08:00 → 17:00 in 30-minute slots for the chart
   const today = new Date();
-  const chartData = Array.from({ length: 10 }, (_, i) => {
-    const h = 8 + i;
-    const label = `${h.toString().padStart(2, "0")}:00`;
-    const row = hourly.find((r) => new Date(r.hr).getHours() === h);
-    const isFuture = h > today.getHours();
+  const nowMins = today.getHours() * 60 + today.getMinutes();
+  const chartData = Array.from({ length: 18 }, (_, i) => {
+    const totalMins = 8 * 60 + i * 30;
+    const h = Math.floor(totalMins / 60);
+    const m = totalMins % 60;
+    const label = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+    const row = halfHourly.find((r) => {
+      const d = new Date(r.slot);
+      return d.getHours() === h && d.getMinutes() === m;
+    });
+    const isFuture = totalMins > nowMins;
+    const count = isFuture ? 0 : Number(row?.despatched ?? 0);
     return {
-      hour: label,
-      despatched: isFuture ? 0 : Number(row?.despatched ?? 0),
+      slot: label,
+      despatched: count,
       future: isFuture,
+      fill: isFuture ? "hsl(var(--muted))" : bandForCount(count),
     };
   });
+
+  // Current-half-hour progress
+  const currentSlotMins = Math.floor(nowMins / 30) * 30;
+  const currentSlot = chartData.find((r) => {
+    const [hh, mm] = r.slot.split(":").map(Number);
+    return hh * 60 + mm === currentSlotMins;
+  });
+  const thisHalfHourCount = currentSlot?.despatched ?? 0;
 
   // Cut-off alarm logic
   // Trigger if (before cut-off and after 9am) AND any of:
