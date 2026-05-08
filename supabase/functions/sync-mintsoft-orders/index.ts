@@ -271,7 +271,8 @@ Deno.serve(async (req) => {
       let timedOut = false;
       for (let sIdx = 0; sIdx < statusIdsToFetch.length; sIdx++) {
         const statusId = statusIdsToFetch[sIdx];
-        const isTerminal = liveTailTerminalIds.includes(statusId);
+        const isTerminalSeed = terminalSeedSet.has(statusId) && sIdx < terminalSeedIds.length;
+        const isTerminal = !isTerminalSeed && liveTailTerminalIds.includes(statusId);
         const isCold = rotatedCold.includes(statusId) && !isTerminal && !hotStatusIds.includes(statusId);
         if (isTimeRunningOut()) { timedOut = true; break; }
         let pageNo = 1;
@@ -289,15 +290,15 @@ Deno.serve(async (req) => {
             const orderDateObj = new Date(o.OrderDate);
             if (orderDateObj < MIN_DATE) return false;
             // Terminal sweep: hard 10-day floor (Mintsoft returns newest first)
-            if (isTerminal && orderDateObj < liveTailTerminalFloor) { stopPaging = true; return false; }
+            if ((isTerminal || isTerminalSeed) && orderDateObj < liveTailTerminalFloor) { stopPaging = true; return false; }
             if (!ignoreDateFilter && orderDateObj < fromDateObj) return false;
             seenOrderIds.add(o.ID);
             return true;
           });
           allOrders = allOrders.concat(filtered);
-          // Terminal sweep capped at 10 pages (1000 orders) per status per run
-          // to prevent it from starving the hot queue. Hot/cold use 50.
-          const pageCap = isTerminal ? 10 : 50;
+          // Terminal SEED capped at 5 pages (500 orders, newest-first ≈ today's despatches).
+          // Deep terminal sweep: 10 pages. Hot/cold: 50.
+          const pageCap = isTerminalSeed ? 5 : (isTerminal ? 10 : 50);
           if (stopPaging || orders.length < 100 || pageNo >= pageCap) break;
           pageNo++;
           if (isTimeRunningOut()) { timedOut = true; statusFullyDone = false; break; }
