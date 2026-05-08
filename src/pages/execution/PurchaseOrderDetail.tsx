@@ -169,12 +169,37 @@ const PurchaseOrderDetail = () => {
             {po.status === "sent" && !po.mintsoft_po_id && " — Awaiting ASN"}
             {po.status === "sent" && po.mintsoft_po_id && ` — Mintsoft #${po.mintsoft_po_id}`}
           </Badge>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline">
+                <Download className="h-4 w-4 mr-2" />
+                Download CSV
+                <ChevronDown className="h-4 w-4 ml-2" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => {
+                const rows: (string | number)[][] = [["SKU", "Quantity", "Cost Price", "Comments"]];
+                for (const l of lines) rows.push([l.sku, Number(l.qty_ordered || 0), Number(l.unit_cost || 0), ""]);
+                downloadCsv(`${po.po_number || po.id.slice(0, 8)}-with-prefix.csv`, rows);
+              }}>
+                With prefix (PREFIX-SKU)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => {
+                const rows: (string | number)[][] = [["SKU", "Quantity", "Cost Price", "Comments"]];
+                for (const l of lines) rows.push([stripPrefix(l.sku), Number(l.qty_ordered || 0), Number(l.unit_cost || 0), ""]);
+                downloadCsv(`${po.po_number || po.id.slice(0, 8)}-supplier.csv`, rows);
+              }}>
+                Without prefix (supplier-friendly)
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           {canSend && (
             <Button
               disabled={sendPo.isPending || sendableLines.length === 0 || !supplierMapped}
               onClick={() => sendPo.mutate()}>
               <Send className="h-4 w-4 mr-2" />
-              {sendPo.isPending ? "Sending…" : `Send to Mintsoft${sendableLines.length < lines.length ? ` (${sendableLines.length}/${lines.length})` : ""}`}
+              {sendPo.isPending ? "Creating…" : `Create ASN in Mintsoft${sendableLines.length < lines.length ? ` (${sendableLines.length}/${lines.length})` : ""}`}
             </Button>
           )}
         </div>
