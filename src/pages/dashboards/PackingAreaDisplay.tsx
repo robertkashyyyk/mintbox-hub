@@ -341,16 +341,70 @@ const PackingAreaDisplay = () => {
         </Card>
       </div>
 
+      {(() => {
+        const sla = liveQuery.data?.sla as any;
+        const total = Number(sla?.total ?? 0);
+        const pct = (n: number) => (total > 0 ? Math.round((Number(n ?? 0) / total) * 1000) / 10 : 0);
+        const items = [
+          { key: "under_6h", label: "≤ 6 hrs", value: Number(sla?.under_6h ?? 0), target: SLA_TARGETS.under_6h },
+          { key: "under_12h", label: "≤ 12 hrs", value: Number(sla?.under_12h ?? 0), target: SLA_TARGETS.under_12h },
+          { key: "under_24h", label: "≤ 24 hrs", value: Number(sla?.under_24h ?? 0), target: SLA_TARGETS.under_24h },
+        ];
+        return (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2">
+                <Clock className="h-5 w-5" /> Despatch SLA — today
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">
+                % of {total} despatches inside each window (order received → despatched)
+              </p>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 md:grid-cols-3">
+                {items.map((it) => {
+                  const p = pct(it.value);
+                  const hit = p >= it.target;
+                  return (
+                    <div key={it.key} className="rounded-md border border-border p-4">
+                      <div className="flex items-baseline justify-between">
+                        <span className="text-sm text-muted-foreground">{it.label}</span>
+                        <span className="text-xs text-muted-foreground">target {it.target}%</span>
+                      </div>
+                      <div className={`text-4xl font-bold tabular-nums mt-1 ${hit ? "text-success" : p >= it.target - 10 ? "text-warning" : "text-destructive"}`}>
+                        {p}%
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        {it.value} of {total}
+                      </div>
+                      <div className="mt-2 h-2 w-full rounded bg-muted overflow-hidden">
+                        <div
+                          className={hit ? "h-full bg-success" : p >= it.target - 10 ? "h-full bg-warning" : "h-full bg-destructive"}
+                          style={{ width: `${Math.min(100, p)}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
+
       <Card>
         <CardHeader>
-          <CardTitle>Despatch by Hour (today)</CardTitle>
+          <CardTitle>Despatch by 30-minute slot (today)</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Target {TARGET_PER_HALFHOUR}/30-min ({TARGET_PER_HOUR}/hr) · current slot: <span className="font-semibold text-foreground">{thisHalfHourCount}</span>
+          </p>
         </CardHeader>
         <CardContent>
           <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="hour" stroke="hsl(var(--muted-foreground))" />
+                <XAxis dataKey="slot" stroke="hsl(var(--muted-foreground))" interval={0} tick={{ fontSize: 11 }} />
                 <YAxis stroke="hsl(var(--muted-foreground))" />
                 <Tooltip
                   contentStyle={{
@@ -359,10 +413,35 @@ const PackingAreaDisplay = () => {
                     color: "hsl(var(--foreground))",
                   }}
                 />
-                <ReferenceLine y={TARGET_PER_HOUR} stroke="hsl(var(--warning))" strokeDasharray="3 3" label={{ value: `Target ${TARGET_PER_HOUR}/hr`, fill: "hsl(var(--warning))", fontSize: 11 }} />
-                <Bar dataKey="despatched" fill="hsl(var(--pd-accent))" radius={[4, 4, 0, 0]} />
+                <ReferenceLine
+                  y={TARGET_PER_HALFHOUR}
+                  stroke="hsl(var(--warning))"
+                  strokeDasharray="3 3"
+                  label={{ value: `Target ${TARGET_PER_HALFHOUR}/30m`, fill: "hsl(var(--warning))", fontSize: 11 }}
+                />
+                <Bar dataKey="despatched" radius={[4, 4, 0, 0]}>
+                  {chartData.map((entry, idx) => (
+                    <Cell key={`c-${idx}`} fill={entry.fill} />
+                  ))}
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-3 text-xs text-muted-foreground">
+            {[
+              { c: bandForCount(0), l: "<8" },
+              { c: bandForCount(8), l: "8–15" },
+              { c: bandForCount(16), l: "16–23" },
+              { c: bandForCount(24), l: "24–31" },
+              { c: bandForCount(32), l: "32–39" },
+              { c: bandForCount(40), l: "40–49" },
+              { c: bandForCount(50), l: "50+" },
+            ].map((b) => (
+              <span key={b.l} className="flex items-center gap-1.5">
+                <span className="inline-block h-3 w-3 rounded-sm" style={{ background: b.c }} />
+                {b.l}
+              </span>
+            ))}
           </div>
         </CardContent>
       </Card>
