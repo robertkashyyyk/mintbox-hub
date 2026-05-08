@@ -44,11 +44,15 @@ const statusBadge = (r: BuyRecommendationRow) => {
   if (r.status === "po_sent_pending") {
     return <Badge className="bg-pd-accent text-pd-accent-foreground">PO Sent</Badge>;
   }
-  if (num(r.back_orders) > 0 && num(r.current_stock) < num(r.low_stock_alert)) {
+  const stock = num(r.current_stock);
+  const bo = num(r.back_orders);
+  const lsa = num(r.low_stock_alert);
+  if (bo > 0 && stock < lsa) {
     return <Badge variant="destructive">Critical</Badge>;
   }
-  if (num(r.back_orders) > 0) return <Badge className="bg-warning text-warning-foreground">Backorder</Badge>;
-  if (num(r.current_stock) < num(r.low_stock_alert)) return <Badge variant="secondary">Low Stock</Badge>;
+  if (bo > 0) return <Badge className="bg-warning text-warning-foreground">Backorder</Badge>;
+  if (stock <= 0) return <Badge variant="destructive">Urgent — Out of Stock</Badge>;
+  if (stock < lsa) return <Badge variant="secondary">Low Stock</Badge>;
   return <Badge variant="outline">OK</Badge>;
 };
 
