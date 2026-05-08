@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,8 +13,9 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { ArrowLeft, Gauge, Loader2, Search, Sparkles } from "lucide-react";
+import { ArrowLeft, Gauge, Loader2, RefreshCw, Search, Sparkles } from "lucide-react";
 import { useLsaCalibration, type LsaCalibrationRow } from "@/hooks/useLsaCalibration";
+import { useLsaBrandSummary } from "@/hooks/useLsaBrandSummary";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -34,16 +35,64 @@ const LsaCalibration = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const qc = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  const { data: rows = [], isLoading } = useLsaCalibration();
+  const brandParam = searchParams.get("brand");      // null = brand grid
+  const statusParam = searchParams.get("status") as StatusKey | null;
+  const inDetail = !!brandParam;
+
+  // ---- Brand-grid mode ----
+  const { data: brandSummary = [], isLoading: brandsLoading, refetch: refetchBrandSummary, isRefetching } = useLsaBrandSummary();
+  const [brandSearch, setBrandSearch] = useState("");
+
+  const filteredBrands = useMemo(() => {
+    const q = brandSearch.trim().toLowerCase();
+    if (!q) return brandSummary;
+    return brandSummary.filter(b => (b.brand_name || "").toLowerCase().includes(q));
+  }, [brandSummary, brandSearch]);
+
+  const totals = useMemo(() => {
+    const t = { total: 0, critical: 0, low: 0, target: 0, high: 0, excess: 0 };
+    for (const b of brandSummary) {
+      t.total += b.total; t.critical += b.critical; t.low += b.low;
+      t.target += b.target; t.high += b.high; t.excess += b.excess;
+    }
+    return t;
+  }, [brandSummary]);
+
+  const refreshSummary = async () => {
+    const { error } = await (supabase as any).rpc("refresh_lsa_brand_summary");
+    if (error) {
+      toast({ title: "Refresh failed", description: error.message, variant: "destructive" });
+    } else {
+      await refetchBrandSummary();
+      toast({ title: "Brand summary refreshed" });
+    }
+  };
+
+  // ---- Detail mode ----
+  const { data: rows = [], isLoading } = useLsaCalibration(inDetail ? brandParam : null);
 
   const [search, setSearch] = useState("");
-  const [brandFilter, setBrandFilter] = useState<string>(ALL);
-  const [statusFilter, setStatusFilter] = useState<string>(ALL);
+  const [statusFilter, setStatusFilter] = useState<string>(statusParam ?? ALL);
   const [proposed, setProposed] = useState<Record<string, number>>({});
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(100);
+
+  // sync status param into local state on enter
+  useEffect(() => {
+    if (inDetail) setStatusFilter(statusParam ?? ALL);
+  }, [brandParam, statusParam, inDetail]);
+
+  const detailBrandName = useMemo(() => {
+    if (!inDetail) return "";
+    const fromSummary = brandSummary.find(b => b.brand_id === brandParam);
+    if (fromSummary?.brand_name) return fromSummary.brand_name;
+    const fromRows = rows.find(r => r.brand_id === brandParam);
+    return fromRows?.brand_name || "Brand";
+  }, [inDetail, brandParam, brandSummary, rows]);
+
 
   const brands = useMemo(() => {
     const m = new Map<string, string>();
