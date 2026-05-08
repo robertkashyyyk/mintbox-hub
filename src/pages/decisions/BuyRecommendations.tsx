@@ -75,16 +75,18 @@ const BuyRecommendations = () => {
   const { suppressionMap, hours: suppressionHours } = useSentPoSuppression();
   const [refreshing, setRefreshing] = useState(false);
 
-  const refreshStock = async () => {
+  const refreshStock = async (skus?: string[]) => {
     setRefreshing(true);
-    const { data, error } = await supabase.functions.invoke("sync-mintsoft-stock");
+    const { data, error } = await supabase.functions.invoke("sync-mintsoft-stock", {
+      body: skus && skus.length > 0 ? { skus } : {},
+    });
     setRefreshing(false);
     if (error) {
       toast({ title: "Refresh failed", description: error.message, variant: "destructive" });
     } else {
       toast({
         title: "Stock refreshed from Mintsoft",
-        description: `Updated ${(data as any)?.updated ?? 0} SKUs.`,
+        description: `Updated ${(data as any)?.updated ?? 0} SKUs${skus ? ` for this supplier` : ""}.`,
       });
       qc.invalidateQueries({ queryKey: ["buy-recommendations"] });
       qc.invalidateQueries({ queryKey: ["buy-recommendations-summary"] });
