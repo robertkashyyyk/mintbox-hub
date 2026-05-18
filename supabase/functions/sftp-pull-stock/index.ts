@@ -157,7 +157,14 @@ Deno.serve(async (req) => {
       }
       return undefined;
     };
+    const WAREHOUSE_FILTER = "ColeraineLIVE";
+    let wrongWarehouse = 0;
     for (const r of rows) {
+      const warehouse = (pickCol(r, ["Warehouse"]) as string | undefined)?.toString().trim();
+      if (warehouse && warehouse !== WAREHOUSE_FILTER) {
+        wrongWarehouse++;
+        continue;
+      }
       const sku = (pickCol(r, ["SKU", "Sku"]) as string | undefined)?.toString().trim();
       const stock_level = numOrNull(pickCol(r, ["StockLevel", "Stock", "OnHand"]));
       const on_order = numOrNull(pickCol(r, ["OnOrder", "On Order"]));
@@ -168,6 +175,7 @@ Deno.serve(async (req) => {
       }
       stockMap.set(sku, { stock_level, on_order, mintsoft_back_orders });
     }
+    console.log(`[sftp] filtered to warehouse=${WAREHOUSE_FILTER}, dropped ${wrongWarehouse} rows from other warehouses`);
 
     // Bulk update via single RPC call. Send in chunks to keep payload sane.
     const entries = Array.from(stockMap.entries());
