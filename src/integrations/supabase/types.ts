@@ -2678,6 +2678,7 @@ export type Database = {
           back_order_qty: number | null
           barcode: string | null
           barcode_type_id: string | null
+          box_quantity: number
           brand_id: string | null
           cost_price: number | null
           cost_price_source: string | null
@@ -2732,6 +2733,7 @@ export type Database = {
           back_order_qty?: number | null
           barcode?: string | null
           barcode_type_id?: string | null
+          box_quantity?: number
           brand_id?: string | null
           cost_price?: number | null
           cost_price_source?: string | null
@@ -2786,6 +2788,7 @@ export type Database = {
           back_order_qty?: number | null
           barcode?: string | null
           barcode_type_id?: string | null
+          box_quantity?: number
           brand_id?: string | null
           cost_price?: number | null
           cost_price_source?: string | null
@@ -4271,6 +4274,7 @@ export type Database = {
         }
         Returns: {
           back_orders: number
+          box_quantity: number
           brand_id: string
           brand_name: string
           current_stock: number
@@ -4279,6 +4283,7 @@ export type Database = {
           pending_po_id: string
           pending_po_qty: number
           product_name: string
+          raw_required_qty: number
           required_qty: number
           sales_4w: number
           sku: string
