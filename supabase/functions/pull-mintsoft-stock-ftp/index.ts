@@ -194,7 +194,7 @@ Deno.serve(async (req) => {
 
   const ftp = new FtpClient();
   try {
-    const password = Deno.env.get("MINTSOFT_FTP_PASSWORD");
+    const password = Deno.env.get("MINTSOFT_FTP_PASSWORD")?.replace(/\r/g, "").trim();
     if (!password) throw new Error("MINTSOFT_FTP_PASSWORD secret not set");
 
     console.log(`Connecting to ftp://${FTP_HOST}:${FTP_PORT} as ${FTP_USER}`);

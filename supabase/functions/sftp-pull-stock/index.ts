@@ -49,12 +49,14 @@ Deno.serve(async (req) => {
   let chosenFile: string | null = null;
 
   try {
-    // Auth: prefer base64 private key, fall back to raw key, then password.
+    // Auth: prefer password because this integration is confirmed to work via
+    // password-only SFTP in Cyberduck; fall back to SSH key only if password
+    // is absent.
     const keyB64 = Deno.env.get("MINTSOFT_FTP_PRIVATE_KEY_B64");
     const keyRaw = Deno.env.get("MINTSOFT_FTP_PRIVATE_KEY");
-    const password = Deno.env.get("MINTSOFT_FTP_PASSWORD");
+    const password = Deno.env.get("MINTSOFT_FTP_PASSWORD")?.replace(/\r/g, "").trim();
     let privateKey: string | null = null;
-    if (keyB64) {
+    if (!password && keyB64) {
       const trimmed = keyB64.trim();
       if (trimmed.includes("BEGIN") && trimmed.includes("PRIVATE KEY")) {
         privateKey = trimmed;
@@ -65,7 +67,7 @@ Deno.serve(async (req) => {
           privateKey = trimmed;
         }
       }
-    } else if (keyRaw) {
+    } else if (!password && keyRaw) {
       privateKey = keyRaw;
     }
     if (!privateKey && !password) {
@@ -81,6 +83,13 @@ Deno.serve(async (req) => {
       readyTimeout: 20_000,
       algorithms: { serverHostKey: ["ssh-ed25519", "ssh-rsa", "ecdsa-sha2-nistp256"] },
     };
+    if (password) {
+      connectOpts.tryKeyboard = true;
+      sftp.on("keyboard-interactive", (_name, _instructions, _lang, prompts, finish) => {
+        console.log(`[sftp] keyboard-interactive prompt count=${prompts?.length ?? 0}`);
+        finish([password]);
+      });
+    }
     if (privateKey) connectOpts.privateKey = privateKey;
     if (password) connectOpts.password = password;
     await sftp.connect(connectOpts);
