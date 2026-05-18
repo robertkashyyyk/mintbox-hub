@@ -155,7 +155,7 @@ Deno.serve(async (req) => {
 
     const allSkus = Array.from(lsaMap.keys());
     const existing = new Set<string>();
-    const LOOKUP_CHUNK = 1000;
+    const LOOKUP_CHUNK = 200;
     for (let i = 0; i < allSkus.length; i += LOOKUP_CHUNK) {
       const slice = allSkus.slice(i, i + LOOKUP_CHUNK);
       const { data, error } = await supabase
