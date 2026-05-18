@@ -29,14 +29,19 @@ Deno.serve(async (req) => {
     if (!authHeader?.startsWith('Bearer ')) {
       return json({ error: 'Unauthorized' }, 401)
     }
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_ANON_KEY')!,
-      { global: { headers: { Authorization: authHeader } } }
-    )
     const token = authHeader.replace('Bearer ', '')
-    const { data: userData, error: authErr } = await supabase.auth.getUser(token)
-    if (authErr || !userData?.user) return json({ error: 'Unauthorized' }, 401)
+    const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+
+    // Allow service-role callers (e.g. auto-update-lsa-cron) to bypass user-JWT check.
+    if (token !== SERVICE_ROLE) {
+      const supabase = createClient(
+        Deno.env.get('SUPABASE_URL')!,
+        Deno.env.get('SUPABASE_ANON_KEY')!,
+        { global: { headers: { Authorization: authHeader } } }
+      )
+      const { data: userData, error: authErr } = await supabase.auth.getUser(token)
+      if (authErr || !userData?.user) return json({ error: 'Unauthorized' }, 401)
+    }
 
     const body = await req.json().catch(() => null)
     const items: Item[] = Array.isArray(body?.items) ? body.items : []
