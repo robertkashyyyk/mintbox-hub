@@ -249,7 +249,7 @@ async function processBrand(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${SUPA_ANON}`,
+        'Authorization': `Bearer ${SUPA_SERVICE}`,
         'apikey': SUPA_ANON,
       },
       body: JSON.stringify({ items: batch }),
