@@ -1,15 +1,13 @@
-// Backfill order_lines.tracking_number from Mintsoft.
+// Resolve unresolved carrier-penalty tracking numbers by looking up each
+// tracking number directly in Mintsoft (Order/Search), across ALL statuses.
 //
-// Mintsoft has no tracking-search endpoint, so we page DESPATCHED orders
-// newest-first, harvest each order's TrackingNumber, and bulk-update
-// order_lines for any line whose tracking_number is NULL. Then we re-run
-// resolve-penalty-tracking for any still-unresolved carrier_penalties so
-// freshly-backfilled tracking numbers translate immediately into resolved
-// penalties + remeasure tasks.
+// Why: the previous strategy paged DESPATCHED orders newest-first looking
+// for matches. Orders that have since moved to RETURNED / CANCELLED /
+// RETURNREQUESTED are invisible to that scan, so it kept finding nothing.
+// Direct TN lookup is O(N targets) with no paging.
 //
-// Resumable: a cursor (page_no) is stored in app_settings under
-// 'backfill_tracking.cursor'. Each invocation runs for ~50s, then the next
-// run picks up where this one stopped. POST {"reset": true} to start over.
+// POST body (all optional):
+//   { batch_size?: number (default 80, max 200) }
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.80.0";
 
@@ -29,10 +27,9 @@ interface MintsoftOrder {
   TrackingNumber?: string | null;
   TrackingNo?: string | null;
   Consignment?: string | null;
-  OrderDate?: string | null;
+  OrderStatusId?: number | null;
+  OrderStatus?: string | null;
 }
-
-const CURSOR_KEY = "backfill_tracking.cursor";
 
 async function logRun(
   supabase: ReturnType<typeof createClient>,
@@ -63,110 +60,87 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json().catch(() => ({} as any));
-    const reset = !!body.reset;
-    const maxPages = Math.min(Number(body.max_pages) || 200, 500);
+    const batchSize = Math.min(Math.max(Number(body.batch_size) || 80, 1), 200);
 
-    // Discover DESPATCHED status id
     const apiKey = Deno.env.get("MINTSOFT_API_KEY");
     if (!apiKey) throw new Error("MINTSOFT_API_KEY missing");
     const { data: settings } = await supabase
       .from("mintsoft_settings").select("base_url").single();
     const baseUrl = (settings?.base_url || "https://api.mintsoft.co.uk").replace(/\/$/, "");
-    const statuses = await (await fetch(`${baseUrl}/api/Order/Statuses`, {
-      headers: { "ms-apikey": apiKey, "Content-Type": "application/json" },
-    })).json() as Array<{ ID: number; ExternalName?: string }>;
-    const despatched = statuses.find(s => (s.ExternalName || "").toUpperCase() === "DESPATCHED");
-    if (!despatched) throw new Error("DESPATCHED status not found");
+    const msHeaders = { "ms-apikey": apiKey, "Content-Type": "application/json" };
 
-    // Resume cursor
-    let pageNo = 1;
-    if (!reset) {
-      const { data: cur } = await supabase
-        .from("app_settings").select("value").eq("key", CURSOR_KEY).maybeSingle();
-      if (cur?.value != null) pageNo = Math.max(1, Number(cur.value) || 1);
-    }
-    const startPage = pageNo;
-
-    // Pull unresolved penalty tracking numbers (the priority targets) so we
-    // can flag a fast-exit if we've already covered them all this run.
-    const { data: pendPenalties } = await supabase
+    // Pull this batch of priority targets: unresolved penalties whose
+    // tracking_number we still haven't matched to an order_line.
+    const { data: pendPenalties, error: pendErr } = await supabase
       .from("carrier_penalties")
-      .select("tracking_number")
+      .select("id, tracking_number")
       .neq("resolution_status", "resolved")
       .is("sku", null)
-      .not("tracking_number", "is", null);
-    const targetTracks = new Set<string>(
-      (pendPenalties || []).map(p => String(p.tracking_number).trim().toUpperCase()).filter(Boolean)
-    );
-    const targetsRemaining = new Set(targetTracks);
+      .not("tracking_number", "is", null)
+      .order("created_at", { ascending: true })
+      .limit(batchSize);
+    if (pendErr) throw pendErr;
 
-    let scanned = 0;
-    let updatedRows = 0;
+    const targets = (pendPenalties || [])
+      .map(p => ({ id: p.id as string, tn: String(p.tracking_number).trim() }))
+      .filter(t => t.tn.length > 0);
+
+    let lookups = 0;
     let trackingMatches = 0;
-    let stopped = "page_cap";
+    let updatedRows = 0;
     const matchedOrderIds: number[] = [];
-    const PAGE_SIZE = 100;
-    const lastPage = pageNo + maxPages - 1;
+    const tnSamples: Array<Record<string, unknown>> = [];
 
-    while (pageNo <= lastPage) {
-      if (isOutOfTime()) { stopped = "timeout"; break; }
-      const url = new URL(`${baseUrl}/api/Order/List`);
-      url.searchParams.set("OrderStatusId", String(despatched.ID));
-      url.searchParams.set("Limit", String(PAGE_SIZE));
-      url.searchParams.set("PageNo", String(pageNo));
-      url.searchParams.set("SortOldestFirst", "false");
+    for (const t of targets) {
+      if (isOutOfTime()) break;
+      lookups++;
 
-      const resp = await fetch(url.toString(), {
-        headers: { "ms-apikey": apiKey, "Content-Type": "application/json" },
+      // Mintsoft Order/Search supports TrackingNo query; returns matching
+      // orders regardless of status. Some Mintsoft tenants expose it as
+      // /api/Order/Search, others as /api/Orders/Search — try both.
+      let found: MintsoftOrder | null = null;
+      for (const path of ["/api/Order/Search", "/api/Orders/Search"]) {
+        const url = new URL(`${baseUrl}${path}`);
+        url.searchParams.set("TrackingNo", t.tn);
+        url.searchParams.set("Limit", "10");
+        url.searchParams.set("PageNo", "1");
+        let resp: Response;
+        try { resp = await fetch(url.toString(), { headers: msHeaders }); }
+        catch { continue; }
+        if (!resp.ok) continue;
+        const arr = await resp.json().catch(() => []) as MintsoftOrder[];
+        if (Array.isArray(arr) && arr.length > 0) {
+          // Pick the order whose tracking field equals our TN (case-insensitive).
+          const upper = t.tn.toUpperCase();
+          found = arr.find(o =>
+            [(o.TrackingNumber || ""), (o.TrackingNo || ""), (o.Consignment || "")]
+              .some(v => String(v).trim().toUpperCase() === upper)
+          ) || arr[0];
+          break;
+        }
+      }
+
+      if (!found || !found.ID) {
+        if (tnSamples.length < 5) tnSamples.push({ tn: t.tn, status: "no_match" });
+        continue;
+      }
+
+      trackingMatches++;
+      matchedOrderIds.push(found.ID);
+      if (tnSamples.length < 5) tnSamples.push({
+        tn: t.tn, order_id: found.ID, status_id: found.OrderStatusId, status: found.OrderStatus,
       });
-      if (!resp.ok) { stopped = `http_${resp.status}`; break; }
-      const orders = await resp.json() as MintsoftOrder[];
-      if (!orders.length) { stopped = "empty_page"; break; }
-      scanned += orders.length;
 
-      // Targeted updates only: scan every order's tracking, but only WRITE
-      // to order_lines for orders whose tracking matches a pending penalty.
-      // This keeps each page to ~0 db writes in the common case so we can
-      // scan deep history quickly.
-      for (const o of orders) {
-        const tn = (o.TrackingNumber || o.TrackingNo || o.Consignment || "").toString().trim();
-        if (!tn || !o.ID) continue;
-        const upper = tn.toUpperCase();
-        if (!targetsRemaining.has(upper)) continue;
-
-        targetsRemaining.delete(upper);
-        trackingMatches++;
-        matchedOrderIds.push(o.ID);
-        const { error, count } = await supabase
-          .from("order_lines")
-          .update({ tracking_number: tn })
-          .eq("mintsoft_order_id", o.ID)
-          .is("tracking_number", null)
-          .select("mintsoft_order_id", { count: "exact", head: true });
-        if (!error) updatedRows += count ?? 0;
-      }
-
-      // Early exit: every still-unresolved penalty tracking number has been
-      // located in the orders we've scanned so far.
-      if (targetTracks.size > 0 && targetsRemaining.size === 0) {
-        stopped = "all_targets_matched";
-        pageNo++;
-        break;
-      }
-
-      if (orders.length < PAGE_SIZE) { stopped = "short_page"; pageNo++; break; }
-      pageNo++;
+      const { error, count } = await supabase
+        .from("order_lines")
+        .update({ tracking_number: t.tn })
+        .eq("mintsoft_order_id", found.ID)
+        .is("tracking_number", null)
+        .select("mintsoft_order_id", { count: "exact", head: true });
+      if (!error) updatedRows += count ?? 0;
     }
 
-    // Persist cursor for the next run (or reset to 1 once exhausted)
-    const cursorOut = (stopped === "empty_page" || stopped === "all_targets_matched") ? 1 : pageNo;
-    await supabase.from("app_settings").upsert({
-      key: CURSOR_KEY,
-      value: cursorOut as any,
-      description: "Resumable cursor for backfill-tracking-numbers (next page to fetch)",
-    }, { onConflict: "key" });
-
-    // Auto-resolve any newly-resolvable penalties
+    // Trigger penalty resolution for matched orders.
     let resolved = 0;
     if (matchedOrderIds.length) {
       const { data: pen } = await supabase
@@ -195,17 +169,13 @@ Deno.serve(async (req) => {
       }
     }
 
-    const msg = `pages ${startPage}->${pageNo - 1} | scanned ${scanned} orders | updated ${updatedRows} lines | tracking targets ${trackingMatches}/${targetTracks.size} matched | penalties resolved ${resolved} | stop=${stopped}`;
+    const msg = `lookups ${lookups}/${targets.length} | tracking matches ${trackingMatches} | order_lines updated ${updatedRows} | penalties resolved ${resolved}`;
     await logRun(supabase, isOutOfTime() ? "partial" : "succeeded", msg, {
-      startPage, endPage: pageNo - 1, scanned, updatedRows,
-      trackingMatches, targets: targetTracks.size, resolved, stopped,
-      cursor_next: cursorOut,
+      lookups, targets: targets.length, trackingMatches, updatedRows, resolved, samples: tnSamples,
     });
 
     return new Response(JSON.stringify({
-      ok: true, startPage, endPage: pageNo - 1, scanned, updatedRows,
-      trackingMatches, targets: targetTracks.size, resolved, stopped,
-      cursor_next: cursorOut,
+      ok: true, lookups, targets: targets.length, trackingMatches, updatedRows, resolved, samples: tnSamples,
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
