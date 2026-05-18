@@ -44,8 +44,21 @@ Deno.serve(async (req) => {
   const sftp = new SftpClient();
   let chosenFile: string | null = null;
   try {
+    // Auth: prefer base64-encoded private key (avoids newline-truncation issues),
+    // fall back to raw private key, then password.
+    const keyB64 = Deno.env.get("MINTSOFT_FTP_PRIVATE_KEY_B64");
+    const keyRaw = Deno.env.get("MINTSOFT_FTP_PRIVATE_KEY");
     const password = Deno.env.get("MINTSOFT_FTP_PASSWORD");
-    if (!password) throw new Error("MINTSOFT_FTP_PASSWORD secret not set");
+    let privateKey: string | null = null;
+    if (keyB64) {
+      try { privateKey = new TextDecoder().decode(Uint8Array.from(atob(keyB64.trim()), c => c.charCodeAt(0))); }
+      catch (e) { throw new Error(`MINTSOFT_FTP_PRIVATE_KEY_B64 decode failed: ${(e as Error).message}`); }
+    } else if (keyRaw) {
+      privateKey = keyRaw;
+    }
+    if (!privateKey && !password) {
+      throw new Error("No SFTP credential set (MINTSOFT_FTP_PRIVATE_KEY_B64 / _KEY / _PASSWORD)");
+    }
 
     // Load configurable threshold from app_settings (fallback to default).
     let lsaMinThreshold = LSA_MIN_THRESHOLD_DEFAULT;
@@ -56,11 +69,14 @@ Deno.serve(async (req) => {
       if (Number.isFinite(v)) lsaMinThreshold = v;
     } catch (_) { /* keep default */ }
 
-    await sftp.connect({
-      host: SFTP_HOST, port: SFTP_PORT, username: SFTP_USER, password,
+    const connectOpts: any = {
+      host: SFTP_HOST, port: SFTP_PORT, username: SFTP_USER,
       readyTimeout: 20_000,
       algorithms: { serverHostKey: ["ssh-ed25519", "ssh-rsa", "ecdsa-sha2-nistp256"] },
-    } as any);
+    };
+    if (privateKey) connectOpts.privateKey = privateKey;
+    if (password) connectOpts.password = password;
+    await sftp.connect(connectOpts);
 
     const list = await sftp.list(SFTP_DIR);
     const candidates = list

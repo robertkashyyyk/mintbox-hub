@@ -49,24 +49,33 @@ Deno.serve(async (req) => {
   let chosenFile: string | null = null;
 
   try {
-    // Password authentication (simpler + avoids secret-truncation issues with multiline keys).
+    // Auth: prefer base64 private key, fall back to raw key, then password.
+    const keyB64 = Deno.env.get("MINTSOFT_FTP_PRIVATE_KEY_B64");
+    const keyRaw = Deno.env.get("MINTSOFT_FTP_PRIVATE_KEY");
     const password = Deno.env.get("MINTSOFT_FTP_PASSWORD");
-    if (!password) {
-      throw new Error("MINTSOFT_FTP_PASSWORD secret not set");
+    let privateKey: string | null = null;
+    if (keyB64) {
+      try { privateKey = new TextDecoder().decode(Uint8Array.from(atob(keyB64.trim()), c => c.charCodeAt(0))); }
+      catch (e) { throw new Error(`MINTSOFT_FTP_PRIVATE_KEY_B64 decode failed: ${(e as Error).message}`); }
+    } else if (keyRaw) {
+      privateKey = keyRaw;
+    }
+    if (!privateKey && !password) {
+      throw new Error("No SFTP credential set (MINTSOFT_FTP_PRIVATE_KEY_B64 / _KEY / _PASSWORD)");
     }
 
-    console.log(`[sftp] connecting to ${SFTP_USER}@${SFTP_HOST}:${SFTP_PORT}`);
+    console.log(`[sftp] connecting to ${SFTP_USER}@${SFTP_HOST}:${SFTP_PORT} (auth=${privateKey ? "key" : "password"})`);
     const t0 = Date.now();
-    await sftp.connect({
+    const connectOpts: any = {
       host: SFTP_HOST,
       port: SFTP_PORT,
       username: SFTP_USER,
-      password,
       readyTimeout: 20_000,
-      algorithms: {
-        serverHostKey: ["ssh-ed25519", "ssh-rsa", "ecdsa-sha2-nistp256"],
-      },
-    } as any);
+      algorithms: { serverHostKey: ["ssh-ed25519", "ssh-rsa", "ecdsa-sha2-nistp256"] },
+    };
+    if (privateKey) connectOpts.privateKey = privateKey;
+    if (password) connectOpts.password = password;
+    await sftp.connect(connectOpts);
     console.log(`[sftp] connected in ${Date.now() - t0}ms`);
 
     // Find newest pdochubInventory*.csv
