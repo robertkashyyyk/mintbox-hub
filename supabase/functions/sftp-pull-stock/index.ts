@@ -55,8 +55,16 @@ Deno.serve(async (req) => {
     const password = Deno.env.get("MINTSOFT_FTP_PASSWORD");
     let privateKey: string | null = null;
     if (keyB64) {
-      try { privateKey = new TextDecoder().decode(Uint8Array.from(atob(keyB64.trim()), c => c.charCodeAt(0))); }
-      catch (e) { throw new Error(`MINTSOFT_FTP_PRIVATE_KEY_B64 decode failed: ${(e as Error).message}`); }
+      const trimmed = keyB64.trim();
+      if (trimmed.includes("BEGIN") && trimmed.includes("PRIVATE KEY")) {
+        privateKey = trimmed;
+      } else {
+        try {
+          privateKey = new TextDecoder().decode(Uint8Array.from(atob(trimmed.replace(/\s+/g, "")), c => c.charCodeAt(0)));
+        } catch {
+          privateKey = trimmed;
+        }
+      }
     } else if (keyRaw) {
       privateKey = keyRaw;
     }
