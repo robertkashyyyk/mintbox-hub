@@ -120,10 +120,11 @@ Deno.serve(async (req) => {
     });
 
     const headers = Object.keys(rows[0] ?? {});
+    const norm = (s: string) => s.replace(/^\uFEFF/, "").trim().toLowerCase();
     const findHeader = (...candidates: string[]): string | null => {
-      const lower = headers.map((h) => h.toLowerCase());
+      const lower = headers.map(norm);
       for (const c of candidates) {
-        const idx = lower.indexOf(c.toLowerCase());
+        const idx = lower.indexOf(norm(c));
         if (idx !== -1) return headers[idx];
       }
       return null;
