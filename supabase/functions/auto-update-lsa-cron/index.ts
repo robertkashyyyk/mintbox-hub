@@ -84,7 +84,7 @@ Deno.serve(async (req) => {
   if (forcedBrandId) brandsQuery = admin.from('brands').select('id, name').eq('id', forcedBrandId)
   const { data: brands, error: brandsErr } = await brandsQuery
   if (brandsErr) {
-    await finishRun(admin, runId, 'failed', { error: brandsErr.message })
+    await finishRun(admin, runId, 'error', { error: brandsErr.message })
     return ok({ error: brandsErr.message }, 500)
   }
 
