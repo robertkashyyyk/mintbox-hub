@@ -136,17 +136,35 @@ Deno.serve(async (req) => {
       relax_column_count: true,
     });
 
-    // Build SKU -> StockLevel map (latest wins if dup)
-    const stockMap = new Map<string, number>();
+    // Build SKU -> {stock_level, on_order, mintsoft_back_orders} map (latest wins if dup)
+    type Row = { stock_level: number | null; on_order: number | null; mintsoft_back_orders: number | null };
+    const stockMap = new Map<string, Row>();
+    const numOrNull = (v: unknown): number | null => {
+      if (v === undefined || v === null || v === "") return null;
+      const n = Number(v);
+      return Number.isFinite(n) ? n : null;
+    };
     let skipped = 0;
+    // Column-name variants Mintsoft has been observed to emit.
+    const pickCol = (r: Record<string, string>, names: string[]): unknown => {
+      for (const n of names) {
+        if (r[n] !== undefined) return r[n];
+        // case-insensitive fallback
+        const k = Object.keys(r).find((x) => x.toLowerCase() === n.toLowerCase());
+        if (k) return r[k];
+      }
+      return undefined;
+    };
     for (const r of rows) {
-      const sku = r.SKU?.trim();
-      const lvl = Number(r.StockLevel);
-      if (!sku || !Number.isFinite(lvl)) {
+      const sku = (pickCol(r, ["SKU", "Sku"]) as string | undefined)?.toString().trim();
+      const stock_level = numOrNull(pickCol(r, ["StockLevel", "Stock", "OnHand"]));
+      const on_order = numOrNull(pickCol(r, ["OnOrder", "On Order"]));
+      const mintsoft_back_orders = numOrNull(pickCol(r, ["OnBackOrder", "BackOrder", "BackOrders", "OnBackorder"]));
+      if (!sku || stock_level === null) {
         skipped++;
         continue;
       }
-      stockMap.set(sku, lvl);
+      stockMap.set(sku, { stock_level, on_order, mintsoft_back_orders });
     }
 
     // Bulk update via single RPC call. Send in chunks to keep payload sane.
@@ -157,9 +175,11 @@ Deno.serve(async (req) => {
     console.log(`[sftp] bulk-updating ${entries.length} SKUs in chunks of ${CHUNK}`);
 
     for (let i = 0; i < entries.length; i += CHUNK) {
-      const payload = entries.slice(i, i + CHUNK).map(([sku, stock_level]) => ({
+      const payload = entries.slice(i, i + CHUNK).map(([sku, v]) => ({
         sku,
-        stock_level,
+        stock_level: v.stock_level,
+        on_order: v.on_order,
+        mintsoft_back_orders: v.mintsoft_back_orders,
       }));
       const t = Date.now();
       const { data, error } = await supabase.rpc("bulk_update_stock_from_sftp", {
