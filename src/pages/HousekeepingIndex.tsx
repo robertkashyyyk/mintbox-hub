@@ -14,7 +14,7 @@ const HousekeepingIndex = () => {
     queryKey: ["housekeeping-counts"],
     queryFn: async () => {
       const since = new Date(Date.now() - 28 * 86400000).toISOString();
-      const [missingCosts, dirtRecent, pendingImages, discoveryQ, missingBarcodes] = await Promise.all([
+      const [missingCosts, dirtRecent, pendingImages, discoveryQ, missingBarcodes, lsaUnmatched] = await Promise.all([
         supabase.from("products_cache").select("id", { count: "exact", head: true })
           .is("cost_price", null).eq("discontinued", false).eq("quarantined", false),
         supabase.from("order_line_economics").select("sku", { count: "exact", head: true })
@@ -24,6 +24,7 @@ const HousekeepingIndex = () => {
           .eq("discovery_source", "order").eq("discontinued", false),
         supabase.from("products_cache").select("id", { count: "exact", head: true })
           .is("barcode", null).eq("discontinued", false).eq("quarantined", false),
+        (supabase as any).from("lsa_unmatched_skus").select("sku", { count: "exact", head: true }),
       ]);
       return {
         missingCosts: missingCosts.count ?? 0,
@@ -31,6 +32,7 @@ const HousekeepingIndex = () => {
         pendingImages: pendingImages.count ?? 0,
         discoveryQ: discoveryQ.count ?? 0,
         missingBarcodes: missingBarcodes.count ?? 0,
+        lsaUnmatched: lsaUnmatched.count ?? 0,
       };
     },
   });
