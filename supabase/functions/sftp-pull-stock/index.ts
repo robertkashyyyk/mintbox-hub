@@ -157,11 +157,13 @@ Deno.serve(async (req) => {
       }
       return undefined;
     };
-    const WAREHOUSE_FILTER = "ColeraineLIVE";
+    const WAREHOUSE_FILTER = "coleraine"; // case-insensitive substring match (matches ColeraineLIVE, Coleraine Live, etc)
     let wrongWarehouse = 0;
+    const warehouseSeen = new Map<string, number>();
     for (const r of rows) {
-      const warehouse = (pickCol(r, ["Warehouse"]) as string | undefined)?.toString().trim();
-      if (warehouse && warehouse !== WAREHOUSE_FILTER) {
+      const warehouse = (pickCol(r, ["Warehouse"]) as string | undefined)?.toString().trim() ?? "";
+      warehouseSeen.set(warehouse, (warehouseSeen.get(warehouse) ?? 0) + 1);
+      if (!warehouse.toLowerCase().includes(WAREHOUSE_FILTER)) {
         wrongWarehouse++;
         continue;
       }
@@ -175,7 +177,8 @@ Deno.serve(async (req) => {
       }
       stockMap.set(sku, { stock_level, on_order, mintsoft_back_orders });
     }
-    console.log(`[sftp] filtered to warehouse=${WAREHOUSE_FILTER}, dropped ${wrongWarehouse} rows from other warehouses`);
+    console.log(`[sftp] warehouses seen:`, Object.fromEntries(warehouseSeen));
+    console.log(`[sftp] kept ${stockMap.size} SKUs matching '${WAREHOUSE_FILTER}', dropped ${wrongWarehouse} from other warehouses`);
 
     // Bulk update via single RPC call. Send in chunks to keep payload sane.
     const entries = Array.from(stockMap.entries());
