@@ -183,8 +183,11 @@ Deno.serve(async (req) => {
           if (inventoryResponse.ok) {
             const inventoryData = await inventoryResponse.json();
             if (Array.isArray(inventoryData) && inventoryData.length > 0) {
-              // Sum up inventory across warehouses
+              // Only count our own warehouse (Coleraine, WarehouseId=5).
+              // Other warehouses (e.g. RemoteWarehouse) carry stock we do not own
+              // and must NOT be summed into current_stock.
               for (const inv of inventoryData) {
+                if (inv.WarehouseId !== 5) continue;
                 currentStock += inv.Available || 0;
                 onOrder += inv.OnOrder || 0;
                 backOrderQty += inv.OnBackOrder || 0;
