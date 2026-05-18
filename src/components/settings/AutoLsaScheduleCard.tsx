@@ -68,10 +68,15 @@ export const AutoLsaScheduleCard = () => {
   const runNow = async () => {
     setRunning(true);
     const { data, error } = await supabase.functions.invoke("auto-update-lsa-cron", {
-      body: { dry_run: s.dry_run },
+      body: { dry_run: s.dry_run, force: true },
     });
     setRunning(false);
     if (error) toast({ title: "Run failed", description: error.message, variant: "destructive" });
+    else if ((data as any)?.skipped) toast({
+      title: "Run skipped",
+      description: (data as any)?.reason ?? "Skipped by guard",
+      variant: "destructive",
+    });
     else toast({
       title: s.dry_run ? "Dry run complete" : "Run complete",
       description: `Brands: ${(data as any)?.brands_processed ?? 0} • Updated: ${(data as any)?.total_updated ?? 0} • Failed: ${(data as any)?.total_failed ?? 0}`,
