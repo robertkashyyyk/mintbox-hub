@@ -171,7 +171,7 @@ Deno.serve(async (req) => {
 
     // Bulk update via single RPC call. Send in chunks to keep payload sane.
     const entries = Array.from(stockMap.entries());
-    const CHUNK = 5000;
+    const CHUNK = 1500;
     let updated = 0;
     let notFound = 0;
     console.log(`[sftp] bulk-updating ${entries.length} SKUs in chunks of ${CHUNK}`);
