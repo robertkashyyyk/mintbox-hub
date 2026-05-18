@@ -15,7 +15,8 @@ const SFTP_HOST = "138.68.139.54";
 const SFTP_PORT = 22;
 const SFTP_USER = "mintsoft_export";
 const SFTP_DIR = "/home/mintsoft_export";
-const FILE_PREFIX = "pdochubInventory";
+// Mintsoft has emitted two naming styles over time; accept either.
+const FILE_PREFIXES = ["pdochubInventory", "InventoryExport"];
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -103,14 +104,15 @@ Deno.serve(async (req) => {
       .filter(
         (f) =>
           f.type === "-" &&
-          f.name.startsWith(FILE_PREFIX) &&
+          FILE_PREFIXES.some((p) => f.name.startsWith(p)) &&
           f.name.toLowerCase().endsWith(".csv"),
       )
       .sort((a, b) => b.modifyTime - a.modifyTime);
 
     if (candidates.length === 0) {
-      await log("warn", "No pdochubInventory*.csv file found", {
+      await log("warn", "No inventory CSV file found", {
         dir: SFTP_DIR,
+        prefixes: FILE_PREFIXES,
         seen: list.map((f) => f.name),
       });
       return new Response(
@@ -136,30 +138,50 @@ Deno.serve(async (req) => {
       relax_column_count: true,
     });
 
-    // Build SKU -> StockLevel map (latest wins if dup)
-    const stockMap = new Map<string, number>();
+    // Build SKU -> {stock_level, on_order, mintsoft_back_orders} map (latest wins if dup)
+    type Row = { stock_level: number | null; on_order: number | null; mintsoft_back_orders: number | null };
+    const stockMap = new Map<string, Row>();
+    const numOrNull = (v: unknown): number | null => {
+      if (v === undefined || v === null || v === "") return null;
+      const n = Number(v);
+      return Number.isFinite(n) ? n : null;
+    };
     let skipped = 0;
+    // Column-name variants Mintsoft has been observed to emit.
+    const pickCol = (r: Record<string, string>, names: string[]): unknown => {
+      for (const n of names) {
+        if (r[n] !== undefined) return r[n];
+        // case-insensitive fallback
+        const k = Object.keys(r).find((x) => x.toLowerCase() === n.toLowerCase());
+        if (k) return r[k];
+      }
+      return undefined;
+    };
     for (const r of rows) {
-      const sku = r.SKU?.trim();
-      const lvl = Number(r.StockLevel);
-      if (!sku || !Number.isFinite(lvl)) {
+      const sku = (pickCol(r, ["SKU", "Sku"]) as string | undefined)?.toString().trim();
+      const stock_level = numOrNull(pickCol(r, ["StockLevel", "Stock", "OnHand"]));
+      const on_order = numOrNull(pickCol(r, ["OnOrder", "On Order"]));
+      const mintsoft_back_orders = numOrNull(pickCol(r, ["OnBackOrder", "BackOrder", "BackOrders", "OnBackorder"]));
+      if (!sku || stock_level === null) {
         skipped++;
         continue;
       }
-      stockMap.set(sku, lvl);
+      stockMap.set(sku, { stock_level, on_order, mintsoft_back_orders });
     }
 
     // Bulk update via single RPC call. Send in chunks to keep payload sane.
     const entries = Array.from(stockMap.entries());
-    const CHUNK = 5000;
+    const CHUNK = 1500;
     let updated = 0;
     let notFound = 0;
     console.log(`[sftp] bulk-updating ${entries.length} SKUs in chunks of ${CHUNK}`);
 
     for (let i = 0; i < entries.length; i += CHUNK) {
-      const payload = entries.slice(i, i + CHUNK).map(([sku, stock_level]) => ({
+      const payload = entries.slice(i, i + CHUNK).map(([sku, v]) => ({
         sku,
-        stock_level,
+        stock_level: v.stock_level,
+        on_order: v.on_order,
+        mintsoft_back_orders: v.mintsoft_back_orders,
       }));
       const t = Date.now();
       const { data, error } = await supabase.rpc("bulk_update_stock_from_sftp", {
