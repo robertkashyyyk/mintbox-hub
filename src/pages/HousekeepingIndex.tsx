@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AlertCircle, AlertTriangle, Clock, Package, Sparkles, Tag, Image as ImageIcon } from "lucide-react";
+import { AlertCircle, AlertTriangle, Clock, Package, Sparkles, Tag, Image as ImageIcon, HelpCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import ModuleHeader from "@/components/ModuleHeader";
 
