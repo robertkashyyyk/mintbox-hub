@@ -177,6 +177,7 @@ Deno.serve(async (req) => {
     const CHUNK = 5000;
     let updated = 0;
     let notFound = 0;
+    const allMissing: Array<{ sku: string; lsa: number }> = [];
     console.log(`[lsa] bulk-updating ${entries.length} SKUs in chunks of ${CHUNK}`);
     for (let i = 0; i < entries.length; i += CHUNK) {
       const payload = entries.slice(i, i + CHUNK).map(([sku, lsa]) => ({ sku, lsa }));
@@ -193,10 +194,34 @@ Deno.serve(async (req) => {
       const nf = Number(row?.not_found_count ?? 0);
       updated += u;
       notFound += nf;
+      const missing = (row?.not_found_skus ?? []) as Array<{ sku: string; lsa: number }>;
+      if (Array.isArray(missing) && missing.length) allMissing.push(...missing);
       console.log(`[lsa] chunk ${i / CHUNK + 1}: updated=${u} not_found=${nf} in ${Date.now() - t}ms`);
     }
 
-    try { await sftp.delete(remotePath); } catch (_) { /* ignore */ }
+    // Persist unmatched SKUs so they can be reviewed in the UI (Housekeeping).
+    if (allMissing.length) {
+      const nowIso = new Date().toISOString();
+      // Upsert via RPC-friendly batches; use upsert with onConflict to bump last_seen_at/seen_count.
+      const UPS_CHUNK = 1000;
+      for (let i = 0; i < allMissing.length; i += UPS_CHUNK) {
+        const slice = allMissing.slice(i, i + UPS_CHUNK).map(m => ({
+          sku: m.sku, lsa: Number(m.lsa) || 0,
+          last_seen_at: nowIso, source_file: chosenFile,
+        }));
+        const { error: upErr } = await supabase
+          .from("lsa_unmatched_skus")
+          .upsert(slice, { onConflict: "sku", ignoreDuplicates: false });
+        if (upErr) console.error("[lsa] upsert unmatched err", upErr.message);
+      }
+      // Bump seen_count for existing rows via a simple SQL-ish increment using RPC isn't strictly
+      // necessary; the upsert above refreshes last_seen_at + lsa. seen_count stays 1 on first
+      // sighting, which is enough to spot persistent misses across days when paired with last_seen_at.
+    }
+
+    // Keep file on the server (do NOT delete) so we always have a recoverable
+    // snapshot to re-run if anything looks off.
+    // try { await sftp.delete(remotePath); } catch (_) { /* ignore */ }
 
     const summary = {
       file: chosenFile, rows_in_csv: rows.length,
