@@ -94,22 +94,43 @@ Deno.serve(async (req) => {
     if (password) connectOpts.password = password;
     await sftp.connect(connectOpts);
 
-    const list = await sftp.list(SFTP_DIR);
-    const candidates = list
-      .filter((f) =>
-        f.type === "-" &&
-        f.name.toLowerCase().endsWith(".csv") &&
-        FILE_PATTERNS.some((p) => f.name.toLowerCase().startsWith(p.toLowerCase())))
-      .sort((a, b) => b.modifyTime - a.modifyTime);
+    // Look in home dir AND one level into common subdirs (Mintsoft sometimes
+    // drops the LSA file into product_stock/).
+    const SEARCH_DIRS = [SFTP_DIR, `${SFTP_DIR}/product_stock`];
+    type Found = { dir: string; name: string; modifyTime: number };
+    let allCandidates: Found[] = [];
+    let allSeen: string[] = [];
+    for (const dir of SEARCH_DIRS) {
+      try {
+        const list = await sftp.list(dir);
+        allSeen.push(...list.map((f) => `${dir}/${f.name}`));
+        for (const f of list) {
+          if (
+            f.type === "-" &&
+            f.name.toLowerCase().endsWith(".csv") &&
+            FILE_PATTERNS.some((p) => f.name.toLowerCase().startsWith(p.toLowerCase()))
+          ) {
+            allCandidates.push({ dir, name: f.name, modifyTime: f.modifyTime });
+          }
+        }
+      } catch (e) {
+        console.log(`[lsa] could not list ${dir}: ${e instanceof Error ? e.message : e}`);
+      }
+    }
+    allCandidates.sort((a, b) => b.modifyTime - a.modifyTime);
 
-    if (candidates.length === 0) {
+    if (allCandidates.length === 0) {
       await log("warn", "No low-stock-alert CSV file found", {
-        dir: SFTP_DIR, patterns: FILE_PATTERNS, seen: list.map((f) => f.name),
+        dirs: SEARCH_DIRS, patterns: FILE_PATTERNS, seen: allSeen,
       });
       return new Response(JSON.stringify({ ok: true, processed: 0, message: "no file" }), {
         status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    const picked = allCandidates[0];
+    chosenFile = picked.name;
+    const remotePath = `${picked.dir}/${picked.name}`;
 
     chosenFile = candidates[0].name;
     const remotePath = `${SFTP_DIR}/${chosenFile}`;
