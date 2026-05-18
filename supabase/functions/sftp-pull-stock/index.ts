@@ -15,7 +15,8 @@ const SFTP_HOST = "138.68.139.54";
 const SFTP_PORT = 22;
 const SFTP_USER = "mintsoft_export";
 const SFTP_DIR = "/home/mintsoft_export";
-const FILE_PREFIX = "pdochubInventory";
+// Mintsoft has emitted two naming styles over time; accept either.
+const FILE_PREFIXES = ["pdochubInventory", "InventoryExport"];
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
