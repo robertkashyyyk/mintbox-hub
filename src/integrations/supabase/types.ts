@@ -1728,6 +1728,33 @@ export type Database = {
         }
         Relationships: []
       }
+      lsa_unmatched_skus: {
+        Row: {
+          first_seen_at: string
+          last_seen_at: string
+          lsa: number
+          seen_count: number
+          sku: string
+          source_file: string | null
+        }
+        Insert: {
+          first_seen_at?: string
+          last_seen_at?: string
+          lsa: number
+          seen_count?: number
+          sku: string
+          source_file?: string | null
+        }
+        Update: {
+          first_seen_at?: string
+          last_seen_at?: string
+          lsa?: number
+          seen_count?: number
+          sku?: string
+          source_file?: string | null
+        }
+        Relationships: []
+      }
       mintsoft_settings: {
         Row: {
           base_url: string
