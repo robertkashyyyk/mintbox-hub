@@ -1,4 +1,4 @@
-// Plain LSA filter rule applied: only persists rows where LSA > 1.
+// Mintsoft LSA pull: persists every SKU's LSA verbatim (including 0). Downstream views filter LSA<=1.
 // Writes to existing products_cache.low_stock_alert_level column (the one already
 // being kept fresh by Mintsoft API enrichment) so we have one source of truth.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
@@ -223,73 +223,72 @@ Deno.serve(async (req) => {
     for (const r of rows) {
       const sku = (r[skuKey] ?? "").trim();
       const lsa = Number(r[lsaKey]);
-      if (!sku || !Number.isFinite(lsa)) { skippedInvalid++; continue; }
-      if (lsa <= lsaMinThreshold) { skippedBelowThreshold++; continue; }
+      if (!sku || !Number.isFinite(lsa) || lsa < 0) { skippedInvalid++; continue; }
+      // Mintsoft is authoritative — persist every value including 0.
+      // Buy-recommendation / calibration views handle the "ignore LSA <= 1" rule downstream.
       lsaMap.set(sku, lsa);
     }
 
     // Bulk update via RPC — same pattern as sftp-pull-stock (avoids PostgREST
     // URL-length issues and per-row HTTP fragility).
+    // Mintsoft now sends the full catalog (~246k rows). Run the heavy update
+    // in the background and return early so the HTTP request doesn't time out.
     const entries = Array.from(lsaMap.entries());
     const CHUNK = 5000;
-    let updated = 0;
-    let notFound = 0;
-    const allMissing: Array<{ sku: string; lsa: number }> = [];
-    console.log(`[lsa] bulk-updating ${entries.length} SKUs in chunks of ${CHUNK}`);
-    for (let i = 0; i < entries.length; i += CHUNK) {
-      const payload = entries.slice(i, i + CHUNK).map(([sku, lsa]) => ({ sku, lsa }));
-      const t = Date.now();
-      const { data, error } = await supabase.rpc("bulk_update_lsa_from_sftp", {
-        _payload: payload,
-      });
-      if (error) {
-        console.error("bulk_update_lsa_from_sftp error", error.message);
-        throw new Error(`bulk update failed: ${error.message}`);
-      }
-      const row = Array.isArray(data) ? data[0] : data;
-      const u = Number(row?.updated_count ?? 0);
-      const nf = Number(row?.not_found_count ?? 0);
-      updated += u;
-      notFound += nf;
-      const missing = (row?.not_found_skus ?? []) as Array<{ sku: string; lsa: number }>;
-      if (Array.isArray(missing) && missing.length) allMissing.push(...missing);
-      console.log(`[lsa] chunk ${i / CHUNK + 1}: updated=${u} not_found=${nf} in ${Date.now() - t}ms`);
-    }
-
-    // Persist unmatched SKUs so they can be reviewed in the UI (Housekeeping).
-    if (allMissing.length) {
-      const nowIso = new Date().toISOString();
-      // Upsert via RPC-friendly batches; use upsert with onConflict to bump last_seen_at/seen_count.
-      const UPS_CHUNK = 1000;
-      for (let i = 0; i < allMissing.length; i += UPS_CHUNK) {
-        const slice = allMissing.slice(i, i + UPS_CHUNK).map(m => ({
-          sku: m.sku, lsa: Number(m.lsa) || 0,
-          last_seen_at: nowIso, source_file: chosenFile,
-        }));
-        const { error: upErr } = await supabase
-          .from("lsa_unmatched_skus")
-          .upsert(slice, { onConflict: "sku", ignoreDuplicates: false });
-        if (upErr) console.error("[lsa] upsert unmatched err", upErr.message);
-      }
-      // Bump seen_count for existing rows via a simple SQL-ish increment using RPC isn't strictly
-      // necessary; the upsert above refreshes last_seen_at + lsa. seen_count stays 1 on first
-      // sighting, which is enough to spot persistent misses across days when paired with last_seen_at.
-    }
-
-    // Keep file on the server (do NOT delete) so we always have a recoverable
-    // snapshot to re-run if anything looks off.
-    // try { await sftp.delete(remotePath); } catch (_) { /* ignore */ }
+    console.log(`[lsa] queued background bulk-update of ${entries.length} SKUs in chunks of ${CHUNK}`);
 
     const summary = {
       file: chosenFile, rows_in_csv: rows.length,
-      kept_above_threshold: lsaMap.size,
-      skipped_below_threshold: skippedBelowThreshold,
+      kept: lsaMap.size,
       skipped_invalid: skippedInvalid,
-      updated, not_found_in_db: notFound,
+      mode: "background",
     };
-    await log("ok", `Synced ${updated} LSA values from ${chosenFile}`, summary);
+
+    // Fire-and-forget background processing using Deno's waitUntil.
+    const bg = (async () => {
+      let updated = 0;
+      let notFound = 0;
+      const bgStart = Date.now();
+      try {
+        for (let i = 0; i < entries.length; i += CHUNK) {
+          const payload = entries.slice(i, i + CHUNK).map(([sku, lsa]) => ({ sku, lsa }));
+          const t = Date.now();
+          const { data, error } = await supabase.rpc("bulk_update_lsa_from_sftp_fast", {
+            _payload: payload,
+          });
+          if (error) {
+            console.error("bulk_update_lsa_from_sftp_fast error", error.message);
+            throw new Error(`bulk update failed: ${error.message}`);
+          }
+          const row = Array.isArray(data) ? data[0] : data;
+          const u = Number(row?.updated_count ?? 0);
+          const nf = Number(row?.not_found_count ?? 0);
+          updated += u;
+          notFound += nf;
+          console.log(`[lsa] chunk ${i / CHUNK + 1}: updated=${u} not_found=${nf} in ${Date.now() - t}ms`);
+        }
+        await log("ok", `Background sync wrote ${updated} LSA values from ${chosenFile}`, {
+          ...summary, updated, not_found_in_db: notFound,
+          duration_ms: Date.now() - bgStart,
+        });
+      } catch (e: any) {
+        const m = e instanceof Error ? e.message : String(e);
+        console.error("[lsa] background failed:", m);
+        await log("error", `Background LSA sync failed: ${m}`, {
+          ...summary, updated, not_found_in_db: notFound,
+          duration_ms: Date.now() - bgStart,
+        });
+      }
+    })();
+    // @ts-ignore — EdgeRuntime is provided by Supabase Edge runtime
+    if (typeof EdgeRuntime !== "undefined" && EdgeRuntime?.waitUntil) {
+      // @ts-ignore
+      EdgeRuntime.waitUntil(bg);
+    }
+
+    await log("ok", `Queued LSA sync from ${chosenFile} (${entries.length} SKUs)`, summary);
     return new Response(JSON.stringify({ ok: true, ...summary }), {
-      status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 202, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err: any) {
     try {

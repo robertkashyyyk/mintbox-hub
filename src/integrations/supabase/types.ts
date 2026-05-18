@@ -4225,6 +4225,13 @@ export type Database = {
           updated_count: number
         }[]
       }
+      bulk_update_lsa_from_sftp_fast: {
+        Args: { _payload: Json }
+        Returns: {
+          not_found_count: number
+          updated_count: number
+        }[]
+      }
       bulk_update_stock_from_sftp: {
         Args: { _payload: Json }
         Returns: {
