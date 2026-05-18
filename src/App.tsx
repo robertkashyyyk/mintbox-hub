@@ -79,6 +79,7 @@ import DirtSkus from "./pages/intelligence/DirtSkus";
 
 // Housekeeping
 import HousekeepingIndex from "./pages/HousekeepingIndex";
+import LsaUnmatchedSkus from "./pages/LsaUnmatchedSkus";
 
 // Admin extras
 import ProfitRules from "./pages/admin/ProfitRules";
@@ -192,6 +193,7 @@ const App = () => (
 
             {/* Housekeeping */}
             <Route path="/housekeeping" element={<HousekeepingIndex />} />
+            <Route path="/housekeeping/lsa-unmatched" element={<LsaUnmatchedSkus />} />
 
             {/* Decisions Sub-Routes */}
             <Route path="/decisions/buying" element={<BuyRecommendations />} />

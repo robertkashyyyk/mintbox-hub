@@ -1728,6 +1728,33 @@ export type Database = {
         }
         Relationships: []
       }
+      lsa_unmatched_skus: {
+        Row: {
+          first_seen_at: string
+          last_seen_at: string
+          lsa: number
+          seen_count: number
+          sku: string
+          source_file: string | null
+        }
+        Insert: {
+          first_seen_at?: string
+          last_seen_at?: string
+          lsa: number
+          seen_count?: number
+          sku: string
+          source_file?: string | null
+        }
+        Update: {
+          first_seen_at?: string
+          last_seen_at?: string
+          lsa?: number
+          seen_count?: number
+          sku?: string
+          source_file?: string | null
+        }
+        Relationships: []
+      }
       mintsoft_settings: {
         Row: {
           base_url: string
@@ -4191,6 +4218,7 @@ export type Database = {
         Args: { _payload: Json }
         Returns: {
           not_found_count: number
+          not_found_skus: Json
           updated_count: number
         }[]
       }
