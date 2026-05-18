@@ -192,6 +192,10 @@ Deno.serve(async (req) => {
       status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err: any) {
+    try {
+      console.error("[lsa] raw err type:", typeof err, "keys:", err && Object.keys(err));
+      console.error("[lsa] raw err json:", JSON.stringify(err, Object.getOwnPropertyNames(err ?? {})));
+    } catch (_) { /* ignore */ }
     const msg =
       err instanceof Error ? err.message :
       typeof err === "string" ? err :
