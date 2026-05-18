@@ -1,0 +1,1 @@
+UPDATE public.products_cache SET low_stock_alert_level = 27 WHERE sku = 'NGK-05329';
