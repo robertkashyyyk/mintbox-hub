@@ -15,13 +15,20 @@ const LsaUnmatchedSkus = () => {
   const { data, isLoading } = useQuery({
     queryKey: ["lsa-unmatched-skus"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("lsa_unmatched_skus")
         .select("sku, lsa, first_seen_at, last_seen_at, seen_count, source_file")
         .order("sku", { ascending: true })
         .limit(5000);
       if (error) throw error;
-      return data ?? [];
+      return (data ?? []) as Array<{
+        sku: string;
+        lsa: number;
+        first_seen_at: string;
+        last_seen_at: string;
+        seen_count: number;
+        source_file: string | null;
+      }>;
     },
   });
 
