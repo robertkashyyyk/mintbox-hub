@@ -193,6 +193,7 @@ const App = () => (
 
             {/* Housekeeping */}
             <Route path="/housekeeping" element={<HousekeepingIndex />} />
+            <Route path="/housekeeping/lsa-unmatched" element={<LsaUnmatchedSkus />} />
 
             {/* Decisions Sub-Routes */}
             <Route path="/decisions/buying" element={<BuyRecommendations />} />
