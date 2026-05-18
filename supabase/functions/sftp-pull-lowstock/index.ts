@@ -131,9 +131,6 @@ Deno.serve(async (req) => {
     const picked = allCandidates[0];
     chosenFile = picked.name;
     const remotePath = `${picked.dir}/${picked.name}`;
-
-    chosenFile = candidates[0].name;
-    const remotePath = `${SFTP_DIR}/${chosenFile}`;
     const buf = (await sftp.get(remotePath)) as Buffer;
     const text = buf.toString("utf-8");
     const rows: Array<Record<string, string>> = parse(text, {
