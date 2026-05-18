@@ -120,16 +120,25 @@ Deno.serve(async (req) => {
     });
 
     const headers = Object.keys(rows[0] ?? {});
+    const norm = (s: string) => s.replace(/^\uFEFF/, "").trim().toLowerCase();
     const findHeader = (...candidates: string[]): string | null => {
-      const lower = headers.map((h) => h.toLowerCase());
+      const lower = headers.map(norm);
       for (const c of candidates) {
-        const idx = lower.indexOf(c.toLowerCase());
+        const idx = lower.indexOf(norm(c));
         if (idx !== -1) return headers[idx];
       }
       return null;
     };
     const skuKey = findHeader("SKU", "ClientSKU", "Sku");
-    const lsaKey = findHeader("LowStockLevel", "LowStockAlert", "LSA", "ReorderLevel", "Level");
+    const lsaKey = findHeader(
+      "Low Stock Alert Level",
+      "LowStockAlertLevel",
+      "LowStockLevel",
+      "LowStockAlert",
+      "LSA",
+      "ReorderLevel",
+      "Level",
+    );
     if (!skuKey || !lsaKey) {
       throw new Error(`Could not find SKU/LSA columns. Headers: ${headers.join(", ")}`);
     }
@@ -146,7 +155,7 @@ Deno.serve(async (req) => {
 
     const allSkus = Array.from(lsaMap.keys());
     const existing = new Set<string>();
-    const LOOKUP_CHUNK = 1000;
+    const LOOKUP_CHUNK = 200;
     for (let i = 0; i < allSkus.length; i += LOOKUP_CHUNK) {
       const slice = allSkus.slice(i, i + LOOKUP_CHUNK);
       const { data, error } = await supabase
@@ -182,8 +191,17 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ ok: true, ...summary }), {
       status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
+  } catch (err: any) {
+    try {
+      console.error("[lsa] raw err type:", typeof err, "keys:", err && Object.keys(err));
+      console.error("[lsa] raw err json:", JSON.stringify(err, Object.getOwnPropertyNames(err ?? {})));
+    } catch (_) { /* ignore */ }
+    const msg =
+      err instanceof Error ? err.message :
+      typeof err === "string" ? err :
+      err && (err.message || err.error_description || err.details || err.hint || err.code)
+        ? [err.message, err.details, err.hint, err.code].filter(Boolean).join(" | ")
+        : JSON.stringify(err);
     console.error("sftp-pull-lowstock failed:", msg);
     await log("error", msg, { file: chosenFile });
     return new Response(JSON.stringify({ ok: false, error: msg }), {

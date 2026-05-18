@@ -74,7 +74,7 @@ Deno.serve(async (req) => {
       throw new Error("No SFTP credential set (MINTSOFT_FTP_PRIVATE_KEY_B64 / _KEY / _PASSWORD)");
     }
 
-    console.log(`[sftp] connecting to ${SFTP_USER}@${SFTP_HOST}:${SFTP_PORT} (auth=${privateKey ? "key" : "password"})`);
+    console.log(`[sftp] connecting to ${SFTP_USER}@${SFTP_HOST}:${SFTP_PORT} (auth=${privateKey ? "key" : "password"}, pwlen=${password?.length ?? 0})`);
     const t0 = Date.now();
     const connectOpts: any = {
       host: SFTP_HOST,
