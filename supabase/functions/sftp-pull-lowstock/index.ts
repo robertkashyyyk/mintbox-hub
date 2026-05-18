@@ -157,6 +157,24 @@ Deno.serve(async (req) => {
     }
     allCandidates.sort((a, b) => b.modifyTime - a.modifyTime);
 
+    // Fallback: if LIST didn't reveal anything, try each known pattern by
+    // direct stat() — some SFTP servers hide files from LIST but allow GET.
+    if (allCandidates.length === 0) {
+      const probeDirs = [SFTP_DIR, `${SFTP_DIR}/product_stock`];
+      const probeNames = FILE_PATTERNS.map((p) => `${p}.csv`);
+      for (const dir of probeDirs) {
+        for (const name of probeNames) {
+          const path = `${dir}/${name}`;
+          try {
+            const stat = await sftp.stat(path);
+            console.log(`[lsa] direct stat hit: ${path} mtime=${stat.modifyTime}`);
+            allCandidates.push({ dir, name, modifyTime: stat.modifyTime });
+          } catch (_) { /* not found, skip */ }
+        }
+      }
+      allCandidates.sort((a, b) => b.modifyTime - a.modifyTime);
+    }
+
     if (allCandidates.length === 0) {
       await log("warn", "No low-stock-alert CSV file found", {
         dirs: SEARCH_DIRS, patterns: FILE_PATTERNS, loose_match: LOOSE_MATCH.source,
