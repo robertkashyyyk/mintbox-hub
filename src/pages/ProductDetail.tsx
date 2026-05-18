@@ -226,6 +226,45 @@ export default function ProductDetail() {
     </div>
   );
 
+  const BoxQuantityEditor = ({ productId, initial, onSaved }: { productId: string; initial: number; onSaved: () => void }) => {
+    const [val, setVal] = useState<number>(initial || 1);
+    useEffect(() => { setVal(initial || 1); }, [initial]);
+    const dirty = val !== (initial || 1);
+    const save = async () => {
+      const { error } = await supabase
+        .from("products_cache" as any)
+        .update({ box_quantity: Math.max(1, val) } as any)
+        .eq("id", productId);
+      if (error) {
+        toast({ title: "Save failed", description: error.message, variant: "destructive" });
+        return;
+      }
+      toast({ title: "Box quantity updated" });
+      onSaved();
+    };
+    return (
+      <div className="flex justify-between items-center gap-2">
+        <span className="text-muted-foreground text-sm" title="Minimum order multiple. Purchase suggestions round up to this.">
+          Box Quantity
+        </span>
+        <div className="flex items-center gap-1">
+          <Input
+            type="number"
+            min={1}
+            value={val}
+            onChange={(e) => setVal(Math.max(1, parseInt(e.target.value, 10) || 1))}
+            className={`h-7 w-20 text-right tabular-nums ${dirty ? "border-pd-accent" : ""} ${val > 1 ? "font-semibold" : ""}`}
+          />
+          {dirty && (
+            <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={save} aria-label="Save">
+              <Save className="h-3.5 w-3.5" />
+            </Button>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex items-center gap-4">
