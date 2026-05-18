@@ -2698,6 +2698,7 @@ export type Database = {
           low_stock_alert_level: number | null
           marketing_description: string | null
           marketing_title: string | null
+          mintsoft_back_orders: number | null
           mintsoft_categories: string[] | null
           mintsoft_product_id: number | null
           name: string
@@ -2751,6 +2752,7 @@ export type Database = {
           low_stock_alert_level?: number | null
           marketing_description?: string | null
           marketing_title?: string | null
+          mintsoft_back_orders?: number | null
           mintsoft_categories?: string[] | null
           mintsoft_product_id?: number | null
           name: string
@@ -2804,6 +2806,7 @@ export type Database = {
           low_stock_alert_level?: number | null
           marketing_description?: string | null
           marketing_title?: string | null
+          mintsoft_back_orders?: number | null
           mintsoft_categories?: string[] | null
           mintsoft_product_id?: number | null
           name?: string
