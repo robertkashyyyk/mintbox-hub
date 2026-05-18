@@ -210,12 +210,9 @@ Deno.serve(async (req) => {
       console.log(`[sftp] chunk ${i / CHUNK + 1}: updated=${u} not_found=${nf} in ${Date.now() - t}ms`);
     }
 
-    // Delete the source file only if we actually updated rows (guard against bad filter killing the file)
-    if (updated > 0) {
-      await sftp.delete(remotePath);
-    } else {
-      console.warn(`[sftp] skipping file deletion because updated=0 (file: ${chosenFile})`);
-    }
+    // SAFETY: file deletion temporarily disabled while we validate new Mintsoft exports.
+    // Re-enable once we're confident in the run output.
+    console.log(`[sftp] file deletion disabled (validation mode); leaving ${chosenFile} in place`);
 
     await log("ok", `Synced ${updated} SKUs from ${chosenFile}`, {
       file: chosenFile,
