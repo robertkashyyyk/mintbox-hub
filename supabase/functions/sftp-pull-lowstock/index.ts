@@ -20,6 +20,8 @@ const FILE_PATTERNS = [
   "pdochubLowStockAlerts",
   "ColeraineLowStockAlerts",
 ];
+// Loose match: any csv whose name contains "lowstock" or "lsa" (case-insensitive)
+const LOOSE_MATCH = /(lowstock|lsa)/i;
 const LSA_MIN_THRESHOLD_DEFAULT = 1;
 
 Deno.serve(async (req) => {
