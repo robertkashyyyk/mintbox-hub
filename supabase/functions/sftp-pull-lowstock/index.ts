@@ -129,7 +129,15 @@ Deno.serve(async (req) => {
       return null;
     };
     const skuKey = findHeader("SKU", "ClientSKU", "Sku");
-    const lsaKey = findHeader("LowStockLevel", "LowStockAlert", "LSA", "ReorderLevel", "Level");
+    const lsaKey = findHeader(
+      "Low Stock Alert Level",
+      "LowStockAlertLevel",
+      "LowStockLevel",
+      "LowStockAlert",
+      "LSA",
+      "ReorderLevel",
+      "Level",
+    );
     if (!skuKey || !lsaKey) {
       throw new Error(`Could not find SKU/LSA columns. Headers: ${headers.join(", ")}`);
     }
