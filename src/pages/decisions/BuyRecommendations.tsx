@@ -528,8 +528,11 @@ const BuyRecommendations = () => {
                 <TableBody>
                   {detailRows.map((r) => {
                     const suggested = Math.max(0, Math.round(num(r.required_qty)));
+                    const raw = Math.max(0, Math.round(num(r.raw_required_qty)));
+                    const box = Math.max(1, num(r.box_quantity) || 1);
                     const qty = overrides[r.sku] ?? suggested;
                     const lineCost = qty * num(r.unit_cost);
+                    const wasBoxed = box > 1 && suggested > raw && raw > 0;
                     return (
                       <TableRow key={r.sku} data-state={selected[r.sku] ? "selected" : undefined}>
                         <TableCell>
@@ -565,16 +568,23 @@ const BuyRecommendations = () => {
                         </TableCell>
                         <TableCell className="text-right text-muted-foreground tabular-nums">{num(r.on_order)}</TableCell>
                         <TableCell className="text-right">
-                          <Input
-                            type="number"
-                            min={0}
-                            value={qty}
-                            onChange={(e) => setOverrides({
-                              ...overrides,
-                              [r.sku]: Math.max(0, parseInt(e.target.value, 10) || 0),
-                            })}
-                            className="h-8 w-20 ml-auto text-right tabular-nums"
-                          />
+                          <div className="flex flex-col items-end gap-0.5">
+                            <Input
+                              type="number"
+                              min={0}
+                              value={qty}
+                              onChange={(e) => setOverrides({
+                                ...overrides,
+                                [r.sku]: Math.max(0, parseInt(e.target.value, 10) || 0),
+                              })}
+                              className={`h-8 w-20 text-right tabular-nums ${wasBoxed ? "border-pd-accent" : ""}`}
+                            />
+                            {wasBoxed && (
+                              <span className="text-[10px] text-pd-accent" title={`Rounded up to box of ${box} (needed ${raw})`}>
+                                box of {box} · needed {raw}
+                              </span>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell className="text-right tabular-nums">{formatGBP(lineCost)}</TableCell>
                       </TableRow>
