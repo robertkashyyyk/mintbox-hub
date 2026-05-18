@@ -49,7 +49,7 @@ Deno.serve(async (req) => {
     // is absent.
     const keyB64 = Deno.env.get("MINTSOFT_FTP_PRIVATE_KEY_B64");
     const keyRaw = Deno.env.get("MINTSOFT_FTP_PRIVATE_KEY");
-    const password = Deno.env.get("MINTSOFT_FTP_PASSWORD");
+    const password = Deno.env.get("MINTSOFT_FTP_PASSWORD")?.replace(/\r/g, "").trim();
     let privateKey: string | null = null;
     if (!password && keyB64) {
       const trimmed = keyB64.trim();
