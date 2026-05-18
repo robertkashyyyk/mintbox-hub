@@ -86,6 +86,14 @@ const HousekeepingIndex = () => {
       count: undefined,
       path: "/operations/carriers/remeasure",
     },
+    {
+      title: "LSA Unmatched SKUs",
+      description: "SKUs in Mintsoft's Low Stock Alert file that don't exist in our cache yet.",
+      icon: HelpCircle,
+      severity: "warning" as const,
+      count: counts?.lsaUnmatched,
+      path: "/housekeeping/lsa-unmatched",
+    },
   ];
 
   const sevColor = (s: "destructive" | "warning" | "info") =>
