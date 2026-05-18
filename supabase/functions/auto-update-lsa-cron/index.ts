@@ -39,6 +39,7 @@ Deno.serve(async (req) => {
   try { body = await req.json() } catch { /* ignore */ }
   const forcedBrandId: string | undefined = body?.brand_id
   const forcedDryRun: boolean | undefined = body?.dry_run
+  const force: boolean = !!body?.force
 
   // Load schedule
   const { data: schedRow } = await admin.from('app_settings')
@@ -52,18 +53,15 @@ Deno.serve(async (req) => {
     dry_run: !!schedRow?.value?.dry_run,
   }
 
-  // Decide if this tick should fire (skipped for forced runs)
-  if (!forcedBrandId) {
+  // Schedule + idempotency guards apply only to true scheduled cron ticks
+  // (no brand_id, no explicit `force`). Manual "Run now" buttons set force=true.
+  if (!forcedBrandId && !force) {
     if (!schedule.enabled) {
       return ok({ skipped: true, reason: 'auto-lsa schedule disabled' })
     }
     if (!isFireWindow(schedule, new Date())) {
       return ok({ skipped: true, reason: 'not fire window' })
     }
-  }
-
-  // Idempotency: if we already ran today (and not forced), skip
-  if (!forcedBrandId) {
     const since = new Date(); since.setHours(0, 0, 0, 0)
     const { data: recent } = await admin.from('agent_runs')
       .select('id').eq('run_type', 'auto-lsa-update')
