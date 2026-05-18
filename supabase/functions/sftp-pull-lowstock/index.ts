@@ -185,7 +185,7 @@ Deno.serve(async (req) => {
       kept_above_threshold: lsaMap.size,
       skipped_below_threshold: skippedBelowThreshold,
       skipped_invalid: skippedInvalid,
-      matched_in_cache: existing.size, updated,
+      updated, not_found_in_db: notFound,
     };
     await log("ok", `Synced ${updated} LSA values from ${chosenFile}`, summary);
     return new Response(JSON.stringify({ ok: true, ...summary }), {
