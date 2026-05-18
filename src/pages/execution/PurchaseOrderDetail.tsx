@@ -67,14 +67,18 @@ const PurchaseOrderDetail = () => {
       const lines = (linesRes.data || []) as any[];
       const skus = lines.map((l) => l.sku);
       let pidMap: Record<string, number> = {};
+      let boxMap: Record<string, number> = {};
+      let pcIdMap: Record<string, string> = {};
       if (skus.length) {
         const { data: pcs } = await sb.from("products_cache")
-          .select("sku, mintsoft_product_id").in("sku", skus);
+          .select("id, sku, mintsoft_product_id, box_quantity").in("sku", skus);
         for (const r of pcs || []) {
           if (r.mintsoft_product_id) pidMap[r.sku] = r.mintsoft_product_id;
+          boxMap[r.sku] = r.box_quantity ?? 1;
+          pcIdMap[r.sku] = r.id;
         }
       }
-      return { po: poRes.data as any, lines, pidMap };
+      return { po: poRes.data as any, lines, pidMap, boxMap, pcIdMap };
     },
     enabled: !!id,
   });
@@ -132,7 +136,7 @@ const PurchaseOrderDetail = () => {
 
   if (isLoading || !data) return <div className="p-8 text-muted-foreground">Loading PO…</div>;
 
-  const { po, lines, pidMap } = data;
+  const { po, lines, pidMap, boxMap, pcIdMap } = data;
   const linesMissingCost = lines.filter((l) => !l.unit_cost || Number(l.unit_cost) <= 0);
   const linesNoMintsoftId = lines.filter((l) => !pidMap[l.sku]);
   const supplierMapped = !!po.suppliers?.mintsoft_supplier_id;
