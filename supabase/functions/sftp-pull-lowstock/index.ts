@@ -191,8 +191,13 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ ok: true, ...summary }), {
       status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
+  } catch (err: any) {
+    const msg =
+      err instanceof Error ? err.message :
+      typeof err === "string" ? err :
+      err && (err.message || err.error_description || err.details || err.hint || err.code)
+        ? [err.message, err.details, err.hint, err.code].filter(Boolean).join(" | ")
+        : JSON.stringify(err);
     console.error("sftp-pull-lowstock failed:", msg);
     await log("error", msg, { file: chosenFile });
     return new Response(JSON.stringify({ ok: false, error: msg }), {
