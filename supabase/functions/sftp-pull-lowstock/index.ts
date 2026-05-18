@@ -20,6 +20,8 @@ const FILE_PATTERNS = [
   "pdochubLowStockAlerts",
   "ColeraineLowStockAlerts",
 ];
+// Loose match: any csv whose name contains "lowstock" or "lsa" (case-insensitive)
+const LOOSE_MATCH = /(lowstock|lsa)/i;
 const LSA_MIN_THRESHOLD_DEFAULT = 1;
 
 Deno.serve(async (req) => {
@@ -94,36 +96,73 @@ Deno.serve(async (req) => {
     if (password) connectOpts.password = password;
     await sftp.connect(connectOpts);
 
-    // Look in home dir AND one level into common subdirs (Mintsoft sometimes
-    // drops the LSA file into product_stock/).
-    const SEARCH_DIRS = [SFTP_DIR, `${SFTP_DIR}/product_stock`];
+    // Discover dirs dynamically: home dir + every subdirectory it contains
+    // (Mintsoft may move the LSA drop into any sibling of product_stock).
     type Found = { dir: string; name: string; modifyTime: number };
     let allCandidates: Found[] = [];
-    let allSeen: string[] = [];
+    const allSeen: string[] = [];
+    const allCsvs: string[] = [];
+
+    let subdirs: string[] = [];
+    try {
+      const home = await sftp.list(SFTP_DIR);
+      for (const f of home) {
+        allSeen.push(`${SFTP_DIR}/${f.name}${f.type === "d" ? "/" : ""}`);
+        if (f.type === "d" && !f.name.startsWith(".")) subdirs.push(`${SFTP_DIR}/${f.name}`);
+        if (f.type === "-" && f.name.toLowerCase().endsWith(".csv")) {
+          allCsvs.push(`${SFTP_DIR}/${f.name}`);
+        }
+      }
+    } catch (e) {
+      console.log(`[lsa] could not list home ${SFTP_DIR}: ${e instanceof Error ? e.message : e}`);
+    }
+    const SEARCH_DIRS = [SFTP_DIR, ...subdirs];
+    console.log(`[lsa] scanning dirs: ${SEARCH_DIRS.join(", ")}`);
+
     for (const dir of SEARCH_DIRS) {
+      if (dir === SFTP_DIR) continue; // already listed above
       try {
         const list = await sftp.list(dir);
-        allSeen.push(...list.map((f) => `${dir}/${f.name}`));
         for (const f of list) {
-          if (
-            f.type === "-" &&
-            f.name.toLowerCase().endsWith(".csv") &&
-            FILE_PATTERNS.some((p) => f.name.toLowerCase().startsWith(p.toLowerCase()))
-          ) {
-            allCandidates.push({ dir, name: f.name, modifyTime: f.modifyTime });
+          allSeen.push(`${dir}/${f.name}${f.type === "d" ? "/" : ""}`);
+          if (f.type === "-" && f.name.toLowerCase().endsWith(".csv")) {
+            allCsvs.push(`${dir}/${f.name}`);
           }
         }
       } catch (e) {
         console.log(`[lsa] could not list ${dir}: ${e instanceof Error ? e.message : e}`);
       }
     }
+
+    // Match by FILE_PATTERNS first, then fall back to loose match.
+    const csvFiles = [...allSeen]
+      .filter((p) => p.toLowerCase().endsWith(".csv"))
+      .map((p) => {
+        const i = p.lastIndexOf("/");
+        return { dir: p.slice(0, i), name: p.slice(i + 1) };
+      });
+
+    for (const f of csvFiles) {
+      const nameLower = f.name.toLowerCase();
+      const matchesPattern = FILE_PATTERNS.some((p) => nameLower.startsWith(p.toLowerCase()));
+      const matchesLoose = LOOSE_MATCH.test(nameLower);
+      if (matchesPattern || matchesLoose) {
+        try {
+          const stat = await sftp.stat(`${f.dir}/${f.name}`);
+          allCandidates.push({ dir: f.dir, name: f.name, modifyTime: stat.modifyTime });
+        } catch {
+          allCandidates.push({ dir: f.dir, name: f.name, modifyTime: 0 });
+        }
+      }
+    }
     allCandidates.sort((a, b) => b.modifyTime - a.modifyTime);
 
     if (allCandidates.length === 0) {
       await log("warn", "No low-stock-alert CSV file found", {
-        dirs: SEARCH_DIRS, patterns: FILE_PATTERNS, seen: allSeen,
+        dirs: SEARCH_DIRS, patterns: FILE_PATTERNS, loose_match: LOOSE_MATCH.source,
+        seen: allSeen, csvs_seen: allCsvs,
       });
-      return new Response(JSON.stringify({ ok: true, processed: 0, message: "no file" }), {
+      return new Response(JSON.stringify({ ok: true, processed: 0, message: "no file", seen: allSeen, csvs_seen: allCsvs }), {
         status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
