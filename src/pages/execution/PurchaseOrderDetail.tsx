@@ -293,6 +293,7 @@ const PurchaseOrderDetail = () => {
                   <TableHead className="text-right">BO @ snap</TableHead>
                   <TableHead className="text-right">LSA @ snap</TableHead>
                   <TableHead className="text-right">Qty</TableHead>
+                  <TableHead className="text-center" title="Current box quantity. Tick to set this qty as the new box quantity for this SKU.">Box</TableHead>
                   <TableHead className="text-right">Unit cost</TableHead>
                   <TableHead className="text-right">Line total</TableHead>
                   <TableHead />
@@ -324,6 +325,32 @@ const PurchaseOrderDetail = () => {
                           onChange={(ev) => setEdits({ ...edits, [l.id]: { ...e, qty: Number(ev.target.value) } })}
                           className="h-8 w-20 ml-auto text-right"
                         />
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {(() => {
+                          const currentBox = boxMap[l.sku] ?? 1;
+                          const pcId = pcIdMap[l.sku];
+                          const isCurrent = qty > 1 && currentBox === qty;
+                          return (
+                            <div className="flex flex-col items-center gap-0.5">
+                              <span className={`text-xs ${currentBox > 1 ? "text-pd-accent font-semibold" : "text-muted-foreground"}`}>
+                                {currentBox}
+                              </span>
+                              {pcId && qty > 0 && qty !== currentBox && (
+                                <label className="flex items-center gap-1 text-[10px] text-muted-foreground cursor-pointer" title={`Set box of ${qty} for ${l.sku}`}>
+                                  <Checkbox
+                                    checked={isCurrent}
+                                    disabled={learnBox.isPending}
+                                    onCheckedChange={(v) => {
+                                      if (v) learnBox.mutate({ pcId, sku: l.sku, value: qty });
+                                    }}
+                                  />
+                                  set as box
+                                </label>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </TableCell>
                       <TableCell className="text-right">
                         <Input
