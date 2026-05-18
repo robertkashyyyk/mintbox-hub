@@ -104,14 +104,15 @@ Deno.serve(async (req) => {
       .filter(
         (f) =>
           f.type === "-" &&
-          f.name.startsWith(FILE_PREFIX) &&
+          FILE_PREFIXES.some((p) => f.name.startsWith(p)) &&
           f.name.toLowerCase().endsWith(".csv"),
       )
       .sort((a, b) => b.modifyTime - a.modifyTime);
 
     if (candidates.length === 0) {
-      await log("warn", "No pdochubInventory*.csv file found", {
+      await log("warn", "No inventory CSV file found", {
         dir: SFTP_DIR,
+        prefixes: FILE_PREFIXES,
         seen: list.map((f) => f.name),
       });
       return new Response(
