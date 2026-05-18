@@ -161,7 +161,7 @@ Deno.serve(async (req) => {
       const sku = (pickCol(r, ["SKU", "Sku"]) as string | undefined)?.toString().trim();
       const stock_level = numOrNull(pickCol(r, ["StockLevel", "Stock", "OnHand"]));
       const on_order = numOrNull(pickCol(r, ["OnOrder", "On Order"]));
-      const mintsoft_back_orders = numOrNull(pickCol(r, ["OnBackOrder", "BackOrder", "BackOrders", "OnBackorder"]));
+      const mintsoft_back_orders = numOrNull(pickCol(r, ["RequiredByBackOrder", "OnBackOrder", "BackOrder", "BackOrders", "OnBackorder"]));
       if (!sku || stock_level === null) {
         skipped++;
         continue;
