@@ -4191,6 +4191,7 @@ export type Database = {
         Args: { _payload: Json }
         Returns: {
           not_found_count: number
+          not_found_skus: Json
           updated_count: number
         }[]
       }
