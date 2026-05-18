@@ -114,6 +114,20 @@ const PurchaseOrderDetail = () => {
     onError: (e: any) => toast({ title: "Save failed", description: e.message, variant: "destructive" }),
   });
 
+  const learnBox = useMutation({
+    mutationFn: async ({ pcId, sku, value }: { pcId: string; sku: string; value: number }) => {
+      const sb = supabase as any;
+      const { error } = await sb.from("products_cache").update({ box_quantity: Math.max(1, value) }).eq("id", pcId);
+      if (error) throw error;
+      return { sku, value };
+    },
+    onSuccess: ({ sku, value }) => {
+      toast({ title: "Box quantity learned", description: `${sku} now defaults to box of ${value}.` });
+      qc.invalidateQueries({ queryKey: ["po-detail", id] });
+    },
+    onError: (e: any) => toast({ title: "Could not save box quantity", description: e.message, variant: "destructive" }),
+  });
+
   const sendPo = useMutation({
     mutationFn: async () => {
       const { data, error } = await supabase.functions.invoke("mintsoft-create-po", {
