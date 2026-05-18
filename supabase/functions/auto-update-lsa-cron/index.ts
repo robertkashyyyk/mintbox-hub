@@ -113,7 +113,7 @@ Deno.serve(async (req) => {
     finished_at: new Date().toISOString(),
   }
 
-  await finishRun(admin, runId, totalFailed > 0 ? 'completed_with_errors' : 'completed', finalSummary)
+  await finishRun(admin, runId, totalFailed > 0 ? 'error' : 'complete', finalSummary)
 
   // Send summary email (best-effort; never fails the run)
   try {
