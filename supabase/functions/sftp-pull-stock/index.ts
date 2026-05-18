@@ -83,6 +83,13 @@ Deno.serve(async (req) => {
       readyTimeout: 20_000,
       algorithms: { serverHostKey: ["ssh-ed25519", "ssh-rsa", "ecdsa-sha2-nistp256"] },
     };
+    if (password) {
+      connectOpts.tryKeyboard = true;
+      sftp.on("keyboard-interactive", (_name, _instructions, _lang, prompts, finish) => {
+        console.log(`[sftp] keyboard-interactive prompt count=${prompts?.length ?? 0}`);
+        finish([password]);
+      });
+    }
     if (privateKey) connectOpts.privateKey = privateKey;
     if (password) connectOpts.password = password;
     await sftp.connect(connectOpts);
