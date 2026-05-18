@@ -1,10 +1,12 @@
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2, Save } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import ProductImageUpload from "@/components/discovery/ProductImageUpload";
@@ -224,6 +226,45 @@ export default function ProductDetail() {
     </div>
   );
 
+  const BoxQuantityEditor = ({ productId, initial, onSaved }: { productId: string; initial: number; onSaved: () => void }) => {
+    const [val, setVal] = useState<number>(initial || 1);
+    useEffect(() => { setVal(initial || 1); }, [initial]);
+    const dirty = val !== (initial || 1);
+    const save = async () => {
+      const { error } = await supabase
+        .from("products_cache" as any)
+        .update({ box_quantity: Math.max(1, val) } as any)
+        .eq("id", productId);
+      if (error) {
+        toast({ title: "Save failed", description: error.message, variant: "destructive" });
+        return;
+      }
+      toast({ title: "Box quantity updated" });
+      onSaved();
+    };
+    return (
+      <div className="flex justify-between items-center gap-2">
+        <span className="text-muted-foreground text-sm" title="Minimum order multiple. Purchase suggestions round up to this.">
+          Box Quantity
+        </span>
+        <div className="flex items-center gap-1">
+          <Input
+            type="number"
+            min={1}
+            value={val}
+            onChange={(e) => setVal(Math.max(1, parseInt(e.target.value, 10) || 1))}
+            className={`h-7 w-20 text-right tabular-nums ${dirty ? "border-pd-accent" : ""} ${val > 1 ? "font-semibold" : ""}`}
+          />
+          {dirty && (
+            <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={save} aria-label="Save">
+              <Save className="h-3.5 w-3.5" />
+            </Button>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex items-center gap-4">
@@ -256,6 +297,11 @@ export default function ProductDetail() {
             {product.cost_price && (
               <DetailRow label="Cost Price" value={`£${Number(product.cost_price).toFixed(2)}`} />
             )}
+            <BoxQuantityEditor
+              productId={product.id}
+              initial={(product as any).box_quantity ?? 1}
+              onSaved={() => queryClient.invalidateQueries({ queryKey: ["product", id] })}
+            />
             <DetailRow label="Last Synced" value={product.last_stock_sync ? format(new Date(product.last_stock_sync), "dd MMM yyyy, HH:mm") : "Never"} />
           </CardContent>
         </Card>

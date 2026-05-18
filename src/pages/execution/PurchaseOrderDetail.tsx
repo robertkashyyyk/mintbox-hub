@@ -12,6 +12,7 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Send, AlertTriangle, Download, ChevronDown } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -67,14 +68,18 @@ const PurchaseOrderDetail = () => {
       const lines = (linesRes.data || []) as any[];
       const skus = lines.map((l) => l.sku);
       let pidMap: Record<string, number> = {};
+      let boxMap: Record<string, number> = {};
+      let pcIdMap: Record<string, string> = {};
       if (skus.length) {
         const { data: pcs } = await sb.from("products_cache")
-          .select("sku, mintsoft_product_id").in("sku", skus);
+          .select("id, sku, mintsoft_product_id, box_quantity").in("sku", skus);
         for (const r of pcs || []) {
           if (r.mintsoft_product_id) pidMap[r.sku] = r.mintsoft_product_id;
+          boxMap[r.sku] = r.box_quantity ?? 1;
+          pcIdMap[r.sku] = r.id;
         }
       }
-      return { po: poRes.data as any, lines, pidMap };
+      return { po: poRes.data as any, lines, pidMap, boxMap, pcIdMap };
     },
     enabled: !!id,
   });
@@ -110,6 +115,20 @@ const PurchaseOrderDetail = () => {
     onError: (e: any) => toast({ title: "Save failed", description: e.message, variant: "destructive" }),
   });
 
+  const learnBox = useMutation({
+    mutationFn: async ({ pcId, sku, value }: { pcId: string; sku: string; value: number }) => {
+      const sb = supabase as any;
+      const { error } = await sb.from("products_cache").update({ box_quantity: Math.max(1, value) }).eq("id", pcId);
+      if (error) throw error;
+      return { sku, value };
+    },
+    onSuccess: ({ sku, value }) => {
+      toast({ title: "Box quantity learned", description: `${sku} now defaults to box of ${value}.` });
+      qc.invalidateQueries({ queryKey: ["po-detail", id] });
+    },
+    onError: (e: any) => toast({ title: "Could not save box quantity", description: e.message, variant: "destructive" }),
+  });
+
   const sendPo = useMutation({
     mutationFn: async () => {
       const { data, error } = await supabase.functions.invoke("mintsoft-create-po", {
@@ -132,7 +151,7 @@ const PurchaseOrderDetail = () => {
 
   if (isLoading || !data) return <div className="p-8 text-muted-foreground">Loading PO…</div>;
 
-  const { po, lines, pidMap } = data;
+  const { po, lines, pidMap, boxMap, pcIdMap } = data;
   const linesMissingCost = lines.filter((l) => !l.unit_cost || Number(l.unit_cost) <= 0);
   const linesNoMintsoftId = lines.filter((l) => !pidMap[l.sku]);
   const supplierMapped = !!po.suppliers?.mintsoft_supplier_id;
@@ -274,6 +293,7 @@ const PurchaseOrderDetail = () => {
                   <TableHead className="text-right">BO @ snap</TableHead>
                   <TableHead className="text-right">LSA @ snap</TableHead>
                   <TableHead className="text-right">Qty</TableHead>
+                  <TableHead className="text-center" title="Current box quantity. Tick to set this qty as the new box quantity for this SKU.">Box</TableHead>
                   <TableHead className="text-right">Unit cost</TableHead>
                   <TableHead className="text-right">Line total</TableHead>
                   <TableHead />
@@ -305,6 +325,32 @@ const PurchaseOrderDetail = () => {
                           onChange={(ev) => setEdits({ ...edits, [l.id]: { ...e, qty: Number(ev.target.value) } })}
                           className="h-8 w-20 ml-auto text-right"
                         />
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {(() => {
+                          const currentBox = boxMap[l.sku] ?? 1;
+                          const pcId = pcIdMap[l.sku];
+                          const isCurrent = qty > 1 && currentBox === qty;
+                          return (
+                            <div className="flex flex-col items-center gap-0.5">
+                              <span className={`text-xs ${currentBox > 1 ? "text-pd-accent font-semibold" : "text-muted-foreground"}`}>
+                                {currentBox}
+                              </span>
+                              {pcId && qty > 0 && qty !== currentBox && (
+                                <label className="flex items-center gap-1 text-[10px] text-muted-foreground cursor-pointer" title={`Set box of ${qty} for ${l.sku}`}>
+                                  <Checkbox
+                                    checked={isCurrent}
+                                    disabled={learnBox.isPending}
+                                    onCheckedChange={(v) => {
+                                      if (v) learnBox.mutate({ pcId, sku: l.sku, value: qty });
+                                    }}
+                                  />
+                                  set as box
+                                </label>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </TableCell>
                       <TableCell className="text-right">
                         <Input

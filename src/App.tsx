@@ -67,6 +67,7 @@ import ImageScout from "./pages/discovery/ImageScout";
 import ImageScoutBrandProfiles from "./pages/discovery/ImageScoutBrandProfiles";
 import ImageScoutQARun from "./pages/discovery/ImageScoutQARun";
 import ImageScoutCalibration from "./pages/discovery/ImageScoutCalibration";
+import BoxQuantities from "./pages/discovery/BoxQuantities";
 
 // Intelligence Pages
 import VelocityCoverage from "./pages/intelligence/VelocityCoverage";
@@ -181,6 +182,7 @@ const App = () => (
             <Route path="/discovery/image-scout/brand-profiles" element={<ImageScoutBrandProfiles />} />
             <Route path="/discovery/image-scout/qa-run" element={<ImageScoutQARun />} />
             <Route path="/discovery/image-scout/calibration" element={<ImageScoutCalibration />} />
+            <Route path="/discovery/box-quantities" element={<BoxQuantities />} />
 
             {/* Intelligence Sub-Routes */}
             <Route path="/intelligence/velocity" element={<VelocityCoverage />} />

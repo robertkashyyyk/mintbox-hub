@@ -14,6 +14,8 @@ export interface BuyRecommendationRow {
   low_stock_alert: number;
   unit_cost: number | null;
   required_qty: number;
+  raw_required_qty: number;
+  box_quantity: number;
   pending_po_qty: number;
   pending_po_id: string | null;
   sales_4w: number;
