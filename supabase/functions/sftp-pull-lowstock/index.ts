@@ -53,10 +53,13 @@ Deno.serve(async (req) => {
     if (keyB64) {
       const trimmed = keyB64.trim();
       if (trimmed.includes("BEGIN") && trimmed.includes("PRIVATE KEY")) {
-        privateKey = trimmed; // already a raw PEM, secret name is misleading
+        privateKey = trimmed; // already PEM
       } else {
-        try { privateKey = new TextDecoder().decode(Uint8Array.from(atob(trimmed.replace(/\s+/g, "")), c => c.charCodeAt(0))); }
-        catch (e) { throw new Error(`MINTSOFT_FTP_PRIVATE_KEY_B64 decode failed: ${(e as Error).message}`); }
+        try {
+          privateKey = new TextDecoder().decode(Uint8Array.from(atob(trimmed.replace(/\s+/g, "")), c => c.charCodeAt(0)));
+        } catch {
+          privateKey = trimmed; // not base64, use as-is
+        }
       }
     } else if (keyRaw) {
       privateKey = keyRaw;
