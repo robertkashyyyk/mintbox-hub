@@ -258,6 +258,11 @@ export default function ProductDetail() {
             {product.cost_price && (
               <DetailRow label="Cost Price" value={`£${Number(product.cost_price).toFixed(2)}`} />
             )}
+            <BoxQuantityEditor
+              productId={product.id}
+              initial={(product as any).box_quantity ?? 1}
+              onSaved={() => queryClient.invalidateQueries({ queryKey: ["product", id] })}
+            />
             <DetailRow label="Last Synced" value={product.last_stock_sync ? format(new Date(product.last_stock_sync), "dd MMM yyyy, HH:mm") : "Never"} />
           </CardContent>
         </Card>
