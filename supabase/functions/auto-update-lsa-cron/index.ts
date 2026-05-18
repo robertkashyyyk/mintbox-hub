@@ -84,7 +84,7 @@ Deno.serve(async (req) => {
   if (forcedBrandId) brandsQuery = admin.from('brands').select('id, name').eq('id', forcedBrandId)
   const { data: brands, error: brandsErr } = await brandsQuery
   if (brandsErr) {
-    await finishRun(admin, runId, 'failed', { error: brandsErr.message })
+    await finishRun(admin, runId, 'error', { error: brandsErr.message })
     return ok({ error: brandsErr.message }, 500)
   }
 
@@ -113,7 +113,7 @@ Deno.serve(async (req) => {
     finished_at: new Date().toISOString(),
   }
 
-  await finishRun(admin, runId, totalFailed > 0 ? 'completed_with_errors' : 'completed', finalSummary)
+  await finishRun(admin, runId, totalFailed > 0 ? 'error' : 'complete', finalSummary)
 
   // Send summary email (best-effort; never fails the run)
   try {
