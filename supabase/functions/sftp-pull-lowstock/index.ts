@@ -153,29 +153,29 @@ Deno.serve(async (req) => {
       lsaMap.set(sku, lsa);
     }
 
-    const allSkus = Array.from(lsaMap.keys());
-    const existing = new Set<string>();
-    const LOOKUP_CHUNK = 200;
-    for (let i = 0; i < allSkus.length; i += LOOKUP_CHUNK) {
-      const slice = allSkus.slice(i, i + LOOKUP_CHUNK);
-      const { data, error } = await supabase
-        .from("products_cache").select("sku").in("sku", slice);
-      if (error) throw error;
-      for (const r of data || []) existing.add(r.sku);
-    }
-
-    const updates = allSkus
-      .filter((s) => existing.has(s))
-      .map((s) => ({ sku: s, low_stock_alert_level: lsaMap.get(s)! }));
-
+    // Bulk update via RPC — same pattern as sftp-pull-stock (avoids PostgREST
+    // URL-length issues and per-row HTTP fragility).
+    const entries = Array.from(lsaMap.entries());
+    const CHUNK = 5000;
     let updated = 0;
-    const UPSERT_BATCH = 500;
-    for (let i = 0; i < updates.length; i += UPSERT_BATCH) {
-      const batch = updates.slice(i, i + UPSERT_BATCH);
-      const { error } = await supabase
-        .from("products_cache").upsert(batch, { onConflict: "sku" });
-      if (error) console.error(`[lsa] batch ${i} error:`, error.message);
-      else updated += batch.length;
+    let notFound = 0;
+    console.log(`[lsa] bulk-updating ${entries.length} SKUs in chunks of ${CHUNK}`);
+    for (let i = 0; i < entries.length; i += CHUNK) {
+      const payload = entries.slice(i, i + CHUNK).map(([sku, lsa]) => ({ sku, lsa }));
+      const t = Date.now();
+      const { data, error } = await supabase.rpc("bulk_update_lsa_from_sftp", {
+        _payload: payload,
+      });
+      if (error) {
+        console.error("bulk_update_lsa_from_sftp error", error.message);
+        throw new Error(`bulk update failed: ${error.message}`);
+      }
+      const row = Array.isArray(data) ? data[0] : data;
+      const u = Number(row?.updated_count ?? 0);
+      const nf = Number(row?.not_found_count ?? 0);
+      updated += u;
+      notFound += nf;
+      console.log(`[lsa] chunk ${i / CHUNK + 1}: updated=${u} not_found=${nf} in ${Date.now() - t}ms`);
     }
 
     try { await sftp.delete(remotePath); } catch (_) { /* ignore */ }
@@ -185,7 +185,7 @@ Deno.serve(async (req) => {
       kept_above_threshold: lsaMap.size,
       skipped_below_threshold: skippedBelowThreshold,
       skipped_invalid: skippedInvalid,
-      matched_in_cache: existing.size, updated,
+      updated, not_found_in_db: notFound,
     };
     await log("ok", `Synced ${updated} LSA values from ${chosenFile}`, summary);
     return new Response(JSON.stringify({ ok: true, ...summary }), {
