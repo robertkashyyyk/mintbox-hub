@@ -165,16 +165,18 @@ Deno.serve(async (req) => {
     }
 
     const summary = {
-      checked: candidates.length,
+      candidates: candidates.length,
+      checked,
       resolved,
       not_found: notFound,
       errors,
+      timed_out: timedOut,
       resolved_skus: resolvedSkus.slice(0, 50),
       mode: body.skus?.length ? "manual" : "cron",
     };
 
     await supabase.from("agent_runs").update({
-      status: "completed",
+      status: timedOut ? "partial" : "completed",
       finished_at: new Date().toISOString(),
       summary,
     }).eq("id", runId);
