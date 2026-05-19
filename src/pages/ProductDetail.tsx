@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Loader2, Save } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { format } from "date-fns";
 import ProductImageUpload from "@/components/discovery/ProductImageUpload";
 import { MintsoftCategoriesEditor } from "@/components/MintsoftCategoriesEditor";
