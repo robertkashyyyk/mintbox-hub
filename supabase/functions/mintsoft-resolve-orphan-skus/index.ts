@@ -10,7 +10,7 @@ const RECHECK_DAYS = 7;
 const MAX_ATTEMPTS = 5;
 const HARD_CAP = 500;
 const DEFAULT_BATCH = 50;
-const RATE_DELAY_MS = 60;
+const RATE_DELAY_MS = 250;
 const SOFT_WALL_MS = 110_000; // stop gracefully before edge timeout
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -111,6 +111,7 @@ Deno.serve(async (req) => {
     let errors = 0;
     let checked = 0;
     const resolvedSkus: string[] = [];
+    const errorSamples: Array<{ sku: string; status: number; body: string }> = [];
     const wallStart = Date.now();
     let timedOut = false;
 
@@ -125,6 +126,11 @@ Deno.serve(async (req) => {
 
         if (!res.ok) {
           errors++;
+          const body = await res.text().catch(() => "");
+          if (errorSamples.length < 10) {
+            errorSamples.push({ sku: c.sku, status: res.status, body: body.slice(0, 200) });
+          }
+          console.log(`ERR ${res.status} sku="${c.sku}" body=${body.slice(0, 150)}`);
           await supabase.from("products_cache").update({
             last_mintsoft_resolve_attempt_at: new Date().toISOString(),
             mintsoft_resolve_attempts: c.attempts + 1,
@@ -146,7 +152,6 @@ Deno.serve(async (req) => {
             mintsoft_product_id: exact.ID,
             mintsoft_resolved_at: new Date().toISOString(),
             last_mintsoft_resolve_attempt_at: new Date().toISOString(),
-            // backfill barcode/cost if missing & available
             barcode: exact.EANBarcode || exact.UPCBarcode || undefined,
           }).eq("id", c.id);
           resolved++;
@@ -158,8 +163,11 @@ Deno.serve(async (req) => {
             mintsoft_resolve_attempts: c.attempts + 1,
           }).eq("id", c.id);
         }
-      } catch (_e) {
+      } catch (e) {
         errors++;
+        if (errorSamples.length < 10) {
+          errorSamples.push({ sku: c.sku, status: 0, body: String(e).slice(0, 200) });
+        }
       }
       await sleep(RATE_DELAY_MS);
     }
@@ -172,6 +180,7 @@ Deno.serve(async (req) => {
       errors,
       timed_out: timedOut,
       resolved_skus: resolvedSkus.slice(0, 50),
+      error_samples: errorSamples,
       mode: body.skus?.length ? "manual" : "cron",
     };
 
