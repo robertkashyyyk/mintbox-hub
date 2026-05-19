@@ -15,7 +15,27 @@ const json = (body: unknown, status = 200) =>
   });
 
 interface MintsoftAsnItem { SKU?: string; Sku?: string; sku?: string }
-interface MintsoftAsn { ID?: number; Id?: number; Items?: MintsoftAsnItem[]; ASNDate?: string; CreatedDate?: string; ReceivedDate?: string }
+interface MintsoftAsn {
+  ID?: number;
+  Id?: number;
+  ASNId?: number;
+  AsnId?: number;
+  POReference?: string;
+  ASNReference?: string;
+  Sku?: string;
+  SKU?: string;
+  sku?: string;
+  ProductCode?: string;
+  ProductSKU?: string;
+  ProductSku?: string;
+  StockCode?: string;
+  ItemSKU?: string;
+  ItemSku?: string;
+  Items?: MintsoftAsnItem[];
+  ASNDate?: string;
+  CreatedDate?: string;
+  ReceivedDate?: string;
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -97,6 +117,9 @@ Deno.serve(async (req) => {
       }
     }
     console.log(`[ASN-probe] chose: ${chosenUrl || "(none)"} — raw asns: ${asns.length}`);
+    if (asns.length) {
+      console.log(`[ASN-probe] first row keys: ${Object.keys((asns[0] as Record<string, unknown>) || {}).join(",")}`);
+    }
 
     // Filter to today (UK-local) only when the chosen endpoint was not already
     // explicitly date-scoped. Some Mintsoft tenants return differently-shaped rows
@@ -137,14 +160,55 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Some list endpoints don't embed items — fetch per-ASN if needed.
-    // Concurrency 6 to keep total time low.
-    const queue = [...asns];
+    const readDirectSku = (row?: Record<string, unknown>) => {
+      if (!row) return "";
+      const candidates = [row.SKU, row.Sku, row.sku, row.ProductSKU, row.ProductSku, row.ProductCode, row.StockCode, row.ItemSKU, row.ItemSku];
+      const match = candidates.find((value) => typeof value === "string" && value.trim().length > 0);
+      return typeof match === "string" ? match.trim() : "";
+    };
+    const readAsnId = (row?: Record<string, unknown>) => {
+      if (!row) return null;
+      const candidates = [row.ID, row.Id, row.ASNId, row.AsnId];
+      const match = candidates.find((value) => typeof value === "number" && Number.isFinite(value));
+      return typeof match === "number" ? match : null;
+    };
+    const readAsnRef = (row?: Record<string, unknown>) => {
+      if (!row) return "";
+      const candidates = [row.POReference, row.ASNReference, row.AsnReference];
+      const match = candidates.find((value) => typeof value === "string" && value.trim().length > 0);
+      return typeof match === "string" ? match.trim() : "";
+    };
+    const summaryMap = new Map<string, { id: number; date: string | null; itemCount: number }>();
+
+    // Some list endpoints return flattened ASN line rows instead of ASN headers.
+    // Harvest direct SKUs first so we only fetch detail for rows that truly need it.
+    const queue = [...asns.filter((a) => {
+      const row = a as unknown as Record<string, unknown>;
+      const directSku = readDirectSku(row);
+      const ref = readAsnRef(row);
+      const id = readAsnId(row);
+      if (directSku) {
+        mintsoftSkus.add(directSku);
+        const key = String(id ?? ref ?? directSku);
+        const existing = summaryMap.get(key);
+        summaryMap.set(key, {
+          id: id ?? existing?.id ?? 0,
+          date: readAsnDate(row),
+          itemCount: (existing?.itemCount ?? 0) + 1,
+        });
+        return false;
+      }
+      return true;
+    })];
+
+    // For header-style rows without embedded SKUs, fetch per-ASN detail.
+    // Concurrency 6 keeps total time low.
     const concurrency = 6;
     await Promise.all(Array.from({ length: concurrency }, async () => {
       while (queue.length) {
         const a = queue.shift()!;
-        const id = a.ID ?? a.Id;
+        const row = a as unknown as Record<string, unknown>;
+        const id = readAsnId(row);
         if (!id) continue;
         let items: MintsoftAsnItem[] = a.Items || [];
         if (!items.length) {
@@ -162,9 +226,10 @@ Deno.serve(async (req) => {
           const sku = (it.SKU || it.Sku || it.sku || "").trim();
           if (sku) mintsoftSkus.add(sku);
         }
-        asnSummaries.push({ id, date: a.CreatedDate || a.ASNDate || null, itemCount: items.length });
+        summaryMap.set(String(id), { id, date: readAsnDate(row), itemCount: items.length });
       }
     }));
+    asnSummaries = Array.from(summaryMap.values());
 
     // -- 3. Union & resync
     const union = new Set<string>([...localSkus, ...mintsoftSkus]);
