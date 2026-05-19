@@ -176,7 +176,7 @@ Deno.serve(async (req) => {
     };
 
     await supabase.from("agent_runs").update({
-      status: timedOut ? "partial" : "completed",
+      status: "complete",
       finished_at: new Date().toISOString(),
       summary,
     }).eq("id", runId);
