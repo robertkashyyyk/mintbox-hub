@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AlertCircle, AlertTriangle, Clock, Package, Sparkles, Tag, Image as ImageIcon, HelpCircle } from "lucide-react";
+import { AlertCircle, AlertTriangle, Clock, Package, Sparkles, Tag, Image as ImageIcon, HelpCircle, Link2Off } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import ModuleHeader from "@/components/ModuleHeader";
 
@@ -14,7 +14,7 @@ const HousekeepingIndex = () => {
     queryKey: ["housekeeping-counts"],
     queryFn: async () => {
       const since = new Date(Date.now() - 28 * 86400000).toISOString();
-      const [missingCosts, dirtRecent, pendingImages, discoveryQ, missingBarcodes, lsaUnmatched] = await Promise.all([
+      const [missingCosts, dirtRecent, pendingImages, discoveryQ, missingBarcodes, lsaUnmatched, orphans] = await Promise.all([
         supabase.from("products_cache").select("id", { count: "exact", head: true })
           .is("cost_price", null).eq("discontinued", false).eq("quarantined", false),
         supabase.from("order_line_economics").select("sku", { count: "exact", head: true })
@@ -25,6 +25,7 @@ const HousekeepingIndex = () => {
         supabase.from("products_cache").select("id", { count: "exact", head: true })
           .is("barcode", null).eq("discontinued", false).eq("quarantined", false),
         (supabase as any).from("lsa_unmatched_skus").select("sku", { count: "exact", head: true }),
+        (supabase as any).from("vw_orphan_skus").select("id", { count: "exact", head: true }).eq("is_true_sku", true),
       ]);
       return {
         missingCosts: missingCosts.count ?? 0,
@@ -33,6 +34,7 @@ const HousekeepingIndex = () => {
         discoveryQ: discoveryQ.count ?? 0,
         missingBarcodes: missingBarcodes.count ?? 0,
         lsaUnmatched: lsaUnmatched.count ?? 0,
+        orphans: orphans.count ?? 0,
       };
     },
   });
@@ -85,6 +87,14 @@ const HousekeepingIndex = () => {
       severity: "info" as const,
       count: undefined,
       path: "/operations/carriers/remeasure",
+    },
+    {
+      title: "Orphan SKUs",
+      description: "Catalogue SKUs not linked to a Mintsoft Product ID — blocks cost/stock/LSA pushes.",
+      icon: Link2Off,
+      severity: "destructive" as const,
+      count: counts?.orphans,
+      path: "/housekeeping/orphan-skus",
     },
     {
       title: "LSA Unmatched SKUs",

@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Loader2, Save } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { toast as sonnerToast } from "sonner";
 import { format } from "date-fns";
 import ProductImageUpload from "@/components/discovery/ProductImageUpload";
 import { MintsoftCategoriesEditor } from "@/components/MintsoftCategoriesEditor";
@@ -315,7 +316,36 @@ export default function ProductDetail() {
           <CardContent className="space-y-2">
             <DetailRow label="Barcode" value={product.barcode || "—"} />
             <DetailRow label="Barcode Type" value={(product as any).barcode_types?.type_name || "—"} />
-            <DetailRow label="Mintsoft ID" value={product.mintsoft_product_id || "—"} />
+            <DetailRow
+              label="Mintsoft ID"
+              value={
+                product.mintsoft_product_id ? (
+                  product.mintsoft_product_id
+                ) : (
+                  <span className="inline-flex items-center gap-2">
+                    <span className="text-destructive">Not linked</span>
+                    <button
+                      type="button"
+                      className="text-xs underline text-pd-accent hover:text-pd-accent/80"
+                      onClick={async () => {
+                        const { data, error } = await supabase.functions.invoke("mintsoft-resolve-orphan-skus", {
+                          body: { skus: [product.sku], force: true },
+                        });
+                        if (error) { sonnerToast.error(error.message); return; }
+                        if (data?.resolved > 0) {
+                          sonnerToast.success(`Linked to Mintsoft ID — refreshing`);
+                          window.location.reload();
+                        } else {
+                          sonnerToast.error(`SKU not found in Mintsoft`);
+                        }
+                      }}
+                    >
+                      Try resolve
+                    </button>
+                  </span>
+                )
+              }
+            />
             <DetailRow label="Suppliers" value={product.suppliers || "—"} />
           </CardContent>
         </Card>

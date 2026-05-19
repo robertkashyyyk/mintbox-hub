@@ -795,6 +795,13 @@ export type Database = {
             referencedRelation: "products_needs_enrichment"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "catalogue_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "vw_orphan_skus"
+            referencedColumns: ["id"]
+          },
         ]
       }
       catalogues: {
@@ -2422,6 +2429,13 @@ export type Database = {
             referencedRelation: "products_needs_enrichment"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "pending_images_promoted_product_id_fkey"
+            columns: ["promoted_product_id"]
+            isOneToOne: false
+            referencedRelation: "vw_orphan_skus"
+            referencedColumns: ["id"]
+          },
         ]
       }
       price_hunter_automations: {
@@ -2551,6 +2565,13 @@ export type Database = {
             referencedRelation: "products_needs_enrichment"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "price_hunter_xask_usage_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "vw_orphan_skus"
+            referencedColumns: ["id"]
+          },
         ]
       }
       product_categories: {
@@ -2619,6 +2640,13 @@ export type Database = {
             referencedRelation: "products_needs_enrichment"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "product_category_links_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "vw_orphan_skus"
+            referencedColumns: ["id"]
+          },
         ]
       }
       product_images: {
@@ -2671,6 +2699,13 @@ export type Database = {
             referencedRelation: "products_needs_enrichment"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "product_images_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "vw_orphan_skus"
+            referencedColumns: ["id"]
+          },
         ]
       }
       products_cache: {
@@ -2694,6 +2729,7 @@ export type Database = {
           height: number | null
           id: string
           key_features: string[] | null
+          last_mintsoft_resolve_attempt_at: string | null
           last_stock_sync: string | null
           length: number | null
           low_stock_alert_level: number | null
@@ -2702,6 +2738,9 @@ export type Database = {
           mintsoft_back_orders: number | null
           mintsoft_categories: string[] | null
           mintsoft_product_id: number | null
+          mintsoft_resolve_attempts: number
+          mintsoft_resolve_ignored: boolean
+          mintsoft_resolved_at: string | null
           name: string
           on_order: number | null
           ph_brand: string | null
@@ -2749,6 +2788,7 @@ export type Database = {
           height?: number | null
           id?: string
           key_features?: string[] | null
+          last_mintsoft_resolve_attempt_at?: string | null
           last_stock_sync?: string | null
           length?: number | null
           low_stock_alert_level?: number | null
@@ -2757,6 +2797,9 @@ export type Database = {
           mintsoft_back_orders?: number | null
           mintsoft_categories?: string[] | null
           mintsoft_product_id?: number | null
+          mintsoft_resolve_attempts?: number
+          mintsoft_resolve_ignored?: boolean
+          mintsoft_resolved_at?: string | null
           name: string
           on_order?: number | null
           ph_brand?: string | null
@@ -2804,6 +2847,7 @@ export type Database = {
           height?: number | null
           id?: string
           key_features?: string[] | null
+          last_mintsoft_resolve_attempt_at?: string | null
           last_stock_sync?: string | null
           length?: number | null
           low_stock_alert_level?: number | null
@@ -2812,6 +2856,9 @@ export type Database = {
           mintsoft_back_orders?: number | null
           mintsoft_categories?: string[] | null
           mintsoft_product_id?: number | null
+          mintsoft_resolve_attempts?: number
+          mintsoft_resolve_ignored?: boolean
+          mintsoft_resolved_at?: string | null
           name?: string
           on_order?: number | null
           ph_brand?: string | null
@@ -4212,6 +4259,60 @@ export type Database = {
           {
             foreignKeyName: "products_cache_brand_id_fkey"
             columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "brands_missing_base_multiplier"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vw_orphan_skus: {
+        Row: {
+          brand_id: string | null
+          discovered_at: string | null
+          discovery_source: string | null
+          id: string | null
+          is_true_sku: boolean | null
+          last_mintsoft_resolve_attempt_at: string | null
+          mintsoft_resolve_attempts: number | null
+          mintsoft_resolve_ignored: boolean | null
+          name: string | null
+          sku: string | null
+        }
+        Insert: {
+          brand_id?: string | null
+          discovered_at?: string | null
+          discovery_source?: string | null
+          id?: string | null
+          is_true_sku?: never
+          last_mintsoft_resolve_attempt_at?: string | null
+          mintsoft_resolve_attempts?: number | null
+          mintsoft_resolve_ignored?: boolean | null
+          name?: string | null
+          sku?: string | null
+        }
+        Update: {
+          brand_id?: string | null
+          discovered_at?: string | null
+          discovery_source?: string | null
+          id?: string | null
+          is_true_sku?: never
+          last_mintsoft_resolve_attempt_at?: string | null
+          mintsoft_resolve_attempts?: number | null
+          mintsoft_resolve_ignored?: boolean | null
+          name?: string | null
+          sku?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "products_cache_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "products_cache_brand_id_fkey"
+            columns: ["brand_id"]
             isOneToOne: false
             referencedRelation: "brands_missing_base_multiplier"
             referencedColumns: ["id"]
