@@ -40,6 +40,7 @@ async function fetchAllProductsMissingCost() {
       .is("cost_price", null)
       .eq("discontinued", false)
       .eq("quarantined", false)
+      .not("mintsoft_product_id", "is", null)
       .order("sku", { ascending: true })
       .range(from, from + step - 1);
     if (error) throw error;
@@ -263,6 +264,7 @@ const MissingCosts = () => {
       if (!result?.ok) throw new Error(result?.error ?? "Unknown error");
       toast.success(`${row.sku}: cost £${val.toFixed(2)} sent to Mintsoft`);
       setEdits((e) => { const n = { ...e }; delete n[row.id]; return n; });
+      qc.setQueryData(["missing-costs-all"], (old: any[] | undefined) => (old ?? []).filter((p) => p.id !== row.id));
       qc.invalidateQueries({ queryKey: ["missing-costs-all"] });
     } catch (e: any) {
       toast.error(`${row.sku}: ${e?.message ?? "Save failed"}`);
@@ -303,7 +305,10 @@ const MissingCosts = () => {
         for (const r of data?.results ?? []) {
           if (r.ok) {
             const match = ch.find((c) => c.row.sku === r.sku);
-            if (match) setEdits((e) => { const n = { ...e }; delete n[match.row.id]; return n; });
+            if (match) {
+              setEdits((e) => { const n = { ...e }; delete n[match.row.id]; return n; });
+              qc.setQueryData(["missing-costs-all"], (old: any[] | undefined) => (old ?? []).filter((p) => p.id !== match.row.id));
+            }
           }
         }
       } catch (e: any) {

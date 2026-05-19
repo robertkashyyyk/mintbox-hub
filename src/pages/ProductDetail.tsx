@@ -294,9 +294,11 @@ export default function ProductDetail() {
             <DetailRow label="Back Orders" value={product.back_order_qty || 0} />
             <DetailRow label="On Order" value={product.on_order || 0} />
             <DetailRow label="Low Stock Alert" value={product.low_stock_alert_level || 0} />
-            {product.cost_price && (
-              <DetailRow label="Cost Price" value={`£${Number(product.cost_price).toFixed(2)}`} />
-            )}
+            <DetailRow
+              label="Cost Price"
+              value={product.cost_price != null ? `£${Number(product.cost_price).toFixed(2)}` : "—"}
+            />
+
             <BoxQuantityEditor
               productId={product.id}
               initial={(product as any).box_quantity ?? 1}
