@@ -68,6 +68,8 @@ const PurchaseOrders = () => {
   const [search, setSearch] = useState("");
   const [resyncing, setResyncing] = useState(false);
 
+  const [refreshingAsns, setRefreshingAsns] = useState(false);
+
   const resyncTodaysStock = async () => {
     setResyncing(true);
     try {
