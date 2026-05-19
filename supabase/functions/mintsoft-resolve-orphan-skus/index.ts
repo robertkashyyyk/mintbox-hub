@@ -187,7 +187,7 @@ Deno.serve(async (req) => {
   } catch (error) {
     const msg = error instanceof Error ? error.message : "Unexpected error";
     await supabase.from("agent_runs").update({
-      status: "failed",
+      status: "error",
       finished_at: new Date().toISOString(),
       error: msg,
     }).eq("id", runId);
