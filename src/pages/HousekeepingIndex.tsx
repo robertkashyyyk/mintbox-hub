@@ -89,6 +89,14 @@ const HousekeepingIndex = () => {
       path: "/operations/carriers/remeasure",
     },
     {
+      title: "Orphan SKUs",
+      description: "Catalogue SKUs not linked to a Mintsoft Product ID — blocks cost/stock/LSA pushes.",
+      icon: Link2Off,
+      severity: "destructive" as const,
+      count: counts?.orphans,
+      path: "/housekeeping/orphan-skus",
+    },
+    {
       title: "LSA Unmatched SKUs",
       description: "SKUs in Mintsoft's Low Stock Alert file that don't exist in our cache yet.",
       icon: HelpCircle,
