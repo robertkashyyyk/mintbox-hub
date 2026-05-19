@@ -331,12 +331,12 @@ export default function ProductDetail() {
                         const { data, error } = await supabase.functions.invoke("mintsoft-resolve-orphan-skus", {
                           body: { skus: [product.sku], force: true },
                         });
-                        if (error) { toast.error(error.message); return; }
+                        if (error) { sonnerToast.error(error.message); return; }
                         if (data?.resolved > 0) {
-                          toast.success(`Linked to Mintsoft ID — refreshing`);
+                          sonnerToast.success(`Linked to Mintsoft ID — refreshing`);
                           window.location.reload();
                         } else {
-                          toast.error(`SKU not found in Mintsoft`);
+                          sonnerToast.error(`SKU not found in Mintsoft`);
                         }
                       }}
                     >
