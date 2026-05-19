@@ -91,7 +91,9 @@ Deno.serve(async (req) => {
     // WarehouseId=5 is 'Coleraine Live'
     let stockData: MintsoftStockItem[] = [];
 
-    if (scopeSkus && scopeSkus.length > 0) {
+    const useBulkFetchForScope = !!scopeSkus && scopeSkus.length > 250;
+
+    if (scopeSkus && scopeSkus.length > 0 && !useBulkFetchForScope) {
       // Per-SKU fetch — pulling the entire warehouse list (~200k rows) just to
       // refresh 40-100 SKUs times out. Hit StockLevels with &SKU= for each one
       // and fan them out in small concurrent batches.
@@ -124,6 +126,9 @@ Deno.serve(async (req) => {
       console.log(`Per-SKU fetch complete: ${stockData.length} rows, ${failed} failures`);
     } else {
       const stockUrl = `${settings.base_url}/api/Product/StockLevels?WarehouseId=5`;
+      if (useBulkFetchForScope) {
+        console.log(`Scoped sync is large (${scopeSkus!.length} SKUs) — using bulk warehouse fetch`);
+      }
       console.log(`Fetching from Mintsoft: ${stockUrl}`);
       const stockResponse = await fetch(stockUrl, {
         headers: { "ms-apikey": mintsoftApiKey, "Content-Type": "application/json" },
@@ -132,6 +137,11 @@ Deno.serve(async (req) => {
         throw new Error(`Mintsoft API error: ${stockResponse.status} ${stockResponse.statusText}`);
       }
       stockData = await stockResponse.json();
+      if (scopeSkus && scopeSkus.length > 0) {
+        const scopeSet = new Set(scopeSkus);
+        stockData = stockData.filter((it) => scopeSet.has(it.SKU));
+        console.log(`Bulk fetch filtered down to ${stockData.length} matching stock rows`);
+      }
     }
     console.log(`Received ${stockData.length} stock items from Mintsoft`);
 
