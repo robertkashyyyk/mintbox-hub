@@ -179,6 +179,63 @@ const PurchaseOrders = () => {
       </div>
 
       <Card>
+        <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0">
+          <div>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Truck className="h-4 w-4 text-pd-accent" />
+              Today's open ASNs (Mintsoft) — {todaysAsns.length} line{todaysAsns.length === 1 ? "" : "s"}
+            </CardTitle>
+            <p className="text-xs text-muted-foreground mt-1">
+              ASNs raised in Mintsoft today with an open status. These offset buy recommendations until they're booked in. Auto-refreshes every 15 min; wiped nightly at 21:00 UK.
+            </p>
+          </div>
+          <Button variant="outline" size="sm" onClick={refreshTodaysAsns} disabled={refreshingAsns}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${refreshingAsns ? "animate-spin" : ""}`} />
+            {refreshingAsns ? "Refreshing…" : "Refresh now"}
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {asnsQuery.isLoading ? (
+            <p className="text-muted-foreground py-4 text-center text-sm">Loading…</p>
+          ) : todaysAsns.length === 0 ? (
+            <p className="text-muted-foreground py-4 text-center text-sm">No open ASNs raised in Mintsoft today.</p>
+          ) : (
+            <div className="rounded-md border overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>ASN</TableHead>
+                    <TableHead>Ref</TableHead>
+                    <TableHead>SKU</TableHead>
+                    <TableHead className="text-right">Qty</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>ASN date</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {todaysAsns.map((r) => (
+                    <TableRow key={`${r.asn_id}-${r.sku}`}>
+                      <TableCell className="font-mono text-xs">{r.asn_id}</TableCell>
+                      <TableCell className="text-xs">{r.asn_reference || "—"}</TableCell>
+                      <TableCell className="font-mono text-xs">{r.sku}</TableCell>
+                      <TableCell className="text-right">{Number(r.qty)}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="text-xs">{r.status || "OPEN"}</Badge>
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {r.asn_date ? new Date(r.asn_date).toLocaleString("en-GB") : "—"}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+
+      <Card>
         <CardHeader>
           <CardTitle className="text-base">{filtered.length} purchase orders</CardTitle>
         </CardHeader>
