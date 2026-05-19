@@ -159,7 +159,7 @@ const BuyRecommendations = () => {
     if (!g) return [];
     const q = search.trim().toLowerCase();
     return g.rows.filter((r) => {
-      if (boOnly && !(num(r.back_orders) > 0)) return false;
+      if (boOnly && !(Math.max(0, num(r.back_orders) - num(r.on_order)) > 0)) return false;
       if (saOnly && !(num(r.current_stock) < num(r.low_stock_alert))) return false;
       if (q && !(r.sku.toLowerCase().includes(q) || (r.product_name || "").toLowerCase().includes(q))) return false;
       return true;
