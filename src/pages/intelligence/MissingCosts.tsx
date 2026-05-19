@@ -305,7 +305,10 @@ const MissingCosts = () => {
         for (const r of data?.results ?? []) {
           if (r.ok) {
             const match = ch.find((c) => c.row.sku === r.sku);
-            if (match) setEdits((e) => { const n = { ...e }; delete n[match.row.id]; return n; });
+            if (match) {
+              setEdits((e) => { const n = { ...e }; delete n[match.row.id]; return n; });
+              qc.setQueryData(["missing-costs-all"], (old: any[] | undefined) => (old ?? []).filter((p) => p.id !== match.row.id));
+            }
           }
         }
       } catch (e: any) {
