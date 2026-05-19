@@ -1,17 +1,19 @@
 Deno.serve(async () => {
   const key = Deno.env.get("MINTSOFT_API_KEY") ?? "";
+  const sku = "ASC-NPP-050";
   const paths = [
-    "/api/Product/Search/ASC-TUB-29-PV",
-    "/api/Product/SearchBySKU/ASC-TUB-29-PV",
-    "/api/Product/BySKU/ASC-TUB-29-PV",
-    "/api/Product/FindBySKU?SKU=ASC-TUB-29-PV",
-    "/api/Product?SKU=ASC-TUB-29-PV",
+    `/api/Product/Search?SKU=${sku}&PageNo=1&Limit=50`,
+    `/api/Product/Search?SearchTerm=${sku}&PageNo=1&Limit=50`,
+    `/api/Product/Search?SearchString=${sku}&PageNo=1&Limit=50`,
+    `/api/Product/List?SKU=${sku}&PageNo=1&Limit=50`,
+    `/api/Product/List?SearchTerm=${sku}&PageNo=1&Limit=50`,
+    `/api/Product/Search?SKU=${sku}`,
   ];
   const out: any = {};
   for (const p of paths) {
     const r = await fetch(`https://api.mintsoft.co.uk${p}`, { headers: { "ms-apikey": key } });
     const t = await r.text();
-    out[p] = { status: r.status, body: t.slice(0, 300) };
+    out[p] = { status: r.status, body: t.slice(0, 400) };
   }
   return new Response(JSON.stringify(out, null, 2), { headers: { "Content-Type": "application/json" } });
 });
