@@ -1,10 +1,8 @@
-Deno.serve(() => {
-  const b64 = Deno.env.get("MINTSOFT_FTP_PRIVATE_KEY_B64") ?? "";
-  const raw = Deno.env.get("MINTSOFT_FTP_PRIVATE_KEY") ?? "";
-  return new Response(JSON.stringify({
-    b64_length: b64.length,
-    b64_first20: b64.slice(0, 20),
-    b64_last20: b64.slice(-20),
-    raw_length: raw.length,
-  }), { headers: { "Content-Type": "application/json" }});
+Deno.serve(async () => {
+  const key = Deno.env.get("MINTSOFT_API_KEY") ?? "";
+  const r = await fetch("https://api.mintsoft.co.uk/api/Warehouse", { headers: { "ms-apikey": key } });
+  const text = await r.text();
+  let parsed: any = null; try { parsed = JSON.parse(text); } catch {}
+  const ids = Array.isArray(parsed) ? parsed.map((w: any) => ({ ID: w.ID ?? w.Id, Name: w.Name })) : text;
+  return new Response(JSON.stringify(ids), { headers: { "Content-Type": "application/json" } });
 });

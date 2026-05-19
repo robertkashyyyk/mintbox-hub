@@ -120,6 +120,9 @@ Deno.serve(async (req) => {
     // Mintsoft API: PUT /api/ASN with NewASN schema
     // (There is NO /api/PurchaseOrder/Create endpoint — ASN is the correct entity.)
     const payload = {
+      ClientId: 3,
+      WarehouseId: 5,
+      GoodsInType: "Carton",
       Supplier: supplier.name ?? "",
       POReference: po.po_number || `PO-${po.id.slice(0, 8)}`,
       Items: orderItems,
