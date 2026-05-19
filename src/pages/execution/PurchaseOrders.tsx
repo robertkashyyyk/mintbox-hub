@@ -56,8 +56,10 @@ const PurchaseOrders = () => {
         return;
       }
       toast({
-        title: "Stock resync complete",
-        description: `Updated ${d.updated ?? 0} of ${d.union_skus} SKUs · ${d.local_po_count} local PO(s) + ${d.mintsoft_asn_count} Mintsoft ASN(s).`,
+        title: d.queued ? "Stock resync queued" : "Stock resync complete",
+        description: d.queued
+          ? `Queued ${d.union_skus} SKU${d.union_skus === 1 ? "" : "s"} from ${d.local_po_count} local PO(s) + ${d.mintsoft_asn_count} Mintsoft ASN(s).`
+          : `Updated ${d.updated ?? 0} of ${d.union_skus} SKUs · ${d.local_po_count} local PO(s) + ${d.mintsoft_asn_count} Mintsoft ASN(s).`,
       });
     } catch (e: any) {
       toast({ title: "Resync failed", description: e?.message || String(e), variant: "destructive" });
