@@ -155,13 +155,34 @@ const PurchaseOrders = () => {
     );
   }, [pos, search]);
 
+  const groupedAsns = useMemo(() => {
+    const map = new Map<number, { asn_id: number; asn_reference: string | null; status: string | null; asn_date: string | null; lines: TodaysAsnRow[]; total_qty: number }>();
+    for (const r of todaysAsns) {
+      const existing = map.get(r.asn_id);
+      if (existing) {
+        existing.lines.push(r);
+        existing.total_qty += Number(r.qty) || 0;
+      } else {
+        map.set(r.asn_id, {
+          asn_id: r.asn_id,
+          asn_reference: r.asn_reference,
+          status: r.status,
+          asn_date: r.asn_date,
+          lines: [r],
+          total_qty: Number(r.qty) || 0,
+        });
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => b.asn_id - a.asn_id);
+  }, [todaysAsns]);
+
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">Purchase Orders</h1>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">Purchase Orders &amp; ASNs</h1>
           <p className="text-foreground/60">
-            Drafts, sent POs awaiting ASN, and completed receipts.
+            Drafts, sent POs awaiting ASN, and today's open Mintsoft ASNs.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -175,120 +196,176 @@ const PurchaseOrders = () => {
         </div>
       </div>
 
-      <div className="relative max-w-md">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input placeholder="Search PO #, supplier or status…" value={search}
-          onChange={(e) => setSearch(e.target.value)} className="pl-9" />
-      </div>
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <ToggleGroup
+          type="single"
+          value={view}
+          onValueChange={(v) => v && setView(v as "pos" | "asns")}
+          className="border rounded-md"
+        >
+          <ToggleGroupItem value="pos" className="data-[state=on]:bg-pd-accent data-[state=on]:text-pd-accent-foreground px-4">
+            Purchase Orders
+          </ToggleGroupItem>
+          <ToggleGroupItem value="asns" className="data-[state=on]:bg-pd-accent data-[state=on]:text-pd-accent-foreground px-4">
+            ASNs ({groupedAsns.length})
+          </ToggleGroupItem>
+        </ToggleGroup>
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0">
-          <div>
-            <CardTitle className="text-base flex items-center gap-2">
-              <Truck className="h-4 w-4 text-pd-accent" />
-              Today's open ASNs (Mintsoft) — {todaysAsns.length} line{todaysAsns.length === 1 ? "" : "s"}
-            </CardTitle>
-            <p className="text-xs text-muted-foreground mt-1">
-              ASNs raised in Mintsoft today with an open status. These offset buy recommendations until they're booked in. Auto-refreshes every 15 min; wiped nightly at 21:00 UK.
-            </p>
+        {view === "pos" ? (
+          <div className="relative max-w-md flex-1 min-w-[240px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input placeholder="Search PO #, supplier or status…" value={search}
+              onChange={(e) => setSearch(e.target.value)} className="pl-9" />
           </div>
+        ) : (
           <Button variant="outline" size="sm" onClick={refreshTodaysAsns} disabled={refreshingAsns}>
             <RefreshCw className={`h-4 w-4 mr-2 ${refreshingAsns ? "animate-spin" : ""}`} />
             {refreshingAsns ? "Refreshing…" : "Refresh now"}
           </Button>
-        </CardHeader>
-        <CardContent>
-          {asnsQuery.isLoading ? (
-            <p className="text-muted-foreground py-4 text-center text-sm">Loading…</p>
-          ) : todaysAsns.length === 0 ? (
-            <p className="text-muted-foreground py-4 text-center text-sm">No open ASNs raised in Mintsoft today.</p>
-          ) : (
-            <div className="rounded-md border overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>ASN</TableHead>
-                    <TableHead>Ref</TableHead>
-                    <TableHead>SKU</TableHead>
-                    <TableHead className="text-right">Qty</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>ASN date</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {todaysAsns.map((r) => (
-                    <TableRow key={`${r.asn_id}-${r.sku}`}>
-                      <TableCell className="font-mono text-xs">{r.asn_id}</TableCell>
-                      <TableCell className="text-xs">{r.asn_reference || "—"}</TableCell>
-                      <TableCell className="font-mono text-xs">{r.sku}</TableCell>
-                      <TableCell className="text-right">{Number(r.qty)}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="text-xs">{r.status || "OPEN"}</Badge>
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        {r.asn_date ? new Date(r.asn_date).toLocaleString("en-GB") : "—"}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+        )}
+      </div>
 
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">{filtered.length} purchase orders</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <p className="text-muted-foreground py-6 text-center">Loading…</p>
-          ) : filtered.length === 0 ? (
-            <p className="text-muted-foreground py-6 text-center">No purchase orders yet.</p>
-          ) : (
-            <div className="rounded-md border overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>PO #</TableHead>
-                    <TableHead>Supplier</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Units</TableHead>
-                    <TableHead className="text-right">Total</TableHead>
-                    <TableHead>Created</TableHead>
-                    <TableHead>Sent</TableHead>
-                    <TableHead />
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filtered.map((po) => (
-                    <TableRow key={po.id}>
-                      <TableCell className="font-mono text-xs">{po.po_number || po.id.slice(0, 8)}</TableCell>
-                      <TableCell>{po.supplier_name || "—"}</TableCell>
-                      <TableCell>{statusBadge(po.status)}</TableCell>
-                      <TableCell className="text-right">{po.total_qty}</TableCell>
-                      <TableCell className="text-right">{fmt(Number(po.total_cost))}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        {new Date(po.created_at).toLocaleDateString("en-GB")}
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        {po.sent_at ? new Date(po.sent_at).toLocaleDateString("en-GB") : "—"}
-                      </TableCell>
-                      <TableCell>
-                        <Button variant="ghost" size="sm" asChild>
-                          <Link to={`/execution/purchase-orders/${po.id}`}>Open</Link>
-                        </Button>
-                      </TableCell>
+      {view === "pos" ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">{filtered.length} purchase orders</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <p className="text-muted-foreground py-6 text-center">Loading…</p>
+            ) : filtered.length === 0 ? (
+              <p className="text-muted-foreground py-6 text-center">No purchase orders yet.</p>
+            ) : (
+              <div className="rounded-md border overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>PO #</TableHead>
+                      <TableHead>Supplier</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Units</TableHead>
+                      <TableHead className="text-right">Total</TableHead>
+                      <TableHead>Created</TableHead>
+                      <TableHead>Sent</TableHead>
+                      <TableHead />
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                  </TableHeader>
+                  <TableBody>
+                    {filtered.map((po) => (
+                      <TableRow key={po.id}>
+                        <TableCell className="font-mono text-xs">{po.po_number || po.id.slice(0, 8)}</TableCell>
+                        <TableCell>{po.supplier_name || "—"}</TableCell>
+                        <TableCell>{statusBadge(po.status)}</TableCell>
+                        <TableCell className="text-right">{po.total_qty}</TableCell>
+                        <TableCell className="text-right">{fmt(Number(po.total_cost))}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {new Date(po.created_at).toLocaleDateString("en-GB")}
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {po.sent_at ? new Date(po.sent_at).toLocaleDateString("en-GB") : "—"}
+                        </TableCell>
+                        <TableCell>
+                          <Button variant="ghost" size="sm" asChild>
+                            <Link to={`/execution/purchase-orders/${po.id}`}>Open</Link>
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Truck className="h-4 w-4 text-pd-accent" />
+              Today's open ASNs (Mintsoft) — {groupedAsns.length} ASN{groupedAsns.length === 1 ? "" : "s"}
+            </CardTitle>
+            <p className="text-xs text-muted-foreground mt-1">
+              ASNs raised in Mintsoft today with an open status. These offset buy recommendations until they're booked in. Auto-refreshes every 15 min; wiped nightly at 21:00 UK.
+            </p>
+          </CardHeader>
+          <CardContent>
+            {asnsQuery.isLoading ? (
+              <p className="text-muted-foreground py-4 text-center text-sm">Loading…</p>
+            ) : groupedAsns.length === 0 ? (
+              <p className="text-muted-foreground py-4 text-center text-sm">No open ASNs raised in Mintsoft today.</p>
+            ) : (
+              <div className="rounded-md border overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-8" />
+                      <TableHead>ASN</TableHead>
+                      <TableHead>Ref</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Lines</TableHead>
+                      <TableHead className="text-right">Total Qty</TableHead>
+                      <TableHead>ASN date</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {groupedAsns.map((a) => {
+                      const open = expandedAsn === a.asn_id;
+                      return (
+                        <>
+                          <TableRow
+                            key={a.asn_id}
+                            className="cursor-pointer hover:bg-muted/50"
+                            onClick={() => setExpandedAsn(open ? null : a.asn_id)}
+                          >
+                            <TableCell>
+                              {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                            </TableCell>
+                            <TableCell className="font-mono text-xs">{a.asn_id}</TableCell>
+                            <TableCell className="text-xs">{a.asn_reference || "—"}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className="text-xs">{a.status || "OPEN"}</Badge>
+                            </TableCell>
+                            <TableCell className="text-right">{a.lines.length}</TableCell>
+                            <TableCell className="text-right font-medium">{a.total_qty}</TableCell>
+                            <TableCell className="text-xs text-muted-foreground">
+                              {a.asn_date ? new Date(a.asn_date).toLocaleString("en-GB") : "—"}
+                            </TableCell>
+                          </TableRow>
+                          {open && (
+                            <TableRow key={`${a.asn_id}-detail`} className="bg-muted/20">
+                              <TableCell />
+                              <TableCell colSpan={6} className="p-0">
+                                <div className="px-4 py-3">
+                                  <Table>
+                                    <TableHeader>
+                                      <TableRow>
+                                        <TableHead>SKU</TableHead>
+                                        <TableHead className="text-right">Qty</TableHead>
+                                      </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                      {a.lines.map((l) => (
+                                        <TableRow key={`${a.asn_id}-${l.sku}`}>
+                                          <TableCell className="font-mono text-xs">{l.sku}</TableCell>
+                                          <TableCell className="text-right">{Number(l.qty)}</TableCell>
+                                        </TableRow>
+                                      ))}
+                                    </TableBody>
+                                  </Table>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };
