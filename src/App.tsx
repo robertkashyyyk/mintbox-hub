@@ -81,6 +81,7 @@ import DirtSkus from "./pages/intelligence/DirtSkus";
 // Housekeeping
 import HousekeepingIndex from "./pages/HousekeepingIndex";
 import LsaUnmatchedSkus from "./pages/LsaUnmatchedSkus";
+import OrphanSkus from "./pages/housekeeping/OrphanSkus";
 
 // Admin extras
 import ProfitRules from "./pages/admin/ProfitRules";
