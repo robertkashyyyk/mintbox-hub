@@ -261,10 +261,15 @@ const OrphanSkus = () => {
             Runs automatically every Sunday at 03:00; use the button for an on-demand pull.
           </p>
           <div className="flex flex-wrap gap-6 items-center">
-            <Button onClick={() => pullMapMutation.mutate()} disabled={pullMapMutation.isPending}>
+            <Button variant="outline" onClick={() => pullMapMutation.mutate(true)} disabled={pullMapMutation.isPending}>
+              <Search className="h-4 w-4 mr-2" />
+              Dry run (no changes)
+            </Button>
+            <Button onClick={() => pullMapMutation.mutate(false)} disabled={pullMapMutation.isPending}>
               <DownloadCloud className="h-4 w-4 mr-2" />
               {pullMapMutation.isPending ? "Pulling…" : "Pull SKU map now"}
             </Button>
+
             {lastMapRun && (
               <div className="flex flex-wrap gap-4 text-sm">
                 <div><span className="text-muted-foreground">Last run:</span> {formatDistanceToNow(new Date(lastMapRun.started_at), { addSuffix: true })}</div>
