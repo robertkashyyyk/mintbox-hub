@@ -577,7 +577,7 @@ const BuyRecommendations = () => {
                             }
                             return <span className="text-warning font-medium">{bo}</span>;
                           })()}
-                        </TableCell>}
+                        </TableCell>
                         <TableCell className="text-right tabular-nums">
                           {num(r.sales_4w) > 0 ? num(r.sales_4w) : <span className="text-muted-foreground">0</span>}
                         </TableCell>
