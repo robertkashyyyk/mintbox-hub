@@ -266,8 +266,8 @@ const OrphanSkus = () => {
                     <div><span className="text-muted-foreground">Created:</span> <span className="font-semibold">{(lastMapRun.summary as any).created ?? 0}</span></div>
                   </>
                 )}
-                {lastMapRun.error_message && (
-                  <div className="text-destructive text-xs">{lastMapRun.error_message}</div>
+                {(lastMapRun as any).error && (
+                  <div className="text-destructive text-xs">{(lastMapRun as any).error}</div>
                 )}
               </div>
             )}
