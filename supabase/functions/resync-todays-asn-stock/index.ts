@@ -98,17 +98,43 @@ Deno.serve(async (req) => {
     }
     console.log(`[ASN-probe] chose: ${chosenUrl || "(none)"} — raw asns: ${asns.length}`);
 
-    // Filter to today (UK-local) — Mintsoft list may not actually honour FromDate
+    // Filter to today (UK-local) only when the chosen endpoint was not already
+    // explicitly date-scoped. Some Mintsoft tenants return differently-shaped rows
+    // (e.g. `Created`, `DateCreated`) and the previous narrow filter dropped valid ASNs.
+    const readAsnDate = (a?: Record<string, unknown>) => {
+      if (!a) return null;
+      const candidates = [
+        a.CreatedDate,
+        a.ASNDate,
+        a.ReceivedDate,
+        a.Created,
+        a.DateCreated,
+        a.CreatedOn,
+        a.ReceivedOn,
+        a.Date,
+      ];
+      const match = candidates.find((value) => typeof value === "string" && value.trim().length > 0);
+      return typeof match === "string" ? match : null;
+    };
     const isToday = (d?: string | null) => {
       if (!d) return false;
       const t = new Date(d);
-      return t >= start;
+      return Number.isFinite(t.getTime()) && t >= start;
     };
     const beforeFilter = asns.length;
-    asns = asns.filter(a => isToday(a.CreatedDate || a.ASNDate || a.ReceivedDate));
-    console.log(`[ASN-probe] after today filter: ${asns.length} (was ${beforeFilter})`);
+    const firstRawAsn = asns[0] as Record<string, unknown> | undefined;
+    const hasExplicitTodayWindow = /[?&]FromDate=\d{4}-\d{2}-\d{2}/.test(chosenUrl)
+      && /[?&]ToDate=\d{4}-\d{2}-\d{2}/.test(chosenUrl);
+    if (!hasExplicitTodayWindow) {
+      asns = asns.filter((a) => isToday(readAsnDate(a as unknown as Record<string, unknown>)));
+    }
+    console.log(
+      `[ASN-probe] after today filter: ${asns.length} (was ${beforeFilter})${hasExplicitTodayWindow ? " — trusted upstream date filter" : ""}`,
+    );
     if (beforeFilter > 0 && asns.length === 0) {
-      console.log(`[ASN-probe] first row keys for debug: ${Object.keys(asns[0] || {}).join(",")}`);
+      console.log(
+        `[ASN-probe] first row keys for debug: ${Object.keys(firstRawAsn || {}).join(",")}; date=${readAsnDate(firstRawAsn) || "(none)"}`,
+      );
     }
 
     // Some list endpoints don't embed items — fetch per-ASN if needed.
