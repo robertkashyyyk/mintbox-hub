@@ -127,9 +127,15 @@ const PurchaseOrders = () => {
             Drafts, sent POs awaiting ASN, and completed receipts.
           </p>
         </div>
-        <Button variant="outline" asChild>
-          <Link to="/decisions/buying">+ Create from recommendations</Link>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={resyncTodaysStock} disabled={resyncing}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${resyncing ? "animate-spin" : ""}`} />
+            {resyncing ? "Resyncing…" : "Resync today's PO stock"}
+          </Button>
+          <Button variant="outline" asChild>
+            <Link to="/decisions/buying">+ Create from recommendations</Link>
+          </Button>
+        </div>
       </div>
 
       <div className="relative max-w-md">
