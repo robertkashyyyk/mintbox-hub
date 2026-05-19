@@ -32,7 +32,7 @@ Deno.serve(async (req) => {
       if (req.method === "POST") {
         const body = await req.json().catch(() => null);
         if (body && Array.isArray(body.skus) && body.skus.length > 0) {
-          scopeSkus = body.skus.map((s: unknown) => String(s)).filter(Boolean);
+          scopeSkus = Array.from(new Set(body.skus.map((s: unknown) => String(s).trim()).filter(Boolean)));
           console.log(`Scoped sync requested for ${scopeSkus.length} SKUs`);
         }
       }
@@ -96,7 +96,7 @@ Deno.serve(async (req) => {
       // refresh 40-100 SKUs times out. Hit StockLevels with &SKU= for each one
       // and fan them out in small concurrent batches.
       console.log(`Fetching ${scopeSkus.length} SKUs individually from Mintsoft...`);
-      const concurrency = 8;
+      const concurrency = Math.min(32, Math.max(8, Math.ceil(scopeSkus.length / 75)));
       let idx = 0;
       let failed = 0;
       const workers = Array.from({ length: concurrency }, async () => {
@@ -190,24 +190,30 @@ Deno.serve(async (req) => {
 
     let updated = 0;
     let lastError: string | null = null;
-    // Per-SKU UPDATE to avoid one bad row failing an entire batch upsert.
-    for (const u of updates) {
-      const { error: upErr } = await supabase
-        .from("products_cache")
-        .update({
-          current_stock: u.current_stock,
-          back_order_qty: u.back_order_qty,
-          on_order: u.on_order,
-          last_stock_sync: u.last_stock_sync,
-        })
-        .eq("sku", u.sku);
-      if (upErr) {
-        lastError = upErr.message;
-        console.error(`Update failed for ${u.sku}:`, upErr.message);
-      } else {
-        updated++;
+    const updateConcurrency = Math.min(24, Math.max(6, scopeSkus ? Math.ceil(updates.length / 100) : 8));
+    let updateIdx = 0;
+    await Promise.all(Array.from({ length: updateConcurrency }, async () => {
+      while (true) {
+        const i = updateIdx++;
+        if (i >= updates.length) return;
+        const u = updates[i];
+        const { error: upErr } = await supabase
+          .from("products_cache")
+          .update({
+            current_stock: u.current_stock,
+            back_order_qty: u.back_order_qty,
+            on_order: u.on_order,
+            last_stock_sync: u.last_stock_sync,
+          })
+          .eq("sku", u.sku);
+        if (upErr) {
+          lastError = upErr.message;
+          console.error(`Update failed for ${u.sku}:`, upErr.message);
+        } else {
+          updated++;
+        }
       }
-    }
+    }));
     if (lastError) console.log(`Last update error: ${lastError}`);
 
     console.log(`Stock sync complete. Updated ${updated} products.`);
