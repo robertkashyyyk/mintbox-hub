@@ -4747,6 +4747,16 @@ export type Database = {
           sku_count: number
         }[]
       }
+      preview_sku_map_apply: {
+        Args: { _payload: Json }
+        Returns: {
+          payload_already_linked: number
+          payload_rows: number
+          payload_true_format: number
+          would_create: number
+          would_resolve: number
+        }[]
+      }
       refresh_lsa_brand_summary: { Args: never; Returns: undefined }
       refresh_sku_health_now: { Args: never; Returns: undefined }
       user_area_capability: {
