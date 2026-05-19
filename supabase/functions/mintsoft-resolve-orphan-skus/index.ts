@@ -56,7 +56,7 @@ Deno.serve(async (req) => {
 
     if (!enabled && !body.force && !body.skus?.length) {
       await supabase.from("agent_runs").update({
-        status: "skipped",
+        status: "complete",
         finished_at: new Date().toISOString(),
         summary: { reason: "resolver disabled" },
       }).eq("id", runId);
