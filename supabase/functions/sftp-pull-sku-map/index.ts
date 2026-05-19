@@ -34,10 +34,10 @@ Deno.serve(async (req) => {
       await supabase.from("agent_runs").insert({
         run_type: "sftp_pull_sku_map",
         started_at: startedAt.toISOString(),
-        ended_at: new Date().toISOString(),
+        finished_at: new Date().toISOString(),
         status,
         summary,
-        error_message: errorMessage ?? null,
+        error: errorMessage ?? null,
       });
     } catch (_) { /* ignore */ }
   };
