@@ -68,6 +68,8 @@ const fmt = (n: number) =>
 const PurchaseOrders = () => {
   const [search, setSearch] = useState("");
   const [resyncing, setResyncing] = useState(false);
+  const [view, setView] = useState<"pos" | "asns">("pos");
+  const [expandedAsn, setExpandedAsn] = useState<number | null>(null);
 
   const [refreshingAsns, setRefreshingAsns] = useState(false);
 
