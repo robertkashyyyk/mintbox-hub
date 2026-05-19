@@ -106,7 +106,8 @@ Deno.serve(async (req) => {
         skipped.push({ sku: l.sku, reason: "qty <= 0" });
         continue;
       }
-      orderItems.push({ ProductID: pid, Quantity: qty, UnitCost: cost });
+      // NewASNItem schema: { ProductId, SKU, Quantity, SourceLineId? }
+      orderItems.push({ ProductId: pid, SKU: l.sku, Quantity: qty, SourceLineId: l.id });
     }
 
     if (orderItems.length === 0) {
