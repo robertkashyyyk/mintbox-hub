@@ -1,8 +1,10 @@
 Deno.serve(async () => {
   const key = Deno.env.get("MINTSOFT_API_KEY") ?? "";
-  const r = await fetch("https://api.mintsoft.co.uk/api/Warehouse", { headers: { "ms-apikey": key } });
+  const r = await fetch("https://api.mintsoft.co.uk/api/Product/SKU/ASC-TUB-29-PV", {
+    headers: { "ms-apikey": key },
+  });
   const text = await r.text();
-  let parsed: any = null; try { parsed = JSON.parse(text); } catch {}
-  const ids = Array.isArray(parsed) ? parsed.map((w: any) => ({ ID: w.ID ?? w.Id, Name: w.Name })) : text;
-  return new Response(JSON.stringify(ids), { headers: { "Content-Type": "application/json" } });
+  return new Response(JSON.stringify({ status: r.status, body: text.slice(0, 2000) }), {
+    headers: { "Content-Type": "application/json" },
+  });
 });
