@@ -117,10 +117,12 @@ Deno.serve(async (req) => {
       }, 422);
     }
 
+    // Mintsoft API: PUT /api/ASN with NewASN schema
+    // (There is NO /api/PurchaseOrder/Create endpoint — ASN is the correct entity.)
     const payload = {
-      SupplierID: supplier.mintsoft_supplier_id,
-      OrderRef: po.po_number || `PO-${po.id.slice(0, 8)}`,
-      OrderItems: orderItems,
+      Supplier: supplier.name ?? "",
+      POReference: po.po_number || `PO-${po.id.slice(0, 8)}`,
+      Items: orderItems,
     };
 
     // Mark attempt
@@ -129,8 +131,8 @@ Deno.serve(async (req) => {
       mintsoft_send_error: null,
     }).eq("id", poId);
 
-    const resp = await fetch(`${MINTSOFT_BASE}/api/PurchaseOrder/Create`, {
-      method: "POST",
+    const resp = await fetch(`${MINTSOFT_BASE}/api/ASN`, {
+      method: "PUT",
       headers: { "ms-apikey": mintsoftKey, "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
