@@ -203,6 +203,65 @@ const OrphanSkus = () => {
         </CardContent>
       </Card>
 
+      {/* Last run summary */}
+      {lastRun?.summary && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Last resolver run</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex gap-6 flex-wrap text-sm">
+              <div><span className="text-muted-foreground">Status:</span> <Badge variant="outline">{lastRun.status}</Badge></div>
+              <div><span className="text-muted-foreground">Checked:</span> <span className="font-semibold">{(lastRun.summary as any).checked ?? 0}</span></div>
+              <div><span className="text-muted-foreground">Resolved:</span> <span className="font-semibold text-pd-accent">{(lastRun.summary as any).resolved ?? 0}</span></div>
+              <div><span className="text-muted-foreground">Not found:</span> <span className="font-semibold">{(lastRun.summary as any).not_found ?? 0}</span></div>
+              <div><span className="text-muted-foreground">Errors:</span> <span className="font-semibold">{(lastRun.summary as any).errors ?? 0}</span></div>
+              <div><span className="text-muted-foreground">Mode:</span> {(lastRun.summary as any).mode ?? "—"}</div>
+            </div>
+            {Array.isArray((lastRun.summary as any).resolved_skus) && (lastRun.summary as any).resolved_skus.length > 0 && (
+              <div className="mt-3 text-xs text-muted-foreground">
+                <span className="font-medium">Newly linked:</span>{" "}
+                <span className="font-mono">{(lastRun.summary as any).resolved_skus.join(", ")}</span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Manual link card */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Link2Off className="h-4 w-4" />
+            Manually link a SKU to a Mintsoft Product ID
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="flex gap-2 flex-wrap">
+          <Input
+            placeholder="SKU (e.g. ASC-TUB-29-PV)"
+            value={linkSku}
+            onChange={(e) => setLinkSku(e.target.value.toUpperCase())}
+            className="max-w-xs"
+          />
+          <Input
+            placeholder="Mintsoft Product ID"
+            value={linkId}
+            onChange={(e) => setLinkId(e.target.value.replace(/\D/g, ""))}
+            className="max-w-[200px]"
+            inputMode="numeric"
+          />
+          <Button
+            onClick={() => manualLinkMutation.mutate({ sku: linkSku.trim(), mintsoftId: Number(linkId) })}
+            disabled={!linkSku.trim() || !linkId || manualLinkMutation.isPending}
+          >
+            Save link
+          </Button>
+          <p className="text-xs text-muted-foreground w-full">
+            Use this only when the resolver can't find a match but you've confirmed the Product ID inside Mintsoft.
+          </p>
+        </CardContent>
+      </Card>
+
       {/* Filters */}
       <div className="flex gap-2 flex-wrap">
         {[
