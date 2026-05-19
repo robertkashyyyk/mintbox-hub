@@ -122,6 +122,11 @@ Deno.serve(async (req) => {
       String(a.Status || a.ASNStatus || (a as any).AsnStatus || a.StatusText || "");
 
     // 2. Filter: created TODAY, status OPEN
+    if (asns.length) {
+      const first = asns[0] as unknown as Record<string, unknown>;
+      console.log(`[todays-asn] sample keys: ${Object.keys(first).join(",")}`);
+      console.log(`[todays-asn] sample date=${readDate(first)} status=${readStatus(first)} id=${readId(first)}`);
+    }
     const todayOpen = asns.filter((a) => {
       const row = a as unknown as Record<string, unknown>;
       const dStr = readDate(row);
