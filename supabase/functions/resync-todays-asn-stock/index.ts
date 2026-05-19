@@ -247,13 +247,13 @@ Deno.serve(async (req) => {
       });
     }
 
-    const chunkSize = 200;
+    const chunkSize = 75;
     const syncChunks: string[][] = [];
     for (let i = 0; i < skus.length; i += chunkSize) syncChunks.push(skus.slice(i, i + chunkSize));
 
     const runBackgroundSync = async () => {
       const batchResults: Array<{ size: number; updated: number; total: number; error?: string }> = [];
-      const batchConcurrency = Math.min(4, syncChunks.length);
+      const batchConcurrency = Math.min(2, syncChunks.length);
       let chunkIdx = 0;
 
       await Promise.all(Array.from({ length: batchConcurrency }, async () => {
