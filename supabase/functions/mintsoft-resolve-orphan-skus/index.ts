@@ -8,9 +8,10 @@ const corsHeaders = {
 const TRUE_SKU_RE = /^[A-Z0-9]{3}[-/]/;
 const RECHECK_DAYS = 7;
 const MAX_ATTEMPTS = 5;
-const HARD_CAP = 1000;
-const DEFAULT_BATCH = 200;
-const RATE_DELAY_MS = 200; // ~5 req/sec
+const HARD_CAP = 500;
+const DEFAULT_BATCH = 50;
+const RATE_DELAY_MS = 60;
+const SOFT_WALL_MS = 110_000; // stop gracefully before edge timeout
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -55,7 +56,7 @@ Deno.serve(async (req) => {
 
     if (!enabled && !body.force && !body.skus?.length) {
       await supabase.from("agent_runs").update({
-        status: "skipped",
+        status: "complete",
         finished_at: new Date().toISOString(),
         summary: { reason: "resolver disabled" },
       }).eq("id", runId);
@@ -108,9 +109,14 @@ Deno.serve(async (req) => {
     let resolved = 0;
     let notFound = 0;
     let errors = 0;
+    let checked = 0;
     const resolvedSkus: string[] = [];
+    const wallStart = Date.now();
+    let timedOut = false;
 
     for (const c of candidates) {
+      if (Date.now() - wallStart > SOFT_WALL_MS) { timedOut = true; break; }
+      checked++;
       try {
         const url = `${baseUrl}/api/Product/Search?SKU=${encodeURIComponent(c.sku)}`;
         const res = await fetch(url, {
@@ -159,16 +165,18 @@ Deno.serve(async (req) => {
     }
 
     const summary = {
-      checked: candidates.length,
+      candidates: candidates.length,
+      checked,
       resolved,
       not_found: notFound,
       errors,
+      timed_out: timedOut,
       resolved_skus: resolvedSkus.slice(0, 50),
       mode: body.skus?.length ? "manual" : "cron",
     };
 
     await supabase.from("agent_runs").update({
-      status: "completed",
+      status: "complete",
       finished_at: new Date().toISOString(),
       summary,
     }).eq("id", runId);
@@ -179,7 +187,7 @@ Deno.serve(async (req) => {
   } catch (error) {
     const msg = error instanceof Error ? error.message : "Unexpected error";
     await supabase.from("agent_runs").update({
-      status: "failed",
+      status: "error",
       finished_at: new Date().toISOString(),
       error: msg,
     }).eq("id", runId);
