@@ -47,42 +47,17 @@ const PurchaseOrders = () => {
   const resyncTodaysStock = async () => {
     setResyncing(true);
     try {
-      const sb = supabase as any;
-      // Start of today (local). ASN = PO that's been sent today; include created-today drafts too.
-      const start = new Date();
-      start.setHours(0, 0, 0, 0);
-      const startIso = start.toISOString();
-
-      const { data: posToday, error: pErr } = await sb
-        .from("purchase_orders")
-        .select("id")
-        .or(`sent_at.gte.${startIso},created_at.gte.${startIso}`);
-      if (pErr) throw pErr;
-      const poIds = (posToday || []).map((p: any) => p.id);
-      if (poIds.length === 0) {
-        toast({ title: "Nothing to resync", description: "No POs created or sent today." });
-        return;
-      }
-
-      const { data: lines, error: lErr } = await sb
-        .from("purchase_order_lines")
-        .select("sku")
-        .in("po_id", poIds);
-      if (lErr) throw lErr;
-      const skus = Array.from(new Set((lines || []).map((l: any) => l.sku).filter(Boolean)));
-      if (skus.length === 0) {
-        toast({ title: "Nothing to resync", description: "Today's POs have no SKU lines." });
-        return;
-      }
-
-      toast({ title: "Resyncing stock…", description: `${skus.length} SKUs from ${poIds.length} PO(s) today.` });
-      const { data, error } = await supabase.functions.invoke("sync-mintsoft-stock", {
-        body: { skus },
-      });
+      toast({ title: "Resyncing today's ASN stock…", description: "Pulling local + Mintsoft-side ASNs." });
+      const { data, error } = await supabase.functions.invoke("resync-todays-asn-stock", { body: {} });
       if (error) throw error;
+      const d: any = data || {};
+      if (!d.union_skus) {
+        toast({ title: "Nothing to resync", description: d.message || "No ASN activity today." });
+        return;
+      }
       toast({
         title: "Stock resync complete",
-        description: `Updated ${data?.updated ?? 0} of ${skus.length} SKUs from Mintsoft.`,
+        description: `Updated ${d.updated ?? 0} of ${d.union_skus} SKUs · ${d.local_po_count} local PO(s) + ${d.mintsoft_asn_count} Mintsoft ASN(s).`,
       });
     } catch (e: any) {
       toast({ title: "Resync failed", description: e?.message || String(e), variant: "destructive" });
