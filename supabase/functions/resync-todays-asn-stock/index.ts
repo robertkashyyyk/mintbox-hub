@@ -253,7 +253,7 @@ Deno.serve(async (req) => {
 
     const runBackgroundSync = async () => {
       const batchResults: Array<{ size: number; updated: number; total: number; error?: string }> = [];
-      const batchConcurrency = Math.min(4, syncChunks.length);
+      const batchConcurrency = Math.min(2, syncChunks.length);
       let chunkIdx = 0;
 
       await Promise.all(Array.from({ length: batchConcurrency }, async () => {
