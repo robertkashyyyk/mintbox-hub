@@ -152,9 +152,10 @@ Deno.serve(async (req) => {
     }
 
     // Mintsoft PO create returns the new PO ID (number) and often an ASN reference
+    // ToolkitResult typically returns { Success, Message, ID } — ID is the new ASN id.
     const mintsoftPoId =
-      parsed?.ID ?? parsed?.Id ?? parsed?.PurchaseOrderID ?? parsed?.PurchaseOrderId ?? null;
-    const asnRef = parsed?.ASNReference ?? parsed?.AsnReference ?? parsed?.OrderRef ?? null;
+      parsed?.ID ?? parsed?.Id ?? parsed?.ASNId ?? parsed?.AsnId ?? null;
+    const asnRef = parsed?.POReference ?? parsed?.ASNReference ?? parsed?.AsnReference ?? payload.POReference ?? null;
 
     const { error: updErr } = await svc.from("purchase_orders").update({
       status: "sent",
