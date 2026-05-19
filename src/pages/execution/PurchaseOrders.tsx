@@ -311,9 +311,8 @@ const PurchaseOrders = () => {
                     {groupedAsns.map((a) => {
                       const open = expandedAsn === a.asn_id;
                       return (
-                        <>
+                        <Fragment key={a.asn_id}>
                           <TableRow
-                            key={a.asn_id}
                             className="cursor-pointer hover:bg-muted/50"
                             onClick={() => setExpandedAsn(open ? null : a.asn_id)}
                           >
