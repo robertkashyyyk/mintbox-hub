@@ -3482,6 +3482,36 @@ export type Database = {
         }
         Relationships: []
       }
+      todays_open_asns: {
+        Row: {
+          asn_date: string | null
+          asn_id: number
+          asn_reference: string | null
+          captured_at: string
+          qty: number
+          sku: string
+          status: string | null
+        }
+        Insert: {
+          asn_date?: string | null
+          asn_id: number
+          asn_reference?: string | null
+          captured_at?: string
+          qty?: number
+          sku: string
+          status?: string | null
+        }
+        Update: {
+          asn_date?: string | null
+          asn_id?: number
+          asn_reference?: string | null
+          captured_at?: string
+          qty?: number
+          sku?: string
+          status?: string | null
+        }
+        Relationships: []
+      }
       upload_history: {
         Row: {
           created_at: string

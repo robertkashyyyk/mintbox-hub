@@ -77,3 +77,6 @@ verify_jwt = false
 
 [functions.threeds-mcp-probe]
 verify_jwt = false
+
+[functions.mintsoft-fetch-todays-asns]
+verify_jwt = false

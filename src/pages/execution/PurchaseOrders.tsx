@@ -9,8 +9,32 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
-import { Search, RefreshCw } from "lucide-react";
+import { Search, RefreshCw, Truck } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+
+interface POSummary {
+  id: string;
+  po_number: string | null;
+  status: string;
+  supplier_id: string | null;
+  total_qty: number;
+  total_cost: number;
+  created_at: string;
+  sent_at: string | null;
+  mintsoft_po_id: number | null;
+  supplier_name?: string | null;
+}
+
+interface TodaysAsnRow {
+  asn_id: number;
+  sku: string;
+  qty: number;
+  status: string | null;
+  asn_date: string | null;
+  asn_reference: string | null;
+  captured_at: string;
+}
+
 
 interface POSummary {
   id: string;
@@ -44,6 +68,8 @@ const PurchaseOrders = () => {
   const [search, setSearch] = useState("");
   const [resyncing, setResyncing] = useState(false);
 
+  const [refreshingAsns, setRefreshingAsns] = useState(false);
+
   const resyncTodaysStock = async () => {
     setResyncing(true);
     try {
@@ -68,6 +94,36 @@ const PurchaseOrders = () => {
     }
   };
 
+  const refreshTodaysAsns = async () => {
+    setRefreshingAsns(true);
+    try {
+      const { error } = await supabase.functions.invoke("mintsoft-fetch-todays-asns", { body: {} });
+      if (error) throw error;
+      toast({ title: "Today's ASNs refreshed", description: "Buy recommendations updated." });
+      asnsQuery.refetch();
+    } catch (e: any) {
+      toast({ title: "ASN refresh failed", description: e?.message || String(e), variant: "destructive" });
+    } finally {
+      setRefreshingAsns(false);
+    }
+  };
+
+  const asnsQuery = useQuery({
+    queryKey: ["todays-open-asns"],
+    queryFn: async () => {
+      const sb = supabase as any;
+      const { data, error } = await sb
+        .from("todays_open_asns")
+        .select("asn_id, sku, qty, status, asn_date, asn_reference, captured_at")
+        .order("asn_id", { ascending: false })
+        .order("sku", { ascending: true });
+      if (error) throw error;
+      return (data || []) as TodaysAsnRow[];
+    },
+    refetchInterval: 60_000,
+  });
+  const todaysAsns = asnsQuery.data ?? [];
+
   const { data: pos = [], isLoading } = useQuery({
     queryKey: ["po-list"],
     queryFn: async () => {
@@ -84,6 +140,7 @@ const PurchaseOrders = () => {
       })) as POSummary[];
     },
   });
+
 
   const filtered = useMemo(() => {
     if (!search.trim()) return pos;
@@ -120,6 +177,63 @@ const PurchaseOrders = () => {
         <Input placeholder="Search PO #, supplier or status…" value={search}
           onChange={(e) => setSearch(e.target.value)} className="pl-9" />
       </div>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0">
+          <div>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Truck className="h-4 w-4 text-pd-accent" />
+              Today's open ASNs (Mintsoft) — {todaysAsns.length} line{todaysAsns.length === 1 ? "" : "s"}
+            </CardTitle>
+            <p className="text-xs text-muted-foreground mt-1">
+              ASNs raised in Mintsoft today with an open status. These offset buy recommendations until they're booked in. Auto-refreshes every 15 min; wiped nightly at 21:00 UK.
+            </p>
+          </div>
+          <Button variant="outline" size="sm" onClick={refreshTodaysAsns} disabled={refreshingAsns}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${refreshingAsns ? "animate-spin" : ""}`} />
+            {refreshingAsns ? "Refreshing…" : "Refresh now"}
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {asnsQuery.isLoading ? (
+            <p className="text-muted-foreground py-4 text-center text-sm">Loading…</p>
+          ) : todaysAsns.length === 0 ? (
+            <p className="text-muted-foreground py-4 text-center text-sm">No open ASNs raised in Mintsoft today.</p>
+          ) : (
+            <div className="rounded-md border overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>ASN</TableHead>
+                    <TableHead>Ref</TableHead>
+                    <TableHead>SKU</TableHead>
+                    <TableHead className="text-right">Qty</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>ASN date</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {todaysAsns.map((r) => (
+                    <TableRow key={`${r.asn_id}-${r.sku}`}>
+                      <TableCell className="font-mono text-xs">{r.asn_id}</TableCell>
+                      <TableCell className="text-xs">{r.asn_reference || "—"}</TableCell>
+                      <TableCell className="font-mono text-xs">{r.sku}</TableCell>
+                      <TableCell className="text-right">{Number(r.qty)}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="text-xs">{r.status || "OPEN"}</Badge>
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {r.asn_date ? new Date(r.asn_date).toLocaleString("en-GB") : "—"}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
 
       <Card>
         <CardHeader>
