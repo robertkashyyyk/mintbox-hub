@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Link2Off, Play, EyeOff, Search, RotateCw } from "lucide-react";
+import { Link2Off, Play, EyeOff, Search, RotateCw, DownloadCloud } from "lucide-react";
 import ModuleHeader from "@/components/ModuleHeader";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
