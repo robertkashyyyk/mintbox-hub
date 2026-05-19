@@ -180,6 +180,7 @@ Deno.serve(async (req) => {
       errors,
       timed_out: timedOut,
       resolved_skus: resolvedSkus.slice(0, 50),
+      error_samples: errorSamples,
       mode: body.skus?.length ? "manual" : "cron",
     };
 
