@@ -40,6 +40,7 @@ async function fetchAllProductsMissingCost() {
       .is("cost_price", null)
       .eq("discontinued", false)
       .eq("quarantined", false)
+      .not("mintsoft_product_id", "is", null)
       .order("sku", { ascending: true })
       .range(from, from + step - 1);
     if (error) throw error;
