@@ -9,8 +9,9 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
-import { Search, RefreshCw, Truck } from "lucide-react";
+import { Search, RefreshCw, Truck, ChevronRight, ChevronDown } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
 interface POSummary {
   id: string;
