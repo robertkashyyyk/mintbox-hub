@@ -1783,6 +1783,30 @@ export type Database = {
         }
         Relationships: []
       }
+      mintsoft_sku_map: {
+        Row: {
+          created_at: string
+          last_seen_at: string
+          mintsoft_product_id: number
+          name: string | null
+          sku: string
+        }
+        Insert: {
+          created_at?: string
+          last_seen_at?: string
+          mintsoft_product_id: number
+          name?: string | null
+          sku: string
+        }
+        Update: {
+          created_at?: string
+          last_seen_at?: string
+          mintsoft_product_id?: number
+          name?: string | null
+          sku?: string
+        }
+        Relationships: []
+      }
       mintsoft_status_cache: {
         Row: {
           cached_at: string
@@ -4321,6 +4345,13 @@ export type Database = {
       }
     }
     Functions: {
+      apply_sku_map_to_cache: {
+        Args: never
+        Returns: {
+          created_count: number
+          resolved_count: number
+        }[]
+      }
       bulk_update_lsa_from_sftp: {
         Args: { _payload: Json }
         Returns: {
@@ -4341,6 +4372,12 @@ export type Database = {
         Returns: {
           not_found_count: number
           updated_count: number
+        }[]
+      }
+      bulk_upsert_sku_map: {
+        Args: { _payload: Json }
+        Returns: {
+          upserted_count: number
         }[]
       }
       capability_rank: {
