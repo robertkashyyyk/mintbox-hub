@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Link2Off, Play, EyeOff, Search, RotateCw } from "lucide-react";
+import { Link2Off, Play, EyeOff, Search, RotateCw, DownloadCloud } from "lucide-react";
 import ModuleHeader from "@/components/ModuleHeader";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -141,6 +141,39 @@ const OrphanSkus = () => {
     onError: (e: any) => toast({ title: "Link failed", description: e.message, variant: "destructive" }),
   });
 
+  const { data: lastMapRun } = useQuery({
+    queryKey: ["sku-map-last-run"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("agent_runs")
+        .select("*")
+        .eq("run_type", "sftp_pull_sku_map")
+        .order("started_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      return data;
+    },
+    refetchInterval: 15000,
+  });
+
+  const pullMapMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke("sftp-pull-sku-map", { body: {} });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data: any) => {
+      toast({
+        title: "SKU map pulled",
+        description: `Upserted ${data.upserted ?? 0} · Linked ${data.resolved ?? 0} orphans · Created ${data.created ?? 0} new SKUs.`,
+      });
+      qc.invalidateQueries({ queryKey: ["orphan-skus"] });
+      qc.invalidateQueries({ queryKey: ["orphan-counts"] });
+      qc.invalidateQueries({ queryKey: ["sku-map-last-run"] });
+    },
+    onError: (e: any) => toast({ title: "SKU map pull failed", description: e.message, variant: "destructive" }),
+  });
+
   return (
     <div className="space-y-6">
       <ModuleHeader
@@ -200,6 +233,45 @@ const OrphanSkus = () => {
             <RotateCw className="h-4 w-4 mr-2" />
             Run resolver batch (200)
           </Button>
+        </CardContent>
+      </Card>
+
+      {/* Mintsoft SKU map sync */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <DownloadCloud className="h-4 w-4" />
+            Mintsoft SKU → Product ID map (CSV)
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground mb-3">
+            Pulls the latest <span className="font-mono">pdochubMintsoftProductIDList*.csv</span> from the export folder,
+            then links every matching orphan and creates new cache rows for any true-format SKU we don't have yet.
+            Runs automatically every Sunday at 03:00; use the button for an on-demand pull.
+          </p>
+          <div className="flex flex-wrap gap-6 items-center">
+            <Button onClick={() => pullMapMutation.mutate()} disabled={pullMapMutation.isPending}>
+              <DownloadCloud className="h-4 w-4 mr-2" />
+              {pullMapMutation.isPending ? "Pulling…" : "Pull SKU map now"}
+            </Button>
+            {lastMapRun && (
+              <div className="flex flex-wrap gap-4 text-sm">
+                <div><span className="text-muted-foreground">Last run:</span> {formatDistanceToNow(new Date(lastMapRun.started_at), { addSuffix: true })}</div>
+                <div><span className="text-muted-foreground">Status:</span> <Badge variant="outline">{lastMapRun.status}</Badge></div>
+                {lastMapRun.summary && (
+                  <>
+                    <div><span className="text-muted-foreground">Upserted:</span> <span className="font-semibold">{(lastMapRun.summary as any).upserted ?? 0}</span></div>
+                    <div><span className="text-muted-foreground">Linked:</span> <span className="font-semibold text-pd-accent">{(lastMapRun.summary as any).resolved ?? 0}</span></div>
+                    <div><span className="text-muted-foreground">Created:</span> <span className="font-semibold">{(lastMapRun.summary as any).created ?? 0}</span></div>
+                  </>
+                )}
+                {(lastMapRun as any).error && (
+                  <div className="text-destructive text-xs">{(lastMapRun as any).error}</div>
+                )}
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
 
