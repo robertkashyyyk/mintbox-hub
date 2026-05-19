@@ -1,10 +1,10 @@
 Deno.serve(async () => {
   const key = Deno.env.get("MINTSOFT_API_KEY") ?? "";
-  const r = await fetch("https://api.mintsoft.co.uk/api/Warehouse/List", {
-    headers: { "ms-apikey": key },
-  });
-  const text = await r.text();
-  return new Response(JSON.stringify({ status: r.status, body: text.slice(0, 2000) }), {
-    headers: { "Content-Type": "application/json" },
-  });
+  const paths = ["/api/Warehouse", "/api/Warehouse/Search", "/api/Client/3/Warehouses", "/api/Warehouses/List"];
+  const out: any = {};
+  for (const p of paths) {
+    const r = await fetch(`https://api.mintsoft.co.uk${p}`, { headers: { "ms-apikey": key } });
+    out[p] = { status: r.status, body: (await r.text()).slice(0, 500) };
+  }
+  return new Response(JSON.stringify(out), { headers: { "Content-Type": "application/json" } });
 });
