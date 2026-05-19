@@ -247,7 +247,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const chunkSize = 200;
+    const chunkSize = 75;
     const syncChunks: string[][] = [];
     for (let i = 0; i < skus.length; i += chunkSize) syncChunks.push(skus.slice(i, i + chunkSize));
 
