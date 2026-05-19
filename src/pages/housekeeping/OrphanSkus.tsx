@@ -112,6 +112,35 @@ const OrphanSkus = () => {
     },
   });
 
+  const manualLinkMutation = useMutation({
+    mutationFn: async ({ sku, mintsoftId }: { sku: string; mintsoftId: number }) => {
+      const { data: row, error: findErr } = await supabase
+        .from("products_cache")
+        .select("id")
+        .eq("sku", sku)
+        .maybeSingle();
+      if (findErr) throw findErr;
+      if (!row) throw new Error(`SKU "${sku}" not found in catalogue`);
+      const { error } = await supabase
+        .from("products_cache")
+        .update({
+          mintsoft_product_id: mintsoftId,
+          mintsoft_resolved_at: new Date().toISOString(),
+          last_mintsoft_resolve_attempt_at: new Date().toISOString(),
+        })
+        .eq("id", row.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast({ title: "Linked", description: "Mintsoft Product ID saved." });
+      setLinkSku("");
+      setLinkId("");
+      qc.invalidateQueries({ queryKey: ["orphan-skus"] });
+      qc.invalidateQueries({ queryKey: ["orphan-counts"] });
+    },
+    onError: (e: any) => toast({ title: "Link failed", description: e.message, variant: "destructive" }),
+  });
+
   return (
     <div className="space-y-6">
       <ModuleHeader
