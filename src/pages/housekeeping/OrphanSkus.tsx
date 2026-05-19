@@ -157,22 +157,32 @@ const OrphanSkus = () => {
   });
 
   const pullMapMutation = useMutation({
-    mutationFn: async () => {
-      const { data, error } = await supabase.functions.invoke("sftp-pull-sku-map", { body: {} });
+    mutationFn: async (dryRun: boolean) => {
+      const { data, error } = await supabase.functions.invoke("sftp-pull-sku-map", {
+        body: { dry_run: dryRun },
+      });
       if (error) throw error;
       return data;
     },
     onSuccess: (data: any) => {
-      toast({
-        title: "SKU map pulled",
-        description: `Upserted ${data.upserted ?? 0} · Linked ${data.resolved ?? 0} orphans · Created ${data.created ?? 0} new SKUs.`,
-      });
+      if (data?.dry_run) {
+        toast({
+          title: "Dry run complete — no changes made",
+          description: `File ${data.file} · ${data.parsed_rows} rows · would link ${data.would_resolve} orphans · would create ${data.would_create} new SKUs · ${data.payload_already_linked} already linked.`,
+        });
+      } else {
+        toast({
+          title: "SKU map pulled",
+          description: `Upserted ${data.upserted ?? 0} · Linked ${data.resolved ?? 0} orphans · Created ${data.created ?? 0} new SKUs.`,
+        });
+      }
       qc.invalidateQueries({ queryKey: ["orphan-skus"] });
       qc.invalidateQueries({ queryKey: ["orphan-counts"] });
       qc.invalidateQueries({ queryKey: ["sku-map-last-run"] });
     },
     onError: (e: any) => toast({ title: "SKU map pull failed", description: e.message, variant: "destructive" }),
   });
+
 
   return (
     <div className="space-y-6">
