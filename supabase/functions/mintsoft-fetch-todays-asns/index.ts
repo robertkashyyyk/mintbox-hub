@@ -104,9 +104,14 @@ Deno.serve(async (req) => {
     console.log(`[todays-asn] chose ${chosenUrl || "(none)"} — raw=${asns.length}`);
 
     const readDate = (a: Record<string, unknown>) => {
-      const cands = [a.CreatedDate, a.Created, a.DateCreated, a.CreatedOn, a.ASNDate, a.Date];
+      // Real Mintsoft fields seen: LastUpdated, BookedInDate, EstimatedDelivery, WarehouseBookedDate
+      const cands = [a.LastUpdated, a.CreatedDate, a.Created, a.DateCreated, a.CreatedOn, a.ASNDate, a.Date];
       const m = cands.find((v) => typeof v === "string" && v);
       return typeof m === "string" ? m : null;
+    };
+    const readBookedInDate = (a: Record<string, unknown>) => {
+      const v = a.BookedInDate;
+      return typeof v === "string" && v ? v : null;
     };
     const readId = (a: Record<string, unknown>) => {
       const cands = [a.ID, a.Id, a.ASNId, a.AsnId];
@@ -118,24 +123,41 @@ Deno.serve(async (req) => {
       const m = cands.find((v) => typeof v === "string" && (v as string).trim());
       return typeof m === "string" ? m.trim() : "";
     };
-    const readStatus = (a: Record<string, unknown>) =>
-      String(a.Status || a.ASNStatus || (a as any).AsnStatus || a.StatusText || "");
+    const readStatus = (a: Record<string, unknown>): string => {
+      // ASNStatus can be a string OR an object like { Name, StatusName, Description }
+      const s = a.ASNStatus ?? a.Status ?? (a as any).AsnStatus ?? a.StatusText;
+      if (typeof s === "string") return s;
+      if (s && typeof s === "object") {
+        const o = s as Record<string, unknown>;
+        const cands = [o.Name, o.StatusName, o.Description, o.Status, o.Text];
+        const m = cands.find((v) => typeof v === "string" && v);
+        if (typeof m === "string") return m;
+      }
+      // Last resort: numeric status id
+      if (typeof a.ASNStatusId === "number") return `STATUSID_${a.ASNStatusId}`;
+      return "";
+    };
 
-    // 2. Filter: created TODAY, status OPEN
+    // 2. Filter: still OPEN (BookedInDate is null) AND last touched TODAY.
+    // The "today" rule guards against re-counting ASNs that were raised
+    // yesterday and are still open — those were already factored into this
+    // morning's full Mintsoft on_order pull.
     if (asns.length) {
       const first = asns[0] as unknown as Record<string, unknown>;
-      console.log(`[todays-asn] sample keys: ${Object.keys(first).join(",")}`);
-      console.log(`[todays-asn] sample date=${readDate(first)} status=${readStatus(first)} id=${readId(first)}`);
+      console.log(`[todays-asn] sample id=${readId(first)} lastUpdated=${readDate(first)} bookedIn=${readBookedInDate(first)} status=${readStatus(first)}`);
     }
     const todayOpen = asns.filter((a) => {
       const row = a as unknown as Record<string, unknown>;
+      // Closed if BookedInDate is set OR status explicitly says closed
+      if (readBookedInDate(row)) return false;
+      const status = readStatus(row);
+      if (isClosedStatus(status)) return false;
+      // Must be touched today
       const dStr = readDate(row);
       if (!dStr) return false;
       const t = new Date(dStr).getTime();
       if (!Number.isFinite(t) || t < startMs) return false;
-      const status = readStatus(row);
-      if (isClosedStatus(status)) return false;
-      return isOpenStatus(status);
+      return true;
     });
     console.log(`[todays-asn] today+open: ${todayOpen.length}/${asns.length}`);
 
