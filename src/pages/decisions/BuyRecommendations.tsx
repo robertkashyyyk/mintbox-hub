@@ -197,14 +197,23 @@ const BuyRecommendations = () => {
     }
   };
 
+  // Default suggested qty per row, respecting BO Only mode (net BO rounded up to box qty).
+  const suggestedFor = (r: any) => {
+    const full = Math.max(0, Math.round(num(r.required_qty)));
+    if (!boOnly) return full;
+    const box = Math.max(1, num(r.box_quantity) || 1);
+    const netBo = Math.max(0, num(r.back_orders) - num(r.on_order));
+    return netBo > 0 ? Math.ceil(netBo / box) * box : 0;
+  };
+
   const selectionSummary = useMemo(() => {
-    const units = selectedRows.reduce((a, r) => a + (overrides[r.sku] ?? Math.max(0, Math.round(num(r.required_qty)))), 0);
+    const units = selectedRows.reduce((a, r) => a + (overrides[r.sku] ?? suggestedFor(r)), 0);
     const cost = selectedRows.reduce(
-      (a, r) => a + (overrides[r.sku] ?? Math.max(0, Math.round(num(r.required_qty)))) * num(r.unit_cost),
+      (a, r) => a + (overrides[r.sku] ?? suggestedFor(r)) * num(r.unit_cost),
       0
     );
     return { count: selectedRows.length, units, cost };
-  }, [selectedRows, overrides]);
+  }, [selectedRows, overrides, boOnly]);
 
   const pendingCount = rows.filter((r) => r.status === "po_sent_pending").length;
 
