@@ -197,6 +197,7 @@ const App = () => (
             {/* Housekeeping */}
             <Route path="/housekeeping" element={<HousekeepingIndex />} />
             <Route path="/housekeeping/lsa-unmatched" element={<LsaUnmatchedSkus />} />
+            <Route path="/housekeeping/orphan-skus" element={<OrphanSkus />} />
 
             {/* Decisions Sub-Routes */}
             <Route path="/decisions/buying" element={<BuyRecommendations />} />
