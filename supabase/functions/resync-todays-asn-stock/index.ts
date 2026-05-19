@@ -58,28 +58,45 @@ Deno.serve(async (req) => {
     // Mintsoft's ASN list endpoint variants we'll attempt in order. The actual
     // tenant may only expose one; the first that returns rows wins.
     const mintsoftSkus = new Set<string>();
-    const attempts: Array<{ url: string; status: number; count: number }> = [];
+    const attempts: Array<{ url: string; status: number; count: number; sample?: string }> = [];
     let asnSummaries: Array<{ id: number; date: string | null; itemCount: number }> = [];
 
     const listCandidates = [
       `${baseUrl}/api/ASN/List?WarehouseId=5&FromDate=${ymd}&ToDate=${ymd}`,
       `${baseUrl}/api/ASN/List?WarehouseId=5`,
+      `${baseUrl}/api/ASN/List`,
       `${baseUrl}/api/ASN?WarehouseId=5&FromDate=${ymd}&ToDate=${ymd}`,
       `${baseUrl}/api/ASN?WarehouseId=5`,
+      `${baseUrl}/api/ASN`,
+      `${baseUrl}/api/PurchaseOrder/List?WarehouseId=5`,
+      `${baseUrl}/api/PurchaseOrder?WarehouseId=5`,
     ];
 
     let asns: MintsoftAsn[] = [];
+    let chosenUrl = "";
     for (const url of listCandidates) {
       try {
         const r = await fetch(url, { headers: { "ms-apikey": apiKey, "Content-Type": "application/json" } });
-        const arr = r.ok ? await r.json() : null;
-        const list: MintsoftAsn[] = Array.isArray(arr) ? arr : Array.isArray(arr?.Items) ? arr.Items : [];
-        attempts.push({ url, status: r.status, count: list.length });
-        if (list.length) { asns = list; break; }
+        const text = r.ok ? await r.text() : "";
+        let arr: any = null;
+        try { arr = text ? JSON.parse(text) : null; } catch { /* not JSON */ }
+        const list: MintsoftAsn[] = Array.isArray(arr)
+          ? arr
+          : Array.isArray(arr?.Items) ? arr.Items
+          : Array.isArray(arr?.Results) ? arr.Results
+          : Array.isArray(arr?.Data) ? arr.Data
+          : [];
+        const sample = text ? text.slice(0, 200) : "";
+        attempts.push({ url, status: r.status, count: list.length, sample });
+        console.log(`[ASN-probe] ${r.status} count=${list.length} url=${url}`);
+        if (sample && list.length === 0) console.log(`[ASN-probe] body sample: ${sample}`);
+        if (list.length) { asns = list; chosenUrl = url; break; }
       } catch (e) {
-        attempts.push({ url, status: 0, count: 0 });
+        attempts.push({ url, status: 0, count: 0, sample: String(e).slice(0, 200) });
+        console.log(`[ASN-probe] threw url=${url}: ${e}`);
       }
     }
+    console.log(`[ASN-probe] chose: ${chosenUrl || "(none)"} — raw asns: ${asns.length}`);
 
     // Filter to today (UK-local) — Mintsoft list may not actually honour FromDate
     const isToday = (d?: string | null) => {
@@ -87,7 +104,12 @@ Deno.serve(async (req) => {
       const t = new Date(d);
       return t >= start;
     };
+    const beforeFilter = asns.length;
     asns = asns.filter(a => isToday(a.CreatedDate || a.ASNDate || a.ReceivedDate));
+    console.log(`[ASN-probe] after today filter: ${asns.length} (was ${beforeFilter})`);
+    if (beforeFilter > 0 && asns.length === 0) {
+      console.log(`[ASN-probe] first row keys for debug: ${Object.keys(asns[0] || {}).join(",")}`);
+    }
 
     // Some list endpoints don't embed items — fetch per-ASN if needed.
     // Concurrency 6 to keep total time low.
