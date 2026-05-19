@@ -200,30 +200,20 @@ Deno.serve(async (req) => {
 
     let updated = 0;
     let lastError: string | null = null;
-    const updateConcurrency = Math.min(24, Math.max(6, scopeSkus ? Math.ceil(updates.length / 100) : 8));
-    let updateIdx = 0;
-    await Promise.all(Array.from({ length: updateConcurrency }, async () => {
-      while (true) {
-        const i = updateIdx++;
-        if (i >= updates.length) return;
-        const u = updates[i];
-        const { error: upErr } = await supabase
-          .from("products_cache")
-          .update({
-            current_stock: u.current_stock,
-            back_order_qty: u.back_order_qty,
-            on_order: u.on_order,
-            last_stock_sync: u.last_stock_sync,
-          })
-          .eq("sku", u.sku);
-        if (upErr) {
-          lastError = upErr.message;
-          console.error(`Update failed for ${u.sku}:`, upErr.message);
-        } else {
-          updated++;
-        }
+    const chunkSize = 250;
+    for (let i = 0; i < updates.length; i += chunkSize) {
+      const slice = updates.slice(i, i + chunkSize);
+      const { error: upsertErr, data: upserted } = await supabase
+        .from("products_cache")
+        .upsert(slice, { onConflict: "sku" })
+        .select("sku");
+      if (upsertErr) {
+        lastError = upsertErr.message;
+        console.error(`Batch upsert failed for rows ${i}-${i + slice.length - 1}:`, upsertErr.message);
+      } else {
+        updated += upserted?.length ?? slice.length;
       }
-    }));
+    }
     if (lastError) console.log(`Last update error: ${lastError}`);
 
     console.log(`Stock sync complete. Updated ${updated} products.`);
