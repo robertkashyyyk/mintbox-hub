@@ -251,48 +251,57 @@ Deno.serve(async (req) => {
     const syncChunks: string[][] = [];
     for (let i = 0; i < skus.length; i += chunkSize) syncChunks.push(skus.slice(i, i + chunkSize));
 
-    const batchResults: Array<{ size: number; updated: number; total: number; error?: string }> = [];
-    const batchConcurrency = Math.min(4, syncChunks.length);
-    let chunkIdx = 0;
-    await Promise.all(Array.from({ length: batchConcurrency }, async () => {
-      while (true) {
-        const i = chunkIdx++;
-        if (i >= syncChunks.length) return;
-        const chunk = syncChunks[i];
-        const { data, error } = await supabase.functions.invoke("sync-mintsoft-stock", { body: { skus: chunk } });
-        if (error) {
-          console.error(`[ASN-probe] stock sync batch ${i + 1}/${syncChunks.length} failed: ${error.message}`);
-          batchResults.push({ size: chunk.length, updated: 0, total: chunk.length, error: error.message });
-          continue;
-        }
-        const result = (data || {}) as { updated?: number; total?: number; error?: string };
-        batchResults.push({
-          size: chunk.length,
-          updated: Number(result.updated ?? 0),
-          total: Number(result.total ?? chunk.length),
-          error: result.error,
-        });
-      }
-    }));
+    const runBackgroundSync = async () => {
+      const batchResults: Array<{ size: number; updated: number; total: number; error?: string }> = [];
+      const batchConcurrency = Math.min(4, syncChunks.length);
+      let chunkIdx = 0;
 
-    const failedBatches = batchResults.filter((r) => r.error);
-    const updatedTotal = batchResults.reduce((sum, r) => sum + (r.updated || 0), 0);
+      await Promise.all(Array.from({ length: batchConcurrency }, async () => {
+        while (true) {
+          const i = chunkIdx++;
+          if (i >= syncChunks.length) return;
+          const chunk = syncChunks[i];
+          const { data, error } = await supabase.functions.invoke("sync-mintsoft-stock", { body: { skus: chunk } });
+          if (error) {
+            console.error(`[ASN-probe] stock sync batch ${i + 1}/${syncChunks.length} failed: ${error.message}`);
+            batchResults.push({ size: chunk.length, updated: 0, total: chunk.length, error: error.message });
+            continue;
+          }
+
+          const result = (data || {}) as { updated?: number; total?: number; error?: string };
+          batchResults.push({
+            size: chunk.length,
+            updated: Number(result.updated ?? 0),
+            total: Number(result.total ?? chunk.length),
+            error: result.error,
+          });
+        }
+      }));
+
+      const failedBatches = batchResults.filter((r) => r.error);
+      const updatedTotal = batchResults.reduce((sum, r) => sum + (r.updated || 0), 0);
+      console.log(
+        `[ASN-probe] background sync complete: updated=${updatedTotal} batches=${syncChunks.length} failed=${failedBatches.length}`,
+      );
+    };
+
+    // @ts-ignore - EdgeRuntime is provided by the edge runtime
+    EdgeRuntime.waitUntil(runBackgroundSync());
 
     return json({
       success: true,
+      queued: true,
+      message: `Queued stock refresh for ${skus.length} SKU${skus.length === 1 ? "" : "s"}.`,
       local_po_count: localPoCount,
       local_skus: localSkus.size,
       mintsoft_asn_count: asnSummaries.length,
       mintsoft_skus: mintsoftSkus.size,
       union_skus: skus.length,
-      updated: updatedTotal,
       batch_count: syncChunks.length,
-      failed_batch_count: failedBatches.length,
       asns: asnSummaries,
       attempts,
       chosen_url: chosenUrl,
-      batch_results: batchResults,
-    });
+    }, 202);
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : String(e) }, 500);
   }
