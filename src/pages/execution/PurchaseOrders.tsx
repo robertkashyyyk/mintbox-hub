@@ -94,6 +94,36 @@ const PurchaseOrders = () => {
     }
   };
 
+  const refreshTodaysAsns = async () => {
+    setRefreshingAsns(true);
+    try {
+      const { error } = await supabase.functions.invoke("mintsoft-fetch-todays-asns", { body: {} });
+      if (error) throw error;
+      toast({ title: "Today's ASNs refreshed", description: "Buy recommendations updated." });
+      asnsQuery.refetch();
+    } catch (e: any) {
+      toast({ title: "ASN refresh failed", description: e?.message || String(e), variant: "destructive" });
+    } finally {
+      setRefreshingAsns(false);
+    }
+  };
+
+  const asnsQuery = useQuery({
+    queryKey: ["todays-open-asns"],
+    queryFn: async () => {
+      const sb = supabase as any;
+      const { data, error } = await sb
+        .from("todays_open_asns")
+        .select("asn_id, sku, qty, status, asn_date, asn_reference, captured_at")
+        .order("asn_id", { ascending: false })
+        .order("sku", { ascending: true });
+      if (error) throw error;
+      return (data || []) as TodaysAsnRow[];
+    },
+    refetchInterval: 60_000,
+  });
+  const todaysAsns = asnsQuery.data ?? [];
+
   const { data: pos = [], isLoading } = useQuery({
     queryKey: ["po-list"],
     queryFn: async () => {
@@ -110,6 +140,7 @@ const PurchaseOrders = () => {
       })) as POSummary[];
     },
   });
+
 
   const filtered = useMemo(() => {
     if (!search.trim()) return pos;
