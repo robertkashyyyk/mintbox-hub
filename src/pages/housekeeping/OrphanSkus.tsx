@@ -141,6 +141,39 @@ const OrphanSkus = () => {
     onError: (e: any) => toast({ title: "Link failed", description: e.message, variant: "destructive" }),
   });
 
+  const { data: lastMapRun } = useQuery({
+    queryKey: ["sku-map-last-run"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("agent_runs")
+        .select("*")
+        .eq("run_type", "sftp_pull_sku_map")
+        .order("started_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      return data;
+    },
+    refetchInterval: 15000,
+  });
+
+  const pullMapMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke("sftp-pull-sku-map", { body: {} });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data: any) => {
+      toast({
+        title: "SKU map pulled",
+        description: `Upserted ${data.upserted ?? 0} · Linked ${data.resolved ?? 0} orphans · Created ${data.created ?? 0} new SKUs.`,
+      });
+      qc.invalidateQueries({ queryKey: ["orphan-skus"] });
+      qc.invalidateQueries({ queryKey: ["orphan-counts"] });
+      qc.invalidateQueries({ queryKey: ["sku-map-last-run"] });
+    },
+    onError: (e: any) => toast({ title: "SKU map pull failed", description: e.message, variant: "destructive" }),
+  });
+
   return (
     <div className="space-y-6">
       <ModuleHeader
