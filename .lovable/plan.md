@@ -1,66 +1,88 @@
-## 1. Brands page is slow — fix root cause
+## The Problem
 
-The page currently runs **57 separate `count(*)` queries** (one per brand, sequentially via `ilike`). That's the source of the lag, not a network issue.
+Products in `products_cache` can exist without a `mintsoft_product_id` (we call these "orphans"). When that happens:
+- Cost edits silently fail to push to Mintsoft
+- Stock syncs skip them
+- LSA pushes skip them
+- Missing Costs / enrichment workflows treat them as uneditable dead weight
 
-**Fix**: replace it with one Postgres RPC `get_brands_with_product_counts()` that returns all brands + their product counts in a single round-trip using a `LEFT JOIN LATERAL` against `products_cache`. Should drop load time from ~5–15s to under 500ms.
+A "true SKU" (`XXX-...` or `XXX/...` — three alphanumerics + separator) is one we **should** be able to resolve against Mintsoft's catalogue via `GET /api/Product/Search?SKU=...`. If we resolve it, we backfill `mintsoft_product_id` and the SKU rejoins normal operations.
 
-## 2. Per-brand "Auto Update LSA" toggle
+## The Plan
 
-Add to the `brands` table:
-- `auto_update_lsa` boolean (default false)
-- `last_lsa_auto_update_at` timestamptz (for visibility)
-- `last_lsa_auto_update_summary` jsonb (counts updated/failed)
+### 1. Classification — define what "orphan" means in SQL
 
-In **Brands → Edit Brand dialog**: add a Switch labelled "Auto Update LSA on Mintsoft" with helper text explaining it pushes calculated Target LSA to every SKU in this brand on the configured schedule.
+Add a database view `vw_orphan_skus` that filters `products_cache` to rows where:
+- `mintsoft_product_id IS NULL`
+- `sku` matches the true-SKU regex `^[A-Z0-9]{3}[-/]`
+- `quarantined_at IS NULL` (skip dirt SKUs — they're a separate problem)
+- Not discontinued
 
-The Brands table will also show a small badge (`Auto LSA: On`) in a new column so you can see at a glance which brands are enrolled.
+This becomes the single source of truth for "things we should be trying to resolve".
 
-## 3. System Settings → "Auto LSA Cron"
+### 2. Resolver edge function — `mintsoft-resolve-orphan-skus`
 
-New section in `/settings` (Systems Controllers / Super User only) with:
-- **Enabled** master switch
-- **Frequency**: Daily / Weekly / Monthly
-- **Day of week** (when Weekly) — Mon–Sun
-- **Day of month** (when Monthly) — 1–28
-- **Time** — HH:MM (UK time)
-- **Dry run** toggle (logs what would change without pushing)
+A new edge function that:
+1. Pulls a batch (default 100) of orphans from `vw_orphan_skus`, oldest-checked first
+2. For each SKU, calls `GET /api/Product/Search?SKU={sku}&ClientId=3` against Mintsoft
+3. On exact match → updates `products_cache.mintsoft_product_id` + sets `mintsoft_resolved_at = now()`
+4. On no match → bumps `mintsoft_resolve_attempts` and sets `last_mintsoft_resolve_attempt_at`
+5. Writes a summary row to `agent_runs` (type `resolve_orphan_skus`)
 
-Stored in `app_settings` under key `lsa.auto_update_schedule` as JSON.
+New columns on `products_cache`:
+- `mintsoft_resolved_at timestamptz`
+- `last_mintsoft_resolve_attempt_at timestamptz`
+- `mintsoft_resolve_attempts int default 0`
 
-A persistent pg_cron job runs every 15 minutes calling a new edge function `auto-update-lsa-cron`. The function:
-1. Reads schedule from `app_settings`, decides if "now" is a fire window.
-2. Loads all brands with `auto_update_lsa = true`.
-3. For each brand, calls `get_lsa_calibration(brand_id, …)` paginated.
-4. Filters to rows where `target_lsa != current_lsa` (skips dirt: quarantined, discontinued, no mintsoft id, LSA ≤ min).
-5. Pushes in batches of 50 to the existing `mintsoft-update-lsa` edge function.
-6. Writes summary back to `brands.last_lsa_auto_update_*` and an audit row in `agent_runs`.
+Re-check cadence: a SKU is re-tried at most once every 7 days, unless manually requeued. After 5 failed attempts it's flagged as "persistently unresolved" so we stop hammering it.
 
-## 4. Manual "Run now" button
+### 3. Scheduling — pg_cron, conservative
 
-Inside the Edit Brand dialog (when Auto Update LSA is on), a **Run Auto LSA Update Now** button that triggers the same edge function for that single brand — useful for testing the toggle without waiting for the cron.
+Run the resolver every **6 hours**, batch size 200. That clears ~800 SKUs/day without putting any real load on Mintsoft. The cron is master-toggleable via `app_settings` key `orphan_sku_resolver.enabled` (default on) so you can pause it instantly if needed.
 
-## 5. Safety rails
+### 4. Housekeeping UI — `/housekeeping/orphan-skus`
 
-- Cron is **disabled by default** until you flip the master switch in Settings.
-- Per-brand toggle is also **off by default**.
-- Hard cap: max 5,000 SKU updates per brand per run (logged warning if hit).
-- Reuses existing `mintsoft-update-lsa` function (already battle-tested from manual LSA Calibration page).
-- Full audit trail in `agent_runs` (who/when/what).
+A new page slotted into the existing Housekeeping module (sits naturally next to Missing Costs / Dirt SKUs). Shows:
 
-## Technical details
+- **Counts strip**: Total orphans · True-SKU orphans · Resolvable today · Persistently unresolved · Last resolver run
+- **Table** of orphan SKUs with columns: SKU · Brand · Title · Attempts · Last attempt · Last error · Actions
+- **Filters**: brand, attempt count, "never tried" vs "tried & failed"
+- **Row actions**: Retry now (single SKU), Mark as ignore (won't be retried)
+- **Bulk actions**: Retry selected, Retry all in filter
+- **Manual entry box**: Paste a SKU, click Resolve Now — useful for one-off fixes like `ASC-TUB-29-PV`
 
-**New files**
-- `supabase/functions/auto-update-lsa-cron/index.ts` — schedule evaluator + per-brand pusher
-- `src/components/settings/AutoLsaScheduleCard.tsx` — settings UI block
+### 5. Surfacing it elsewhere
 
-**Modified files**
-- `src/pages/Brands.tsx` — uses RPC, adds toggle column, adds Auto LSA fields to edit dialog
-- `src/pages/Settings.tsx` — mounts new schedule card
+- **Product Detail page** — add a small badge "Not linked to Mintsoft" + a "Try to resolve" button when `mintsoft_product_id` is null
+- **Missing Costs** (already done today) — orphans excluded from the list, but add a small footer count "X SKUs hidden — not linked to Mintsoft → fix in Housekeeping"
+- **Housekeeping index counter** — live count of orphan SKUs alongside the other to-do counts
 
-**Migrations**
-- Add columns to `brands`
-- Create `get_brands_with_product_counts()` RPC
-- Seed default `app_settings` row for `lsa.auto_update_schedule`
-- Schedule pg_cron `auto-update-lsa-cron` every 15 minutes
+### 6. Safety rails
 
-Yes, all of this is possible and safe. Ready to build it on approval.
+- Resolver only writes `mintsoft_product_id` on **exact SKU match** from Mintsoft — never fuzzy
+- Master kill switch in `app_settings`
+- Hard cap 1000 SKUs per run
+- Full audit trail in `agent_runs` + per-SKU attempt history
+- Mintsoft API rate-limited at 5 req/sec with backoff
+
+## What it gives you
+
+- Self-healing catalogue: SKUs that get added to Mintsoft after we discovered them locally will auto-link within hours
+- Clear visibility of what's broken and why
+- Zero more silent failures like ASC-TUB-29-PV
+- An audit trail you can show Nathaniel & Clive
+
+## Files to create/modify
+
+**New**
+- `supabase/functions/mintsoft-resolve-orphan-skus/index.ts`
+- `src/pages/housekeeping/OrphanSkus.tsx`
+- Migration: view + columns + cron + app_settings row
+
+**Modified**
+- `src/pages/ProductDetail.tsx` — orphan badge + manual resolve button
+- `src/pages/intelligence/MissingCosts.tsx` — hidden-count footer link
+- `src/pages/HousekeepingIndex.tsx` — orphan counter tile
+- `docs/NAVIGATION.md` + sidebars — new route
+
+Ready to build on approval. Want me to proceed end-to-end, or just the resolver + cron first and ship the UI second?
