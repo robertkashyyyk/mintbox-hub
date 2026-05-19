@@ -197,6 +197,13 @@ const BuyRecommendations = () => {
     }
   };
 
+  // Clear manual qty overrides when BO Only is toggled so the new default suggestion takes effect.
+  useEffect(() => {
+    setOverrides({});
+  }, [boOnly]);
+
+
+
   // Default suggested qty per row, respecting BO Only mode (net BO rounded up to box qty).
   const suggestedFor = (r: any) => {
     const full = Math.max(0, Math.round(num(r.required_qty)));
