@@ -238,11 +238,11 @@ const BuyRecommendations = () => {
     const sb = supabase as any;
     try {
       const totalUnits = selectedRows.reduce(
-        (a, r) => a + (overrides[r.sku] ?? Math.max(0, Math.round(num(r.required_qty)))),
+        (a, r) => a + (overrides[r.sku] ?? suggestedFor(r)),
         0
       );
       const totalCost = selectedRows.reduce(
-        (a, r) => a + (overrides[r.sku] ?? Math.max(0, Math.round(num(r.required_qty)))) * num(r.unit_cost),
+        (a, r) => a + (overrides[r.sku] ?? suggestedFor(r)) * num(r.unit_cost),
         0
       );
       const { data: po, error: poErr } = await sb
@@ -263,7 +263,7 @@ const BuyRecommendations = () => {
           po_id: po.id,
           sku: r.sku,
           product_name: r.product_name,
-          qty_ordered: overrides[r.sku] ?? Math.max(0, Math.round(num(r.required_qty))),
+          qty_ordered: overrides[r.sku] ?? suggestedFor(r),
           unit_cost: num(r.unit_cost),
           snapshot_live_stock: num(r.current_stock),
           snapshot_on_order: num(r.on_order),
