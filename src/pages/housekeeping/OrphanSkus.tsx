@@ -165,19 +165,10 @@ const OrphanSkus = () => {
       return data;
     },
     onSuccess: (data: any) => {
-      if (data?.dry_run) {
-        toast({
-          title: "Dry run complete — no changes made",
-          description: `File ${data.file} · ${data.parsed_rows} rows · would link ${data.would_resolve} orphans · would create ${data.would_create} new SKUs · ${data.payload_already_linked} already linked.`,
-        });
-      } else {
-        toast({
-          title: "SKU map pulled",
-          description: `Upserted ${data.upserted ?? 0} · Linked ${data.resolved ?? 0} orphans · Created ${data.created ?? 0} new SKUs.`,
-        });
-      }
-      qc.invalidateQueries({ queryKey: ["orphan-skus"] });
-      qc.invalidateQueries({ queryKey: ["orphan-counts"] });
+      toast({
+        title: data?.dry_run ? "Dry run started" : "SKU map pull started",
+        description: "Running in the background — results will appear below within a minute or two.",
+      });
       qc.invalidateQueries({ queryKey: ["sku-map-last-run"] });
     },
     onError: (e: any) => toast({ title: "SKU map pull failed", description: e.message, variant: "destructive" }),
