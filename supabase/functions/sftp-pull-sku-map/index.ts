@@ -1,6 +1,10 @@
 // Pull Mintsoft SKU -> ProductID mapping CSV from SFTP, upsert into
 // mintsoft_sku_map, then backfill products_cache.mintsoft_product_id for
 // orphans and auto-create cache rows for new true-format SKUs.
+//
+// Runs in the BACKGROUND via EdgeRuntime.waitUntil to avoid the 2s CPU limit
+// on the request path. The HTTP response returns immediately with the
+// agent_runs row id so the UI can poll for progress.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import SftpClient from "npm:ssh2-sftp-client@10.0.3";
 import { parse } from "npm:csv-parse@5.5.6/sync";
@@ -16,45 +20,29 @@ const SFTP_USER = "mintsoft_export";
 const SFTP_DIR = "/home/mintsoft_export";
 const FILE_PREFIXES = ["pdochubMintsoftProductIDList", "SkuMapExport", "MintsoftProductIDList"];
 
-Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+async function doWork(
+  supabase: ReturnType<typeof createClient>,
+  runId: string,
+  dryRun: boolean,
+) {
+  const sftp = new SftpClient();
+  let chosenFile: string | null = null;
 
-  let dryRun = false;
-  try {
-    if (req.method === "POST") {
-      const body = await req.json().catch(() => ({}));
-      dryRun = body?.dry_run === true;
-    } else {
-      dryRun = new URL(req.url).searchParams.get("dry_run") === "true";
-    }
-  } catch (_) { /* ignore */ }
-
-  const startedAt = new Date();
-  const supabase = createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-  );
-
-
-  const recordRun = async (
+  const updateRun = async (patch: Record<string, unknown>) => {
+    try {
+      await supabase.from("agent_runs").update(patch).eq("id", runId);
+    } catch (_) { /* ignore */ }
+  };
+  const finish = async (
     status: "succeeded" | "failed" | "partial",
     summary: Record<string, unknown>,
     errorMessage?: string,
-  ) => {
-    try {
-      await supabase.from("agent_runs").insert({
-        run_type: "sftp_pull_sku_map",
-        started_at: startedAt.toISOString(),
-        finished_at: new Date().toISOString(),
-        status,
-        summary,
-        error: errorMessage ?? null,
-      });
-    } catch (_) { /* ignore */ }
-  };
-
-  const sftp = new SftpClient();
-  let chosenFile: string | null = null;
+  ) => updateRun({
+    finished_at: new Date().toISOString(),
+    status,
+    summary,
+    error: errorMessage ?? null,
+  });
 
   try {
     const password = Deno.env.get("MINTSOFT_FTP_PASSWORD")?.replace(/\r/g, "").trim();
@@ -85,8 +73,11 @@ Deno.serve(async (req) => {
       sftp.on("keyboard-interactive", (_n, _i, _l, _p, finish) => finish([password]));
     }
     if (privateKey) connectOpts.privateKey = privateKey;
+
+    await updateRun({ summary: { dry_run: dryRun, phase: "connecting" } });
     await sftp.connect(connectOpts);
 
+    await updateRun({ summary: { dry_run: dryRun, phase: "listing" } });
     const list = await sftp.list(SFTP_DIR);
     const candidates = list
       .filter((f) => f.type === "-" &&
@@ -95,20 +86,25 @@ Deno.serve(async (req) => {
       .sort((a, b) => b.modifyTime - a.modifyTime);
 
     if (candidates.length === 0) {
-      await recordRun("partial", { message: "no file found", prefixes: FILE_PREFIXES, seen: list.map((f) => f.name) });
-      return new Response(JSON.stringify({ ok: true, message: "no file" }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      await finish("partial", {
+        dry_run: dryRun,
+        message: "no file found",
+        prefixes: FILE_PREFIXES,
+        seen: list.map((f) => f.name),
+      });
+      return;
     }
 
     chosenFile = candidates[0].name;
+    await updateRun({ summary: { dry_run: dryRun, phase: "downloading", file: chosenFile } });
     const remotePath = `${SFTP_DIR}/${chosenFile}`;
     const buf = (await sftp.get(remotePath)) as Buffer;
     const text = buf.toString("utf-8");
 
-    // Auto-detect delimiter
     const firstLine = text.split(/\r?\n/, 1)[0] ?? "";
     const delim = firstLine.includes("\t") ? "\t" : firstLine.includes(";") ? ";" : ",";
 
+    await updateRun({ summary: { dry_run: dryRun, phase: "parsing", file: chosenFile, bytes: buf.length } });
     const rows: Array<Record<string, string>> = parse(text, {
       columns: true,
       skip_empty_lines: true,
@@ -139,7 +135,6 @@ Deno.serve(async (req) => {
     }
 
     if (dryRun) {
-      // Compute what WOULD happen, no writes
       const CHUNK_PREVIEW = 5000;
       let pPayloadRows = 0, pResolve = 0, pCreate = 0, pTrue = 0, pLinked = 0;
       for (let i = 0; i < payload.length; i += CHUNK_PREVIEW) {
@@ -152,16 +147,21 @@ Deno.serve(async (req) => {
         pCreate += Number(row?.would_create ?? 0);
         pTrue += Number(row?.payload_true_format ?? 0);
         pLinked += Number(row?.payload_already_linked ?? 0);
+        await updateRun({
+          summary: {
+            dry_run: true, phase: "previewing", file: chosenFile,
+            progress: Math.min(i + CHUNK_PREVIEW, payload.length), total: payload.length,
+            would_resolve: pResolve, would_create: pCreate,
+          },
+        });
       }
-      const summary = {
+      await finish("succeeded", {
         dry_run: true, file: chosenFile, rows_in_csv: rows.length, parsed_rows: payload.length,
         skipped_invalid: skipped, would_upsert: pPayloadRows, would_resolve: pResolve,
         would_create: pCreate, payload_true_format: pTrue, payload_already_linked: pLinked,
         delimiter: delim,
-      };
-      await recordRun("succeeded", summary);
-      return new Response(JSON.stringify({ ok: true, ...summary }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      });
+      return;
     }
 
     const CHUNK = 1500;
@@ -172,31 +172,75 @@ Deno.serve(async (req) => {
       if (error) throw new Error(`bulk_upsert_sku_map failed: ${error.message}`);
       const row = Array.isArray(data) ? data[0] : data;
       upserted += Number(row?.upserted_count ?? 0);
+      await updateRun({
+        summary: {
+          dry_run: false, phase: "upserting", file: chosenFile,
+          progress: Math.min(i + CHUNK, payload.length), total: payload.length, upserted,
+        },
+      });
     }
 
+    await updateRun({ summary: { dry_run: false, phase: "applying", file: chosenFile, upserted } });
     const { data: applyData, error: applyErr } = await supabase.rpc("apply_sku_map_to_cache");
     if (applyErr) throw new Error(`apply_sku_map_to_cache failed: ${applyErr.message}`);
     const applyRow = Array.isArray(applyData) ? applyData[0] : applyData;
     const resolved = Number(applyRow?.resolved_count ?? 0);
     const created = Number(applyRow?.created_count ?? 0);
 
-    const summary = {
+    await finish("succeeded", {
       file: chosenFile, rows_in_csv: rows.length, parsed_rows: payload.length,
       skipped_invalid: skipped, upserted, resolved, created, delimiter: delim,
-    };
-    await recordRun("succeeded", summary);
-
-    return new Response(JSON.stringify({ ok: true, ...summary }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("sftp-pull-sku-map failed:", msg);
-    await recordRun("failed", { file: chosenFile, dry_run: dryRun }, msg);
-    return new Response(JSON.stringify({ ok: false, error: msg }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    await finish("failed", { file: chosenFile, dry_run: dryRun }, msg);
   } finally {
     try { await sftp.end(); } catch (_) { /* ignore */ }
   }
-});
+}
 
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+
+  let dryRun = false;
+  try {
+    if (req.method === "POST") {
+      const body = await req.json().catch(() => ({}));
+      dryRun = body?.dry_run === true;
+    } else {
+      dryRun = new URL(req.url).searchParams.get("dry_run") === "true";
+    }
+  } catch (_) { /* ignore */ }
+
+  const supabase = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+  );
+
+  const { data: runRow, error: insertErr } = await supabase
+    .from("agent_runs")
+    .insert({
+      run_type: "sftp_pull_sku_map",
+      started_at: new Date().toISOString(),
+      status: "running",
+      summary: { dry_run: dryRun, phase: "queued" },
+    })
+    .select("id")
+    .single();
+
+  if (insertErr || !runRow) {
+    return new Response(JSON.stringify({ ok: false, error: insertErr?.message ?? "failed to create run row" }), {
+      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  // Fire-and-forget background work
+  // @ts-ignore: EdgeRuntime is provided by Supabase runtime
+  EdgeRuntime.waitUntil(doWork(supabase, runRow.id, dryRun));
+
+  return new Response(
+    JSON.stringify({ ok: true, started: true, dry_run: dryRun, run_id: runRow.id }),
+    { status: 202, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+  );
+});
