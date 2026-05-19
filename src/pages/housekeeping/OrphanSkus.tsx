@@ -165,19 +165,10 @@ const OrphanSkus = () => {
       return data;
     },
     onSuccess: (data: any) => {
-      if (data?.dry_run) {
-        toast({
-          title: "Dry run complete — no changes made",
-          description: `File ${data.file} · ${data.parsed_rows} rows · would link ${data.would_resolve} orphans · would create ${data.would_create} new SKUs · ${data.payload_already_linked} already linked.`,
-        });
-      } else {
-        toast({
-          title: "SKU map pulled",
-          description: `Upserted ${data.upserted ?? 0} · Linked ${data.resolved ?? 0} orphans · Created ${data.created ?? 0} new SKUs.`,
-        });
-      }
-      qc.invalidateQueries({ queryKey: ["orphan-skus"] });
-      qc.invalidateQueries({ queryKey: ["orphan-counts"] });
+      toast({
+        title: data?.dry_run ? "Dry run started" : "SKU map pull started",
+        description: "Running in the background — results will appear below within a minute or two.",
+      });
       qc.invalidateQueries({ queryKey: ["sku-map-last-run"] });
     },
     onError: (e: any) => toast({ title: "SKU map pull failed", description: e.message, variant: "destructive" }),
@@ -273,12 +264,22 @@ const OrphanSkus = () => {
             {lastMapRun && (
               <div className="flex flex-wrap gap-4 text-sm">
                 <div><span className="text-muted-foreground">Last run:</span> {formatDistanceToNow(new Date(lastMapRun.started_at), { addSuffix: true })}</div>
-                <div><span className="text-muted-foreground">Status:</span> <Badge variant="outline">{lastMapRun.status}</Badge></div>
-                {lastMapRun.summary && (
+                <div><span className="text-muted-foreground">Status:</span> <Badge variant="outline">{lastMapRun.status}{(lastMapRun.summary as any)?.dry_run ? " · dry run" : ""}</Badge></div>
+                {lastMapRun.status === "running" && (lastMapRun.summary as any)?.phase && (
+                  <div><span className="text-muted-foreground">Phase:</span> <span className="font-semibold">{(lastMapRun.summary as any).phase}</span>{(lastMapRun.summary as any).total ? ` (${(lastMapRun.summary as any).progress}/${(lastMapRun.summary as any).total})` : ""}</div>
+                )}
+                {lastMapRun.summary && !(lastMapRun.summary as any)?.dry_run && (
                   <>
                     <div><span className="text-muted-foreground">Upserted:</span> <span className="font-semibold">{(lastMapRun.summary as any).upserted ?? 0}</span></div>
                     <div><span className="text-muted-foreground">Linked:</span> <span className="font-semibold text-pd-accent">{(lastMapRun.summary as any).resolved ?? 0}</span></div>
                     <div><span className="text-muted-foreground">Created:</span> <span className="font-semibold">{(lastMapRun.summary as any).created ?? 0}</span></div>
+                  </>
+                )}
+                {lastMapRun.summary && (lastMapRun.summary as any)?.dry_run && lastMapRun.status === "succeeded" && (
+                  <>
+                    <div><span className="text-muted-foreground">Would link:</span> <span className="font-semibold text-pd-accent">{(lastMapRun.summary as any).would_resolve ?? 0}</span></div>
+                    <div><span className="text-muted-foreground">Would create:</span> <span className="font-semibold">{(lastMapRun.summary as any).would_create ?? 0}</span></div>
+                    <div><span className="text-muted-foreground">Already linked:</span> <span className="font-semibold">{(lastMapRun.summary as any).payload_already_linked ?? 0}</span></div>
                   </>
                 )}
                 {(lastMapRun as any).error && (
