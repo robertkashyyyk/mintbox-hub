@@ -264,6 +264,7 @@ const MissingCosts = () => {
       if (!result?.ok) throw new Error(result?.error ?? "Unknown error");
       toast.success(`${row.sku}: cost £${val.toFixed(2)} sent to Mintsoft`);
       setEdits((e) => { const n = { ...e }; delete n[row.id]; return n; });
+      qc.setQueryData(["missing-costs-all"], (old: any[] | undefined) => (old ?? []).filter((p) => p.id !== row.id));
       qc.invalidateQueries({ queryKey: ["missing-costs-all"] });
     } catch (e: any) {
       toast.error(`${row.sku}: ${e?.message ?? "Save failed"}`);
