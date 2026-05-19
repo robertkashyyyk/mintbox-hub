@@ -31,6 +31,8 @@ const OrphanSkus = () => {
   const { toast } = useToast();
   const [filter, setFilter] = useState<"true_sku" | "all" | "persistent" | "never_tried">("true_sku");
   const [manualSku, setManualSku] = useState("");
+  const [linkSku, setLinkSku] = useState("");
+  const [linkId, setLinkId] = useState("");
 
   const { data: counts } = useQuery({
     queryKey: ["orphan-counts"],
