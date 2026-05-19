@@ -19,11 +19,22 @@ const FILE_PREFIXES = ["pdochubMintsoftProductIDList", "SkuMapExport", "Mintsoft
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
+  let dryRun = false;
+  try {
+    if (req.method === "POST") {
+      const body = await req.json().catch(() => ({}));
+      dryRun = body?.dry_run === true;
+    } else {
+      dryRun = new URL(req.url).searchParams.get("dry_run") === "true";
+    }
+  } catch (_) { /* ignore */ }
+
   const startedAt = new Date();
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
+
 
   const recordRun = async (
     status: "succeeded" | "failed" | "partial",
