@@ -118,7 +118,7 @@ Deno.serve(async (req) => {
       if (Date.now() - wallStart > SOFT_WALL_MS) { timedOut = true; break; }
       checked++;
       try {
-        const url = `${baseUrl}/api/Product/Search?SKU=${encodeURIComponent(c.sku)}`;
+        const url = `${baseUrl}/api/Product/List?SKU=${encodeURIComponent(c.sku)}&PageNo=1&Limit=50`;
         const res = await fetch(url, {
           headers: { "ms-apikey": apiKey, "Content-Type": "application/json" },
         });
