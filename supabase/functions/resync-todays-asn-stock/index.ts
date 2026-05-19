@@ -170,6 +170,8 @@ Deno.serve(async (req) => {
       union_skus: skus.length,
       updated: (syncRes as any)?.updated ?? null,
       asns: asnSummaries,
+      attempts,
+      chosen_url: chosenUrl,
     });
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : String(e) }, 500);
