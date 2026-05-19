@@ -8,9 +8,10 @@ const corsHeaders = {
 const TRUE_SKU_RE = /^[A-Z0-9]{3}[-/]/;
 const RECHECK_DAYS = 7;
 const MAX_ATTEMPTS = 5;
-const HARD_CAP = 1000;
-const DEFAULT_BATCH = 200;
-const RATE_DELAY_MS = 200; // ~5 req/sec
+const HARD_CAP = 500;
+const DEFAULT_BATCH = 50;
+const RATE_DELAY_MS = 60;
+const SOFT_WALL_MS = 110_000; // stop gracefully before edge timeout
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
