@@ -32,7 +32,7 @@ Deno.serve(async (req) => {
       if (req.method === "POST") {
         const body = await req.json().catch(() => null);
         if (body && Array.isArray(body.skus) && body.skus.length > 0) {
-          scopeSkus = body.skus.map((s: unknown) => String(s)).filter(Boolean);
+          scopeSkus = Array.from(new Set(body.skus.map((s: unknown) => String(s).trim()).filter(Boolean)));
           console.log(`Scoped sync requested for ${scopeSkus.length} SKUs`);
         }
       }
@@ -91,12 +91,14 @@ Deno.serve(async (req) => {
     // WarehouseId=5 is 'Coleraine Live'
     let stockData: MintsoftStockItem[] = [];
 
-    if (scopeSkus && scopeSkus.length > 0) {
+    const useBulkFetchForScope = !!scopeSkus && scopeSkus.length > 250;
+
+    if (scopeSkus && scopeSkus.length > 0 && !useBulkFetchForScope) {
       // Per-SKU fetch — pulling the entire warehouse list (~200k rows) just to
       // refresh 40-100 SKUs times out. Hit StockLevels with &SKU= for each one
       // and fan them out in small concurrent batches.
       console.log(`Fetching ${scopeSkus.length} SKUs individually from Mintsoft...`);
-      const concurrency = 8;
+      const concurrency = Math.min(32, Math.max(8, Math.ceil(scopeSkus.length / 75)));
       let idx = 0;
       let failed = 0;
       const workers = Array.from({ length: concurrency }, async () => {
@@ -124,6 +126,9 @@ Deno.serve(async (req) => {
       console.log(`Per-SKU fetch complete: ${stockData.length} rows, ${failed} failures`);
     } else {
       const stockUrl = `${settings.base_url}/api/Product/StockLevels?WarehouseId=5`;
+      if (useBulkFetchForScope) {
+        console.log(`Scoped sync is large (${scopeSkus!.length} SKUs) — using bulk warehouse fetch`);
+      }
       console.log(`Fetching from Mintsoft: ${stockUrl}`);
       const stockResponse = await fetch(stockUrl, {
         headers: { "ms-apikey": mintsoftApiKey, "Content-Type": "application/json" },
@@ -132,6 +137,11 @@ Deno.serve(async (req) => {
         throw new Error(`Mintsoft API error: ${stockResponse.status} ${stockResponse.statusText}`);
       }
       stockData = await stockResponse.json();
+      if (scopeSkus && scopeSkus.length > 0) {
+        const scopeSet = new Set(scopeSkus);
+        stockData = stockData.filter((it) => scopeSet.has(it.SKU));
+        console.log(`Bulk fetch filtered down to ${stockData.length} matching stock rows`);
+      }
     }
     console.log(`Received ${stockData.length} stock items from Mintsoft`);
 
@@ -190,22 +200,18 @@ Deno.serve(async (req) => {
 
     let updated = 0;
     let lastError: string | null = null;
-    // Per-SKU UPDATE to avoid one bad row failing an entire batch upsert.
-    for (const u of updates) {
-      const { error: upErr } = await supabase
+    const chunkSize = 250;
+    for (let i = 0; i < updates.length; i += chunkSize) {
+      const slice = updates.slice(i, i + chunkSize);
+      const { error: upsertErr, data: upserted } = await supabase
         .from("products_cache")
-        .update({
-          current_stock: u.current_stock,
-          back_order_qty: u.back_order_qty,
-          on_order: u.on_order,
-          last_stock_sync: u.last_stock_sync,
-        })
-        .eq("sku", u.sku);
-      if (upErr) {
-        lastError = upErr.message;
-        console.error(`Update failed for ${u.sku}:`, upErr.message);
+        .upsert(slice, { onConflict: "sku" })
+        .select("sku");
+      if (upsertErr) {
+        lastError = upsertErr.message;
+        console.error(`Batch upsert failed for rows ${i}-${i + slice.length - 1}:`, upsertErr.message);
       } else {
-        updated++;
+        updated += upserted?.length ?? slice.length;
       }
     }
     if (lastError) console.log(`Last update error: ${lastError}`);
