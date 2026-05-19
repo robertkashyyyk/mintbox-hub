@@ -9,8 +9,32 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
-import { Search, RefreshCw } from "lucide-react";
+import { Search, RefreshCw, Truck } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+
+interface POSummary {
+  id: string;
+  po_number: string | null;
+  status: string;
+  supplier_id: string | null;
+  total_qty: number;
+  total_cost: number;
+  created_at: string;
+  sent_at: string | null;
+  mintsoft_po_id: number | null;
+  supplier_name?: string | null;
+}
+
+interface TodaysAsnRow {
+  asn_id: number;
+  sku: string;
+  qty: number;
+  status: string | null;
+  asn_date: string | null;
+  asn_reference: string | null;
+  captured_at: string;
+}
+
 
 interface POSummary {
   id: string;
