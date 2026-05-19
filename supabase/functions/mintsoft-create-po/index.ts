@@ -121,6 +121,7 @@ Deno.serve(async (req) => {
     // (There is NO /api/PurchaseOrder/Create endpoint — ASN is the correct entity.)
     const payload = {
       ClientId: 3,
+      GoodsInType: "Carton",
       Supplier: supplier.name ?? "",
       POReference: po.po_number || `PO-${po.id.slice(0, 8)}`,
       Items: orderItems,
