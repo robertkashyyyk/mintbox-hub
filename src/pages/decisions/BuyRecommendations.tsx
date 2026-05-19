@@ -197,14 +197,30 @@ const BuyRecommendations = () => {
     }
   };
 
+  // Clear manual qty overrides when BO Only is toggled so the new default suggestion takes effect.
+  useEffect(() => {
+    setOverrides({});
+  }, [boOnly]);
+
+
+
+  // Default suggested qty per row, respecting BO Only mode (net BO rounded up to box qty).
+  const suggestedFor = (r: any) => {
+    const full = Math.max(0, Math.round(num(r.required_qty)));
+    if (!boOnly) return full;
+    const box = Math.max(1, num(r.box_quantity) || 1);
+    const netBo = Math.max(0, num(r.back_orders) - num(r.on_order));
+    return netBo > 0 ? Math.ceil(netBo / box) * box : 0;
+  };
+
   const selectionSummary = useMemo(() => {
-    const units = selectedRows.reduce((a, r) => a + (overrides[r.sku] ?? Math.max(0, Math.round(num(r.required_qty)))), 0);
+    const units = selectedRows.reduce((a, r) => a + (overrides[r.sku] ?? suggestedFor(r)), 0);
     const cost = selectedRows.reduce(
-      (a, r) => a + (overrides[r.sku] ?? Math.max(0, Math.round(num(r.required_qty)))) * num(r.unit_cost),
+      (a, r) => a + (overrides[r.sku] ?? suggestedFor(r)) * num(r.unit_cost),
       0
     );
     return { count: selectedRows.length, units, cost };
-  }, [selectedRows, overrides]);
+  }, [selectedRows, overrides, boOnly]);
 
   const pendingCount = rows.filter((r) => r.status === "po_sent_pending").length;
 
@@ -229,11 +245,11 @@ const BuyRecommendations = () => {
     const sb = supabase as any;
     try {
       const totalUnits = selectedRows.reduce(
-        (a, r) => a + (overrides[r.sku] ?? Math.max(0, Math.round(num(r.required_qty)))),
+        (a, r) => a + (overrides[r.sku] ?? suggestedFor(r)),
         0
       );
       const totalCost = selectedRows.reduce(
-        (a, r) => a + (overrides[r.sku] ?? Math.max(0, Math.round(num(r.required_qty)))) * num(r.unit_cost),
+        (a, r) => a + (overrides[r.sku] ?? suggestedFor(r)) * num(r.unit_cost),
         0
       );
       const { data: po, error: poErr } = await sb
@@ -254,7 +270,7 @@ const BuyRecommendations = () => {
           po_id: po.id,
           sku: r.sku,
           product_name: r.product_name,
-          qty_ordered: overrides[r.sku] ?? Math.max(0, Math.round(num(r.required_qty))),
+          qty_ordered: overrides[r.sku] ?? suggestedFor(r),
           unit_cost: num(r.unit_cost),
           snapshot_live_stock: num(r.current_stock),
           snapshot_on_order: num(r.on_order),
@@ -526,13 +542,17 @@ const BuyRecommendations = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {detailRows.map((r) => {
-                    const suggested = Math.max(0, Math.round(num(r.required_qty)));
+                   {detailRows.map((r) => {
+                    const fullSuggested = Math.max(0, Math.round(num(r.required_qty)));
                     const raw = Math.max(0, Math.round(num(r.raw_required_qty)));
                     const box = Math.max(1, num(r.box_quantity) || 1);
+                    // In BO Only mode, suggest just the net backorder (BO − on order), rounded up to box qty.
+                    const netBo = Math.max(0, num(r.back_orders) - num(r.on_order));
+                    const boSuggested = netBo > 0 ? Math.ceil(netBo / box) * box : 0;
+                    const suggested = boOnly ? boSuggested : fullSuggested;
                     const qty = overrides[r.sku] ?? suggested;
                     const lineCost = qty * num(r.unit_cost);
-                    const wasBoxed = box > 1 && suggested > raw && raw > 0;
+                    const wasBoxed = box > 1 && suggested > raw && raw > 0 && !boOnly;
                     return (
                       <TableRow key={r.sku} data-state={selected[r.sku] ? "selected" : undefined}>
                         <TableCell>
