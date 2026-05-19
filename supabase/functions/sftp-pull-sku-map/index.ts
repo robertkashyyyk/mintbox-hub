@@ -138,6 +138,32 @@ Deno.serve(async (req) => {
       payload.push({ sku, mintsoft_product_id: id, name });
     }
 
+    if (dryRun) {
+      // Compute what WOULD happen, no writes
+      const CHUNK_PREVIEW = 5000;
+      let pPayloadRows = 0, pResolve = 0, pCreate = 0, pTrue = 0, pLinked = 0;
+      for (let i = 0; i < payload.length; i += CHUNK_PREVIEW) {
+        const slice = payload.slice(i, i + CHUNK_PREVIEW);
+        const { data, error } = await supabase.rpc("preview_sku_map_apply", { _payload: slice });
+        if (error) throw new Error(`preview_sku_map_apply failed: ${error.message}`);
+        const row = Array.isArray(data) ? data[0] : data;
+        pPayloadRows += Number(row?.payload_rows ?? 0);
+        pResolve += Number(row?.would_resolve ?? 0);
+        pCreate += Number(row?.would_create ?? 0);
+        pTrue += Number(row?.payload_true_format ?? 0);
+        pLinked += Number(row?.payload_already_linked ?? 0);
+      }
+      const summary = {
+        dry_run: true, file: chosenFile, rows_in_csv: rows.length, parsed_rows: payload.length,
+        skipped_invalid: skipped, would_upsert: pPayloadRows, would_resolve: pResolve,
+        would_create: pCreate, payload_true_format: pTrue, payload_already_linked: pLinked,
+        delimiter: delim,
+      };
+      await recordRun("succeeded", summary);
+      return new Response(JSON.stringify({ ok: true, ...summary }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
     const CHUNK = 1500;
     let upserted = 0;
     for (let i = 0; i < payload.length; i += CHUNK) {
@@ -165,7 +191,7 @@ Deno.serve(async (req) => {
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("sftp-pull-sku-map failed:", msg);
-    await recordRun("failed", { file: chosenFile }, msg);
+    await recordRun("failed", { file: chosenFile, dry_run: dryRun }, msg);
     return new Response(JSON.stringify({ ok: false, error: msg }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
@@ -173,3 +199,4 @@ Deno.serve(async (req) => {
     try { await sftp.end(); } catch (_) { /* ignore */ }
   }
 });
+
