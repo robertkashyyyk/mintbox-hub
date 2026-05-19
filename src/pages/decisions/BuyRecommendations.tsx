@@ -500,11 +500,11 @@ const BuyRecommendations = () => {
                 onChange={(e) => setSearch(e.target.value)} className="pl-9" />
             </div>
             <div className="flex items-center gap-2">
-              <Switch id="bo-only" checked={boOnly} onCheckedChange={setBoOnly} />
+              <Switch id="bo-only" checked={boOnly} onCheckedChange={(v) => { setBoOnly(v); if (v) setSaOnly(false); }} />
               <Label htmlFor="bo-only" className="cursor-pointer text-sm">BO Only</Label>
             </div>
             <div className="flex items-center gap-2">
-              <Switch id="sa-only" checked={saOnly} onCheckedChange={setSaOnly} />
+              <Switch id="sa-only" checked={saOnly} onCheckedChange={(v) => { setSaOnly(v); if (v) setBoOnly(false); }} />
               <Label htmlFor="sa-only" className="cursor-pointer text-sm">SA Only</Label>
             </div>
             <div className="ml-auto text-xs text-muted-foreground">
