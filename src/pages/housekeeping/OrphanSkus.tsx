@@ -236,6 +236,45 @@ const OrphanSkus = () => {
         </CardContent>
       </Card>
 
+      {/* Mintsoft SKU map sync */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <DownloadCloud className="h-4 w-4" />
+            Mintsoft SKU → Product ID map (CSV)
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground mb-3">
+            Pulls the latest <span className="font-mono">pdochubMintsoftProductIDList*.csv</span> from the export folder,
+            then links every matching orphan and creates new cache rows for any true-format SKU we don't have yet.
+            Runs automatically every Sunday at 03:00; use the button for an on-demand pull.
+          </p>
+          <div className="flex flex-wrap gap-6 items-center">
+            <Button onClick={() => pullMapMutation.mutate()} disabled={pullMapMutation.isPending}>
+              <DownloadCloud className="h-4 w-4 mr-2" />
+              {pullMapMutation.isPending ? "Pulling…" : "Pull SKU map now"}
+            </Button>
+            {lastMapRun && (
+              <div className="flex flex-wrap gap-4 text-sm">
+                <div><span className="text-muted-foreground">Last run:</span> {formatDistanceToNow(new Date(lastMapRun.started_at), { addSuffix: true })}</div>
+                <div><span className="text-muted-foreground">Status:</span> <Badge variant="outline">{lastMapRun.status}</Badge></div>
+                {lastMapRun.summary && (
+                  <>
+                    <div><span className="text-muted-foreground">Upserted:</span> <span className="font-semibold">{(lastMapRun.summary as any).upserted ?? 0}</span></div>
+                    <div><span className="text-muted-foreground">Linked:</span> <span className="font-semibold text-pd-accent">{(lastMapRun.summary as any).resolved ?? 0}</span></div>
+                    <div><span className="text-muted-foreground">Created:</span> <span className="font-semibold">{(lastMapRun.summary as any).created ?? 0}</span></div>
+                  </>
+                )}
+                {lastMapRun.error_message && (
+                  <div className="text-destructive text-xs">{lastMapRun.error_message}</div>
+                )}
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Last run summary */}
       {lastRun?.summary && (
         <Card>
