@@ -559,10 +559,25 @@ const BuyRecommendations = () => {
                         <TableCell className="text-right tabular-nums">{num(r.current_stock)}</TableCell>
                         <TableCell className="text-right text-muted-foreground tabular-nums">{num(r.low_stock_alert)}</TableCell>
                         <TableCell className="text-right tabular-nums">
-                          {num(r.back_orders) > 0
-                            ? <span className="text-warning font-medium">{num(r.back_orders)}</span>
-                            : <span className="text-muted-foreground">0</span>}
-                        </TableCell>
+                          {(() => {
+                            const bo = num(r.back_orders);
+                            const oo = num(r.on_order);
+                            const net = Math.max(0, bo - oo);
+                            if (bo <= 0) return <span className="text-muted-foreground">0</span>;
+                            if (oo > 0) {
+                              return (
+                                <span
+                                  className={net > 0 ? "text-warning font-medium" : "text-muted-foreground"}
+                                  title={`${bo} on backorder − ${oo} on order = net ${net}`}
+                                >
+                                  {net}
+                                  <span className="ml-1 text-[10px] text-muted-foreground">({bo}-{oo})</span>
+                                </span>
+                              );
+                            }
+                            return <span className="text-warning font-medium">{bo}</span>;
+                          })()}
+                        </TableCell>}
                         <TableCell className="text-right tabular-nums">
                           {num(r.sales_4w) > 0 ? num(r.sales_4w) : <span className="text-muted-foreground">0</span>}
                         </TableCell>
