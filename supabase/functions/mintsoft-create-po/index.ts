@@ -106,7 +106,8 @@ Deno.serve(async (req) => {
         skipped.push({ sku: l.sku, reason: "qty <= 0" });
         continue;
       }
-      orderItems.push({ ProductID: pid, Quantity: qty, UnitCost: cost });
+      // NewASNItem schema: { ProductId, SKU, Quantity, SourceLineId? }
+      orderItems.push({ ProductId: pid, SKU: l.sku, Quantity: qty, SourceLineId: l.id });
     }
 
     if (orderItems.length === 0) {
@@ -116,10 +117,12 @@ Deno.serve(async (req) => {
       }, 422);
     }
 
+    // Mintsoft API: PUT /api/ASN with NewASN schema
+    // (There is NO /api/PurchaseOrder/Create endpoint — ASN is the correct entity.)
     const payload = {
-      SupplierID: supplier.mintsoft_supplier_id,
-      OrderRef: po.po_number || `PO-${po.id.slice(0, 8)}`,
-      OrderItems: orderItems,
+      Supplier: supplier.name ?? "",
+      POReference: po.po_number || `PO-${po.id.slice(0, 8)}`,
+      Items: orderItems,
     };
 
     // Mark attempt
@@ -128,8 +131,8 @@ Deno.serve(async (req) => {
       mintsoft_send_error: null,
     }).eq("id", poId);
 
-    const resp = await fetch(`${MINTSOFT_BASE}/api/PurchaseOrder/Create`, {
-      method: "POST",
+    const resp = await fetch(`${MINTSOFT_BASE}/api/ASN`, {
+      method: "PUT",
       headers: { "ms-apikey": mintsoftKey, "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
@@ -149,9 +152,10 @@ Deno.serve(async (req) => {
     }
 
     // Mintsoft PO create returns the new PO ID (number) and often an ASN reference
+    // ToolkitResult typically returns { Success, Message, ID } — ID is the new ASN id.
     const mintsoftPoId =
-      parsed?.ID ?? parsed?.Id ?? parsed?.PurchaseOrderID ?? parsed?.PurchaseOrderId ?? null;
-    const asnRef = parsed?.ASNReference ?? parsed?.AsnReference ?? parsed?.OrderRef ?? null;
+      parsed?.ID ?? parsed?.Id ?? parsed?.ASNId ?? parsed?.AsnId ?? null;
+    const asnRef = parsed?.POReference ?? parsed?.ASNReference ?? parsed?.AsnReference ?? payload.POReference ?? null;
 
     const { error: updErr } = await svc.from("purchase_orders").update({
       status: "sent",
