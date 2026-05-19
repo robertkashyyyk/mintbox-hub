@@ -147,23 +147,32 @@ Deno.serve(async (req) => {
 
     // Build a SKU set we already track
     const knownSkus = new Set(products.map((p) => p.sku));
+    const scopeSkuSet = scopeSkus ? new Set(scopeSkus) : null;
     const now = new Date().toISOString();
 
-    // Find which scoped SKUs are already in products_cache. For any that are missing,
-    // insert a minimal stub row (name = sku) so the stock UPDATE can land. The
-    // mintsoft-enrich-batch cron will fill in the real name/cost/brand later.
-    const candidateSkus = stockData.map((it) => it.SKU).filter((s) => knownSkus.has(s));
+    // For scoped syncs, we may receive SKUs that do not yet exist locally.
+    // Seed those as lightweight stub rows so stock can still land. For full syncs,
+    // only touch rows that already exist in products_cache.
+    const candidateSkus = Array.from(new Set(
+      stockData
+        .map((it) => it.SKU)
+        .filter((sku) => scopeSkuSet ? scopeSkuSet.has(sku) : knownSkus.has(sku))
+    ));
     const existingSkus = new Set<string>();
+    const existingNames = new Map<string, string>();
     if (candidateSkus.length > 0) {
       const chunk = 500;
       for (let i = 0; i < candidateSkus.length; i += chunk) {
         const slice = candidateSkus.slice(i, i + chunk);
         const { data: existing, error: exErr } = await supabase
           .from("products_cache")
-          .select("sku")
+          .select("sku, name")
           .in("sku", slice);
         if (exErr) throw exErr;
-        for (const r of existing || []) existingSkus.add(r.sku);
+        for (const r of existing || []) {
+          existingSkus.add(r.sku);
+          existingNames.set(r.sku, r.name);
+        }
       }
     }
 
@@ -184,7 +193,10 @@ Deno.serve(async (req) => {
         console.error("Stub insert error:", stubErr.message);
       } else {
         stubsCreated = stubData?.length ?? missingSkus.length;
-        for (const s of missingSkus) existingSkus.add(s);
+        for (const s of missingSkus) {
+          existingSkus.add(s);
+          existingNames.set(s, s);
+        }
       }
     }
 
@@ -192,6 +204,7 @@ Deno.serve(async (req) => {
       .filter((it) => existingSkus.has(it.SKU))
       .map((it) => ({
         sku: it.SKU,
+        name: existingNames.get(it.SKU) || it.SKU,
         current_stock: it.AvailableQuantity || 0,
         back_order_qty: it.BackOrderQuantity || 0,
         on_order: it.OnOrderQuantity || 0,
