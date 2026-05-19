@@ -109,9 +109,14 @@ Deno.serve(async (req) => {
     let resolved = 0;
     let notFound = 0;
     let errors = 0;
+    let checked = 0;
     const resolvedSkus: string[] = [];
+    const wallStart = Date.now();
+    let timedOut = false;
 
     for (const c of candidates) {
+      if (Date.now() - wallStart > SOFT_WALL_MS) { timedOut = true; break; }
+      checked++;
       try {
         const url = `${baseUrl}/api/Product/Search?SKU=${encodeURIComponent(c.sku)}`;
         const res = await fetch(url, {
