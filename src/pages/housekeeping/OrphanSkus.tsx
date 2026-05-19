@@ -264,12 +264,22 @@ const OrphanSkus = () => {
             {lastMapRun && (
               <div className="flex flex-wrap gap-4 text-sm">
                 <div><span className="text-muted-foreground">Last run:</span> {formatDistanceToNow(new Date(lastMapRun.started_at), { addSuffix: true })}</div>
-                <div><span className="text-muted-foreground">Status:</span> <Badge variant="outline">{lastMapRun.status}</Badge></div>
-                {lastMapRun.summary && (
+                <div><span className="text-muted-foreground">Status:</span> <Badge variant="outline">{lastMapRun.status}{(lastMapRun.summary as any)?.dry_run ? " · dry run" : ""}</Badge></div>
+                {lastMapRun.status === "running" && (lastMapRun.summary as any)?.phase && (
+                  <div><span className="text-muted-foreground">Phase:</span> <span className="font-semibold">{(lastMapRun.summary as any).phase}</span>{(lastMapRun.summary as any).total ? ` (${(lastMapRun.summary as any).progress}/${(lastMapRun.summary as any).total})` : ""}</div>
+                )}
+                {lastMapRun.summary && !(lastMapRun.summary as any)?.dry_run && (
                   <>
                     <div><span className="text-muted-foreground">Upserted:</span> <span className="font-semibold">{(lastMapRun.summary as any).upserted ?? 0}</span></div>
                     <div><span className="text-muted-foreground">Linked:</span> <span className="font-semibold text-pd-accent">{(lastMapRun.summary as any).resolved ?? 0}</span></div>
                     <div><span className="text-muted-foreground">Created:</span> <span className="font-semibold">{(lastMapRun.summary as any).created ?? 0}</span></div>
+                  </>
+                )}
+                {lastMapRun.summary && (lastMapRun.summary as any)?.dry_run && lastMapRun.status === "succeeded" && (
+                  <>
+                    <div><span className="text-muted-foreground">Would link:</span> <span className="font-semibold text-pd-accent">{(lastMapRun.summary as any).would_resolve ?? 0}</span></div>
+                    <div><span className="text-muted-foreground">Would create:</span> <span className="font-semibold">{(lastMapRun.summary as any).would_create ?? 0}</span></div>
+                    <div><span className="text-muted-foreground">Already linked:</span> <span className="font-semibold">{(lastMapRun.summary as any).payload_already_linked ?? 0}</span></div>
                   </>
                 )}
                 {(lastMapRun as any).error && (
