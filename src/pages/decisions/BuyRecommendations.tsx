@@ -526,13 +526,17 @@ const BuyRecommendations = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {detailRows.map((r) => {
-                    const suggested = Math.max(0, Math.round(num(r.required_qty)));
+                   {detailRows.map((r) => {
+                    const fullSuggested = Math.max(0, Math.round(num(r.required_qty)));
                     const raw = Math.max(0, Math.round(num(r.raw_required_qty)));
                     const box = Math.max(1, num(r.box_quantity) || 1);
+                    // In BO Only mode, suggest just the net backorder (BO − on order), rounded up to box qty.
+                    const netBo = Math.max(0, num(r.back_orders) - num(r.on_order));
+                    const boSuggested = netBo > 0 ? Math.ceil(netBo / box) * box : 0;
+                    const suggested = boOnly ? boSuggested : fullSuggested;
                     const qty = overrides[r.sku] ?? suggested;
                     const lineCost = qty * num(r.unit_cost);
-                    const wasBoxed = box > 1 && suggested > raw && raw > 0;
+                    const wasBoxed = box > 1 && suggested > raw && raw > 0 && !boOnly;
                     return (
                       <TableRow key={r.sku} data-state={selected[r.sku] ? "selected" : undefined}>
                         <TableCell>
