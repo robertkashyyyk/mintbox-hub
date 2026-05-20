@@ -350,10 +350,39 @@ const PurchaseOrderDetail = () => {
       )}
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader className="flex flex-row items-center justify-between gap-4 flex-wrap">
           <CardTitle className="text-base">Lines ({lines.length})</CardTitle>
-          <div className="text-sm text-muted-foreground">
-            {totalQty} units · <span className="text-foreground font-medium">{fmt(totalCost)}</span>
+          <div className="flex items-center gap-4">
+            {canSend && selected.size > 0 && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <Scissors className="h-4 w-4 mr-2" />
+                    Split: move {selected.size} to new draft PO
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Split this PO?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      {selected.size} selected line{selected.size === 1 ? "" : "s"} will be moved into a brand-new
+                      Draft PO for <strong>{po.suppliers?.name || "this supplier"}</strong>. The remaining{" "}
+                      {lines.length - selected.size} line{lines.length - selected.size === 1 ? "" : "s"} stay on
+                      this PO. You can then download / send each PO independently.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => splitPo.mutate()} disabled={splitPo.isPending}>
+                      {splitPo.isPending ? "Splitting…" : "Split PO"}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
+            <div className="text-sm text-muted-foreground">
+              {totalQty} units · <span className="text-foreground font-medium">{fmt(totalCost)}</span>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -361,6 +390,18 @@ const PurchaseOrderDetail = () => {
             <Table>
               <TableHeader>
                 <TableRow>
+                  {canSend && (
+                    <TableHead className="w-10">
+                      <Checkbox
+                        checked={selected.size > 0 && selected.size === lines.length}
+                        onCheckedChange={(v) => {
+                          if (v) setSelected(new Set(lines.map((l: any) => l.id)));
+                          else setSelected(new Set());
+                        }}
+                        aria-label="Select all lines"
+                      />
+                    </TableHead>
+                  )}
                   <TableHead>SKU</TableHead>
                   <TableHead>Product</TableHead>
                   <TableHead className="text-right">Stock @ snap</TableHead>
