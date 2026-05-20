@@ -63,7 +63,7 @@ const PurchaseOrderDetail = () => {
       const sb = supabase as any;
       const [poRes, linesRes] = await Promise.all([
         sb.from("purchase_orders")
-          .select("*, suppliers(name, contact_email, ordering_method, mintsoft_supplier_id)")
+          .select("*, suppliers(name, contact_email, ordering_method, mintsoft_supplier_id, lead_time_days)")
           .eq("id", id).single(),
         sb.from("purchase_order_lines")
           .select("*")
