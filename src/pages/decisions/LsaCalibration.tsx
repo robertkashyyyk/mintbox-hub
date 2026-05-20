@@ -47,6 +47,20 @@ const LsaCalibration = () => {
   const { data: brandSummary = [], isLoading: brandsLoading, refetch: refetchBrandSummary, isRefetching } = useLsaBrandSummary();
   const [brandSearch, setBrandSearch] = useState("");
 
+  // Auto-LSA flags by brand id
+  const { data: autoBrandIds = new Set<string>() } = useQuery({
+    queryKey: ["brands-auto-lsa-flags"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("brands")
+        .select("id, auto_update_lsa")
+        .eq("auto_update_lsa", true);
+      if (error) throw error;
+      return new Set<string>((data || []).map((b: any) => b.id));
+    },
+    staleTime: 5 * 60_000,
+  });
+
   const filteredBrands = useMemo(() => {
     const q = brandSearch.trim().toLowerCase();
     if (!q) return brandSummary;
