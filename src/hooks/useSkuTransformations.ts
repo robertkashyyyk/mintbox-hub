@@ -35,13 +35,27 @@ export interface ConversionRule {
   notes: string | null;
 }
 
+export type RelationshipType = "q_pack" | "bundle" | "kit" | "promo_pack";
+
 export interface MultiplierRule {
   id: string;
   multiplier_sku: string;
   base_sku: string;
   multiplier_qty: number;
+  relationship_type: RelationshipType;
+  safety_buffer_units: number | null;
   is_active: boolean;
   notes: string | null;
+}
+
+export interface VirtualSkuStock {
+  virtual_sku: string;
+  base_sku: string;
+  relationship_type: string;
+  pack_qty: number;
+  base_on_hand: number;
+  safety_buffer: number;
+  derived_qty: number;
 }
 
 const PAGE_SIZE = 50;
