@@ -160,9 +160,9 @@ const PurchaseOrderDetail = () => {
   });
 
   const sendPo = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (vars: { goods_in_type: string; package_quantity: number; expected_date: string }) => {
       const { data, error } = await supabase.functions.invoke("mintsoft-create-po", {
-        body: { po_id: id },
+        body: { po_id: id, ...vars },
       });
       if (error) throw new Error(error.message);
       if ((data as any)?.error) throw new Error((data as any).error);
@@ -174,6 +174,7 @@ const PurchaseOrderDetail = () => {
         title: "PO sent to Mintsoft",
         description: `Mintsoft PO #${data?.mintsoft_po_id ?? "?"} created · ${data?.lines_sent} lines${skipped ? ` · ${skipped} skipped (fix and resend)` : ""}.`,
       });
+      setAsnOpen(false);
       refetch();
     },
     onError: (e: any) => toast({ title: "Cannot send to Mintsoft", description: e.message, variant: "destructive" }),
