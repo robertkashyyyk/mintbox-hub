@@ -131,7 +131,7 @@ const StockHealth = () => {
             value: healthy.toLocaleString(),
             sub: pct(healthy),
             tone: "border-green-600/40 bg-green-500/10",
-            onClick: () => handleFiltersChange({ healthCategory: filters.healthCategory === "Healthy" ? "all" : "Healthy", onlyProblems: false }),
+            onClick: () => handleFiltersChange({ healthCategory: filters.healthCategory === "Healthy" ? "all" : "Healthy", onlyGoodProblems: false, onlyBadProblems: false }),
             active: filters.healthCategory === "Healthy",
           },
           {
@@ -139,8 +139,8 @@ const StockHealth = () => {
             value: problems.toLocaleString(),
             sub: pct(problems),
             tone: "border-destructive/40 bg-destructive/10",
-            onClick: () => handleFiltersChange({ onlyProblems: !filters.onlyProblems, healthCategory: "all" }),
-            active: filters.onlyProblems,
+            onClick: () => handleFiltersChange({ onlyBadProblems: !filters.onlyBadProblems, onlyGoodProblems: false, healthCategory: "all" }),
+            active: filters.onlyBadProblems,
           },
           {
             label: "Overstock",
