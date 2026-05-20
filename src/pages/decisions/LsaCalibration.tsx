@@ -13,11 +13,13 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { ArrowLeft, Gauge, Loader2, RefreshCw, Search, Sparkles } from "lucide-react";
+import { ArrowLeft, Gauge, Loader2, RefreshCw, Search, Sparkles, Zap } from "lucide-react";
 import { useLsaCalibration, type LsaCalibrationRow } from "@/hooks/useLsaCalibration";
 import { useLsaBrandSummary } from "@/hooks/useLsaBrandSummary";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const ALL = "__all__";
 const ALL_STATUSES = ["critical", "low", "target", "high", "excess"] as const;
@@ -44,6 +46,20 @@ const LsaCalibration = () => {
   // ---- Brand-grid mode ----
   const { data: brandSummary = [], isLoading: brandsLoading, refetch: refetchBrandSummary, isRefetching } = useLsaBrandSummary();
   const [brandSearch, setBrandSearch] = useState("");
+
+  // Auto-LSA flags by brand id
+  const { data: autoBrandIds = new Set<string>() } = useQuery({
+    queryKey: ["brands-auto-lsa-flags"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("brands")
+        .select("id, auto_update_lsa")
+        .eq("auto_update_lsa", true);
+      if (error) throw error;
+      return new Set<string>((data || []).map((b: any) => b.id));
+    },
+    staleTime: 5 * 60_000,
+  });
 
   const filteredBrands = useMemo(() => {
     const q = brandSearch.trim().toLowerCase();
@@ -313,6 +329,7 @@ const LsaCalibration = () => {
                     <TableHead className="text-right">Critical</TableHead>
                     <TableHead className="text-right">Low</TableHead>
                     <TableHead className="text-right">Target</TableHead>
+                    <TableHead className="text-right">POT</TableHead>
                     <TableHead className="text-right">High</TableHead>
                     <TableHead className="text-right">Excess</TableHead>
                     <TableHead className="w-[140px]"></TableHead>
@@ -320,11 +337,11 @@ const LsaCalibration = () => {
                 </TableHeader>
                 <TableBody>
                   {brandsLoading ? (
-                    <TableRow><TableCell colSpan={8} className="text-center py-12">
+                    <TableRow><TableCell colSpan={9} className="text-center py-12">
                       <Loader2 className="h-5 w-5 animate-spin mx-auto text-muted-foreground" />
                     </TableCell></TableRow>
                   ) : filteredBrands.length === 0 ? (
-                    <TableRow><TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
+                    <TableRow><TableCell colSpan={9} className="text-center py-12 text-muted-foreground">
                       No brands match your search.
                     </TableCell></TableRow>
                   ) : (
@@ -350,12 +367,27 @@ const LsaCalibration = () => {
                       return (
                         <TableRow key={brandKey}>
                           <TableCell className="font-medium">
-                            {b.brand_name || <span className="text-muted-foreground italic">Unmapped</span>}
+                            <div className="flex items-center gap-1.5">
+                              {b.brand_name || <span className="text-muted-foreground italic">Unmapped</span>}
+                              {b.brand_id && autoBrandIds.has(b.brand_id) && (
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Zap className="h-3.5 w-3.5 text-warning fill-warning" />
+                                    </TooltipTrigger>
+                                    <TooltipContent>Auto-Update LSA enabled</TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              )}
+                            </div>
                           </TableCell>
                           <TableCell className="text-right tabular-nums font-medium">{b.total.toLocaleString()}</TableCell>
                           <StatusCell status="critical" value={b.critical} />
                           <StatusCell status="low"      value={b.low} />
                           <StatusCell status="target"   value={b.target} />
+                          <TableCell className="text-right tabular-nums text-muted-foreground">
+                            {b.total > 0 ? `${Math.round((b.target / b.total) * 100)}%` : "—"}
+                          </TableCell>
                           <StatusCell status="high"     value={b.high} />
                           <StatusCell status="excess"   value={b.excess} />
                           <TableCell className="text-right">
