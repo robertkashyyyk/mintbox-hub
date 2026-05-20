@@ -21,6 +21,25 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+
+// Add `days` working days (Mon–Fri) to `from` and return YYYY-MM-DD
+const addWorkingDays = (from: Date, days: number): string => {
+  const d = new Date(from);
+  let added = 0;
+  while (added < days) {
+    d.setDate(d.getDate() + 1);
+    const dow = d.getDay();
+    if (dow !== 0 && dow !== 6) added++;
+  }
+  return d.toISOString().slice(0, 10);
+};
 
 const stripPrefix = (sku: string): string => {
   const slash = sku.indexOf("/");
@@ -56,6 +75,10 @@ const PurchaseOrderDetail = () => {
   const { toast } = useToast();
   const [edits, setEdits] = useState<Record<string, { qty?: number; cost?: number }>>({});
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [asnOpen, setAsnOpen] = useState(false);
+  const [asnGoodsInType, setAsnGoodsInType] = useState<"Pallet" | "Carton" | "Loose">("Pallet");
+  const [asnQty, setAsnQty] = useState<number>(1);
+  const [asnExpected, setAsnExpected] = useState<string>("");
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["po-detail", id],
@@ -63,7 +86,7 @@ const PurchaseOrderDetail = () => {
       const sb = supabase as any;
       const [poRes, linesRes] = await Promise.all([
         sb.from("purchase_orders")
-          .select("*, suppliers(name, contact_email, ordering_method, mintsoft_supplier_id)")
+          .select("*, suppliers(name, contact_email, ordering_method, mintsoft_supplier_id, lead_time_days)")
           .eq("id", id).single(),
         sb.from("purchase_order_lines")
           .select("*")
@@ -137,9 +160,9 @@ const PurchaseOrderDetail = () => {
   });
 
   const sendPo = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (vars: { goods_in_type: string; package_quantity: number; expected_date: string }) => {
       const { data, error } = await supabase.functions.invoke("mintsoft-create-po", {
-        body: { po_id: id },
+        body: { po_id: id, ...vars },
       });
       if (error) throw new Error(error.message);
       if ((data as any)?.error) throw new Error((data as any).error);
@@ -151,6 +174,7 @@ const PurchaseOrderDetail = () => {
         title: "PO sent to Mintsoft",
         description: `Mintsoft PO #${data?.mintsoft_po_id ?? "?"} created · ${data?.lines_sent} lines${skipped ? ` · ${skipped} skipped (fix and resend)` : ""}.`,
       });
+      setAsnOpen(false);
       refetch();
     },
     onError: (e: any) => toast({ title: "Cannot send to Mintsoft", description: e.message, variant: "destructive" }),
@@ -290,13 +314,74 @@ const PurchaseOrderDetail = () => {
           {canSend && (
             <Button
               disabled={sendPo.isPending || sendableLines.length === 0 || !supplierMapped}
-              onClick={() => sendPo.mutate()}>
+              onClick={() => {
+                const leadDays = Number(po.suppliers?.lead_time_days ?? 0) || 3;
+                setAsnGoodsInType("Pallet");
+                setAsnQty(1);
+                setAsnExpected(addWorkingDays(new Date(), leadDays));
+                setAsnOpen(true);
+              }}>
               <Send className="h-4 w-4 mr-2" />
               {sendPo.isPending ? "Creating…" : `Create ASN in Mintsoft${sendableLines.length < lines.length ? ` (${sendableLines.length}/${lines.length})` : ""}`}
             </Button>
           )}
         </div>
       </div>
+
+      <Dialog open={asnOpen} onOpenChange={setAsnOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create ASN in Mintsoft</DialogTitle>
+            <DialogDescription>
+              Confirm delivery details for {po.po_number || `PO ${po.id.slice(0, 8)}`} ({sendableLines.length} line{sendableLines.length === 1 ? "" : "s"}).
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Delivery Type</Label>
+                <Select value={asnGoodsInType} onValueChange={(v) => setAsnGoodsInType(v as any)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Pallet">Pallet</SelectItem>
+                    <SelectItem value="Carton">Carton</SelectItem>
+                    <SelectItem value="Loose">Loose</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Quantity</Label>
+                <Input
+                  type="number" min={1} value={asnQty}
+                  onChange={(e) => setAsnQty(Math.max(1, Number(e.target.value) || 1))}
+                  disabled={asnGoodsInType === "Loose"}
+                />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Estimated Delivery</Label>
+              <Input type="date" value={asnExpected} onChange={(e) => setAsnExpected(e.target.value)} />
+              <p className="text-xs text-muted-foreground">
+                Default: today + {Number(po.suppliers?.lead_time_days ?? 0) || 3} working day{(Number(po.suppliers?.lead_time_days ?? 0) || 3) === 1 ? "" : "s"}
+                {po.suppliers?.lead_time_days ? ` (${po.suppliers.name} lead time)` : " (no supplier lead time set)"}.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAsnOpen(false)} disabled={sendPo.isPending}>Cancel</Button>
+            <Button
+              disabled={sendPo.isPending || !asnExpected}
+              onClick={() => sendPo.mutate({
+                goods_in_type: asnGoodsInType,
+                package_quantity: asnGoodsInType === "Loose" ? 1 : asnQty,
+                expected_date: asnExpected,
+              })}>
+              <Send className="h-4 w-4 mr-2" />
+              {sendPo.isPending ? "Sending…" : "Send ASN to Mintsoft"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {po.status === "sent" && !po.mintsoft_po_id && (
         <Alert>

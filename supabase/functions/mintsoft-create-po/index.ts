@@ -46,6 +46,12 @@ Deno.serve(async (req) => {
     const poId: string | undefined = body?.po_id;
     if (!poId) return json({ error: "po_id required" }, 400);
 
+    // Optional ASN delivery details from the dialog
+    const goodsInTypeRaw = String(body?.goods_in_type ?? "Pallet");
+    const goodsInType = ["Carton", "Pallet", "Loose"].includes(goodsInTypeRaw) ? goodsInTypeRaw : "Pallet";
+    const packageQty = Math.max(1, Number(body?.package_quantity ?? 1) | 0);
+    const expectedDate: string | null = body?.expected_date || null; // ISO date string
+
     const svc = createClient(url, svcKey);
 
     // Load PO + supplier + lines
@@ -119,14 +125,18 @@ Deno.serve(async (req) => {
 
     // Mintsoft API: PUT /api/ASN with NewASN schema
     // (There is NO /api/PurchaseOrder/Create endpoint — ASN is the correct entity.)
-    const payload = {
+    const payload: Record<string, unknown> = {
       ClientId: 3,
       WarehouseId: 5,
-      GoodsInType: "Carton",
+      GoodsInType: goodsInType,
+      SupplierId: supplier.mintsoft_supplier_id,
       Supplier: supplier.name ?? "",
       POReference: po.po_number || `PO-${po.id.slice(0, 8)}`,
       Items: orderItems,
     };
+    if (goodsInType === "Pallet") payload.NumberOfPallets = packageQty;
+    else if (goodsInType === "Carton") payload.NumberOfCartons = packageQty;
+    if (expectedDate) payload.ExpectedDate = expectedDate;
 
     // Mark attempt
     await svc.from("purchase_orders").update({
