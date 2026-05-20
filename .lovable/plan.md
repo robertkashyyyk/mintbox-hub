@@ -1,88 +1,292 @@
-## The Problem
+## Goal
 
-Products in `products_cache` can exist without a `mintsoft_product_id` (we call these "orphans"). When that happens:
-- Cost edits silently fail to push to Mintsoft
-- Stock syncs skip them
-- LSA pushes skip them
-- Missing Costs / enrichment workflows treat them as uneditable dead weight
+Introduce a true multi-layer SKU model in PartsDocHub so Mintsoft stays the execution layer while PartsDocHub owns inventory intelligence. The single rule:
 
-A "true SKU" (`XXX-...` or `XXX/...` — three alphanumerics + separator) is one we **should** be able to resolve against Mintsoft's catalogue via `GET /api/Product/Search?SKU=...`. If we resolve it, we backfill `mintsoft_product_id` and the SKU rejoins normal operations.
+> **Procurement packs are transient. Base SKUs are warehouse truth. Multiplier SKUs are commercial transforms.**
 
-## The Plan
+No SKU suffix (`-P100`, `-M20`, `.100`) will be parsed as logic — every relationship lives in explicit rule tables.
 
-### 1. Classification — define what "orphan" means in SQL
+---
 
-Add a database view `vw_orphan_skus` that filters `products_cache` to rows where:
-- `mintsoft_product_id IS NULL`
-- `sku` matches the true-SKU regex `^[A-Z0-9]{3}[-/]`
-- `quarantined_at IS NULL` (skip dirt SKUs — they're a separate problem)
-- Not discontinued
+## Phased rollout
 
-This becomes the single source of truth for "things we should be trying to resolve".
+To avoid breaking live POs, Mintsoft sync and Buy Recs, this ships in four phases.
 
-### 2. Resolver edge function — `mintsoft-resolve-orphan-skus`
+### Phase 1 — Foundation (schema + classification, no behaviour change)
 
-A new edge function that:
-1. Pulls a batch (default 100) of orphans from `vw_orphan_skus`, oldest-checked first
-2. For each SKU, calls `GET /api/Product/Search?SKU={sku}&ClientId=3` against Mintsoft
-3. On exact match → updates `products_cache.mintsoft_product_id` + sets `mintsoft_resolved_at = now()`
-4. On no match → bumps `mintsoft_resolve_attempts` and sets `last_mintsoft_resolve_attempt_at`
-5. Writes a summary row to `agent_runs` (type `resolve_orphan_skus`)
+1. Create enum `sku_type` with values `BASE`, `PROCUREMENT_PACK`, `MULTIPLIER`, `BUNDLE`, `ALT`.
+2. New table `sku_master` (one row per SKU, joins to `products_cache` by `sku`):
+  - `sku_type` (default `BASE`)
+  - `base_sku` (nullable; FK-style by text)
+  - `is_base_sku`, `is_procurement_pack`, `is_multiplier_sku`, `is_bundle` (booleans, derived from `sku_type`)
+  - `allow_marketplace_sale` (default true for BASE/MULTIPLIER, false for PROCUREMENT)
+  - `allow_picking` (default true for BASE/MULTIPLIER, false for PROCUREMENT)
+  - `allow_stock_holding` (default true for BASE, false for MULTIPLIER, transient for PROCUREMENT)
+  - `auto_convert_on_receipt` (default true for PROCUREMENT)
+  - `conversion_multiplier` (PROCUREMENT only)
+  - `procurement_pack_size` (BASE only — pack qty for buy recs)
+  - `notes`, timestamps
+3. Backfill: every existing `products_cache.sku` gets a `sku_master` row of type `BASE`.
+4. Two rule tables:
+  - `sku_conversion_rules` — procurement → base (`procurement_sku`, `base_sku`, `conversion_multiplier`, `auto_convert_on_receipt`, `is_active`, notes)
+  - `sku_multiplier_rules` — multiplier → base (`multiplier_sku`, `base_sku`, `multiplier_qty`, `is_active`, notes)
+5. Log table `sku_conversion_logs` (rule_id, procurement_sku, base_sku, procurement_qty, base_qty_created, mintsoft_reference, status `pending/success/failed/manual`, error_message, created_at, created_by).
+6. RLS: read for authenticated, write restricted to `super_user` / `senior_user` (mirrors existing pattern).
 
-New columns on `products_cache`:
-- `mintsoft_resolved_at timestamptz`
-- `last_mintsoft_resolve_attempt_at timestamptz`
-- `mintsoft_resolve_attempts int default 0`
+**Outcome of Phase 1**: data model exists, nothing else changes — safe to ship.
 
-Re-check cadence: a SKU is re-tried at most once every 7 days, unless manually requeued. After 5 failed attempts it's flagged as "persistently unresolved" so we stop hammering it.
+### Phase 2 — Admin UI (classify SKUs)
 
-### 3. Scheduling — pg_cron, conservative
+New page `**/admin/sku-transformations**` with two tabs:
 
-Run the resolver every **6 hours**, batch size 200. That clears ~800 SKUs/day without putting any real load on Mintsoft. The cron is master-toggleable via `app_settings` key `orphan_sku_resolver.enabled` (default on) so you can pause it instantly if needed.
+1. **SKU Logic** — searchable list of products_cache joined to sku_master. Editable per row:
+  - SKU Type dropdown
+  - Base SKU lookup (autocomplete from BASE rows)
+  - Multiplier qty / Pack size (context-sensitive)
+  - Toggles: Auto Convert, Allow Marketplace, Allow Picking, Allow Stock Holding
+2. **Rules** — manage `sku_conversion_rules` and `sku_multiplier_rules` directly, with validation:
+  - Procurement rule requires multiplier > 0 and a BASE row
+  - Multiplier rule requires multiplier_qty > 0 and a BASE row
+  - No duplicate active rules per source SKU
 
-### 4. Housekeeping UI — `/housekeeping/orphan-skus`
+Bulk action: "Suggest mappings from suffix patterns" — shows candidate rules to the user from suffixes like `-P100` / `-M20`, but **never auto-applies** (per the no-hard-coding rule).
 
-A new page slotted into the existing Housekeeping module (sits naturally next to Missing Costs / Dirt SKUs). Shows:
+Add to `AppSidebar`, `RbacSidebar`, `system_areas`, and `role_area_permissions` (admin area) per the dual-sidebar rule.
 
-- **Counts strip**: Total orphans · True-SKU orphans · Resolvable today · Persistently unresolved · Last resolver run
-- **Table** of orphan SKUs with columns: SKU · Brand · Title · Attempts · Last attempt · Last error · Actions
-- **Filters**: brand, attempt count, "never tried" vs "tried & failed"
-- **Row actions**: Retry now (single SKU), Mark as ignore (won't be retried)
-- **Bulk actions**: Retry selected, Retry all in filter
-- **Manual entry box**: Paste a SKU, click Resolve Now — useful for one-off fixes like `ASC-TUB-29-PV`
+### Phase 3 — Conversion engine (the operationally critical bit)
 
-### 5. Surfacing it elsewhere
+1. **Edge function `sku-auto-convert**` (cron, every 15 min, `verify_jwt = false`):
+  - Find SKUs of type `PROCUREMENT_PACK` with `auto_convert_on_receipt = true` and Mintsoft `current_stock > 0`.
+  - For each, look up active conversion rule.
+  - Pre-flight safeguards: rule exists, qty > 0, base SKU exists in Mintsoft, no in-flight conversion for the same procurement SKU+stock snapshot.
+  - Call Mintsoft stock adjustment API twice:
+    - `-procurement_qty` on procurement SKU
+    - `+procurement_qty * multiplier` on base SKU
+    - Adjustment reason: `PROCUREMENT_PACK_AUTO_CONVERSION` + log row id
+  - Insert `sku_conversion_logs` row (status `success` or `failed`).
+  - On failure: mark log `failed`, leave stock untouched, surface in Conversion Dashboard.
+2. **Idempotency**: a partial unique index on `sku_conversion_logs(procurement_sku, mintsoft_reference)` for `status = 'success'` prevents double conversion.
+3. **Manual retry / override** endpoint for super_users (called from dashboard).
+4. **Buy Recommendation update** (`get_buy_recommendations`):
+  - Calculate required base units as today.
+  - If the BASE row has a `procurement_pack_size > 1` and an active procurement rule exists, output the procurement SKU + pack count (`ceil(required / pack_size)`), rather than the base SKU.
+  - PO CSV / `mintsoft-create-po` send the procurement SKU so Mintsoft GRNs it correctly.
 
-- **Product Detail page** — add a small badge "Not linked to Mintsoft" + a "Try to resolve" button when `mintsoft_product_id` is null
-- **Missing Costs** (already done today) — orphans excluded from the list, but add a small footer count "X SKUs hidden — not linked to Mintsoft → fix in Housekeeping"
-- **Housekeeping index counter** — live count of orphan SKUs alongside the other to-do counts
+### Phase 4 — Selling resolution + dashboard
 
-### 6. Safety rails
+1. **Selling resolution**: when order_lines arrive from Mintsoft, if `sku` matches a row in `sku_multiplier_rules`, store `resolved_base_sku` and `resolved_base_qty = qty * multiplier_qty` on the order line (additive columns, doesn't break existing reports). Forecasting / velocity / stock health views switch to `resolved_base_sku` where present.
+2. **Marketplace guard**: any push to channels (Threeds reprice, future channel pushes) checks `allow_marketplace_sale` before sending the SKU.
+3. **Dashboard `/intelligence/sku-transformations**`:
+  - Active procurement SKUs (count + table)
+  - Active multiplier SKUs (count + table)
+  - Per row: pack size, base mapping, current Mintsoft procurement stock, current base stock, last conversion at, last error
+  - Failed conversions panel with "Retry" and "Mark resolved"
+  - Manual convert button (super_user only)
+  - Enable/disable toggle per rule
 
-- Resolver only writes `mintsoft_product_id` on **exact SKU match** from Mintsoft — never fuzzy
-- Master kill switch in `app_settings`
-- Hard cap 1000 SKUs per run
-- Full audit trail in `agent_runs` + per-SKU attempt history
-- Mintsoft API rate-limited at 5 req/sec with backoff
+---
 
-## What it gives you
+## Technical details
 
-- Self-healing catalogue: SKUs that get added to Mintsoft after we discovered them locally will auto-link within hours
-- Clear visibility of what's broken and why
-- Zero more silent failures like ASC-TUB-29-PV
-- An audit trail you can show Nathaniel & Clive
+```text
+products_cache.sku   ──┐
+                       ▼
+                 sku_master (sku PK)
+                 ├─ sku_type
+                 ├─ base_sku ────► points to sku_master.sku where sku_type = BASE
+                 ├─ flags…
+                 ▼
+       ┌───────────────────────┐
+       │ sku_conversion_rules  │   procurement → base + multiplier
+       │ sku_multiplier_rules  │   sellable → base + qty
+       └───────────────────────┘
+                 │
+                 ▼
+          sku_conversion_logs   (audit trail of every adjustment)
+```
 
-## Files to create/modify
+**Mintsoft adjustment API**: the existing `mintsoft-create-po` uses `PUT /api/ASN`. For stock conversion we'll use `POST /api/Stock/Adjust` (or `/StockMovement` — to be confirmed against the live Mintsoft API during Phase 3 spike) with reason `PROCUREMENT_PACK_AUTO_CONVERSION`.
 
-**New**
-- `supabase/functions/mintsoft-resolve-orphan-skus/index.ts`
-- `src/pages/housekeeping/OrphanSkus.tsx`
-- Migration: view + columns + cron + app_settings row
+**Safeguards encoded as constraints + function checks**:
 
-**Modified**
-- `src/pages/ProductDetail.tsx` — orphan badge + manual resolve button
-- `src/pages/intelligence/MissingCosts.tsx` — hidden-count footer link
-- `src/pages/HousekeepingIndex.tsx` — orphan counter tile
-- `docs/NAVIGATION.md` + sidebars — new route
+- `sku_conversion_rules.conversion_multiplier > 0` (CHECK)
+- `sku_multiplier_rules.multiplier_qty > 0` (CHECK)
+- Conversion log uniqueness on (`procurement_sku`, `mintsoft_reference`) where `status = 'success'`
+- Validation trigger (not CHECK, per project rule) on `sku_master` to ensure type-flag consistency
 
-Ready to build on approval. Want me to proceed end-to-end, or just the resolver + cron first and ship the UI second?
+**Defaults for new BASE rows**: `allow_marketplace_sale=true`, `allow_picking=true`, `allow_stock_holding=true`. PROCUREMENT defaults flip the first three to false.
+
+**Will not change in Phase 1–3**: live `mintsoft-sync`, `poll-inventory`, `mintsoft-create-po` payloads, Threeds — they keep working on raw SKUs until the corresponding phase flips them over.
+
+---
+
+## Open questions before Phase 3
+
+1. **Mintsoft stock-adjust endpoint** — confirm exact endpoint/payload for atomic two-sided adjustments (Mintsoft sometimes splits into two calls). Will spike at Phase 3 kickoff.
+2. **Existing B-suffix bundles** — keep current `-BXX` import-rule exclusions, or fold them into `sku_type = BUNDLE` immediately? Recommendation: leave the import rule alone in Phase 1, migrate in Phase 4.
+3. **Marketplace channels** — confirm which active pushes need the `allow_marketplace_sale` guard (Threeds is the only one I see; eBay is read-only price-hunter).
+
+Happy to start with **Phase 1 (schema + backfill + RLS)** on approval; that's pure additive and safe to ship before the UI work.  
+  
+Amendments   
+  
+
+
+This direction looks good — please proceed with Phase 1, with the clarifications below.
+
+Approved Direction
+
+The overall architecture is correct:
+
+Procurement packs are transient.  
+Base SKUs are warehouse truth.  
+Multiplier SKUs are commercial transforms.
+
+Please proceed with the phased implementation, starting with Phase 1: schema + classification only, with no behaviour changes to live Mintsoft sync, buy recommendations, PO creation, marketplace pushes, or order processing yet.
+
+Important Clarification: Procurement SKU Naming
+
+Please do not force procurement SKUs into a renamed internal format such as:
+
+FA1-756.521-P100
+
+In many cases, the supplier’s actual orderable part number must remain exactly as the supplier provides it.
+
+Example:
+
+FA1-756.521.100
+
+This may be the real supplier code that must go onto the PO.
+
+If we alter it, we risk breaking supplier ordering unless we add an additional alias/mapping layer.
+
+So for now:
+
+procurement_sku must support the supplier’s actual orderable SKU exactly as supplied.
+
+Do not assume we can rename it.
+
+If we later want a cleaner internal alias such as FA1-756.521-P100, that should be optional and mapped separately.
+
+The conversion rule should define the relationship, not the SKU format.
+
+Example:
+
+procurement_sku: FA1-756.521.100  
+base_sku: FA1-756.521  
+conversion_multiplier: 100
+
+Add Optional Alias Support
+
+Please add, or allow for, an optional field such as:
+
+internal_alias_sku  
+supplier_order_sku
+
+or similar.
+
+The key point is:
+
+supplier_order_sku = the code we send to supplier / Mintsoft PO
+
+internal_alias_sku = optional cleaner internal label, if we ever want one
+
+base_sku = the true stock unit
+
+But the system must work without requiring an alias.
+
+Returns
+
+No need to solve returns in this phase.
+
+For now, the expected principle is:
+
+If a multiplier SKU is sold, returns should ultimately return to base stock.
+
+Example:
+
+FA1-756.521-M20
+
+means:
+
+20 × FA1-756.521
+
+So a return of 1 × M20 would ultimately become:
+
++20 × FA1-756.521
+
+However, this can be handled later when we deal with selling resolution and returns logic. Please do not build returns logic into Phase 1.
+
+Phase 1 Scope
+
+Please implement only the additive foundation:
+
+sku_type enum
+
+sku_master
+
+sku_conversion_rules
+
+sku_multiplier_rules
+
+sku_conversion_logs
+
+Backfill existing SKUs as BASE
+
+RLS matching existing senior/super user patterns
+
+No operational behaviour change yet
+
+Boolean Flags
+
+Where possible, avoid storing too many boolean fields that can drift away from sku_type.
+
+If the project needs them for UI/filtering, that is fine, but ideally:
+
+sku_type = PROCUREMENT_PACK
+
+should be the source of truth, and things like:
+
+is_procurement_pack  
+is_multiplier_sku  
+is_base_sku
+
+should be derived where practical.
+
+Please use validation triggers if stored flags are necessary.
+
+Critical Principle
+
+Do not parse suffixes as logic.
+
+Suffixes can suggest mappings for admin review, but they must never create active logic automatically.
+
+So:
+
+.100  
+-P100  
+-M20
+
+can be suggested patterns only.
+
+The actual behaviour must always come from explicit database rules.
+
+Please Start
+
+Please proceed with Phase 1 only.
+
+Do not yet alter:
+
+live Mintsoft sync
+
+buy recommendations
+
+PO creation
+
+marketplace stock pushes
+
+order line resolution
+
+stock conversion automation
+
+Once Phase 1 is complete, we can review the schema and then move into the Admin UI phase.
