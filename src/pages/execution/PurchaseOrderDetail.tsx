@@ -75,6 +75,10 @@ const PurchaseOrderDetail = () => {
   const { toast } = useToast();
   const [edits, setEdits] = useState<Record<string, { qty?: number; cost?: number }>>({});
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [asnOpen, setAsnOpen] = useState(false);
+  const [asnGoodsInType, setAsnGoodsInType] = useState<"Pallet" | "Carton" | "Loose">("Pallet");
+  const [asnQty, setAsnQty] = useState<number>(1);
+  const [asnExpected, setAsnExpected] = useState<string>("");
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["po-detail", id],
