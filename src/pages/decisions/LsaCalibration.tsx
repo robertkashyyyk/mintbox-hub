@@ -367,12 +367,27 @@ const LsaCalibration = () => {
                       return (
                         <TableRow key={brandKey}>
                           <TableCell className="font-medium">
-                            {b.brand_name || <span className="text-muted-foreground italic">Unmapped</span>}
+                            <div className="flex items-center gap-1.5">
+                              {b.brand_name || <span className="text-muted-foreground italic">Unmapped</span>}
+                              {b.brand_id && autoBrandIds.has(b.brand_id) && (
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Zap className="h-3.5 w-3.5 text-warning fill-warning" />
+                                    </TooltipTrigger>
+                                    <TooltipContent>Auto-Update LSA enabled</TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              )}
+                            </div>
                           </TableCell>
                           <TableCell className="text-right tabular-nums font-medium">{b.total.toLocaleString()}</TableCell>
                           <StatusCell status="critical" value={b.critical} />
                           <StatusCell status="low"      value={b.low} />
                           <StatusCell status="target"   value={b.target} />
+                          <TableCell className="text-right tabular-nums text-muted-foreground">
+                            {b.total > 0 ? `${Math.round((b.target / b.total) * 100)}%` : "—"}
+                          </TableCell>
                           <StatusCell status="high"     value={b.high} />
                           <StatusCell status="excess"   value={b.excess} />
                           <TableCell className="text-right">
