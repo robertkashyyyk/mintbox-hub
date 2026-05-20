@@ -288,7 +288,7 @@ const Suppliers = () => {
                     <TableHead className="text-right">Prefixes</TableHead>
                     <TableHead className="text-right">Mintsoft ID</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead className="w-12" />
+                    <TableHead className="w-24 text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
