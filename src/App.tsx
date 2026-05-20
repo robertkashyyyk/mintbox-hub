@@ -109,6 +109,7 @@ import CatalogueBuilder from "./pages/admin/CatalogueBuilder";
 import WarehousePerformance from "./pages/dashboards/WarehousePerformance";
 import PackingAreaDisplay from "./pages/dashboards/PackingAreaDisplay";
 import WeeklySummary from "./pages/dashboards/WeeklySummary";
+import BackOrders from "./pages/dashboards/BackOrders";
 
 // Configure QueryClient with better error handling and retry logic
 const queryClient = new QueryClient({
@@ -252,6 +253,7 @@ const App = () => (
             <Route path="/dashboards/warehouse" element={<WarehousePerformance />} />
             <Route path="/dashboards/packing" element={<PackingAreaDisplay />} />
             <Route path="/dashboards/weekly" element={<WeeklySummary />} />
+            <Route path="/dashboards/backorders" element={<BackOrders />} />
 
             {/* Settings & Profile */}
             <Route path="/settings" element={<Settings />} />

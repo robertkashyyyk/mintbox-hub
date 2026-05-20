@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { LayoutDashboard, Package, BarChart3, Monitor } from "lucide-react";
+import { LayoutDashboard, Package, BarChart3, Monitor, TrendingDown } from "lucide-react";
 import ModuleHeader from "@/components/ModuleHeader";
 import dashboardsBanner from "@/assets/banners/dashboards-banner.jpg";
 
@@ -11,6 +11,7 @@ const DashboardsIndex = () => {
     { title: "Warehouse Performance", description: "Real-time overview of warehouse operations. Ideal for wall-mounted displays.", icon: LayoutDashboard, path: "/dashboards/warehouse" },
     { title: "Packing Area Display", description: "Focused metrics for packing stations. Track pack rates and queue depth.", icon: Package, path: "/dashboards/packing" },
     { title: "Weekly Summary", description: "Week-over-week performance trends and daily comparisons.", icon: BarChart3, path: "/dashboards/weekly" },
+    { title: "Back Orders", description: "Average back-order volume over time with configurable zoom, period, and projected trajectory.", icon: TrendingDown, path: "/dashboards/backorders" },
   ];
 
   return (

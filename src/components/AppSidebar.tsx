@@ -165,6 +165,7 @@ export function AppSidebar() {
         { title: "Warehouse Performance", url: "/dashboards/warehouse", icon: LayoutDashboard },
         { title: "Packing Area", url: "/dashboards/packing", icon: Package },
         { title: "Weekly Summary", url: "/dashboards/weekly", icon: TrendingUp },
+        { title: "Back Orders", url: "/dashboards/backorders", icon: TrendingDown },
       ],
     },
     {
