@@ -40,8 +40,8 @@ const bucketStart = (d: Date, zoom: Zoom): Date => {
   return startOfQuarter(d);
 };
 
-const periodToRange = (p: PeriodKey, custom: { from?: Date; to?: Date }) => {
-  const to = new Date();
+const periodToRange = (p: PeriodKey, anchor: Date, custom: { from?: Date; to?: Date }) => {
+  const to = anchor;
   switch (p) {
     case "week": return { from: subDays(to, 7), to };
     case "month": return { from: subMonths(to, 1), to };
@@ -57,9 +57,30 @@ const BackOrders = () => {
   const [customFrom, setCustomFrom] = useState<Date | undefined>(subMonths(new Date(), 1));
   const [customTo, setCustomTo] = useState<Date | undefined>(new Date());
 
+  // Anchor non-custom periods to the latest snapshot date so the view is never
+  // empty just because data ingestion is lagging behind "today".
+  const { data: latestRow } = useQuery({
+    queryKey: ["backorder-latest-date"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("backorder_age_snapshot")
+        .select("capture_date_uk")
+        .order("capture_date_uk", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      return data as { capture_date_uk: string } | null;
+    },
+  });
+
+  const anchor = useMemo(
+    () => (latestRow?.capture_date_uk ? new Date(latestRow.capture_date_uk + "T00:00:00") : new Date()),
+    [latestRow],
+  );
+
   const range = useMemo(
-    () => periodToRange(period, { from: customFrom, to: customTo }),
-    [period, customFrom, customTo],
+    () => periodToRange(period, anchor, { from: customFrom, to: customTo }),
+    [period, anchor, customFrom, customTo],
   );
 
   const { data, isLoading } = useQuery({
@@ -76,6 +97,7 @@ const BackOrders = () => {
       if (error) throw error;
       return (data ?? []) as Snapshot[];
     },
+    enabled: !!latestRow,
   });
 
   const { buckets, projection, floor } = useMemo(() => {
