@@ -490,6 +490,65 @@ const Suppliers = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!deleting} onOpenChange={(o) => { if (!o) { setDeleting(null); setDeleteConfirmText(""); } }}>
+        <AlertDialogContent className="max-w-lg">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete supplier "{deleting?.name}"?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                {deleteUsageLoading ? (
+                  <p className="text-sm text-muted-foreground">Checking for dependencies…</p>
+                ) : blockers.length > 0 ? (
+                  <div className="space-y-2">
+                    <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 p-3">
+                      <AlertTriangle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+                      <div className="text-sm">
+                        <p className="font-semibold text-destructive">Cannot delete — this supplier is still in use.</p>
+                        <p className="text-muted-foreground text-xs mt-1">Clear the following first:</p>
+                      </div>
+                    </div>
+                    <ul className="text-sm space-y-1 pl-1">
+                      {blockers.map((b) => (
+                        <li key={b.label}>
+                          • <span className="font-medium text-foreground">{b.count}</span> {b.label}{b.count === 1 ? "" : "s"}
+                          <span className="text-muted-foreground"> — {b.fix}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-sm">
+                      This permanently removes the supplier record. No purchase orders, ASNs, or prefix mappings reference it.
+                    </p>
+                    <div>
+                      <Label className="text-xs">Type <span className="font-mono font-bold text-destructive">DELETE</span> to confirm</Label>
+                      <Input
+                        autoFocus
+                        value={deleteConfirmText}
+                        onChange={(e) => setDeleteConfirmText(e.target.value)}
+                        placeholder="DELETE"
+                        className="mt-1"
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={!canDelete || deleteSupplier.isPending}
+              onClick={(e) => { e.preventDefault(); deleteSupplier.mutate(); }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteSupplier.isPending ? "Deleting…" : "Delete supplier"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
