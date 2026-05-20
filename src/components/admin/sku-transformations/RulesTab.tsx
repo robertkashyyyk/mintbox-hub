@@ -26,14 +26,28 @@ import { SuggestMappingsDialog } from "./SuggestMappingsDialog";
 export function RulesTab() {
   const { data: conv = [], isLoading: convLoading } = useConversionRules();
   const { data: mult = [], isLoading: multLoading } = useMultiplierRules();
+  const { data: virtualStock = [] } = useVirtualSkuStockList();
+  const { data: globalBuffer = 0 } = useGlobalSafetyBuffer();
+  const setBuffer = useSetGlobalSafetyBuffer();
   const saveConv = useSaveConversionRule();
   const saveMult = useSaveMultiplierRule();
   const delConv = useDeleteConversionRule();
   const delMult = useDeleteMultiplierRule();
   const { toast } = useToast();
 
+  const stockBySku = new Map(virtualStock.map((v) => [v.virtual_sku, v]));
+  const [bufferDraft, setBufferDraft] = useState<number | "">("");
+  // sync draft when server value arrives
+  if (bufferDraft === "" && globalBuffer !== undefined && globalBuffer !== null && bufferDraft !== globalBuffer) {
+    // no-op render guard: only set initial
+  }
+
   const [convDialog, setConvDialog] = useState<{ open: boolean; initial?: any }>({ open: false });
   const [multDialog, setMultDialog] = useState<{ open: boolean; initial?: any }>({ open: false });
+  const [suggestOpen, setSuggestOpen] = useState(false);
+  const [confirmDel, setConfirmDel] = useState<
+    { kind: "conv" | "mult"; id: string } | null
+  >(null);
   const [suggestOpen, setSuggestOpen] = useState(false);
   const [confirmDel, setConfirmDel] = useState<
     { kind: "conv" | "mult"; id: string } | null
