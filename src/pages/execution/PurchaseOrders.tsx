@@ -75,8 +75,33 @@ const PurchaseOrders = () => {
   const [resyncing, setResyncing] = useState(false);
   const [view, setView] = useState<"pos" | "asns">("pos");
   const [expandedAsn, setExpandedAsn] = useState<number | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const [refreshingAsns, setRefreshingAsns] = useState(false);
+
+  const deletePo = async (po: POSummary) => {
+    setDeletingId(po.id);
+    try {
+      const { error } = await (supabase as any)
+        .from("purchase_orders")
+        .delete()
+        .eq("id", po.id);
+      if (error) throw error;
+      toast({
+        title: "PO deleted",
+        description: po.mintsoft_po_id
+          ? `Removed locally. Note: PO #${po.mintsoft_po_id} still exists in Mintsoft.`
+          : `Removed ${po.po_number || po.id.slice(0, 8)}.`,
+      });
+      // refetch
+      // eslint-disable-next-line @typescript-eslint/no-use-before-define
+      poQuery.refetch();
+    } catch (e: any) {
+      toast({ title: "Delete failed", description: e?.message || String(e), variant: "destructive" });
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   const resyncTodaysStock = async () => {
     setResyncing(true);
