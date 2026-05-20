@@ -6,7 +6,7 @@ import {
   ShoppingCart, RefreshCw, Copy,
   Users, Key, CreditCard, LogOut, UserCircle, Gauge,
   ChevronDown, ChevronRight, LayoutDashboard, Settings,
-  Images, Clock, Plug, Truck, AlertTriangle, Sliders, Beaker, BarChart3
+  Images, Clock, Plug, Truck, AlertTriangle, Sliders, Beaker, BarChart3, ArrowUpDown
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -182,6 +182,7 @@ export function AppSidebar() {
         { title: "Integrations", url: "/admin/integrations", icon: Plug },
         { title: "Profit Rules", url: "/admin/profit-rules", icon: Sliders },
         { title: "Suppliers", url: "/admin/suppliers", icon: Truck },
+        { title: "SKU Transformations", url: "/admin/sku-transformations", icon: ArrowUpDown },
       ],
     },
     {
