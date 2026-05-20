@@ -11,6 +11,7 @@ export interface StockHealthRow {
   weeks_of_cover: number;
   base_multiplier: number;
   health_category: string;
+  units_4w?: number;
 }
 
 export interface StockHealthSummary {
@@ -20,12 +21,17 @@ export interface StockHealthSummary {
   totalOnHand: number;
 }
 
+const GOOD_PROBLEM_CATEGORIES = ["Out of Stock", "Critical", "Low Stock"];
+const BAD_PROBLEM_CATEGORIES = ["Extreme Overstock", "Overstock", "Unhealthy", "Dead Stock", "Non Selling"];
+
 interface StockHealthFilters {
   search: string;
   brandId: string;
   healthCategory: string;
-  onlyProblems: boolean;
+  onlyGoodProblems: boolean;
+  onlyBadProblems: boolean;
   excludeDirt: boolean;
+  excludeOutOfStock: boolean;
 }
 
 export const useStockHealth = () => {
@@ -45,8 +51,11 @@ export const useStockHealth = () => {
       search: parsed.search ?? "",
       brandId: parsed.brandId ?? "all",
       healthCategory: parsed.healthCategory ?? "all",
-      onlyProblems: parsed.onlyProblems ?? false,
+      // Migrate legacy `onlyProblems` toggle to the new bad-problems toggle.
+      onlyGoodProblems: parsed.onlyGoodProblems ?? false,
+      onlyBadProblems: parsed.onlyBadProblems ?? parsed.onlyProblems ?? false,
       excludeDirt: parsed.excludeDirt ?? false,
+      excludeOutOfStock: parsed.excludeOutOfStock ?? false,
     };
   });
 
@@ -99,11 +108,16 @@ export const useStockHealth = () => {
 
       if (filters.healthCategory && filters.healthCategory !== "all") {
         query = query.eq("health_category", filters.healthCategory);
+      } else if (filters.onlyGoodProblems && filters.onlyBadProblems) {
+        query = query.in("health_category", [...GOOD_PROBLEM_CATEGORIES, ...BAD_PROBLEM_CATEGORIES]);
+      } else if (filters.onlyGoodProblems) {
+        query = query.in("health_category", GOOD_PROBLEM_CATEGORIES);
+      } else if (filters.onlyBadProblems) {
+        query = query.in("health_category", BAD_PROBLEM_CATEGORIES);
       }
 
-      if (filters.onlyProblems) {
-        // Real operational problems only — exclude Healthy, overstock, informational and unknown buckets
-        query = query.in("health_category", ["Unhealthy", "Low Stock", "Critical", "Out of Stock", "Dead Stock"]);
+      if (filters.excludeOutOfStock) {
+        query = query.neq("health_category", "Out of Stock");
       }
 
       if (filters.excludeDirt && dirtSkus.length > 0) {
@@ -126,16 +140,22 @@ export const useStockHealth = () => {
 
       // Fetch brand names
       const brandIds = [...new Set(healthData?.map(row => row.brand_id).filter(Boolean))];
-      const { data: brandsData } = await supabase
-        .from("brands")
-        .select("id, name")
-        .in("id", brandIds);
+      const skus = (healthData ?? []).map((r: any) => r.sku).filter(Boolean);
+
+      const [{ data: brandsData }, { data: velocityData }] = await Promise.all([
+        supabase.from("brands").select("id, name").in("id", brandIds),
+        skus.length > 0
+          ? supabase.from("sku_velocity").select("sku, units_30d").in("sku", skus)
+          : Promise.resolve({ data: [] as Array<{ sku: string; units_30d: number }> }),
+      ]);
 
       const brandMap = new Map(brandsData?.map(b => [b.id, b.name]));
+      const velocityMap = new Map((velocityData ?? []).map((v: any) => [v.sku, Number(v.units_30d ?? 0)]));
 
       const enrichedData = healthData?.map(row => ({
         ...row,
         brand_name: row.brand_id ? brandMap.get(row.brand_id) : "Unknown",
+        units_4w: velocityMap.get(row.sku) ?? 0,
       })) || [];
 
       setData(enrichedData);
