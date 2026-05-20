@@ -422,7 +422,22 @@ const PurchaseOrderDetail = () => {
                   const dirty = e.qty !== undefined || e.cost !== undefined;
                   const lineTotal = qty * cost;
                   return (
-                    <TableRow key={l.id}>
+                    <TableRow key={l.id} data-state={selected.has(l.id) ? "selected" : undefined}>
+                      {canSend && (
+                        <TableCell>
+                          <Checkbox
+                            checked={selected.has(l.id)}
+                            onCheckedChange={(v) => {
+                              setSelected((prev) => {
+                                const next = new Set(prev);
+                                if (v) next.add(l.id); else next.delete(l.id);
+                                return next;
+                              });
+                            }}
+                            aria-label={`Select ${l.sku}`}
+                          />
+                        </TableCell>
+                      )}
                       <TableCell>
                         <Link to={`/discovery/products/${l.sku}`} className="text-primary hover:underline font-mono text-xs">
                           {l.sku}
