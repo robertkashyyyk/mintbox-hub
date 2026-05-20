@@ -37,17 +37,12 @@ export function RulesTab() {
 
   const stockBySku = new Map(virtualStock.map((v) => [v.virtual_sku, v]));
   const [bufferDraft, setBufferDraft] = useState<number | "">("");
-  // sync draft when server value arrives
-  if (bufferDraft === "" && globalBuffer !== undefined && globalBuffer !== null && bufferDraft !== globalBuffer) {
-    // no-op render guard: only set initial
-  }
+  useEffect(() => {
+    if (typeof globalBuffer === "number") setBufferDraft(globalBuffer);
+  }, [globalBuffer]);
 
   const [convDialog, setConvDialog] = useState<{ open: boolean; initial?: any }>({ open: false });
   const [multDialog, setMultDialog] = useState<{ open: boolean; initial?: any }>({ open: false });
-  const [suggestOpen, setSuggestOpen] = useState(false);
-  const [confirmDel, setConfirmDel] = useState<
-    { kind: "conv" | "mult"; id: string } | null
-  >(null);
   const [suggestOpen, setSuggestOpen] = useState(false);
   const [confirmDel, setConfirmDel] = useState<
     { kind: "conv" | "mult"; id: string } | null
