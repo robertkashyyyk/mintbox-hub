@@ -247,6 +247,7 @@ const StockHealth = () => {
                         </TableCell>
                         <TableCell>{row.brand_name}</TableCell>
                         <TableCell>{row.avg_weekly_units?.toFixed(2) || "0.00"}</TableCell>
+                        <TableCell className="font-medium">{row.units_4w ?? 0}</TableCell>
                         <TableCell>{row.on_hand_qty || 0}</TableCell>
                         <TableCell>
                           {row.weeks_of_cover !== null ? row.weeks_of_cover.toFixed(1) : "—"}
