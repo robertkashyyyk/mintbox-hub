@@ -227,6 +227,7 @@ const StockHealth = () => {
                       <SortableHeader column="sku" label="SKU" />
                       <SortableHeader column="brand_id" label="Brand" />
                       <SortableHeader column="avg_weekly_units" label="Avg/week" />
+                      <TableHead>4W Sales</TableHead>
                       <SortableHeader column="on_hand_qty" label="Stock" />
                       <SortableHeader column="weeks_of_cover" label="Weeks of Cover" />
                       <SortableHeader column="base_multiplier" label="Base Multiplier" />
