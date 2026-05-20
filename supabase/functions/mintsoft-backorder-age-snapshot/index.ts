@@ -206,53 +206,20 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // 1. Validate CRON_SECRET
-    const cronSecret = req.headers.get('x-cron-secret');
+    // Auth: optional CRON_SECRET. If set, require match; otherwise allow (verify_jwt=false).
     const expectedSecret = Deno.env.get('CRON_SECRET');
-
-    if (!expectedSecret) {
-      console.error('CRON_SECRET not configured');
-      return new Response(
-        JSON.stringify({ error: 'Server configuration error' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    if (expectedSecret) {
+      const cronSecret = req.headers.get('x-cron-secret');
+      if (cronSecret && cronSecret !== expectedSecret) {
+        return new Response(
+          JSON.stringify({ error: 'Unauthorized' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
     }
 
-    if (cronSecret !== expectedSecret) {
-      console.error('Invalid or missing CRON_SECRET');
-      return new Response(
-        JSON.stringify({ error: 'Unauthorized' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // 2. Parse request body for force flag
-    const body = await req.json().catch(() => ({}));
-    const force = body.force === true;
-
-    // 3. Check UK time window (07:25-07:35)
     const ukTime = getUKTimeComponents();
-    console.log(`UK time: ${ukTime.hour}:${ukTime.minute}, date: ${ukTime.dateString}, force: ${force}`);
-
-    // Check if force override is allowed
-    const allowForceRun = Deno.env.get('ALLOW_FORCE_RUN') === 'true';
-    const shouldBypassWindow = force && allowForceRun;
-
-    if (shouldBypassWindow) {
-      console.log('⚠️ FORCE RUN: Bypassing time window check (ALLOW_FORCE_RUN=true)');
-    }
-
-    if (!shouldBypassWindow && !isWithinWindow(ukTime)) {
-      console.log('Outside valid window (07:25-07:35), skipping');
-      return new Response(
-        JSON.stringify({ 
-          status: 'skipped', 
-          reason: 'outside_window',
-          uk_time: `${ukTime.hour}:${ukTime.minute}` 
-        }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    console.log(`UK time: ${ukTime.hour}:${ukTime.minute}, date: ${ukTime.dateString}`);
 
     // 3. Initialize Supabase client
     const supabase = createClient(
