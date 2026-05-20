@@ -7,21 +7,19 @@ import { X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
+interface StockHealthFiltersState {
+  search: string;
+  brandId: string;
+  healthCategory: string;
+  onlyGoodProblems: boolean;
+  onlyBadProblems: boolean;
+  excludeDirt: boolean;
+  excludeOutOfStock: boolean;
+}
+
 interface StockHealthFiltersProps {
-  filters: {
-    search: string;
-    brandId: string;
-    healthCategory: string;
-    onlyProblems: boolean;
-    excludeDirt: boolean;
-  };
-  onFiltersChange: (filters: Partial<{
-    search: string;
-    brandId: string;
-    healthCategory: string;
-    onlyProblems: boolean;
-    excludeDirt: boolean;
-  }>) => void;
+  filters: StockHealthFiltersState;
+  onFiltersChange: (filters: Partial<StockHealthFiltersState>) => void;
 }
 
 const HEALTH_CATEGORIES = [
@@ -53,15 +51,25 @@ export const StockHealthFilters = ({ filters, onFiltersChange }: StockHealthFilt
   }, []);
 
   const clearAllFilters = () => {
-    onFiltersChange({ search: "", brandId: "all", healthCategory: "all", onlyProblems: false, excludeDirt: false });
+    onFiltersChange({
+      search: "",
+      brandId: "all",
+      healthCategory: "all",
+      onlyGoodProblems: false,
+      onlyBadProblems: false,
+      excludeDirt: false,
+      excludeOutOfStock: false,
+    });
   };
 
   const activeFilterCount = [
     filters.search,
     filters.brandId !== "all" ? filters.brandId : "",
     filters.healthCategory !== "all" ? filters.healthCategory : "",
-    filters.onlyProblems,
+    filters.onlyGoodProblems,
+    filters.onlyBadProblems,
     filters.excludeDirt,
+    filters.excludeOutOfStock,
   ].filter(Boolean).length;
 
   return (
@@ -76,7 +84,7 @@ export const StockHealthFilters = ({ filters, onFiltersChange }: StockHealthFilt
         )}
       </div>
       
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
           <label className="text-sm font-medium mb-2 block">Search SKU</label>
           <Input
@@ -125,28 +133,50 @@ export const StockHealthFilters = ({ filters, onFiltersChange }: StockHealthFilt
             </SelectContent>
           </Select>
         </div>
+      </div>
 
-        <div className="flex flex-col gap-3 pt-7">
-          <div className="flex items-center space-x-2">
-            <Switch
-              id="only-problems"
-              checked={filters.onlyProblems}
-              onCheckedChange={(checked) => onFiltersChange({ onlyProblems: checked })}
-            />
-            <Label htmlFor="only-problems" className="text-sm font-medium cursor-pointer">
-              Only problems
-            </Label>
-          </div>
-          <div className="flex items-center space-x-2">
-            <Switch
-              id="exclude-dirt"
-              checked={filters.excludeDirt}
-              onCheckedChange={(checked) => onFiltersChange({ excludeDirt: checked })}
-            />
-            <Label htmlFor="exclude-dirt" className="text-sm font-medium cursor-pointer">
-              Exclude DIRT
-            </Label>
-          </div>
+      <div className="flex flex-wrap gap-x-6 gap-y-3 pt-2">
+        <div className="flex items-center space-x-2">
+          <Switch
+            id="only-good-problems"
+            checked={filters.onlyGoodProblems}
+            onCheckedChange={(checked) => onFiltersChange({ onlyGoodProblems: checked })}
+          />
+          <Label htmlFor="only-good-problems" className="text-sm font-medium cursor-pointer">
+            Only "Good" problems
+            <span className="text-xs text-muted-foreground ml-1">(Out of Stock, Critical, Low)</span>
+          </Label>
+        </div>
+        <div className="flex items-center space-x-2">
+          <Switch
+            id="only-bad-problems"
+            checked={filters.onlyBadProblems}
+            onCheckedChange={(checked) => onFiltersChange({ onlyBadProblems: checked })}
+          />
+          <Label htmlFor="only-bad-problems" className="text-sm font-medium cursor-pointer">
+            Only "Bad" problems
+            <span className="text-xs text-muted-foreground ml-1">(Extreme, Overstock, Unhealthy, Dead, Non Selling)</span>
+          </Label>
+        </div>
+        <div className="flex items-center space-x-2">
+          <Switch
+            id="exclude-oos"
+            checked={filters.excludeOutOfStock}
+            onCheckedChange={(checked) => onFiltersChange({ excludeOutOfStock: checked })}
+          />
+          <Label htmlFor="exclude-oos" className="text-sm font-medium cursor-pointer">
+            Exclude O/S
+          </Label>
+        </div>
+        <div className="flex items-center space-x-2">
+          <Switch
+            id="exclude-dirt"
+            checked={filters.excludeDirt}
+            onCheckedChange={(checked) => onFiltersChange({ excludeDirt: checked })}
+          />
+          <Label htmlFor="exclude-dirt" className="text-sm font-medium cursor-pointer">
+            Exclude DIRT
+          </Label>
         </div>
       </div>
     </div>

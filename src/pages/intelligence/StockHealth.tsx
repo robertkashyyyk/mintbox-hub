@@ -131,7 +131,7 @@ const StockHealth = () => {
             value: healthy.toLocaleString(),
             sub: pct(healthy),
             tone: "border-green-600/40 bg-green-500/10",
-            onClick: () => handleFiltersChange({ healthCategory: filters.healthCategory === "Healthy" ? "all" : "Healthy", onlyProblems: false }),
+            onClick: () => handleFiltersChange({ healthCategory: filters.healthCategory === "Healthy" ? "all" : "Healthy", onlyGoodProblems: false, onlyBadProblems: false }),
             active: filters.healthCategory === "Healthy",
           },
           {
@@ -139,8 +139,8 @@ const StockHealth = () => {
             value: problems.toLocaleString(),
             sub: pct(problems),
             tone: "border-destructive/40 bg-destructive/10",
-            onClick: () => handleFiltersChange({ onlyProblems: !filters.onlyProblems, healthCategory: "all" }),
-            active: filters.onlyProblems,
+            onClick: () => handleFiltersChange({ onlyBadProblems: !filters.onlyBadProblems, onlyGoodProblems: false, healthCategory: "all" }),
+            active: filters.onlyBadProblems,
           },
           {
             label: "Overstock",
@@ -153,7 +153,7 @@ const StockHealth = () => {
             value: nonSelling.toLocaleString(),
             sub: pct(nonSelling),
             tone: "border-border bg-muted/30",
-            onClick: () => handleFiltersChange({ healthCategory: filters.healthCategory === "Non Selling" ? "all" : "Non Selling", onlyProblems: false }),
+            onClick: () => handleFiltersChange({ healthCategory: filters.healthCategory === "Non Selling" ? "all" : "Non Selling", onlyGoodProblems: false, onlyBadProblems: false }),
             active: filters.healthCategory === "Non Selling",
           },
           {
@@ -161,7 +161,7 @@ const StockHealth = () => {
             value: missingBaseline.toLocaleString(),
             sub: pct(missingBaseline),
             tone: "border-warning/40 bg-warning/10",
-            onClick: () => handleFiltersChange({ healthCategory: filters.healthCategory === "Missing Baseline" ? "all" : "Missing Baseline", onlyProblems: false }),
+            onClick: () => handleFiltersChange({ healthCategory: filters.healthCategory === "Missing Baseline" ? "all" : "Missing Baseline", onlyGoodProblems: false, onlyBadProblems: false }),
             active: filters.healthCategory === "Missing Baseline",
           },
           {
@@ -227,6 +227,7 @@ const StockHealth = () => {
                       <SortableHeader column="sku" label="SKU" />
                       <SortableHeader column="brand_id" label="Brand" />
                       <SortableHeader column="avg_weekly_units" label="Avg/week" />
+                      <TableHead>4W Sales</TableHead>
                       <SortableHeader column="on_hand_qty" label="Stock" />
                       <SortableHeader column="weeks_of_cover" label="Weeks of Cover" />
                       <SortableHeader column="base_multiplier" label="Base Multiplier" />
@@ -246,6 +247,7 @@ const StockHealth = () => {
                         </TableCell>
                         <TableCell>{row.brand_name}</TableCell>
                         <TableCell>{row.avg_weekly_units?.toFixed(2) || "0.00"}</TableCell>
+                        <TableCell className="font-medium">{row.units_4w ?? 0}</TableCell>
                         <TableCell>{row.on_hand_qty || 0}</TableCell>
                         <TableCell>
                           {row.weeks_of_cover !== null ? row.weeks_of_cover.toFixed(1) : "—"}
