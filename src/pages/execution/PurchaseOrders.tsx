@@ -297,9 +297,49 @@ const PurchaseOrders = () => {
                           {po.sent_at ? new Date(po.sent_at).toLocaleDateString("en-GB") : "—"}
                         </TableCell>
                         <TableCell>
-                          <Button variant="ghost" size="sm" asChild>
-                            <Link to={`/execution/purchase-orders/${po.id}`}>Open</Link>
-                          </Button>
+                          <div className="flex items-center justify-end gap-1">
+                            <Button variant="ghost" size="sm" asChild>
+                              <Link to={`/execution/purchase-orders/${po.id}`}>Open</Link>
+                            </Button>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                  disabled={deletingId === po.id}
+                                  title="Delete PO"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Delete this PO?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    {po.mintsoft_po_id ? (
+                                      <>
+                                        This PO was already sent to Mintsoft (#{po.mintsoft_po_id}).
+                                        Deleting here removes it locally only — the Mintsoft PO will remain
+                                        and must be cancelled there separately.
+                                      </>
+                                    ) : (
+                                      <>This will permanently remove {po.po_number || po.id.slice(0, 8)} and all its lines. This cannot be undone.</>
+                                    )}
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={() => deletePo(po)}
+                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                  >
+                                    Delete
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
