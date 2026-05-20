@@ -173,9 +173,12 @@ export default function ThreedsReprice() {
     }
     const next: typeof selected = {};
     for (const r of filtered) {
+      const suggestion = suggestPrice(r);
       next[r.sku] = {
         checked: true,
-        price: selected[r.sku]?.price || (r.current_price?.toFixed(2) ?? ""),
+        price:
+          selected[r.sku]?.price ||
+          (suggestion != null ? suggestion.toFixed(2) : r.current_price?.toFixed(2) ?? ""),
       };
     }
     setSelected(next);
