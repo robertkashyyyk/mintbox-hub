@@ -1,292 +1,181 @@
-## Goal
 
-Introduce a true multi-layer SKU model in PartsDocHub so Mintsoft stays the execution layer while PartsDocHub owns inventory intelligence. The single rule:
+## Phase 2 — Admin UI for SKU Transformations
 
-> **Procurement packs are transient. Base SKUs are warehouse truth. Multiplier SKUs are commercial transforms.**
-
-No SKU suffix (`-P100`, `-M20`, `.100`) will be parsed as logic — every relationship lives in explicit rule tables.
+Pure admin/classification layer. Mintsoft sync, buy recs, PO creation, order processing, marketplace pushes, stock adjustments, and any auto-conversion all stay untouched.
 
 ---
 
-## Phased rollout
+## 1. New page: `/admin/sku-transformations`
 
-To avoid breaking live POs, Mintsoft sync and Buy Recs, this ships in four phases.
+File: `src/pages/admin/SkuTransformations.tsx`
 
-### Phase 1 — Foundation (schema + classification, no behaviour change)
+Standard subpage header (per memory: `space-y-6` container, bold white h1, teal ghost back button). Wrapped in `AccessGate` requiring `super_user` OR `senior_user` (matches Phase 1 RLS).
 
-1. Create enum `sku_type` with values `BASE`, `PROCUREMENT_PACK`, `MULTIPLIER`, `BUNDLE`, `ALT`.
-2. New table `sku_master` (one row per SKU, joins to `products_cache` by `sku`):
-  - `sku_type` (default `BASE`)
-  - `base_sku` (nullable; FK-style by text)
-  - `is_base_sku`, `is_procurement_pack`, `is_multiplier_sku`, `is_bundle` (booleans, derived from `sku_type`)
-  - `allow_marketplace_sale` (default true for BASE/MULTIPLIER, false for PROCUREMENT)
-  - `allow_picking` (default true for BASE/MULTIPLIER, false for PROCUREMENT)
-  - `allow_stock_holding` (default true for BASE, false for MULTIPLIER, transient for PROCUREMENT)
-  - `auto_convert_on_receipt` (default true for PROCUREMENT)
-  - `conversion_multiplier` (PROCUREMENT only)
-  - `procurement_pack_size` (BASE only — pack qty for buy recs)
-  - `notes`, timestamps
-3. Backfill: every existing `products_cache.sku` gets a `sku_master` row of type `BASE`.
-4. Two rule tables:
-  - `sku_conversion_rules` — procurement → base (`procurement_sku`, `base_sku`, `conversion_multiplier`, `auto_convert_on_receipt`, `is_active`, notes)
-  - `sku_multiplier_rules` — multiplier → base (`multiplier_sku`, `base_sku`, `multiplier_qty`, `is_active`, notes)
-5. Log table `sku_conversion_logs` (rule_id, procurement_sku, base_sku, procurement_qty, base_qty_created, mintsoft_reference, status `pending/success/failed/manual`, error_message, created_at, created_by).
-6. RLS: read for authenticated, write restricted to `super_user` / `senior_user` (mirrors existing pattern).
+Two tabs via shadcn `Tabs`:
 
-**Outcome of Phase 1**: data model exists, nothing else changes — safe to ship.
+- **SKU Logic** (default)
+- **Rules**
 
-### Phase 2 — Admin UI (classify SKUs)
-
-New page `**/admin/sku-transformations**` with two tabs:
-
-1. **SKU Logic** — searchable list of products_cache joined to sku_master. Editable per row:
-  - SKU Type dropdown
-  - Base SKU lookup (autocomplete from BASE rows)
-  - Multiplier qty / Pack size (context-sensitive)
-  - Toggles: Auto Convert, Allow Marketplace, Allow Picking, Allow Stock Holding
-2. **Rules** — manage `sku_conversion_rules` and `sku_multiplier_rules` directly, with validation:
-  - Procurement rule requires multiplier > 0 and a BASE row
-  - Multiplier rule requires multiplier_qty > 0 and a BASE row
-  - No duplicate active rules per source SKU
-
-Bulk action: "Suggest mappings from suffix patterns" — shows candidate rules to the user from suffixes like `-P100` / `-M20`, but **never auto-applies** (per the no-hard-coding rule).
-
-Add to `AppSidebar`, `RbacSidebar`, `system_areas`, and `role_area_permissions` (admin area) per the dual-sidebar rule.
-
-### Phase 3 — Conversion engine (the operationally critical bit)
-
-1. **Edge function `sku-auto-convert**` (cron, every 15 min, `verify_jwt = false`):
-  - Find SKUs of type `PROCUREMENT_PACK` with `auto_convert_on_receipt = true` and Mintsoft `current_stock > 0`.
-  - For each, look up active conversion rule.
-  - Pre-flight safeguards: rule exists, qty > 0, base SKU exists in Mintsoft, no in-flight conversion for the same procurement SKU+stock snapshot.
-  - Call Mintsoft stock adjustment API twice:
-    - `-procurement_qty` on procurement SKU
-    - `+procurement_qty * multiplier` on base SKU
-    - Adjustment reason: `PROCUREMENT_PACK_AUTO_CONVERSION` + log row id
-  - Insert `sku_conversion_logs` row (status `success` or `failed`).
-  - On failure: mark log `failed`, leave stock untouched, surface in Conversion Dashboard.
-2. **Idempotency**: a partial unique index on `sku_conversion_logs(procurement_sku, mintsoft_reference)` for `status = 'success'` prevents double conversion.
-3. **Manual retry / override** endpoint for super_users (called from dashboard).
-4. **Buy Recommendation update** (`get_buy_recommendations`):
-  - Calculate required base units as today.
-  - If the BASE row has a `procurement_pack_size > 1` and an active procurement rule exists, output the procurement SKU + pack count (`ceil(required / pack_size)`), rather than the base SKU.
-  - PO CSV / `mintsoft-create-po` send the procurement SKU so Mintsoft GRNs it correctly.
-
-### Phase 4 — Selling resolution + dashboard
-
-1. **Selling resolution**: when order_lines arrive from Mintsoft, if `sku` matches a row in `sku_multiplier_rules`, store `resolved_base_sku` and `resolved_base_qty = qty * multiplier_qty` on the order line (additive columns, doesn't break existing reports). Forecasting / velocity / stock health views switch to `resolved_base_sku` where present.
-2. **Marketplace guard**: any push to channels (Threeds reprice, future channel pushes) checks `allow_marketplace_sale` before sending the SKU.
-3. **Dashboard `/intelligence/sku-transformations**`:
-  - Active procurement SKUs (count + table)
-  - Active multiplier SKUs (count + table)
-  - Per row: pack size, base mapping, current Mintsoft procurement stock, current base stock, last conversion at, last error
-  - Failed conversions panel with "Retry" and "Mark resolved"
-  - Manual convert button (super_user only)
-  - Enable/disable toggle per rule
+Route added in `src/App.tsx` alongside other `/admin/*` routes.
 
 ---
 
-## Technical details
+## 2. Tab 1 — SKU Logic
 
-```text
-products_cache.sku   ──┐
-                       ▼
-                 sku_master (sku PK)
-                 ├─ sku_type
-                 ├─ base_sku ────► points to sku_master.sku where sku_type = BASE
-                 ├─ flags…
-                 ▼
-       ┌───────────────────────┐
-       │ sku_conversion_rules  │   procurement → base + multiplier
-       │ sku_multiplier_rules  │   sellable → base + qty
-       └───────────────────────┘
-                 │
-                 ▼
-          sku_conversion_logs   (audit trail of every adjustment)
+Searchable, paginated table from `products_cache` left-joined to `sku_master` (by `sku`). Server-side search on `sku`, `name`, `brand`. Pagination 50/page.
+
+Columns:
+
+| Column | Source | Editable |
+|---|---|---|
+| SKU | `products_cache.sku` | no |
+| Name | `products_cache.name` | no |
+| Brand | `products_cache.brand` | no |
+| SKU Type | `sku_master.sku_type` | yes (Select) |
+| Base SKU | `sku_master.base_sku` | yes (autocomplete, BASE rows only; hidden if type=BASE) |
+| Multiplier / Pack size | `sku_master.conversion_multiplier` or `procurement_pack_size` | yes (context-sensitive: pack_size for BASE, conversion_multiplier for PROCUREMENT_PACK, multiplier_qty echoed from rule for MULTIPLIER) |
+| Supplier order SKU | `sku_master.supplier_order_sku` | yes |
+| Internal alias | `sku_master.internal_alias_sku` | yes |
+| Auto-convert | `sku_master.auto_convert_on_receipt` | yes (Switch, only meaningful for PROCUREMENT_PACK) |
+| Allow marketplace | `sku_master.allow_marketplace_sale` | yes |
+| Allow picking | `sku_master.allow_picking` | yes |
+| Allow stock holding | `sku_master.allow_stock_holding` | yes |
+| Notes | `sku_master.notes` | yes |
+
+Edit UX: per-row "Edit" opens a side `Sheet` with all fields; "Save" upserts `sku_master`. Optimistic update via TanStack Query, toast on success/error. Validation trigger on `sku_master` (Phase 1) enforces type-flag consistency; surface its error message.
+
+Type legend (always visible as a small `Card` above the table):
+
+- **BASE** — warehouse truth (the real stock unit)
+- **PROCUREMENT_PACK** — supplier ordering / receipt only, transient stock
+- **MULTIPLIER** — sellable SKU that resolves to N × base
+- **BUNDLE** — multiple different base SKUs sold together
+- **ALT** — alias / legacy mapping to a base
+
+Badges on each row use semantic tokens (no raw colors) — distinct variants per type.
+
+---
+
+## 3. Tab 2 — Rules
+
+Two sections (sub-tabs or stacked cards): **Conversion Rules** and **Multiplier Rules**.
+
+### Conversion Rules (`sku_conversion_rules`)
+Table: procurement_sku → base_sku × conversion_multiplier, auto_convert_on_receipt, is_active, notes.
+
+- "Add rule" button → Dialog with autocomplete on both SKU fields (procurement candidates = any SKU; base candidates = `sku_master.sku_type = BASE`), number input for multiplier, switches for auto-convert and active.
+- Inline edit (Sheet) and delete (AlertDialog confirm).
+
+### Multiplier Rules (`sku_multiplier_rules`)
+Same UX, fields: multiplier_sku → base_sku × multiplier_qty, is_active, notes.
+
+### Validation (client + DB)
+- `conversion_multiplier > 0` and `multiplier_qty > 0` (zod + DB CHECK from Phase 1)
+- `base_sku` must exist in `sku_master` with `sku_type='BASE'` (zod async check via supabase query)
+- `source_sku !== base_sku` (zod refine)
+- No duplicate **active** rule per source SKU (zod async check + DB partial unique index — see migration below)
+
+---
+
+## 4. Suggest Mappings tool
+
+Button on the Rules tab → opens Dialog. Runs a client-side scan over `sku_master` rows looking for suffix patterns:
+
+- `.100`, `.50`, `.25` etc. → suggest `PROCUREMENT_PACK` with multiplier from numeric suffix
+- `-P100`, `-P50` → suggest `PROCUREMENT_PACK` with multiplier from number after `-P`
+- `-M20`, `-M10` → suggest `MULTIPLIER` with multiplier_qty from number after `-M`
+- `-Q02` → suggest `MULTIPLIER` (qty 2)
+
+For each suggestion: show source SKU, inferred type, inferred base SKU (suffix stripped, must already exist in `sku_master`), multiplier, and a checkbox. Suggestions where the inferred base doesn't exist are shown disabled with reason "base SKU not found".
+
+User ticks the ones they want, clicks "Create selected rules" → batched insert into the appropriate rule table. Never auto-applied; never inserts on page load.
+
+---
+
+## 5. Tiny supporting migration (additive only)
+
+Two partial unique indexes to enforce "no duplicate active rule per source SKU":
+
+```sql
+CREATE UNIQUE INDEX IF NOT EXISTS sku_conversion_rules_active_unique
+  ON public.sku_conversion_rules (procurement_sku)
+  WHERE is_active = true;
+
+CREATE UNIQUE INDEX IF NOT EXISTS sku_multiplier_rules_active_unique
+  ON public.sku_multiplier_rules (multiplier_sku)
+  WHERE is_active = true;
 ```
 
-**Mintsoft adjustment API**: the existing `mintsoft-create-po` uses `PUT /api/ASN`. For stock conversion we'll use `POST /api/Stock/Adjust` (or `/StockMovement` — to be confirmed against the live Mintsoft API during Phase 3 spike) with reason `PROCUREMENT_PACK_AUTO_CONVERSION`.
-
-**Safeguards encoded as constraints + function checks**:
-
-- `sku_conversion_rules.conversion_multiplier > 0` (CHECK)
-- `sku_multiplier_rules.multiplier_qty > 0` (CHECK)
-- Conversion log uniqueness on (`procurement_sku`, `mintsoft_reference`) where `status = 'success'`
-- Validation trigger (not CHECK, per project rule) on `sku_master` to ensure type-flag consistency
-
-**Defaults for new BASE rows**: `allow_marketplace_sale=true`, `allow_picking=true`, `allow_stock_holding=true`. PROCUREMENT defaults flip the first three to false.
-
-**Will not change in Phase 1–3**: live `mintsoft-sync`, `poll-inventory`, `mintsoft-create-po` payloads, Threeds — they keep working on raw SKUs until the corresponding phase flips them over.
+No table or RLS changes — RLS from Phase 1 already restricts writes to super/senior.
 
 ---
 
-## Open questions before Phase 3
+## 6. Navigation & permissions (dual-sidebar rule)
 
-1. **Mintsoft stock-adjust endpoint** — confirm exact endpoint/payload for atomic two-sided adjustments (Mintsoft sometimes splits into two calls). Will spike at Phase 3 kickoff.
-2. **Existing B-suffix bundles** — keep current `-BXX` import-rule exclusions, or fold them into `sku_type = BUNDLE` immediately? Recommendation: leave the import rule alone in Phase 1, migrate in Phase 4.
-3. **Marketplace channels** — confirm which active pushes need the `allow_marketplace_sale` guard (Threeds is the only one I see; eBay is read-only price-hunter).
+Per the project's Dual Sidebar Sync rule, update all four:
 
-Happy to start with **Phase 1 (schema + backfill + RLS)** on approval; that's pure additive and safe to ship before the UI work.  
-  
-Amendments   
-  
+1. **`src/components/AppSidebar.tsx`** — add "SKU Transformations" link under the Admin group, icon `Shuffle` or `Layers`.
+2. **`src/components/RbacSidebar.tsx`** — same link, gated on area capability.
+3. **`system_areas` table** — insert row `{ key: 'sku_transformations', label: 'SKU Transformations', parent: 'administration', route: '/admin/sku-transformations' }` (exact column names verified against existing rows during implementation).
+4. **`role_area_permissions` table** — grant `admin` to `super_user`, `propose`/`read` to `senior_user`, `read` to relevant ops roles (mirroring `administration` siblings).
+5. **`docs/NAVIGATION.md`** — add the new route.
 
+Also add a tile/link on `src/pages/AdminIndex.tsx`.
 
-This direction looks good — please proceed with Phase 1, with the clarifications below.
+---
 
-Approved Direction
+## 7. Data access
 
-The overall architecture is correct:
+New hook `src/hooks/useSkuTransformations.ts`:
 
-Procurement packs are transient.  
-Base SKUs are warehouse truth.  
-Multiplier SKUs are commercial transforms.
+- `useSkuMasterList({ search, page })` — joins via two queries (products_cache page + sku_master upsert-on-missing fallback for any rows still missing after Phase 1 backfill).
+- `useUpdateSkuMaster(sku)` — upsert mutation.
+- `useConversionRules()` / `useMultiplierRules()` + CRUD mutations.
+- `useSuggestMappings()` — pure client function, no network beyond the existing list.
 
-Please proceed with the phased implementation, starting with Phase 1: schema + classification only, with no behaviour changes to live Mintsoft sync, buy recommendations, PO creation, marketplace pushes, or order processing yet.
+All queries scoped with `queryKey: ['sku-transformations', ...]` so invalidation is clean.
 
-Important Clarification: Procurement SKU Naming
+---
 
-Please do not force procurement SKUs into a renamed internal format such as:
+## 8. Out of scope (explicitly)
 
-FA1-756.521-P100
+- No edits to `mintsoft-sync`, `poll-inventory`, `mintsoft-create-po`, `threeds-reprice-push`, `get_buy_recommendations`, order-line resolution, or any cron.
+- No new edge functions.
+- No SKU renaming.
+- No suffix parsing in any operational code path.
 
-In many cases, the supplier’s actual orderable part number must remain exactly as the supplier provides it.
+---
 
-Example:
+## Files to create / edit
 
-FA1-756.521.100
+**Create**
+- `src/pages/admin/SkuTransformations.tsx`
+- `src/components/admin/sku-transformations/SkuLogicTab.tsx`
+- `src/components/admin/sku-transformations/SkuEditSheet.tsx`
+- `src/components/admin/sku-transformations/RulesTab.tsx`
+- `src/components/admin/sku-transformations/ConversionRuleDialog.tsx`
+- `src/components/admin/sku-transformations/MultiplierRuleDialog.tsx`
+- `src/components/admin/sku-transformations/SuggestMappingsDialog.tsx`
+- `src/components/admin/sku-transformations/SkuTypeBadge.tsx`
+- `src/components/admin/sku-transformations/BaseSkuAutocomplete.tsx`
+- `src/hooks/useSkuTransformations.ts`
+- One migration (two partial unique indexes + system_areas + role_area_permissions seed rows)
 
-This may be the real supplier code that must go onto the PO.
+**Edit**
+- `src/App.tsx` (route)
+- `src/components/AppSidebar.tsx` (link)
+- `src/components/RbacSidebar.tsx` (link)
+- `src/pages/AdminIndex.tsx` (tile)
+- `docs/NAVIGATION.md`
+- `mem://index.md` + new `mem://features/sku-transformations-admin` memory once shipped
 
-If we alter it, we risk breaking supplier ordering unless we add an additional alias/mapping layer.
+---
 
-So for now:
+## Acceptance
 
-procurement_sku must support the supplier’s actual orderable SKU exactly as supplied.
-
-Do not assume we can rename it.
-
-If we later want a cleaner internal alias such as FA1-756.521-P100, that should be optional and mapped separately.
-
-The conversion rule should define the relationship, not the SKU format.
-
-Example:
-
-procurement_sku: FA1-756.521.100  
-base_sku: FA1-756.521  
-conversion_multiplier: 100
-
-Add Optional Alias Support
-
-Please add, or allow for, an optional field such as:
-
-internal_alias_sku  
-supplier_order_sku
-
-or similar.
-
-The key point is:
-
-supplier_order_sku = the code we send to supplier / Mintsoft PO
-
-internal_alias_sku = optional cleaner internal label, if we ever want one
-
-base_sku = the true stock unit
-
-But the system must work without requiring an alias.
-
-Returns
-
-No need to solve returns in this phase.
-
-For now, the expected principle is:
-
-If a multiplier SKU is sold, returns should ultimately return to base stock.
-
-Example:
-
-FA1-756.521-M20
-
-means:
-
-20 × FA1-756.521
-
-So a return of 1 × M20 would ultimately become:
-
-+20 × FA1-756.521
-
-However, this can be handled later when we deal with selling resolution and returns logic. Please do not build returns logic into Phase 1.
-
-Phase 1 Scope
-
-Please implement only the additive foundation:
-
-sku_type enum
-
-sku_master
-
-sku_conversion_rules
-
-sku_multiplier_rules
-
-sku_conversion_logs
-
-Backfill existing SKUs as BASE
-
-RLS matching existing senior/super user patterns
-
-No operational behaviour change yet
-
-Boolean Flags
-
-Where possible, avoid storing too many boolean fields that can drift away from sku_type.
-
-If the project needs them for UI/filtering, that is fine, but ideally:
-
-sku_type = PROCUREMENT_PACK
-
-should be the source of truth, and things like:
-
-is_procurement_pack  
-is_multiplier_sku  
-is_base_sku
-
-should be derived where practical.
-
-Please use validation triggers if stored flags are necessary.
-
-Critical Principle
-
-Do not parse suffixes as logic.
-
-Suffixes can suggest mappings for admin review, but they must never create active logic automatically.
-
-So:
-
-.100  
--P100  
--M20
-
-can be suggested patterns only.
-
-The actual behaviour must always come from explicit database rules.
-
-Please Start
-
-Please proceed with Phase 1 only.
-
-Do not yet alter:
-
-live Mintsoft sync
-
-buy recommendations
-
-PO creation
-
-marketplace stock pushes
-
-order line resolution
-
-stock conversion automation
-
-Once Phase 1 is complete, we can review the schema and then move into the Admin UI phase.
+- Search any SKU, see/edit its `sku_master` row.
+- Set any of the 5 types; flags update consistently (trigger enforces).
+- Create a procurement rule (`FA1-756.521.100 → FA1-756.521 × 100`) and a multiplier rule (`FA1-756.521-M20 → FA1-756.521 × 20`).
+- Validation blocks zero/negative multipliers, self-references, missing base, and duplicate active rules.
+- Suggest Mappings surfaces candidates from suffixes; nothing is written until the admin ticks and confirms.
+- Nothing in live ordering, sync, or marketplace pushes behaves differently.
