@@ -3378,6 +3378,8 @@ export type Database = {
           multiplier_qty: number
           multiplier_sku: string
           notes: string | null
+          relationship_type: string
+          safety_buffer_units: number | null
           updated_at: string
         }
         Insert: {
@@ -3388,6 +3390,8 @@ export type Database = {
           multiplier_qty: number
           multiplier_sku: string
           notes?: string | null
+          relationship_type?: string
+          safety_buffer_units?: number | null
           updated_at?: string
         }
         Update: {
@@ -3398,7 +3402,39 @@ export type Database = {
           multiplier_qty?: number
           multiplier_sku?: string
           notes?: string | null
+          relationship_type?: string
+          safety_buffer_units?: number | null
           updated_at?: string
+        }
+        Relationships: []
+      }
+      sku_multiplier_rules_history: {
+        Row: {
+          action: string
+          changed_at: string
+          changed_by: string | null
+          id: string
+          new_row: Json | null
+          old_row: Json | null
+          rule_id: string | null
+        }
+        Insert: {
+          action: string
+          changed_at?: string
+          changed_by?: string | null
+          id?: string
+          new_row?: Json | null
+          old_row?: Json | null
+          rule_id?: string | null
+        }
+        Update: {
+          action?: string
+          changed_at?: string
+          changed_by?: string | null
+          id?: string
+          new_row?: Json | null
+          old_row?: Json | null
+          rule_id?: string | null
         }
         Relationships: []
       }
@@ -4474,6 +4510,45 @@ export type Database = {
         }
         Relationships: []
       }
+      sku_relationships: {
+        Row: {
+          child_sku: string | null
+          created_at: string | null
+          id: string | null
+          is_active: boolean | null
+          notes: string | null
+          parent_sku: string | null
+          qty: number | null
+          relationship_type: string | null
+          safety_buffer_units: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          child_sku?: string | null
+          created_at?: string | null
+          id?: string | null
+          is_active?: boolean | null
+          notes?: string | null
+          parent_sku?: string | null
+          qty?: number | null
+          relationship_type?: string | null
+          safety_buffer_units?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          child_sku?: string | null
+          created_at?: string | null
+          id?: string | null
+          is_active?: boolean | null
+          notes?: string | null
+          parent_sku?: string | null
+          qty?: number | null
+          relationship_type?: string | null
+          safety_buffer_units?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       sku_stock_health: {
         Row: {
           avg_weekly_units: number | null
@@ -4979,6 +5054,18 @@ export type Database = {
           units_sold: number
         }[]
       }
+      get_virtual_sku_stock: {
+        Args: { p_sku: string }
+        Returns: {
+          base_on_hand: number
+          base_sku: string
+          derived_qty: number
+          pack_qty: number
+          relationship_type: string
+          safety_buffer: number
+          virtual_sku: string
+        }[]
+      }
       has_any_role: {
         Args: {
           _roles: Database["public"]["Enums"]["app_role"][]
@@ -5000,6 +5087,19 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      list_virtual_sku_stock: {
+        Args: { p_base_sku?: string; p_brand_id?: string }
+        Returns: {
+          base_on_hand: number
+          base_sku: string
+          brand_id: string
+          derived_qty: number
+          pack_qty: number
+          relationship_type: string
+          safety_buffer: number
+          virtual_sku: string
+        }[]
       }
       pick_stalest_brand_for_stock_sync: {
         Args: never
