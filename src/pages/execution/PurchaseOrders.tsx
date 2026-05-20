@@ -157,7 +157,7 @@ const PurchaseOrders = () => {
   });
   const todaysAsns = asnsQuery.data ?? [];
 
-  const { data: pos = [], isLoading } = useQuery({
+  const poQuery = useQuery({
     queryKey: ["po-list"],
     queryFn: async () => {
       const sb = supabase as any;
@@ -173,6 +173,8 @@ const PurchaseOrders = () => {
       })) as POSummary[];
     },
   });
+  const pos = poQuery.data ?? [];
+  const isLoading = poQuery.isLoading;
 
 
   const filtered = useMemo(() => {
