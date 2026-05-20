@@ -329,6 +329,7 @@ const LsaCalibration = () => {
                     <TableHead className="text-right">Critical</TableHead>
                     <TableHead className="text-right">Low</TableHead>
                     <TableHead className="text-right">Target</TableHead>
+                    <TableHead className="text-right">POT</TableHead>
                     <TableHead className="text-right">High</TableHead>
                     <TableHead className="text-right">Excess</TableHead>
                     <TableHead className="w-[140px]"></TableHead>
@@ -336,11 +337,11 @@ const LsaCalibration = () => {
                 </TableHeader>
                 <TableBody>
                   {brandsLoading ? (
-                    <TableRow><TableCell colSpan={8} className="text-center py-12">
+                    <TableRow><TableCell colSpan={9} className="text-center py-12">
                       <Loader2 className="h-5 w-5 animate-spin mx-auto text-muted-foreground" />
                     </TableCell></TableRow>
                   ) : filteredBrands.length === 0 ? (
-                    <TableRow><TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
+                    <TableRow><TableCell colSpan={9} className="text-center py-12 text-muted-foreground">
                       No brands match your search.
                     </TableCell></TableRow>
                   ) : (
