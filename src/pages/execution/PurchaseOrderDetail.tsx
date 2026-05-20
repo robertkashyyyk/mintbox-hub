@@ -198,14 +198,14 @@ const PurchaseOrderDetail = () => {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => {
-                const rows: (string | number)[][] = [["SKU", "Quantity", "Cost Price", "Comments"]];
+                const rows: (string | number)[][] = [["SKU", "Quantity", "Price", "Comments"]];
                 for (const l of lines) rows.push([l.sku, Number(l.qty_ordered || 0), Number(l.unit_cost || 0), ""]);
                 downloadCsv(`${po.po_number || po.id.slice(0, 8)}-with-prefix.csv`, rows);
               }}>
                 With prefix (PREFIX-SKU)
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => {
-                const rows: (string | number)[][] = [["SKU", "Quantity", "Cost Price", "Comments"]];
+                const rows: (string | number)[][] = [["SKU", "Quantity", "Price", "Comments"]];
                 for (const l of lines) rows.push([stripPrefix(l.sku), Number(l.qty_ordered || 0), Number(l.unit_cost || 0), ""]);
                 downloadCsv(`${po.po_number || po.id.slice(0, 8)}-supplier.csv`, rows);
               }}>
