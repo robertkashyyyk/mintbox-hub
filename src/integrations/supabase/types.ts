@@ -3232,6 +3232,176 @@ export type Database = {
         }
         Relationships: []
       }
+      sku_conversion_logs: {
+        Row: {
+          base_qty_created: number
+          base_sku: string
+          conversion_rule_id: string | null
+          created_at: string
+          created_by: string | null
+          error_message: string | null
+          id: string
+          mintsoft_reference: string | null
+          procurement_qty: number
+          procurement_sku: string
+          status: string
+        }
+        Insert: {
+          base_qty_created: number
+          base_sku: string
+          conversion_rule_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          error_message?: string | null
+          id?: string
+          mintsoft_reference?: string | null
+          procurement_qty: number
+          procurement_sku: string
+          status?: string
+        }
+        Update: {
+          base_qty_created?: number
+          base_sku?: string
+          conversion_rule_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          error_message?: string | null
+          id?: string
+          mintsoft_reference?: string | null
+          procurement_qty?: number
+          procurement_sku?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sku_conversion_logs_conversion_rule_id_fkey"
+            columns: ["conversion_rule_id"]
+            isOneToOne: false
+            referencedRelation: "sku_conversion_rules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sku_conversion_rules: {
+        Row: {
+          auto_convert_on_receipt: boolean
+          base_sku: string
+          conversion_multiplier: number
+          created_at: string
+          id: string
+          is_active: boolean
+          notes: string | null
+          procurement_sku: string
+          updated_at: string
+        }
+        Insert: {
+          auto_convert_on_receipt?: boolean
+          base_sku: string
+          conversion_multiplier: number
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          notes?: string | null
+          procurement_sku: string
+          updated_at?: string
+        }
+        Update: {
+          auto_convert_on_receipt?: boolean
+          base_sku?: string
+          conversion_multiplier?: number
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          notes?: string | null
+          procurement_sku?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      sku_master: {
+        Row: {
+          allow_marketplace_sale: boolean
+          allow_picking: boolean
+          allow_stock_holding: boolean
+          auto_convert_on_receipt: boolean
+          base_sku: string | null
+          conversion_multiplier: number | null
+          created_at: string
+          internal_alias_sku: string | null
+          notes: string | null
+          procurement_pack_size: number | null
+          sku: string
+          sku_type: Database["public"]["Enums"]["sku_type"]
+          supplier_order_sku: string | null
+          updated_at: string
+        }
+        Insert: {
+          allow_marketplace_sale?: boolean
+          allow_picking?: boolean
+          allow_stock_holding?: boolean
+          auto_convert_on_receipt?: boolean
+          base_sku?: string | null
+          conversion_multiplier?: number | null
+          created_at?: string
+          internal_alias_sku?: string | null
+          notes?: string | null
+          procurement_pack_size?: number | null
+          sku: string
+          sku_type?: Database["public"]["Enums"]["sku_type"]
+          supplier_order_sku?: string | null
+          updated_at?: string
+        }
+        Update: {
+          allow_marketplace_sale?: boolean
+          allow_picking?: boolean
+          allow_stock_holding?: boolean
+          auto_convert_on_receipt?: boolean
+          base_sku?: string | null
+          conversion_multiplier?: number | null
+          created_at?: string
+          internal_alias_sku?: string | null
+          notes?: string | null
+          procurement_pack_size?: number | null
+          sku?: string
+          sku_type?: Database["public"]["Enums"]["sku_type"]
+          supplier_order_sku?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      sku_multiplier_rules: {
+        Row: {
+          base_sku: string
+          created_at: string
+          id: string
+          is_active: boolean
+          multiplier_qty: number
+          multiplier_sku: string
+          notes: string | null
+          updated_at: string
+        }
+        Insert: {
+          base_sku: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          multiplier_qty: number
+          multiplier_sku: string
+          notes?: string | null
+          updated_at?: string
+        }
+        Update: {
+          base_sku?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          multiplier_qty?: number
+          multiplier_sku?: string
+          notes?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       sku_prefixes: {
         Row: {
           notes: string | null
@@ -4241,6 +4411,69 @@ export type Database = {
           },
         ]
       }
+      sku_master_v: {
+        Row: {
+          allow_marketplace_sale: boolean | null
+          allow_picking: boolean | null
+          allow_stock_holding: boolean | null
+          auto_convert_on_receipt: boolean | null
+          base_sku: string | null
+          conversion_multiplier: number | null
+          created_at: string | null
+          internal_alias_sku: string | null
+          is_base_sku: boolean | null
+          is_bundle: boolean | null
+          is_multiplier_sku: boolean | null
+          is_procurement_pack: boolean | null
+          notes: string | null
+          procurement_pack_size: number | null
+          sku: string | null
+          sku_type: Database["public"]["Enums"]["sku_type"] | null
+          supplier_order_sku: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          allow_marketplace_sale?: boolean | null
+          allow_picking?: boolean | null
+          allow_stock_holding?: boolean | null
+          auto_convert_on_receipt?: boolean | null
+          base_sku?: string | null
+          conversion_multiplier?: number | null
+          created_at?: string | null
+          internal_alias_sku?: string | null
+          is_base_sku?: never
+          is_bundle?: never
+          is_multiplier_sku?: never
+          is_procurement_pack?: never
+          notes?: string | null
+          procurement_pack_size?: number | null
+          sku?: string | null
+          sku_type?: Database["public"]["Enums"]["sku_type"] | null
+          supplier_order_sku?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          allow_marketplace_sale?: boolean | null
+          allow_picking?: boolean | null
+          allow_stock_holding?: boolean | null
+          auto_convert_on_receipt?: boolean | null
+          base_sku?: string | null
+          conversion_multiplier?: number | null
+          created_at?: string | null
+          internal_alias_sku?: string | null
+          is_base_sku?: never
+          is_bundle?: never
+          is_multiplier_sku?: never
+          is_procurement_pack?: never
+          notes?: string | null
+          procurement_pack_size?: number | null
+          sku?: string | null
+          sku_type?: Database["public"]["Enums"]["sku_type"] | null
+          supplier_order_sku?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       sku_stock_health: {
         Row: {
           avg_weekly_units: number | null
@@ -4829,6 +5062,7 @@ export type Database = {
         | "ftp_pull"
         | "no_feed"
       severity_type: "info" | "warning" | "critical"
+      sku_type: "BASE" | "PROCUREMENT_PACK" | "MULTIPLIER" | "BUNDLE" | "ALT"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -4994,6 +5228,7 @@ export const Constants = {
         "no_feed",
       ],
       severity_type: ["info", "warning", "critical"],
+      sku_type: ["BASE", "PROCUREMENT_PACK", "MULTIPLIER", "BUNDLE", "ALT"],
     },
   },
 } as const
