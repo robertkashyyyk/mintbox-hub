@@ -221,9 +221,11 @@ export function useSaveMultiplierRule() {
             multiplier_sku: rule.multiplier_sku,
             base_sku: rule.base_sku,
             multiplier_qty: rule.multiplier_qty,
+            relationship_type: rule.relationship_type,
+            safety_buffer_units: rule.safety_buffer_units,
             is_active: rule.is_active,
             notes: rule.notes,
-          })
+          } as any)
           .eq("id", rule.id);
         if (error) throw error;
       } else {
@@ -231,9 +233,11 @@ export function useSaveMultiplierRule() {
           multiplier_sku: rule.multiplier_sku!,
           base_sku: rule.base_sku!,
           multiplier_qty: rule.multiplier_qty!,
+          relationship_type: rule.relationship_type ?? "q_pack",
+          safety_buffer_units: rule.safety_buffer_units ?? null,
           is_active: rule.is_active ?? true,
           notes: rule.notes ?? null,
-        });
+        } as any);
         if (error) throw error;
       }
     },
@@ -249,6 +253,54 @@ export function useDeleteMultiplierRule() {
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["sku-transformations"] }),
+  });
+}
+
+/** Global safety buffer (units) applied when a rule has no per-row override. */
+export function useGlobalSafetyBuffer() {
+  return useQuery({
+    queryKey: ["sku-transformations", "global-safety-buffer"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("app_settings")
+        .select("value")
+        .eq("key", "virtual_sku.global_safety_buffer")
+        .maybeSingle();
+      if (error) throw error;
+      const v = (data?.value as any);
+      return typeof v === "number" ? v : Number(v ?? 0);
+    },
+  });
+}
+
+export function useSetGlobalSafetyBuffer() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (units: number) => {
+      const { error } = await supabase
+        .from("app_settings")
+        .upsert(
+          { key: "virtual_sku.global_safety_buffer", value: units as any },
+          { onConflict: "key" }
+        );
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["sku-transformations", "global-safety-buffer"] }),
+  });
+}
+
+/** Bulk derived stock for all active virtual SKUs (optionally filtered by base or brand). */
+export function useVirtualSkuStockList(params: { baseSku?: string; brandId?: string } = {}) {
+  return useQuery({
+    queryKey: ["sku-transformations", "virtual-stock", params.baseSku ?? null, params.brandId ?? null],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("list_virtual_sku_stock", {
+        p_base_sku: params.baseSku ?? null,
+        p_brand_id: params.brandId ?? null,
+      } as any);
+      if (error) throw error;
+      return (data ?? []) as VirtualSkuStock[];
+    },
   });
 }
 
