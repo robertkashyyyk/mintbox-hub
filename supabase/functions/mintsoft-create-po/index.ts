@@ -125,14 +125,18 @@ Deno.serve(async (req) => {
 
     // Mintsoft API: PUT /api/ASN with NewASN schema
     // (There is NO /api/PurchaseOrder/Create endpoint — ASN is the correct entity.)
-    const payload = {
+    const payload: Record<string, unknown> = {
       ClientId: 3,
       WarehouseId: 5,
-      GoodsInType: "Carton",
+      GoodsInType: goodsInType,
+      SupplierId: supplier.mintsoft_supplier_id,
       Supplier: supplier.name ?? "",
       POReference: po.po_number || `PO-${po.id.slice(0, 8)}`,
       Items: orderItems,
     };
+    if (goodsInType === "Pallet") payload.NumberOfPallets = packageQty;
+    else if (goodsInType === "Carton") payload.NumberOfCartons = packageQty;
+    if (expectedDate) payload.ExpectedDate = expectedDate;
 
     // Mark attempt
     await svc.from("purchase_orders").update({
