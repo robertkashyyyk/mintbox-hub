@@ -51,22 +51,27 @@ export function useSkuLogicList(params: { search: string; page: number; typeFilt
   return useQuery({
     queryKey: ["sku-transformations", "logic", search, page, typeFilter],
     queryFn: async () => {
-      // Query products_cache page first (it has name/brand), then join sku_master client-side.
       let q = supabase
         .from("products_cache")
-        .select("sku, name, brand", { count: "exact" })
+        .select("sku, name, brand_id, brands:brand_id(name)", { count: "exact" })
         .order("sku", { ascending: true })
         .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
 
       if (search) {
         const term = `%${search}%`;
-        q = q.or(`sku.ilike.${term},name.ilike.${term},brand.ilike.${term}`);
+        q = q.or(`sku.ilike.${term},name.ilike.${term}`);
       }
 
       const { data: products, count, error } = await q;
       if (error) throw error;
 
-      const skus = (products ?? []).map((p) => p.sku).filter(Boolean);
+      const productList = (products ?? []) as Array<{
+        sku: string;
+        name: string | null;
+        brand_id: string | null;
+        brands: { name: string | null } | null;
+      }>;
+      const skus = productList.map((p) => p.sku).filter(Boolean);
       let masterMap = new Map<string, SkuMasterRow>();
       if (skus.length > 0) {
         let mq = supabase.from("sku_master").select("*").in("sku", skus);
@@ -76,14 +81,15 @@ export function useSkuLogicList(params: { search: string; page: number; typeFilt
         masterMap = new Map((masters ?? []).map((m) => [m.sku, m as SkuMasterRow]));
       }
 
-      const rows: SkuLogicRow[] = (products ?? [])
+      const rows: SkuLogicRow[] = productList
         .filter((p) => (typeFilter === "ALL" ? true : masterMap.has(p.sku)))
         .map((p) => {
           const m = masterMap.get(p.sku);
           return {
             sku: p.sku,
             name: p.name ?? null,
-            brand: p.brand ?? null,
+            brand: p.brands?.name ?? null,
+            brand_id: p.brand_id ?? null,
             sku_type: (m?.sku_type ?? "BASE") as SkuType,
             base_sku: m?.base_sku ?? null,
             supplier_order_sku: m?.supplier_order_sku ?? null,
