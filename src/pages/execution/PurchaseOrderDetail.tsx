@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,11 +11,16 @@ import {
 } from "@/components/ui/table";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Send, AlertTriangle, Download, ChevronDown } from "lucide-react";
+import { ArrowLeft, Send, AlertTriangle, Download, ChevronDown, Scissors } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 const stripPrefix = (sku: string): string => {
   const slash = sku.indexOf("/");
@@ -46,9 +51,11 @@ const fmt = (n: number) =>
 
 const PurchaseOrderDetail = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
   const qc = useQueryClient();
   const { toast } = useToast();
   const [edits, setEdits] = useState<Record<string, { qty?: number; cost?: number }>>({});
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["po-detail", id],
@@ -147,6 +154,73 @@ const PurchaseOrderDetail = () => {
       refetch();
     },
     onError: (e: any) => toast({ title: "Cannot send to Mintsoft", description: e.message, variant: "destructive" }),
+  });
+
+  const splitPo = useMutation({
+    mutationFn: async () => {
+      const sb = supabase as any;
+      const moveLineIds = Array.from(selected);
+      if (moveLineIds.length === 0) throw new Error("No lines selected");
+      if (!data) throw new Error("PO not loaded");
+      const { po, lines } = data;
+      const moveSet = new Set(moveLineIds);
+      const movingLines = lines.filter((l: any) => moveSet.has(l.id));
+      const remainingLines = lines.filter((l: any) => !moveSet.has(l.id));
+      if (remainingLines.length === 0) throw new Error("Cannot move all lines — leave at least one on the original PO");
+
+      // Find next available suffix for po_number
+      const basePoNumber = (po.po_number || `PO-${po.id.slice(0, 8)}`).replace(/-[A-Z]$/, "");
+      let newPoNumber = basePoNumber;
+      for (let i = 0; i < 26; i++) {
+        const candidate = `${basePoNumber}-${String.fromCharCode(66 + i)}`; // B, C, D...
+        const { data: existing } = await sb.from("purchase_orders").select("id").eq("po_number", candidate).maybeSingle();
+        if (!existing) { newPoNumber = candidate; break; }
+      }
+
+      const movingQty = movingLines.reduce((a: number, l: any) => a + Number(l.qty_ordered || 0), 0);
+      const movingCost = movingLines.reduce((a: number, l: any) => a + Number(l.qty_ordered || 0) * Number(l.unit_cost || 0), 0);
+      const remainingQty = remainingLines.reduce((a: number, l: any) => a + Number(l.qty_ordered || 0), 0);
+      const remainingCost = remainingLines.reduce((a: number, l: any) => a + Number(l.qty_ordered || 0) * Number(l.unit_cost || 0), 0);
+
+      const { data: { user } } = await supabase.auth.getUser();
+
+      // Create the new draft PO
+      const { data: newPo, error: insErr } = await sb.from("purchase_orders").insert({
+        supplier_id: po.supplier_id,
+        status: "draft",
+        po_number: newPoNumber,
+        warehouse_id: po.warehouse_id,
+        created_by: user?.id,
+        notes: `Split from ${po.po_number || po.id.slice(0, 8)} on ${new Date().toLocaleDateString("en-GB")}.${po.notes ? `\n\n--- original notes ---\n${po.notes}` : ""}`,
+        total_qty: movingQty,
+        total_cost: movingCost,
+      }).select("id, po_number").single();
+      if (insErr) throw insErr;
+
+      // Move the selected lines
+      const { error: moveErr } = await sb.from("purchase_order_lines")
+        .update({ po_id: newPo.id })
+        .in("id", moveLineIds);
+      if (moveErr) throw moveErr;
+
+      // Recalc totals on original
+      const { error: updErr } = await sb.from("purchase_orders")
+        .update({ total_qty: remainingQty, total_cost: remainingCost })
+        .eq("id", po.id);
+      if (updErr) throw updErr;
+
+      return newPo;
+    },
+    onSuccess: (newPo: any) => {
+      toast({
+        title: "PO split",
+        description: `${selected.size} line(s) moved to ${newPo.po_number}.`,
+      });
+      setSelected(new Set());
+      qc.invalidateQueries({ queryKey: ["po-detail", id] });
+      navigate(`/execution/purchase-orders/${newPo.id}`);
+    },
+    onError: (e: any) => toast({ title: "Split failed", description: e.message, variant: "destructive" }),
   });
 
   if (isLoading || !data) return <div className="p-8 text-muted-foreground">Loading PO…</div>;
@@ -276,10 +350,39 @@ const PurchaseOrderDetail = () => {
       )}
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader className="flex flex-row items-center justify-between gap-4 flex-wrap">
           <CardTitle className="text-base">Lines ({lines.length})</CardTitle>
-          <div className="text-sm text-muted-foreground">
-            {totalQty} units · <span className="text-foreground font-medium">{fmt(totalCost)}</span>
+          <div className="flex items-center gap-4">
+            {canSend && selected.size > 0 && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <Scissors className="h-4 w-4 mr-2" />
+                    Split: move {selected.size} to new draft PO
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Split this PO?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      {selected.size} selected line{selected.size === 1 ? "" : "s"} will be moved into a brand-new
+                      Draft PO for <strong>{po.suppliers?.name || "this supplier"}</strong>. The remaining{" "}
+                      {lines.length - selected.size} line{lines.length - selected.size === 1 ? "" : "s"} stay on
+                      this PO. You can then download / send each PO independently.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => splitPo.mutate()} disabled={splitPo.isPending}>
+                      {splitPo.isPending ? "Splitting…" : "Split PO"}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
+            <div className="text-sm text-muted-foreground">
+              {totalQty} units · <span className="text-foreground font-medium">{fmt(totalCost)}</span>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -287,6 +390,18 @@ const PurchaseOrderDetail = () => {
             <Table>
               <TableHeader>
                 <TableRow>
+                  {canSend && (
+                    <TableHead className="w-10">
+                      <Checkbox
+                        checked={selected.size > 0 && selected.size === lines.length}
+                        onCheckedChange={(v) => {
+                          if (v) setSelected(new Set(lines.map((l: any) => l.id)));
+                          else setSelected(new Set());
+                        }}
+                        aria-label="Select all lines"
+                      />
+                    </TableHead>
+                  )}
                   <TableHead>SKU</TableHead>
                   <TableHead>Product</TableHead>
                   <TableHead className="text-right">Stock @ snap</TableHead>
@@ -307,7 +422,22 @@ const PurchaseOrderDetail = () => {
                   const dirty = e.qty !== undefined || e.cost !== undefined;
                   const lineTotal = qty * cost;
                   return (
-                    <TableRow key={l.id}>
+                    <TableRow key={l.id} data-state={selected.has(l.id) ? "selected" : undefined}>
+                      {canSend && (
+                        <TableCell>
+                          <Checkbox
+                            checked={selected.has(l.id)}
+                            onCheckedChange={(v) => {
+                              setSelected((prev) => {
+                                const next = new Set(prev);
+                                if (v) next.add(l.id); else next.delete(l.id);
+                                return next;
+                              });
+                            }}
+                            aria-label={`Select ${l.sku}`}
+                          />
+                        </TableCell>
+                      )}
                       <TableCell>
                         <Link to={`/discovery/products/${l.sku}`} className="text-primary hover:underline font-mono text-xs">
                           {l.sku}
