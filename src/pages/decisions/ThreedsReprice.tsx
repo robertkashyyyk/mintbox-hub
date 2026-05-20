@@ -301,6 +301,9 @@ export default function ThreedsReprice() {
                   {filtered.map((r) => {
                     const sel = selected[r.sku];
                     const negative = (r.profit ?? 0) < 0;
+                    const suggestion = suggestPrice(r);
+                    const defaultPrice =
+                      suggestion != null ? suggestion.toFixed(2) : r.current_price?.toFixed(2) ?? "";
                     return (
                       <TableRow key={r.sku} className={negative ? "bg-destructive/5" : ""}>
                         <TableCell>
@@ -311,7 +314,7 @@ export default function ThreedsReprice() {
                                 ...p,
                                 [r.sku]: {
                                   checked: !!v,
-                                  price: p[r.sku]?.price || (r.current_price?.toFixed(2) ?? ""),
+                                  price: p[r.sku]?.price || defaultPrice,
                                 },
                               }))
                             }
@@ -343,7 +346,7 @@ export default function ThreedsReprice() {
                                 },
                               }))
                             }
-                            placeholder={r.current_price?.toFixed(2) ?? ""}
+                            placeholder={defaultPrice}
                           />
                         </TableCell>
                       </TableRow>
