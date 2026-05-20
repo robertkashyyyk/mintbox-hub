@@ -51,6 +51,22 @@ const gbp = (n: number | null | undefined) =>
 const pct = (n: number | null | undefined) =>
   n == null ? "—" : `${n.toFixed(1)}%`;
 
+/**
+ * Suggested new price = break-even + 5% headroom.
+ * profit_per_unit = profit / units. If profit < 0 we add the loss back
+ * onto the current price so the SKU at least breaks even, plus a small
+ * cushion. Only returned when we have current_price, units > 0 and a
+ * negative profit — otherwise the user can keep the current price.
+ */
+const suggestPrice = (c: Candidate): number | null => {
+  if (c.current_price == null || c.units_sold <= 0 || c.profit == null) return null;
+  if (c.profit >= 0) return null;
+  const lossPerUnit = -c.profit / c.units_sold; // positive
+  const suggested = c.current_price + lossPerUnit;
+  // 5% cushion so we don't sit exactly on break-even
+  return Math.round(suggested * 1.05 * 100) / 100;
+};
+
 export default function ThreedsReprice() {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -157,9 +173,12 @@ export default function ThreedsReprice() {
     }
     const next: typeof selected = {};
     for (const r of filtered) {
+      const suggestion = suggestPrice(r);
       next[r.sku] = {
         checked: true,
-        price: selected[r.sku]?.price || (r.current_price?.toFixed(2) ?? ""),
+        price:
+          selected[r.sku]?.price ||
+          (suggestion != null ? suggestion.toFixed(2) : r.current_price?.toFixed(2) ?? ""),
       };
     }
     setSelected(next);
@@ -282,6 +301,9 @@ export default function ThreedsReprice() {
                   {filtered.map((r) => {
                     const sel = selected[r.sku];
                     const negative = (r.profit ?? 0) < 0;
+                    const suggestion = suggestPrice(r);
+                    const defaultPrice =
+                      suggestion != null ? suggestion.toFixed(2) : r.current_price?.toFixed(2) ?? "";
                     return (
                       <TableRow key={r.sku} className={negative ? "bg-destructive/5" : ""}>
                         <TableCell>
@@ -292,7 +314,7 @@ export default function ThreedsReprice() {
                                 ...p,
                                 [r.sku]: {
                                   checked: !!v,
-                                  price: p[r.sku]?.price || (r.current_price?.toFixed(2) ?? ""),
+                                  price: p[r.sku]?.price || defaultPrice,
                                 },
                               }))
                             }
@@ -324,7 +346,7 @@ export default function ThreedsReprice() {
                                 },
                               }))
                             }
-                            placeholder={r.current_price?.toFixed(2) ?? ""}
+                            placeholder={defaultPrice}
                           />
                         </TableCell>
                       </TableRow>
