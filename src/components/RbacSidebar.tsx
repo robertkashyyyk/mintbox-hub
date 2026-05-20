@@ -60,7 +60,6 @@ const iconMap: Record<string, LucideIcon> = {
   CalendarDays: Icons.CalendarDays,
   Settings: Icons.Settings,
   Sparkles: Icons.Sparkles,
-  ArrowUpDown: Icons.ArrowUpDown,
 };
 
 const getIcon = (iconName: string | null): LucideIcon => {
