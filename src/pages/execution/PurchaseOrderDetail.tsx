@@ -156,6 +156,73 @@ const PurchaseOrderDetail = () => {
     onError: (e: any) => toast({ title: "Cannot send to Mintsoft", description: e.message, variant: "destructive" }),
   });
 
+  const splitPo = useMutation({
+    mutationFn: async () => {
+      const sb = supabase as any;
+      const moveLineIds = Array.from(selected);
+      if (moveLineIds.length === 0) throw new Error("No lines selected");
+      if (!data) throw new Error("PO not loaded");
+      const { po, lines } = data;
+      const moveSet = new Set(moveLineIds);
+      const movingLines = lines.filter((l: any) => moveSet.has(l.id));
+      const remainingLines = lines.filter((l: any) => !moveSet.has(l.id));
+      if (remainingLines.length === 0) throw new Error("Cannot move all lines — leave at least one on the original PO");
+
+      // Find next available suffix for po_number
+      const basePoNumber = (po.po_number || `PO-${po.id.slice(0, 8)}`).replace(/-[A-Z]$/, "");
+      let newPoNumber = basePoNumber;
+      for (let i = 0; i < 26; i++) {
+        const candidate = `${basePoNumber}-${String.fromCharCode(66 + i)}`; // B, C, D...
+        const { data: existing } = await sb.from("purchase_orders").select("id").eq("po_number", candidate).maybeSingle();
+        if (!existing) { newPoNumber = candidate; break; }
+      }
+
+      const movingQty = movingLines.reduce((a: number, l: any) => a + Number(l.qty_ordered || 0), 0);
+      const movingCost = movingLines.reduce((a: number, l: any) => a + Number(l.qty_ordered || 0) * Number(l.unit_cost || 0), 0);
+      const remainingQty = remainingLines.reduce((a: number, l: any) => a + Number(l.qty_ordered || 0), 0);
+      const remainingCost = remainingLines.reduce((a: number, l: any) => a + Number(l.qty_ordered || 0) * Number(l.unit_cost || 0), 0);
+
+      const { data: { user } } = await supabase.auth.getUser();
+
+      // Create the new draft PO
+      const { data: newPo, error: insErr } = await sb.from("purchase_orders").insert({
+        supplier_id: po.supplier_id,
+        status: "draft",
+        po_number: newPoNumber,
+        warehouse_id: po.warehouse_id,
+        created_by: user?.id,
+        notes: `Split from ${po.po_number || po.id.slice(0, 8)} on ${new Date().toLocaleDateString("en-GB")}.${po.notes ? `\n\n--- original notes ---\n${po.notes}` : ""}`,
+        total_qty: movingQty,
+        total_cost: movingCost,
+      }).select("id, po_number").single();
+      if (insErr) throw insErr;
+
+      // Move the selected lines
+      const { error: moveErr } = await sb.from("purchase_order_lines")
+        .update({ po_id: newPo.id })
+        .in("id", moveLineIds);
+      if (moveErr) throw moveErr;
+
+      // Recalc totals on original
+      const { error: updErr } = await sb.from("purchase_orders")
+        .update({ total_qty: remainingQty, total_cost: remainingCost })
+        .eq("id", po.id);
+      if (updErr) throw updErr;
+
+      return newPo;
+    },
+    onSuccess: (newPo: any) => {
+      toast({
+        title: "PO split",
+        description: `${selected.size} line(s) moved to ${newPo.po_number}.`,
+      });
+      setSelected(new Set());
+      qc.invalidateQueries({ queryKey: ["po-detail", id] });
+      navigate(`/execution/purchase-orders/${newPo.id}`);
+    },
+    onError: (e: any) => toast({ title: "Split failed", description: e.message, variant: "destructive" }),
+  });
+
   if (isLoading || !data) return <div className="p-8 text-muted-foreground">Loading PO…</div>;
 
   const { po, lines, pidMap, boxMap, pcIdMap } = data;
