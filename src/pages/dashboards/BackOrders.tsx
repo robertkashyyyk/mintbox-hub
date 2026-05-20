@@ -157,10 +157,11 @@ const BackOrders = () => {
 
   // Merge actual + projection into one chart dataset keyed by ts.
   const chartData = useMemo(() => {
-    const map = new Map<number, { label: string; ts: number; actual?: number; projected?: number }>();
+    type Row = { label: string; ts: number; actual?: number; projected?: number };
+    const map = new Map<number, Row>();
     for (const b of buckets) map.set(b.ts, { label: b.label, ts: b.ts, actual: b.avg });
     for (const p of projection) {
-      const entry = map.get(p.ts) ?? { label: p.label, ts: p.ts };
+      const entry: Row = map.get(p.ts) ?? { label: p.label, ts: p.ts };
       entry.projected = p.projected;
       map.set(p.ts, entry);
     }
