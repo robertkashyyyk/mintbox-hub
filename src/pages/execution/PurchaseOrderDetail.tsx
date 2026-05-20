@@ -51,9 +51,11 @@ const fmt = (n: number) =>
 
 const PurchaseOrderDetail = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
   const qc = useQueryClient();
   const { toast } = useToast();
   const [edits, setEdits] = useState<Record<string, { qty?: number; cost?: number }>>({});
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["po-detail", id],
