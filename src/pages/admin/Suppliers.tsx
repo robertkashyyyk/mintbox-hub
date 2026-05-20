@@ -59,6 +59,8 @@ const Suppliers = () => {
   const [newPrefix, setNewPrefix] = useState<string>("");
   const [newPrefixStyle, setNewPrefixStyle] = useState<string>("hyphen");
   const [pulling, setPulling] = useState(false);
+  const [deleting, setDeleting] = useState<Supplier | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
 
   const { data: suppliers = [], isLoading } = useQuery({
     queryKey: ["suppliers-list"],
