@@ -3282,7 +3282,7 @@ export type Database = {
           contact_name?: string | null
           contact_phone?: string | null
           created_at?: string | null
-          id: string
+          id?: string
           lead_time_days?: number | null
           mintsoft_supplier_id?: number | null
           name: string
