@@ -46,6 +46,12 @@ Deno.serve(async (req) => {
     const poId: string | undefined = body?.po_id;
     if (!poId) return json({ error: "po_id required" }, 400);
 
+    // Optional ASN delivery details from the dialog
+    const goodsInTypeRaw = String(body?.goods_in_type ?? "Pallet");
+    const goodsInType = ["Carton", "Pallet", "Loose"].includes(goodsInTypeRaw) ? goodsInTypeRaw : "Pallet";
+    const packageQty = Math.max(1, Number(body?.package_quantity ?? 1) | 0);
+    const expectedDate: string | null = body?.expected_date || null; // ISO date string
+
     const svc = createClient(url, svcKey);
 
     // Load PO + supplier + lines
