@@ -182,6 +182,53 @@ const Suppliers = () => {
     onError: (e: any) => toast({ title: "Save failed", description: e.message, variant: "destructive" }),
   });
 
+  // Live dependency check for the supplier currently being deleted
+  const { data: deleteUsage, isLoading: deleteUsageLoading } = useQuery({
+    queryKey: ["supplier-delete-usage", deleting?.id],
+    enabled: !!deleting?.id,
+    queryFn: async () => {
+      const sb = supabase as any;
+      const id = deleting!.id;
+      const [poRes, asnRes, pxRes] = await Promise.all([
+        sb.from("purchase_orders").select("id", { count: "exact", head: true }).eq("supplier_id", id),
+        sb.from("open_asns").select("id", { count: "exact", head: true }).eq("supplier_id", id),
+        sb.from("sku_prefixes").select("prefix", { count: "exact", head: true }).eq("supplier_id", id),
+      ]);
+      return {
+        purchaseOrders: poRes.count ?? 0,
+        openAsns: asnRes.count ?? 0,
+        prefixMappings: pxRes.count ?? 0,
+      };
+    },
+  });
+
+  const blockers = deleteUsage
+    ? [
+        deleteUsage.purchaseOrders > 0 && { label: "purchase order", count: deleteUsage.purchaseOrders, fix: "Cancel or reassign these POs first." },
+        deleteUsage.openAsns > 0 && { label: "open ASN", count: deleteUsage.openAsns, fix: "Close the inbound ASNs first." },
+        deleteUsage.prefixMappings > 0 && { label: "prefix mapping", count: deleteUsage.prefixMappings, fix: "Unmap the brand prefixes via the Edit dialog." },
+      ].filter(Boolean) as { label: string; count: number; fix: string }[]
+    : [];
+  const canDelete = !!deleting && !deleteUsageLoading && blockers.length === 0 && deleteConfirmText === "DELETE";
+
+  const deleteSupplier = useMutation({
+    mutationFn: async () => {
+      if (!deleting) throw new Error("No supplier");
+      const sb = supabase as any;
+      const { error } = await sb.from("suppliers").delete().eq("id", deleting.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast({ title: "Supplier deleted", description: `${deleting?.name} has been removed.` });
+      setDeleting(null);
+      setDeleteConfirmText("");
+      qc.invalidateQueries({ queryKey: ["suppliers-list"] });
+    },
+    onError: (e: any) => toast({ title: "Delete failed", description: e.message, variant: "destructive" }),
+  });
+
+
+
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4 flex-wrap">
