@@ -22,6 +22,7 @@ export interface SkuMasterRow {
 export interface SkuLogicRow extends SkuMasterRow {
   name: string | null;
   brand: string | null;
+  brand_id: string | null;
 }
 
 export interface ConversionRule {
