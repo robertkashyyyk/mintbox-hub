@@ -127,24 +127,61 @@ export function RulesTab() {
       </Card>
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <CardTitle className="text-base">Multiplier rules</CardTitle>
+            <CardTitle className="text-base">Virtual SKU rules (Q packs, bundles, kits)</CardTitle>
             <p className="text-xs text-muted-foreground">
-              multiplier_sku → base_sku × multiplier_qty
+              virtual_sku → base_sku × pack qty. Stock is derived dynamically; virtual SKUs never hold inventory or drive purchase demand.
             </p>
           </div>
           <Button size="sm" onClick={() => setMultDialog({ open: true })}>
             <Plus className="h-4 w-4 mr-1" /> Add rule
           </Button>
         </CardHeader>
+
+        <div className="px-6 pb-4">
+          <div className="flex flex-wrap items-end gap-3 rounded-md border border-border bg-muted/20 p-3">
+            <div className="space-y-1">
+              <Label className="text-xs">Global safety buffer (units)</Label>
+              <Input
+                type="number"
+                min={0}
+                value={bufferDraft}
+                onChange={(e) => setBufferDraft(e.target.value === "" ? "" : Number(e.target.value))}
+                className="h-9 w-40"
+              />
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={setBuffer.isPending || bufferDraft === "" || Number(bufferDraft) === Number(globalBuffer)}
+              onClick={async () => {
+                try {
+                  await setBuffer.mutateAsync(Number(bufferDraft));
+                  toast({ title: "Global safety buffer saved" });
+                } catch (e: any) {
+                  toast({ title: "Save failed", description: e?.message, variant: "destructive" });
+                }
+              }}
+            >
+              Save
+            </Button>
+            <p className="text-[11px] text-muted-foreground max-w-md">
+              Reserved on the base SKU before deriving virtual stock. Per-rule overrides take precedence.
+            </p>
+          </div>
+        </div>
+
         <CardContent className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Multiplier SKU</TableHead>
+                <TableHead>Virtual SKU</TableHead>
                 <TableHead>Base SKU</TableHead>
-                <TableHead>Qty</TableHead>
+                <TableHead>Pack qty</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Buffer</TableHead>
+                <TableHead>Derived stock</TableHead>
                 <TableHead>Active</TableHead>
                 <TableHead>Notes</TableHead>
                 <TableHead className="w-20"></TableHead>
@@ -152,30 +189,48 @@ export function RulesTab() {
             </TableHeader>
             <TableBody>
               {multLoading && (
-                <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">Loading…</TableCell></TableRow>
+                <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground">Loading…</TableCell></TableRow>
               )}
               {!multLoading && mult.length === 0 && (
-                <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">No multiplier rules yet.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground">No virtual SKU rules yet.</TableCell></TableRow>
               )}
-              {mult.map((r) => (
-                <TableRow key={r.id}>
-                  <TableCell className="font-mono text-xs">{r.multiplier_sku}</TableCell>
-                  <TableCell className="font-mono text-xs">{r.base_sku}</TableCell>
-                  <TableCell className="font-mono text-xs">× {r.multiplier_qty}</TableCell>
-                  <TableCell>{r.is_active ? <Badge variant="outline" className="bg-pd-accent/15 text-pd-accent border-pd-accent/40">active</Badge> : <Badge variant="outline">inactive</Badge>}</TableCell>
-                  <TableCell className="max-w-[260px] truncate text-xs text-muted-foreground">{r.notes ?? "—"}</TableCell>
-                  <TableCell>
-                    <div className="flex gap-1">
-                      <Button variant="ghost" size="icon" onClick={() => setMultDialog({ open: true, initial: r })}>
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => setConfirmDel({ kind: "mult", id: r.id })}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {mult.map((r) => {
+                const stock = stockBySku.get(r.multiplier_sku);
+                return (
+                  <TableRow key={r.id}>
+                    <TableCell className="font-mono text-xs">{r.multiplier_sku}</TableCell>
+                    <TableCell className="font-mono text-xs">{r.base_sku}</TableCell>
+                    <TableCell className="font-mono text-xs">× {r.multiplier_qty}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="text-[10px]">{r.relationship_type ?? "q_pack"}</Badge>
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {r.safety_buffer_units == null ? `global (${globalBuffer})` : r.safety_buffer_units}
+                    </TableCell>
+                    <TableCell className="font-mono text-xs">
+                      {stock ? (
+                        <span title={`base on hand ${stock.base_on_hand} − buffer ${stock.safety_buffer} ÷ ${stock.pack_qty}`}>
+                          {stock.derived_qty}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell>{r.is_active ? <Badge variant="outline" className="bg-pd-accent/15 text-pd-accent border-pd-accent/40">active</Badge> : <Badge variant="outline">inactive</Badge>}</TableCell>
+                    <TableCell className="max-w-[220px] truncate text-xs text-muted-foreground">{r.notes ?? "—"}</TableCell>
+                    <TableCell>
+                      <div className="flex gap-1">
+                        <Button variant="ghost" size="icon" onClick={() => setMultDialog({ open: true, initial: r })}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={() => setConfirmDel({ kind: "mult", id: r.id })}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </CardContent>
