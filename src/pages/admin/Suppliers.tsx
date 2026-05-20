@@ -11,9 +11,13 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction,
+} from "@/components/ui/alert-dialog";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Pencil, Trash2, DownloadCloud, Loader2 } from "lucide-react";
+import { Plus, Pencil, Trash2, DownloadCloud, Loader2, AlertTriangle } from "lucide-react";
 
 interface Supplier {
   id: string;
@@ -55,6 +59,8 @@ const Suppliers = () => {
   const [newPrefix, setNewPrefix] = useState<string>("");
   const [newPrefixStyle, setNewPrefixStyle] = useState<string>("hyphen");
   const [pulling, setPulling] = useState(false);
+  const [deleting, setDeleting] = useState<Supplier | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
 
   const { data: suppliers = [], isLoading } = useQuery({
     queryKey: ["suppliers-list"],
@@ -176,6 +182,53 @@ const Suppliers = () => {
     onError: (e: any) => toast({ title: "Save failed", description: e.message, variant: "destructive" }),
   });
 
+  // Live dependency check for the supplier currently being deleted
+  const { data: deleteUsage, isLoading: deleteUsageLoading } = useQuery({
+    queryKey: ["supplier-delete-usage", deleting?.id],
+    enabled: !!deleting?.id,
+    queryFn: async () => {
+      const sb = supabase as any;
+      const id = deleting!.id;
+      const [poRes, asnRes, pxRes] = await Promise.all([
+        sb.from("purchase_orders").select("id", { count: "exact", head: true }).eq("supplier_id", id),
+        sb.from("open_asns").select("id", { count: "exact", head: true }).eq("supplier_id", id),
+        sb.from("sku_prefixes").select("prefix", { count: "exact", head: true }).eq("supplier_id", id),
+      ]);
+      return {
+        purchaseOrders: poRes.count ?? 0,
+        openAsns: asnRes.count ?? 0,
+        prefixMappings: pxRes.count ?? 0,
+      };
+    },
+  });
+
+  const blockers = deleteUsage
+    ? [
+        deleteUsage.purchaseOrders > 0 && { label: "purchase order", count: deleteUsage.purchaseOrders, fix: "Cancel or reassign these POs first." },
+        deleteUsage.openAsns > 0 && { label: "open ASN", count: deleteUsage.openAsns, fix: "Close the inbound ASNs first." },
+        deleteUsage.prefixMappings > 0 && { label: "prefix mapping", count: deleteUsage.prefixMappings, fix: "Unmap the brand prefixes via the Edit dialog." },
+      ].filter(Boolean) as { label: string; count: number; fix: string }[]
+    : [];
+  const canDelete = !!deleting && !deleteUsageLoading && blockers.length === 0 && deleteConfirmText === "DELETE";
+
+  const deleteSupplier = useMutation({
+    mutationFn: async () => {
+      if (!deleting) throw new Error("No supplier");
+      const sb = supabase as any;
+      const { error } = await sb.from("suppliers").delete().eq("id", deleting.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast({ title: "Supplier deleted", description: `${deleting?.name} has been removed.` });
+      setDeleting(null);
+      setDeleteConfirmText("");
+      qc.invalidateQueries({ queryKey: ["suppliers-list"] });
+    },
+    onError: (e: any) => toast({ title: "Delete failed", description: e.message, variant: "destructive" }),
+  });
+
+
+
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -235,7 +288,7 @@ const Suppliers = () => {
                     <TableHead className="text-right">Prefixes</TableHead>
                     <TableHead className="text-right">Mintsoft ID</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead className="w-12" />
+                    <TableHead className="w-24 text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -260,9 +313,19 @@ const Suppliers = () => {
                           : <Badge variant="outline">Inactive</Badge>}
                       </TableCell>
                       <TableCell>
-                        <Button variant="ghost" size="icon" onClick={() => startEdit(s)}>
-                          <Pencil className="h-4 w-4" />
-                        </Button>
+                        <div className="flex items-center justify-end gap-1">
+                          <Button variant="ghost" size="icon" onClick={() => startEdit(s)} aria-label={`Edit ${s.name}`}>
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => { setDeleting(s); setDeleteConfirmText(""); }}
+                            aria-label={`Delete ${s.name}`}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -427,6 +490,65 @@ const Suppliers = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!deleting} onOpenChange={(o) => { if (!o) { setDeleting(null); setDeleteConfirmText(""); } }}>
+        <AlertDialogContent className="max-w-lg">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete supplier "{deleting?.name}"?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                {deleteUsageLoading ? (
+                  <p className="text-sm text-muted-foreground">Checking for dependencies…</p>
+                ) : blockers.length > 0 ? (
+                  <div className="space-y-2">
+                    <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 p-3">
+                      <AlertTriangle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+                      <div className="text-sm">
+                        <p className="font-semibold text-destructive">Cannot delete — this supplier is still in use.</p>
+                        <p className="text-muted-foreground text-xs mt-1">Clear the following first:</p>
+                      </div>
+                    </div>
+                    <ul className="text-sm space-y-1 pl-1">
+                      {blockers.map((b) => (
+                        <li key={b.label}>
+                          • <span className="font-medium text-foreground">{b.count}</span> {b.label}{b.count === 1 ? "" : "s"}
+                          <span className="text-muted-foreground"> — {b.fix}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-sm">
+                      This permanently removes the supplier record. No purchase orders, ASNs, or prefix mappings reference it.
+                    </p>
+                    <div>
+                      <Label className="text-xs">Type <span className="font-mono font-bold text-destructive">DELETE</span> to confirm</Label>
+                      <Input
+                        autoFocus
+                        value={deleteConfirmText}
+                        onChange={(e) => setDeleteConfirmText(e.target.value)}
+                        placeholder="DELETE"
+                        className="mt-1"
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={!canDelete || deleteSupplier.isPending}
+              onClick={(e) => { e.preventDefault(); deleteSupplier.mutate(); }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteSupplier.isPending ? "Deleting…" : "Delete supplier"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
