@@ -13,11 +13,13 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { ArrowLeft, Gauge, Loader2, RefreshCw, Search, Sparkles } from "lucide-react";
+import { ArrowLeft, Gauge, Loader2, RefreshCw, Search, Sparkles, Zap } from "lucide-react";
 import { useLsaCalibration, type LsaCalibrationRow } from "@/hooks/useLsaCalibration";
 import { useLsaBrandSummary } from "@/hooks/useLsaBrandSummary";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const ALL = "__all__";
 const ALL_STATUSES = ["critical", "low", "target", "high", "excess"] as const;
