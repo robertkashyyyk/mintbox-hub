@@ -51,6 +51,22 @@ const gbp = (n: number | null | undefined) =>
 const pct = (n: number | null | undefined) =>
   n == null ? "—" : `${n.toFixed(1)}%`;
 
+/**
+ * Suggested new price = break-even + 5% headroom.
+ * profit_per_unit = profit / units. If profit < 0 we add the loss back
+ * onto the current price so the SKU at least breaks even, plus a small
+ * cushion. Only returned when we have current_price, units > 0 and a
+ * negative profit — otherwise the user can keep the current price.
+ */
+const suggestPrice = (c: Candidate): number | null => {
+  if (c.current_price == null || c.units_sold <= 0 || c.profit == null) return null;
+  if (c.profit >= 0) return null;
+  const lossPerUnit = -c.profit / c.units_sold; // positive
+  const suggested = c.current_price + lossPerUnit;
+  // 5% cushion so we don't sit exactly on break-even
+  return Math.round(suggested * 1.05 * 100) / 100;
+};
+
 export default function ThreedsReprice() {
   const navigate = useNavigate();
   const { toast } = useToast();
