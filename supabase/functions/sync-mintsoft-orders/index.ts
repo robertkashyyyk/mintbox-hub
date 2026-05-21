@@ -34,6 +34,7 @@ async function logRun(
 
 interface MintsoftOrder {
   ID: number;
+  OrderNumber?: string | null;
   OrderDate: string;
   OrderStatusId?: number;
   OrderStatus?: string | { ID: number; ExternalName: string } | null;
@@ -392,6 +393,7 @@ Deno.serve(async (req) => {
             sku: existing.sku,
             qty: existing.qty,
             order_date: existing.order_date,
+            order_number: order.OrderNumber || null,
             channel: existing.channel,
             channel_order_ref: existing.channel_order_ref,
             warehouse_id: existing.warehouse_id,
@@ -481,6 +483,7 @@ Deno.serve(async (req) => {
             sku: item.SKU,
             qty: item.Quantity,
             order_date: order.OrderDate,
+            order_number: order.OrderNumber || null,
             channel: order.Channel?.Name || null,
             channel_order_ref: order.ExternalOrderReference || null,
             warehouse_id: order.WarehouseId?.toString() || null,
