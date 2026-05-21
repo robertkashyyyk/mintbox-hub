@@ -482,6 +482,7 @@ Deno.serve(async (req) => {
             sku: item.SKU,
             qty: item.Quantity,
             order_date: order.OrderDate,
+            order_number: order.OrderNumber || null,
             channel: order.Channel?.Name || null,
             channel_order_ref: order.ExternalOrderReference || null,
             warehouse_id: order.WarehouseId?.toString() || null,
