@@ -2130,6 +2130,7 @@ export type Database = {
           line_total: number | null
           mintsoft_order_id: number
           order_date: string
+          order_number: string | null
           order_status: string | null
           order_status_id: number | null
           product_name: string | null
@@ -2160,6 +2161,7 @@ export type Database = {
           line_total?: number | null
           mintsoft_order_id: number
           order_date: string
+          order_number?: string | null
           order_status?: string | null
           order_status_id?: number | null
           product_name?: string | null
@@ -2190,6 +2192,7 @@ export type Database = {
           line_total?: number | null
           mintsoft_order_id?: number
           order_date?: string
+          order_number?: string | null
           order_status?: string | null
           order_status_id?: number | null
           product_name?: string | null
@@ -4721,6 +4724,10 @@ export type Database = {
       capability_rank: {
         Args: { c: Database["public"]["Enums"]["app_capability"] }
         Returns: number
+      }
+      derive_marketplace_order_id: {
+        Args: { _channel: string; _order_number: string }
+        Returns: string
       }
       get_brands_with_product_counts: {
         Args: never
