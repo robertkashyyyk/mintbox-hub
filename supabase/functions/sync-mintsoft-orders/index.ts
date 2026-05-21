@@ -34,6 +34,7 @@ async function logRun(
 
 interface MintsoftOrder {
   ID: number;
+  OrderNumber?: string | null;
   OrderDate: string;
   OrderStatusId?: number;
   OrderStatus?: string | { ID: number; ExternalName: string } | null;
