@@ -1,38 +1,74 @@
-import { Auth as SupabaseAuth } from "@supabase/auth-ui-react";
-import { ThemeSupa } from "@supabase/auth-ui-shared";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { Session } from "@supabase/supabase-js";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Info } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { Info, Mail, Sparkles, Loader2 } from "lucide-react";
+import { toast } from "@/hooks/use-toast";
+
+type Mode = "password" | "magic";
 
 const Auth = () => {
   const navigate = useNavigate();
-  const [session, setSession] = useState<Session | null>(null);
+  const [, setSession] = useState<Session | null>(null);
+  const [mode, setMode] = useState<Mode>("password");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    // Check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      if (session) {
-        navigate("/menu");
-      }
+      if (session) navigate("/menu");
     });
-
-    // Set up auth state listener
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
+    } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
-      if (session) {
-        navigate("/menu");
-      }
+      if (session) navigate("/menu");
     });
-
     return () => subscription.unsubscribe();
   }, [navigate]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email) return;
+    setLoading(true);
+    try {
+      if (mode === "password") {
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.auth.signInWithOtp({
+          email,
+          options: { emailRedirectTo: `${window.location.origin}/menu` },
+        });
+        if (error) throw error;
+        toast({
+          title: "Check your email",
+          description: "We've sent you a magic sign-in link.",
+        });
+      }
+    } catch (err: any) {
+      toast({
+        title: "Sign in failed",
+        description: err?.message ?? "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const options: { id: Mode; label: string; icon: typeof Mail }[] = [
+    { id: "password", label: "Email", icon: Mail },
+    { id: "magic", label: "Magic Link", icon: Sparkles },
+  ];
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-background">
@@ -45,65 +81,83 @@ const Auth = () => {
           </div>
           <CardTitle className="text-2xl font-bold text-foreground">PartsDoc Hub</CardTitle>
           <CardDescription className="text-foreground/60">
-            Sign in to your account or sign up with an invitation
+            Sign in to your account
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <Alert className="mb-4 border-foreground/10 bg-foreground/5">
+        <CardContent className="space-y-4">
+          <Alert className="border-foreground/10 bg-foreground/5">
             <Info className="h-4 w-4 text-foreground/70" />
             <AlertDescription className="text-foreground/60">
               This is an invite-only system. Please contact an administrator if you need access.
             </AlertDescription>
           </Alert>
 
-          <SupabaseAuth
-            supabaseClient={supabase}
-            appearance={{
-              theme: ThemeSupa,
-              variables: {
-                default: {
-                  colors: {
-                    brand: "hsl(174, 58%, 37%)",
-                    brandAccent: "hsl(174, 42%, 50%)",
-                    inputBackground: "hsla(0, 0%, 100%, 0.05)",
-                    inputText: "white",
-                    inputBorder: "hsla(0, 0%, 100%, 0.15)",
-                    inputLabelText: "hsla(0, 0%, 100%, 0.7)",
-                    inputPlaceholder: "hsla(0, 0%, 100%, 0.4)",
-                    anchorTextColor: "hsl(174, 58%, 50%)",
-                    messageText: "hsla(0, 0%, 100%, 0.7)",
-                  },
-                },
-              },
-            }}
-            providers={[]}
-            redirectTo={`${window.location.origin}/reset-password`}
-            onlyThirdPartyProviders={false}
-            showLinks={true}
-            magicLink={true}
-            view="sign_in"
-            localization={{
-              variables: {
-                sign_up: {
-                  email_label: "Email address",
-                  password_label: "Create a password",
-                  button_label: "Sign up",
-                  link_text: "Don't have an account? Sign up",
-                },
-                sign_in: {
-                  email_label: "Email address",
-                  password_label: "Password",
-                  button_label: "Sign in",
-                  link_text: "Already have an account? Sign in",
-                },
-                forgotten_password: {
-                  link_text: "Forgot your password?",
-                  button_label: "Send reset instructions",
-                  confirmation_text: "Check your email for the password reset link",
-                },
-              },
-            }}
-          />
+          <div className="grid grid-cols-2 gap-2">
+            {options.map((opt) => {
+              const Icon = opt.icon;
+              const active = mode === opt.id;
+              return (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => setMode(opt.id)}
+                  className={cn(
+                    "flex items-center justify-center gap-2 rounded-md border-2 px-3 py-2.5 text-sm font-medium transition-colors",
+                    active
+                      ? "border-pd-accent bg-pd-accent/10 text-foreground"
+                      : "border-input bg-secondary/40 text-foreground/60 hover:text-foreground hover:border-foreground/20",
+                  )}
+                  aria-pressed={active}
+                >
+                  <Icon className="h-4 w-4" />
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-3">
+            <div className="space-y-2">
+              <Label htmlFor="email" className="text-foreground/70">Email address</Label>
+              <Input
+                id="email"
+                type="email"
+                autoComplete="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
+              />
+            </div>
+
+            {mode === "password" && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="password" className="text-foreground/70">Password</Label>
+                  <Link
+                    to="/reset-password"
+                    className="text-xs text-pd-accent hover:underline"
+                  >
+                    Forgot password?
+                  </Link>
+                </div>
+                <Input
+                  id="password"
+                  type="password"
+                  autoComplete="current-password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                />
+              </div>
+            )}
+
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {mode === "password" ? "Sign in" : "Send magic link"}
+            </Button>
+          </form>
         </CardContent>
       </Card>
     </div>
