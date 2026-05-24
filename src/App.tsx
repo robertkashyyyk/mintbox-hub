@@ -77,6 +77,7 @@ import StockValuationGraphs from "./pages/intelligence/StockValuationGraphs";
 import PricingSignals from "./pages/intelligence/PricingSignals";
 import Seasonality from "./pages/intelligence/Seasonality";
 import ProfitDashboard from "./pages/intelligence/ProfitDashboard";
+import ProfitGraphs from "./pages/intelligence/ProfitGraphs";
 import MissingCosts from "./pages/intelligence/MissingCosts";
 import DirtSkus from "./pages/intelligence/DirtSkus";
 
