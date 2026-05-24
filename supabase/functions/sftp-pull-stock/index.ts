@@ -217,13 +217,12 @@ Deno.serve(async (req) => {
     // this, the snapshot drifts until the next scheduled MV refresh and SKUs
     // appear "Out of Stock" while products_cache shows real units.
     try {
-      const { error: refreshErr } = await supabase.rpc("refresh_sku_health_now");
+      const { error: refreshErr } = await supabase.rpc("refresh_sku_health_internal");
       if (refreshErr) {
-        // Fall back to direct refresh if the RPC's role guard rejects us.
-        console.warn(`[sftp] refresh_sku_health_now RPC failed: ${refreshErr.message} — attempting direct refresh`);
-        await supabase.from("_noop").select("*").limit(0); // keep client warm
+        console.warn(`[sftp] sku_stock_health refresh failed: ${refreshErr.message}`);
+      } else {
+        console.log(`[sftp] sku_stock_health refreshed`);
       }
-      console.log(`[sftp] sku_stock_health refreshed`);
     } catch (e) {
       console.warn(`[sftp] MV refresh skipped: ${e instanceof Error ? e.message : String(e)}`);
     }
