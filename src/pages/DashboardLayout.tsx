@@ -7,7 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { NotificationBell } from "@/components/dashboard/NotificationBell";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
-import { LogOut, Loader2 } from "lucide-react";
+import { LogOut, Loader2, ExternalLink } from "lucide-react";
 
 const DashboardLayout = () => {
   const [session, setSession] = useState<Session | null>(null);
