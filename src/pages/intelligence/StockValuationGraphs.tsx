@@ -100,8 +100,8 @@ const StockValuationGraphs = () => {
     return base;
   }), [rows]);
 
-  const latest = rows.at(-1);
-  const previous = rows.length > 1 ? rows.at(-2) : null;
+  const latest = rows.length > 0 ? rows[rows.length - 1] : undefined;
+  const previous = rows.length > 1 ? rows[rows.length - 2] : null;
   const delta = (cur?: number, prev?: number | null) => {
     if (cur == null || prev == null || prev === 0) return null;
     const pct = ((cur - prev) / prev) * 100;
