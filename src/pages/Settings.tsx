@@ -18,7 +18,7 @@ const Settings = () => {
     setFtpRunning(true);
     setFtpResult(null);
     try {
-      const { data, error } = await supabase.functions.invoke("pull-mintsoft-stock-ftp");
+      const { data, error } = await supabase.functions.invoke("sftp-pull-stock");
       if (error) throw error;
       setFtpResult(data as Record<string, unknown>);
       toast({
