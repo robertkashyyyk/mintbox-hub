@@ -37,7 +37,6 @@ export interface StockValuationFilters {
   onlyMissingCost: boolean;
   onlyInStock: boolean;
   excludeDirt: boolean;
-  excludeRemote: boolean;
 }
 
 const DEFAULT_FILTERS: StockValuationFilters = {
@@ -47,7 +46,6 @@ const DEFAULT_FILTERS: StockValuationFilters = {
   onlyMissingCost: false,
   onlyInStock: true,
   excludeDirt: false,
-  excludeRemote: true,
 };
 
 export const useStockValuation = () => {
