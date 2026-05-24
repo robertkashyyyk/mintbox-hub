@@ -24,6 +24,9 @@ export interface StockValuationSummary {
   totalValue: number;
   missingCostSkus: number;
   missingCostUnits: number;
+  remoteSkus: number;
+  remoteUnits: number;
+  remoteValue: number;
   byCategory: Record<string, CategoryAgg>;
 }
 
@@ -34,6 +37,7 @@ export interface StockValuationFilters {
   onlyMissingCost: boolean;
   onlyInStock: boolean;
   excludeDirt: boolean;
+  excludeRemote: boolean;
 }
 
 const DEFAULT_FILTERS: StockValuationFilters = {
@@ -43,6 +47,7 @@ const DEFAULT_FILTERS: StockValuationFilters = {
   onlyMissingCost: false,
   onlyInStock: true,
   excludeDirt: false,
+  excludeRemote: true,
 };
 
 export const useStockValuation = () => {
@@ -85,6 +90,7 @@ export const useStockValuation = () => {
       if (filters.onlyMissingCost) q = q.or("cost_price.is.null,cost_price.eq.0");
       if (filters.onlyInStock) q = q.gt("current_stock", 0);
       if (filters.excludeDirt) q = q.eq("quarantined", false);
+      if (filters.excludeRemote) q = q.eq("is_remote", false);
 
       q = q.order(sortBy, { ascending: sortOrder === "asc", nullsFirst: false });
 
@@ -107,6 +113,7 @@ export const useStockValuation = () => {
       const { data, error } = await supabase.rpc("get_stock_valuation_summary" as any, {
         p_brand_id: filters.brandId !== "all" ? filters.brandId : null,
         p_exclude_dirt: filters.excludeDirt,
+        p_exclude_remote: filters.excludeRemote,
       });
       if (error) throw error;
       const row: any = Array.isArray(data) ? data[0] : data;
@@ -117,6 +124,9 @@ export const useStockValuation = () => {
         totalValue: Number(row.total_value ?? 0),
         missingCostSkus: Number(row.missing_cost_skus ?? 0),
         missingCostUnits: Number(row.missing_cost_units ?? 0),
+        remoteSkus: Number(row.remote_skus ?? 0),
+        remoteUnits: Number(row.remote_units ?? 0),
+        remoteValue: Number(row.remote_value ?? 0),
         byCategory: (row.by_category ?? {}) as Record<string, CategoryAgg>,
       });
     } catch {
@@ -129,7 +139,7 @@ export const useStockValuation = () => {
   }, [filters, sortBy, sortOrder, page]);
   useEffect(() => {
     fetchSummary();
-  }, [filters.brandId, filters.excludeDirt]);
+  }, [filters.brandId, filters.excludeDirt, filters.excludeRemote]);
 
   const handleFiltersChange = (next: Partial<StockValuationFilters>) => {
     setFilters((f) => ({ ...f, ...next }));
