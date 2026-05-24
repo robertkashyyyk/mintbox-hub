@@ -92,8 +92,13 @@ const StockValuation = () => {
 
   return (
     <div className="space-y-6">
-      <div>
+      <div className="flex items-start justify-between gap-3">
         <h1 className="text-3xl font-bold tracking-tight text-foreground">Stock Valuation</h1>
+        <Button variant="outline" size="sm" asChild>
+          <Link to="/intelligence/stock-valuation/graphs">
+            <LineChart className="h-4 w-4 mr-2" />Graphs
+          </Link>
+        </Button>
       </div>
 
       {/* Top totals */}
