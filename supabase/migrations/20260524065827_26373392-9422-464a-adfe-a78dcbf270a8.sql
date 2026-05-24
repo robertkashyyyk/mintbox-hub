@@ -1,0 +1,1 @@
+DROP FUNCTION IF EXISTS public.get_stock_valuation_summary(uuid, boolean);
