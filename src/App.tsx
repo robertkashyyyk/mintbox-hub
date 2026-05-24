@@ -197,6 +197,7 @@ const App = () => (
             <Route path="/intelligence/velocity" element={<VelocityCoverage />} />
             <Route path="/intelligence/stock-health" element={<StockHealth />} />
             <Route path="/intelligence/stock-valuation" element={<StockValuation />} />
+            <Route path="/intelligence/stock-valuation/graphs" element={<StockValuationGraphs />} />
             <Route path="/intelligence/pricing" element={<PricingSignals />} />
             <Route path="/intelligence/seasonality" element={<Seasonality />} />
             <Route path="/intelligence/profit" element={<ProfitDashboard />} />
