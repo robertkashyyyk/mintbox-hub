@@ -5187,6 +5187,7 @@ export type Database = {
         }[]
       }
       refresh_lsa_brand_summary: { Args: never; Returns: undefined }
+      refresh_sku_health_internal: { Args: never; Returns: undefined }
       refresh_sku_health_now: { Args: never; Returns: undefined }
       user_area_capability: {
         Args: { area_key: string; uid?: string }
