@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { TrendingUp, Activity, DollarSign, Calendar, BarChart3, AlertCircle, AlertTriangle } from "lucide-react";
+import { TrendingUp, Activity, DollarSign, Calendar, BarChart3, AlertCircle, AlertTriangle, PoundSterling } from "lucide-react";
 import ModuleHeader from "@/components/ModuleHeader";
 import intelligenceBanner from "@/assets/banners/intelligence-banner.jpg";
 
@@ -11,6 +11,7 @@ const IntelligenceIndex = () => {
     { title: "Profit Intelligence", description: "Weekly revenue, costs, channel fees and POR.", icon: DollarSign, onClick: () => navigate("/intelligence/profit") },
     { title: "Velocity & Coverage", description: "Sales velocity and inventory coverage analysis", icon: TrendingUp, onClick: () => navigate("/intelligence/velocity") },
     { title: "Stock Health", description: "Stock levels, overstock, and shortage analysis", icon: Activity, onClick: () => navigate("/intelligence/stock-health") },
+    { title: "Stock Valuation", description: "Cost × on-hand by SKU, brand and health category.", icon: PoundSterling, onClick: () => navigate("/intelligence/stock-valuation") },
     { title: "Pricing Signals", description: "Market pricing trends and competitor intelligence", icon: DollarSign, onClick: () => navigate("/intelligence/pricing") },
     { title: "Seasonality", description: "Seasonal demand patterns and forecasts", icon: Calendar, onClick: () => navigate("/intelligence/seasonality") },
     { title: "Missing Costs", description: "Active SKUs without a cost price set.", icon: AlertCircle, onClick: () => navigate("/intelligence/missing-costs") },
