@@ -7,7 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { NotificationBell } from "@/components/dashboard/NotificationBell";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
-import { LogOut, Loader2 } from "lucide-react";
+import { LogOut, Loader2, ExternalLink } from "lucide-react";
 
 const DashboardLayout = () => {
   const [session, setSession] = useState<Session | null>(null);
@@ -85,6 +85,17 @@ const DashboardLayout = () => {
                 </div>
               </div>
               <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  asChild
+                  className="text-pd-accent hover:text-pd-accent-light"
+                  title="Brand Site"
+                >
+                  <a href="https://brand.partsdochub.com" target="_blank" rel="noopener noreferrer">
+                    <ExternalLink className="h-5 w-5" />
+                  </a>
+                </Button>
                 <NotificationBell />
               </div>
             </div>
