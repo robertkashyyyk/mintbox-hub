@@ -182,13 +182,58 @@ export default function MissingCostsGame() {
         }));
       }
 
-      if (skus.length === 0) {
+    setLoadingBrands(true);
+    try {
+      const oversample = Math.max(roundSize * 5, 30);
+      const skippedSet = loadSkippedSet();
+      let skus: Sku[] = [];
+      if (mode === "brand") {
+        const { data, error } = await supabase
+          .from("products_cache")
+          .select("id, sku, name, brand_id, mintsoft_product_id, brands(name)")
+          .is("cost_price", null)
+          .eq("discontinued", false)
+          .eq("quarantined", false)
+          .eq("brand_id", selectedBrandId!)
+          .not("mintsoft_product_id", "is", null)
+          .limit(oversample);
+        if (error) throw error;
+        skus = ((data as any[]) ?? []).map((r) => ({
+          id: r.id,
+          sku: r.sku,
+          name: r.name,
+          brand_id: r.brand_id,
+          brand_name: r.brands?.name ?? null,
+          mintsoft_product_id: r.mintsoft_product_id,
+        }));
+      } else {
+        const { data, error } = await supabase.rpc("get_top_missing_cost_skus", {
+          p_limit: oversample,
+        });
+        if (error) throw error;
+        skus = ((data as any[]) ?? []).map((r) => ({
+          id: r.id,
+          sku: r.sku,
+          name: r.name,
+          brand_id: r.brand_id,
+          brand_name: r.brand_name,
+          mintsoft_product_id: r.mintsoft_product_id,
+        }));
+      }
+
+      // Exclude SKUs the user skipped recently. If filtering empties the pool,
+      // fall back to the unfiltered list so they're never blocked.
+      const filtered = skus.filter((s) => !skippedSet.has(s.sku));
+      const pool = filtered.length > 0 ? filtered : skus;
+      const final = shuffle(pool).slice(0, roundSize);
+
+      if (final.length === 0) {
         toast.info("No matching SKUs to play with");
         setLoadingBrands(false);
         return;
       }
 
-      setQueue(skus);
+      setQueue(final);
       setIdx(0);
       setCost("");
       setPriced(0);
@@ -204,8 +249,12 @@ export default function MissingCostsGame() {
   };
 
   const advance = (didPrice: boolean) => {
-    if (didPrice) setPriced((p) => p + 1);
-    else setSkipped((s) => s + 1);
+    if (didPrice) {
+      setPriced((p) => p + 1);
+    } else {
+      setSkipped((s) => s + 1);
+      if (current?.sku) addSkipped(current.sku);
+    }
     setCost("");
     if (idx + 1 >= queue.length) {
       setEndedAt(Date.now());
@@ -213,6 +262,19 @@ export default function MissingCostsGame() {
     } else {
       setIdx((i) => i + 1);
     }
+  };
+
+  const callUpdate = async (item: Sku, n: number) => {
+    const { data, error } = await supabase.functions.invoke("update-product-cost", {
+      body: {
+        items: [
+          { mintsoft_product_id: item.mintsoft_product_id, sku: item.sku, cost_price: n },
+        ],
+      },
+    });
+    if (error) throw error;
+    const res = (data as any)?.results?.[0];
+    if (res && res.ok === false) throw new Error(res.error ?? "Update failed");
   };
 
   const submit = async () => {
@@ -229,20 +291,13 @@ export default function MissingCostsGame() {
     }
     setSubmitting(true);
     try {
-      const { data, error } = await supabase.functions.invoke("update-product-cost", {
-        body: {
-          items: [
-            {
-              mintsoft_product_id: current.mintsoft_product_id,
-              sku: current.sku,
-              cost_price: n,
-            },
-          ],
-        },
-      });
-      if (error) throw error;
-      const res = (data as any)?.results?.[0];
-      if (res && res.ok === false) throw new Error(res.error ?? "Update failed");
+      try {
+        await callUpdate(current, n);
+      } catch (firstErr) {
+        // One silent retry — Mintsoft cold-starts / transient 5xx are common
+        await new Promise((r) => setTimeout(r, 600));
+        await callUpdate(current, n);
+      }
       toast.success(`Saved £${n.toFixed(2)}`);
       advance(true);
     } catch (e: any) {
