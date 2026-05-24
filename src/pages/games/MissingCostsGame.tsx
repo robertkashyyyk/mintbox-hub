@@ -470,7 +470,15 @@ export default function MissingCostsGame() {
             <div className="flex justify-center">
               <Trophy className="h-14 w-14 text-pd-accent" />
             </div>
-            <h2 className="text-2xl font-bold text-foreground">Round complete!</h2>
+            {(() => {
+              const fb = feedbackFor(priced, queue.length);
+              return (
+                <>
+                  <h2 className="text-2xl font-bold text-foreground">{fb.title}</h2>
+                  {fb.sub && <p className="text-sm text-muted-foreground">{fb.sub}</p>}
+                </>
+              );
+            })()}
             <p className="text-foreground text-lg">
               You priced <span className="font-bold text-pd-accent">{priced}</span> of {queue.length} SKUs
             </p>
