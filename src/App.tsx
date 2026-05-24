@@ -73,6 +73,7 @@ import BoxQuantities from "./pages/discovery/BoxQuantities";
 import VelocityCoverage from "./pages/intelligence/VelocityCoverage";
 import StockHealth from "./pages/intelligence/StockHealth";
 import StockValuation from "./pages/intelligence/StockValuation";
+import StockValuationGraphs from "./pages/intelligence/StockValuationGraphs";
 import PricingSignals from "./pages/intelligence/PricingSignals";
 import Seasonality from "./pages/intelligence/Seasonality";
 import ProfitDashboard from "./pages/intelligence/ProfitDashboard";
@@ -196,6 +197,7 @@ const App = () => (
             <Route path="/intelligence/velocity" element={<VelocityCoverage />} />
             <Route path="/intelligence/stock-health" element={<StockHealth />} />
             <Route path="/intelligence/stock-valuation" element={<StockValuation />} />
+            <Route path="/intelligence/stock-valuation/graphs" element={<StockValuationGraphs />} />
             <Route path="/intelligence/pricing" element={<PricingSignals />} />
             <Route path="/intelligence/seasonality" element={<Seasonality />} />
             <Route path="/intelligence/profit" element={<ProfitDashboard />} />
