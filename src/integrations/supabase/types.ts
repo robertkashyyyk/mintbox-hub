@@ -4605,6 +4605,34 @@ export type Database = {
           },
         ]
       }
+      stock_valuation: {
+        Row: {
+          brand_id: string | null
+          brand_name: string | null
+          cost_price: number | null
+          current_stock: number | null
+          health_category: string | null
+          net_value: number | null
+          quarantined: boolean | null
+          sku: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "products_cache_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "products_cache_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands_missing_base_multiplier"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       supplier_order_summary: {
         Row: {
           estimated_cost: number | null
@@ -5014,6 +5042,17 @@ export type Database = {
           dirt_skus: number
           total_on_hand: number
           total_skus: number
+        }[]
+      }
+      get_stock_valuation_summary: {
+        Args: { p_brand_id?: string; p_exclude_dirt?: boolean }
+        Returns: {
+          by_category: Json
+          missing_cost_skus: number
+          missing_cost_units: number
+          total_skus: number
+          total_units: number
+          total_value: number
         }[]
       }
       get_system_health_job_runs: {
