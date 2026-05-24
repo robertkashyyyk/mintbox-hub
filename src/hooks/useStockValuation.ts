@@ -110,7 +110,6 @@ export const useStockValuation = () => {
       const { data, error } = await supabase.rpc("get_stock_valuation_summary" as any, {
         p_brand_id: filters.brandId !== "all" ? filters.brandId : null,
         p_exclude_dirt: filters.excludeDirt,
-        p_exclude_remote: filters.excludeRemote,
       });
       if (error) throw error;
       const row: any = Array.isArray(data) ? data[0] : data;
