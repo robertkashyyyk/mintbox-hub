@@ -31,6 +31,51 @@ interface BrandOption {
 }
 
 const ROUND_SIZES = [5, 10, 20, 50];
+const SKIPPED_KEY = "mcg.skipped.v1";
+const SKIPPED_TTL_MS = 1000 * 60 * 60 * 24 * 7; // 7 days
+
+function loadSkippedSet(): Set<string> {
+  try {
+    const raw = localStorage.getItem(SKIPPED_KEY);
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw) as { sku: string; at: number }[];
+    const cutoff = Date.now() - SKIPPED_TTL_MS;
+    return new Set(parsed.filter((r) => r.at > cutoff).map((r) => r.sku));
+  } catch {
+    return new Set();
+  }
+}
+
+function addSkipped(sku: string) {
+  try {
+    const raw = localStorage.getItem(SKIPPED_KEY);
+    const arr: { sku: string; at: number }[] = raw ? JSON.parse(raw) : [];
+    const filtered = arr.filter((r) => r.sku !== sku);
+    filtered.push({ sku, at: Date.now() });
+    localStorage.setItem(SKIPPED_KEY, JSON.stringify(filtered.slice(-500)));
+  } catch {
+    /* ignore */
+  }
+}
+
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function feedbackFor(priced: number, total: number): { title: string; sub: string } {
+  if (total <= 0) return { title: "Round complete!", sub: "" };
+  const pct = priced / total;
+  if (priced === total) return { title: "🏆 Perfect round!", sub: "Every SKU priced — legend." };
+  if (pct >= 0.8) return { title: "🔥 Amazing!", sub: "Almost flawless — keep going." };
+  if (pct >= 0.5) return { title: "👏 Great job!", sub: "Solid round, more data unlocked." };
+  if (pct > 0) return { title: "👍 Good effort", sub: "Every price helps — try another?" };
+  return { title: "Better luck next time", sub: "Skipped them all — try Top Sellers or a different brand." };
+}
 
 export default function MissingCostsGame() {
   const [desktop, setDesktop] = useState(false);
@@ -99,8 +144,11 @@ export default function MissingCostsGame() {
       toast.error("Pick a brand first");
       return;
     }
+
     setLoadingBrands(true);
     try {
+      const oversample = Math.max(roundSize * 5, 30);
+      const skippedSet = loadSkippedSet();
       let skus: Sku[] = [];
       if (mode === "brand") {
         const { data, error } = await supabase
@@ -111,7 +159,7 @@ export default function MissingCostsGame() {
           .eq("quarantined", false)
           .eq("brand_id", selectedBrandId!)
           .not("mintsoft_product_id", "is", null)
-          .limit(roundSize);
+          .limit(oversample);
         if (error) throw error;
         skus = ((data as any[]) ?? []).map((r) => ({
           id: r.id,
@@ -122,9 +170,8 @@ export default function MissingCostsGame() {
           mintsoft_product_id: r.mintsoft_product_id,
         }));
       } else {
-        // Top sellers via SECURITY DEFINER RPC (joins economics + cache server-side)
         const { data, error } = await supabase.rpc("get_top_missing_cost_skus", {
-          p_limit: roundSize,
+          p_limit: oversample,
         });
         if (error) throw error;
         skus = ((data as any[]) ?? []).map((r) => ({
@@ -137,13 +184,19 @@ export default function MissingCostsGame() {
         }));
       }
 
-      if (skus.length === 0) {
+      // Exclude SKUs the user skipped recently. If filtering empties the pool,
+      // fall back to the unfiltered list so they're never blocked.
+      const filtered = skus.filter((s) => !skippedSet.has(s.sku));
+      const pool = filtered.length > 0 ? filtered : skus;
+      const final = shuffle(pool).slice(0, roundSize);
+
+      if (final.length === 0) {
         toast.info("No matching SKUs to play with");
         setLoadingBrands(false);
         return;
       }
 
-      setQueue(skus);
+      setQueue(final);
       setIdx(0);
       setCost("");
       setPriced(0);
@@ -159,8 +212,12 @@ export default function MissingCostsGame() {
   };
 
   const advance = (didPrice: boolean) => {
-    if (didPrice) setPriced((p) => p + 1);
-    else setSkipped((s) => s + 1);
+    if (didPrice) {
+      setPriced((p) => p + 1);
+    } else {
+      setSkipped((s) => s + 1);
+      if (current?.sku) addSkipped(current.sku);
+    }
     setCost("");
     if (idx + 1 >= queue.length) {
       setEndedAt(Date.now());
@@ -168,6 +225,19 @@ export default function MissingCostsGame() {
     } else {
       setIdx((i) => i + 1);
     }
+  };
+
+  const callUpdate = async (item: Sku, n: number) => {
+    const { data, error } = await supabase.functions.invoke("update-product-cost", {
+      body: {
+        items: [
+          { mintsoft_product_id: item.mintsoft_product_id, sku: item.sku, cost_price: n },
+        ],
+      },
+    });
+    if (error) throw error;
+    const res = (data as any)?.results?.[0];
+    if (res && res.ok === false) throw new Error(res.error ?? "Update failed");
   };
 
   const submit = async () => {
@@ -184,20 +254,13 @@ export default function MissingCostsGame() {
     }
     setSubmitting(true);
     try {
-      const { data, error } = await supabase.functions.invoke("update-product-cost", {
-        body: {
-          items: [
-            {
-              mintsoft_product_id: current.mintsoft_product_id,
-              sku: current.sku,
-              cost_price: n,
-            },
-          ],
-        },
-      });
-      if (error) throw error;
-      const res = (data as any)?.results?.[0];
-      if (res && res.ok === false) throw new Error(res.error ?? "Update failed");
+      try {
+        await callUpdate(current, n);
+      } catch (firstErr) {
+        // One silent retry — Mintsoft cold-starts / transient 5xx are common
+        await new Promise((r) => setTimeout(r, 600));
+        await callUpdate(current, n);
+      }
       toast.success(`Saved £${n.toFixed(2)}`);
       advance(true);
     } catch (e: any) {
@@ -407,7 +470,15 @@ export default function MissingCostsGame() {
             <div className="flex justify-center">
               <Trophy className="h-14 w-14 text-pd-accent" />
             </div>
-            <h2 className="text-2xl font-bold text-foreground">Round complete!</h2>
+            {(() => {
+              const fb = feedbackFor(priced, queue.length);
+              return (
+                <>
+                  <h2 className="text-2xl font-bold text-foreground">{fb.title}</h2>
+                  {fb.sub && <p className="text-sm text-muted-foreground">{fb.sub}</p>}
+                </>
+              );
+            })()}
             <p className="text-foreground text-lg">
               You priced <span className="font-bold text-pd-accent">{priced}</span> of {queue.length} SKUs
             </p>
