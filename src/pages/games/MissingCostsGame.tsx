@@ -31,6 +31,51 @@ interface BrandOption {
 }
 
 const ROUND_SIZES = [5, 10, 20, 50];
+const SKIPPED_KEY = "mcg.skipped.v1";
+const SKIPPED_TTL_MS = 1000 * 60 * 60 * 24 * 7; // 7 days
+
+function loadSkippedSet(): Set<string> {
+  try {
+    const raw = localStorage.getItem(SKIPPED_KEY);
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw) as { sku: string; at: number }[];
+    const cutoff = Date.now() - SKIPPED_TTL_MS;
+    return new Set(parsed.filter((r) => r.at > cutoff).map((r) => r.sku));
+  } catch {
+    return new Set();
+  }
+}
+
+function addSkipped(sku: string) {
+  try {
+    const raw = localStorage.getItem(SKIPPED_KEY);
+    const arr: { sku: string; at: number }[] = raw ? JSON.parse(raw) : [];
+    const filtered = arr.filter((r) => r.sku !== sku);
+    filtered.push({ sku, at: Date.now() });
+    localStorage.setItem(SKIPPED_KEY, JSON.stringify(filtered.slice(-500)));
+  } catch {
+    /* ignore */
+  }
+}
+
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function feedbackFor(priced: number, total: number): { title: string; sub: string } {
+  if (total <= 0) return { title: "Round complete!", sub: "" };
+  const pct = priced / total;
+  if (priced === total) return { title: "🏆 Perfect round!", sub: "Every SKU priced — legend." };
+  if (pct >= 0.8) return { title: "🔥 Amazing!", sub: "Almost flawless — keep going." };
+  if (pct >= 0.5) return { title: "👏 Great job!", sub: "Solid round, more data unlocked." };
+  if (pct > 0) return { title: "👍 Good effort", sub: "Every price helps — try another?" };
+  return { title: "Better luck next time", sub: "Skipped them all — try Top Sellers or a different brand." };
+}
 
 export default function MissingCostsGame() {
   const [desktop, setDesktop] = useState(false);
