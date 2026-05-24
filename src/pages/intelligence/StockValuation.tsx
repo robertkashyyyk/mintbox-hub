@@ -92,18 +92,9 @@ const StockValuation = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">Stock Valuation</h1>
-          <p className="text-foreground/60">
-            Total inventory value (cost × on-hand) per SKU, broken down by stock-health category.
-            Only Coleraine LIVE warehouse stock is counted — supplier dropship feeds are excluded
-            at the data layer. All six category cards sum to the total. Missing-cost rows are
-            highlighted and counted at £0.
-          </p>
-        </div>
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight text-foreground">Stock Valuation</h1>
       </div>
-
 
       {/* Top totals */}
       {summary && (
