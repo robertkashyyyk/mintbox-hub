@@ -88,7 +88,6 @@ export const useStockValuation = () => {
       if (filters.onlyMissingCost) q = q.or("cost_price.is.null,cost_price.eq.0");
       if (filters.onlyInStock) q = q.gt("current_stock", 0);
       if (filters.excludeDirt) q = q.eq("quarantined", false);
-      if (filters.excludeRemote) q = q.eq("is_remote", false);
 
       q = q.order(sortBy, { ascending: sortOrder === "asc", nullsFirst: false });
 
