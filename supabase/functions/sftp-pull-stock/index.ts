@@ -212,6 +212,21 @@ Deno.serve(async (req) => {
       console.log(`[sftp] chunk ${i / CHUNK + 1}: updated=${u} not_found=${nf} in ${Date.now() - t}ms`);
     }
 
+    // Refresh dependent materialized views so /intelligence/stock-health and
+    // /intelligence/stock-valuation reflect the new figures immediately. Without
+    // this, the snapshot drifts until the next scheduled MV refresh and SKUs
+    // appear "Out of Stock" while products_cache shows real units.
+    try {
+      const { error: refreshErr } = await supabase.rpc("refresh_sku_health_internal");
+      if (refreshErr) {
+        console.warn(`[sftp] sku_stock_health refresh failed: ${refreshErr.message}`);
+      } else {
+        console.log(`[sftp] sku_stock_health refreshed`);
+      }
+    } catch (e) {
+      console.warn(`[sftp] MV refresh skipped: ${e instanceof Error ? e.message : String(e)}`);
+    }
+
     // SAFETY: file deletion temporarily disabled while we validate new Mintsoft exports.
     // Re-enable once we're confident in the run output.
     console.log(`[sftp] file deletion disabled (validation mode); leaving ${chosenFile} in place`);
