@@ -85,6 +85,17 @@ const DashboardLayout = () => {
                 </div>
               </div>
               <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  asChild
+                  className="text-pd-accent hover:text-pd-accent-light"
+                  title="Brand Site"
+                >
+                  <a href="https://brand.partsdochub.com" target="_blank" rel="noopener noreferrer">
+                    <ExternalLink className="h-5 w-5" />
+                  </a>
+                </Button>
                 <NotificationBell />
               </div>
             </div>
