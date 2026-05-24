@@ -97,25 +97,13 @@ const StockValuation = () => {
           <h1 className="text-3xl font-bold tracking-tight text-foreground">Stock Valuation</h1>
           <p className="text-foreground/60">
             Total inventory value (cost × on-hand) per SKU, broken down by stock-health category.
-            All six category cards sum to the total. Missing-cost rows are highlighted and counted at £0.
+            Only Coleraine LIVE warehouse stock is counted — supplier dropship feeds are excluded
+            at the data layer. All six category cards sum to the total. Missing-cost rows are
+            highlighted and counted at £0.
           </p>
-        </div>
-        <div className="flex items-center space-x-2 rounded-md border border-border bg-card px-3 py-2">
-          <Switch id="excl-remote-top" checked={filters.excludeRemote}
-            onCheckedChange={(v) => handleFiltersChange({ excludeRemote: v })} />
-          <Label htmlFor="excl-remote-top" className="text-sm cursor-pointer">
-            Exclude remote warehouse (15D)
-          </Label>
         </div>
       </div>
 
-      {summary && filters.excludeRemote && summary.remoteSkus > 0 && (
-        <div className="rounded-md border border-warning/40 bg-warning/10 px-4 py-2 text-sm text-foreground/80">
-          Hiding <strong>{num(summary.remoteSkus)}</strong> remote/dropship SKUs
-          ({num(summary.remoteUnits)} units, {gbp(summary.remoteValue)} notional supplier-feed value).
-          Toggle off above to include them.
-        </div>
-      )}
 
       {/* Top totals */}
       {summary && (
