@@ -243,6 +243,12 @@ const ProfitDashboard = () => {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button asChild variant="outline" size="sm">
+            <Link to="/intelligence/profit/graphs">
+              <LineChartIcon className="h-4 w-4 mr-2" />
+              Graphs
+            </Link>
+          </Button>
           <Button variant="outline" size="sm" onClick={handleBackfill}>
             <RefreshCw className="h-4 w-4 mr-2" />
             Backfill 4 weeks
