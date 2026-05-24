@@ -113,6 +113,10 @@ import PackingAreaDisplay from "./pages/dashboards/PackingAreaDisplay";
 import WeeklySummary from "./pages/dashboards/WeeklySummary";
 import BackOrders from "./pages/dashboards/BackOrders";
 
+// Games
+import GamesIndex from "./pages/games/GamesIndex";
+import MissingCostsGame from "./pages/games/MissingCostsGame";
+
 // Configure QueryClient with better error handling and retry logic
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -262,6 +266,10 @@ const App = () => (
             {/* Settings & Profile */}
             <Route path="/settings" element={<Settings />} />
             <Route path="/profile" element={<Profile />} />
+
+            {/* Games */}
+            <Route path="/games" element={<GamesIndex />} />
+            <Route path="/games/mcg" element={<MissingCostsGame />} />
 
             {/* Archived legacy pages — redirect to appropriate modules */}
             <Route path="/ebay-admin" element={<Navigate to="/admin/integrations" replace />} />
