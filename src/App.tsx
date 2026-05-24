@@ -73,6 +73,7 @@ import BoxQuantities from "./pages/discovery/BoxQuantities";
 import VelocityCoverage from "./pages/intelligence/VelocityCoverage";
 import StockHealth from "./pages/intelligence/StockHealth";
 import StockValuation from "./pages/intelligence/StockValuation";
+import StockValuationGraphs from "./pages/intelligence/StockValuationGraphs";
 import PricingSignals from "./pages/intelligence/PricingSignals";
 import Seasonality from "./pages/intelligence/Seasonality";
 import ProfitDashboard from "./pages/intelligence/ProfitDashboard";
