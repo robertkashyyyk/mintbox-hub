@@ -4779,6 +4779,7 @@ export type Database = {
           resolved_count: number
         }[]
       }
+      backfill_profit_weekly_snapshots: { Args: never; Returns: number }
       bulk_update_lsa_from_sftp: {
         Args: { _payload: Json }
         Returns: {
@@ -5246,6 +5247,76 @@ export type Database = {
       refresh_lsa_brand_summary: { Args: never; Returns: undefined }
       refresh_sku_health_internal: { Args: never; Returns: undefined }
       refresh_sku_health_now: { Args: never; Returns: undefined }
+      snapshot_profit_current_week: {
+        Args: never
+        Returns: {
+          aip: number | null
+          aov: number | null
+          appo: number | null
+          appp: number | null
+          channel_fees_total: number
+          cost_total: number
+          courier_cost_total: number
+          created_at: string
+          dirt_count: number
+          good_count: number
+          id: string
+          iso_week: number
+          iso_year: number
+          line_count: number
+          missing_cost_count: number
+          order_count: number
+          por_pct: number | null
+          profit: number
+          qty: number
+          revenue: number
+          source: string
+          updated_at: string
+          week_end: string
+          week_start: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "profit_weekly_snapshots"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      snapshot_profit_week: {
+        Args: { p_iso_week: number; p_iso_year: number }
+        Returns: {
+          aip: number | null
+          aov: number | null
+          appo: number | null
+          appp: number | null
+          channel_fees_total: number
+          cost_total: number
+          courier_cost_total: number
+          created_at: string
+          dirt_count: number
+          good_count: number
+          id: string
+          iso_week: number
+          iso_year: number
+          line_count: number
+          missing_cost_count: number
+          order_count: number
+          por_pct: number | null
+          profit: number
+          qty: number
+          revenue: number
+          source: string
+          updated_at: string
+          week_end: string
+          week_start: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "profit_weekly_snapshots"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       snapshot_stock_valuation: {
         Args: never
         Returns: {
