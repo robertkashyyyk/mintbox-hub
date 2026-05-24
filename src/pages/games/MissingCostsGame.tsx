@@ -144,43 +144,6 @@ export default function MissingCostsGame() {
       toast.error("Pick a brand first");
       return;
     }
-    setLoadingBrands(true);
-    try {
-      let skus: Sku[] = [];
-      if (mode === "brand") {
-        const { data, error } = await supabase
-          .from("products_cache")
-          .select("id, sku, name, brand_id, mintsoft_product_id, brands(name)")
-          .is("cost_price", null)
-          .eq("discontinued", false)
-          .eq("quarantined", false)
-          .eq("brand_id", selectedBrandId!)
-          .not("mintsoft_product_id", "is", null)
-          .limit(roundSize);
-        if (error) throw error;
-        skus = ((data as any[]) ?? []).map((r) => ({
-          id: r.id,
-          sku: r.sku,
-          name: r.name,
-          brand_id: r.brand_id,
-          brand_name: r.brands?.name ?? null,
-          mintsoft_product_id: r.mintsoft_product_id,
-        }));
-      } else {
-        // Top sellers via SECURITY DEFINER RPC (joins economics + cache server-side)
-        const { data, error } = await supabase.rpc("get_top_missing_cost_skus", {
-          p_limit: roundSize,
-        });
-        if (error) throw error;
-        skus = ((data as any[]) ?? []).map((r) => ({
-          id: r.id,
-          sku: r.sku,
-          name: r.name,
-          brand_id: r.brand_id,
-          brand_name: r.brand_name,
-          mintsoft_product_id: r.mintsoft_product_id,
-        }));
-      }
 
     setLoadingBrands(true);
     try {
