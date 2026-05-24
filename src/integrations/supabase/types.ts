@@ -5108,6 +5108,18 @@ export type Database = {
           units_sold: number
         }[]
       }
+      get_top_missing_cost_skus: {
+        Args: { p_limit?: number }
+        Returns: {
+          brand_id: string
+          brand_name: string
+          id: string
+          mintsoft_product_id: number
+          name: string
+          sku: string
+          units_28d: number
+        }[]
+      }
       get_virtual_sku_stock: {
         Args: { p_sku: string }
         Returns: {
