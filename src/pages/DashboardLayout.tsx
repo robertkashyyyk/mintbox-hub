@@ -8,6 +8,7 @@ import { NotificationBell } from "@/components/dashboard/NotificationBell";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { LogOut, Loader2, ExternalLink } from "lucide-react";
+import brandIcon from "@/assets/brand/partsdoc-icon-teal.png";
 
 const DashboardLayout = () => {
   const [session, setSession] = useState<Session | null>(null);
@@ -77,9 +78,9 @@ const DashboardLayout = () => {
               <div className="flex items-center gap-4">
                 <SidebarTrigger className="text-pd-accent hover:text-pd-accent-light" />
                 <div className="flex items-center gap-3">
-                  <div className="h-8 w-1 rounded-full bg-pd-accent" />
+                  <img src={brandIcon} alt="PartsDoc" className="h-8 w-8 object-contain" />
                   <div>
-                    <h1 className="text-lg font-bold text-foreground tracking-tight">PartsDoc Hub</h1>
+                    <h1 className="text-lg font-display font-bold text-foreground tracking-tight">PartsDoc Hub</h1>
                     <p className="text-xs text-foreground/50">{session.user.email}</p>
                   </div>
                 </div>

@@ -165,14 +165,18 @@ All colors MUST be HSL.
   }
 
   body {
-    @apply bg-background text-foreground antialiased;
+    @apply bg-background text-foreground antialiased font-sans;
     font-feature-settings: "cv11", "ss01", "ss03";
   }
 
-  /* Heavier headings for clearer hierarchy */
-  h1 { @apply font-bold tracking-tight; }
-  h2 { @apply font-semibold tracking-tight; }
+  /* Brand display face for headings — Barlow Condensed, per brand guidelines */
+  h1, h2, h3, h4 { @apply font-display tracking-tight; letter-spacing: 0.01em; }
+  h1 { @apply font-bold; }
+  h2 { @apply font-bold; }
   h3, h4 { @apply font-semibold; }
+
+  /* Tabular / SKU / code style — JetBrains Mono */
+  code, kbd, pre, samp, .font-mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
 
   /* Right-align numeric table cells when marked */
   td.numeric, th.numeric, .tabular-nums { font-variant-numeric: tabular-nums; }

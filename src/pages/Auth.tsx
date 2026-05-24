@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Info, Mail, Sparkles, Loader2 } from "lucide-react";
+import brandIcon from "@/assets/brand/partsdoc-icon-teal.png";
 import { toast } from "@/hooks/use-toast";
 
 type Mode = "password" | "magic";
@@ -77,11 +78,13 @@ const Auth = () => {
       <Card className="w-full max-w-md border-border bg-card">
         <CardHeader className="space-y-1 text-center">
           <div className="flex justify-center mb-4">
-            <div className="h-12 w-12 rounded-xl flex items-center justify-center bg-pd-accent">
-              <span className="text-foreground font-bold text-xl">PD</span>
-            </div>
+            <img
+              src={brandIcon}
+              alt="PartsDoc"
+              className="h-14 w-14 object-contain"
+            />
           </div>
-          <CardTitle className="text-2xl font-bold text-foreground">PartsDoc Hub</CardTitle>
+          <CardTitle className="text-3xl font-display font-bold text-foreground tracking-tight">PartsDoc Hub</CardTitle>
           <CardDescription className="text-foreground/60">
             Sign in to your account
           </CardDescription>
