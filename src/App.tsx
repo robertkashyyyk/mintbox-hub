@@ -202,6 +202,7 @@ const App = () => (
             <Route path="/intelligence/pricing" element={<PricingSignals />} />
             <Route path="/intelligence/seasonality" element={<Seasonality />} />
             <Route path="/intelligence/profit" element={<ProfitDashboard />} />
+            <Route path="/intelligence/profit/graphs" element={<ProfitGraphs />} />
             <Route path="/intelligence/missing-costs" element={<MissingCosts />} />
             <Route path="/intelligence/dirt-skus" element={<DirtSkus />} />
 
