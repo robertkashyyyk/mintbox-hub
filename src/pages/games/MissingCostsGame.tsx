@@ -122,48 +122,19 @@ export default function MissingCostsGame() {
           mintsoft_product_id: r.mintsoft_product_id,
         }));
       } else {
-        // Top sellers: order_line_economics last 28 days, missing_cost=true
-        const since = new Date(Date.now() - 28 * 24 * 60 * 60 * 1000).toISOString();
-        const { data, error } = await supabase
-          .from("order_line_economics")
-          .select("sku, qty")
-          .eq("missing_cost", true)
-          .gte("order_date", since);
+        // Top sellers via SECURITY DEFINER RPC (joins economics + cache server-side)
+        const { data, error } = await supabase.rpc("get_top_missing_cost_skus", {
+          p_limit: roundSize,
+        });
         if (error) throw error;
-        const totals = new Map<string, number>();
-        for (const r of (data as any[]) ?? []) {
-          totals.set(r.sku, (totals.get(r.sku) ?? 0) + Number(r.qty ?? 0));
-        }
-        const topSkus = Array.from(totals.entries())
-          .sort((a, b) => b[1] - a[1])
-          .slice(0, roundSize)
-          .map(([sku]) => sku);
-        if (topSkus.length === 0) {
-          toast.info("No top sellers with missing costs in the last 28 days");
-          setLoadingBrands(false);
-          return;
-        }
-        const { data: prod, error: pErr } = await supabase
-          .from("products_cache")
-          .select("id, sku, name, brand_id, mintsoft_product_id, brands(name)")
-          .in("sku", topSkus)
-          .is("cost_price", null)
-          .eq("discontinued", false)
-          .eq("quarantined", false)
-          .not("mintsoft_product_id", "is", null);
-        if (pErr) throw pErr;
-        const bySku = new Map<string, Sku>();
-        for (const r of (prod as any[]) ?? []) {
-          bySku.set(r.sku, {
-            id: r.id,
-            sku: r.sku,
-            name: r.name,
-            brand_id: r.brand_id,
-            brand_name: r.brands?.name ?? null,
-            mintsoft_product_id: r.mintsoft_product_id,
-          });
-        }
-        skus = topSkus.map((s) => bySku.get(s)).filter(Boolean) as Sku[];
+        skus = ((data as any[]) ?? []).map((r) => ({
+          id: r.id,
+          sku: r.sku,
+          name: r.name,
+          brand_id: r.brand_id,
+          brand_name: r.brand_name,
+          mintsoft_product_id: r.mintsoft_product_id,
+        }));
       }
 
       if (skus.length === 0) {
