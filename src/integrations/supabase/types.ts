@@ -4612,6 +4612,7 @@ export type Database = {
           cost_price: number | null
           current_stock: number | null
           health_category: string | null
+          is_remote: boolean | null
           net_value: number | null
           quarantined: boolean | null
           sku: string | null
@@ -5044,17 +5045,36 @@ export type Database = {
           total_skus: number
         }[]
       }
-      get_stock_valuation_summary: {
-        Args: { p_brand_id?: string; p_exclude_dirt?: boolean }
-        Returns: {
-          by_category: Json
-          missing_cost_skus: number
-          missing_cost_units: number
-          total_skus: number
-          total_units: number
-          total_value: number
-        }[]
-      }
+      get_stock_valuation_summary:
+        | {
+            Args: { p_brand_id?: string; p_exclude_dirt?: boolean }
+            Returns: {
+              by_category: Json
+              missing_cost_skus: number
+              missing_cost_units: number
+              total_skus: number
+              total_units: number
+              total_value: number
+            }[]
+          }
+        | {
+            Args: {
+              p_brand_id?: string
+              p_exclude_dirt?: boolean
+              p_exclude_remote?: boolean
+            }
+            Returns: {
+              by_category: Json
+              missing_cost_skus: number
+              missing_cost_units: number
+              remote_skus: number
+              remote_units: number
+              remote_value: number
+              total_skus: number
+              total_units: number
+              total_value: number
+            }[]
+          }
       get_system_health_job_runs: {
         Args: { _jobname: string; _limit?: number }
         Returns: {
