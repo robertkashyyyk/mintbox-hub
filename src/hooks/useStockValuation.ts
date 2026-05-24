@@ -135,7 +135,7 @@ export const useStockValuation = () => {
   }, [filters, sortBy, sortOrder, page]);
   useEffect(() => {
     fetchSummary();
-  }, [filters.brandId, filters.excludeDirt, filters.excludeRemote]);
+  }, [filters.brandId, filters.excludeDirt]);
 
   const handleFiltersChange = (next: Partial<StockValuationFilters>) => {
     setFilters((f) => ({ ...f, ...next }));
