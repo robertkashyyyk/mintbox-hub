@@ -89,10 +89,6 @@ const Auth = () => {
             Sign in to your account
           </CardDescription>
         </CardHeader>
-          <CardDescription className="text-foreground/60">
-            Sign in to your account
-          </CardDescription>
-        </CardHeader>
         <CardContent className="space-y-4">
           <Alert className="border-foreground/10 bg-foreground/5">
             <Info className="h-4 w-4 text-foreground/70" />
