@@ -3470,6 +3470,63 @@ export type Database = {
           },
         ]
       }
+      stock_valuation_weekly_snapshots: {
+        Row: {
+          avg_value_per_sku: number
+          by_category: Json
+          captured_at: string
+          id: string
+          iso_week: number
+          iso_year: number
+          missing_cost_skus: number
+          missing_cost_units: number
+          remote_skus: number
+          remote_units: number
+          remote_value: number
+          total_skus: number
+          total_units: number
+          total_value: number
+          week_end: string
+          week_start: string
+        }
+        Insert: {
+          avg_value_per_sku?: number
+          by_category?: Json
+          captured_at?: string
+          id?: string
+          iso_week: number
+          iso_year: number
+          missing_cost_skus?: number
+          missing_cost_units?: number
+          remote_skus?: number
+          remote_units?: number
+          remote_value?: number
+          total_skus?: number
+          total_units?: number
+          total_value?: number
+          week_end: string
+          week_start: string
+        }
+        Update: {
+          avg_value_per_sku?: number
+          by_category?: Json
+          captured_at?: string
+          id?: string
+          iso_week?: number
+          iso_year?: number
+          missing_cost_skus?: number
+          missing_cost_units?: number
+          remote_skus?: number
+          remote_units?: number
+          remote_value?: number
+          total_skus?: number
+          total_units?: number
+          total_value?: number
+          week_end?: string
+          week_start?: string
+        }
+        Relationships: []
+      }
       suppliers: {
         Row: {
           active: boolean | null
@@ -5189,6 +5246,33 @@ export type Database = {
       refresh_lsa_brand_summary: { Args: never; Returns: undefined }
       refresh_sku_health_internal: { Args: never; Returns: undefined }
       refresh_sku_health_now: { Args: never; Returns: undefined }
+      snapshot_stock_valuation: {
+        Args: never
+        Returns: {
+          avg_value_per_sku: number
+          by_category: Json
+          captured_at: string
+          id: string
+          iso_week: number
+          iso_year: number
+          missing_cost_skus: number
+          missing_cost_units: number
+          remote_skus: number
+          remote_units: number
+          remote_value: number
+          total_skus: number
+          total_units: number
+          total_value: number
+          week_end: string
+          week_start: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "stock_valuation_weekly_snapshots"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       user_area_capability: {
         Args: { area_key: string; uid?: string }
         Returns: Database["public"]["Enums"]["app_capability"]
