@@ -448,12 +448,7 @@ tbody tr:hover td { background:rgba(61,158,140,.04); }
 <!-- TOP NAV -->
 <nav class="topbar">
   <div class="logo">
-    <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
-      <path d="M13 2C7.48 2 3 6.48 3 12s4.48 10 10 10 10-4.48 10-10S18.52 2 13 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z" fill="#3D9E8C" opacity=".4"/>
-      <path d="M15.5 8.5a3 3 0 0 0-4.24 0L10 9.76l1.41 1.41.59-.59a1 1 0 0 1 1.42 0l2.12 2.12a1 1 0 0 1 0 1.42l-.59.59 1.41 1.41 1.26-1.26a3 3 0 0 0 0-4.24L15.5 8.5z" fill="#3D9E8C"/>
-      <path d="M10.5 12.5l-2 2a1 1 0 0 0 0 1.41l1.59 1.59a1 1 0 0 0 1.41 0l2-2L10.5 12.5z" fill="#52B7A2"/>
-    </svg>
-    PARTSDOC <sub>FY 25-26 · Management Accounts</sub>
+    <img src="https://brand.partsdochub.com/partsdoc-logo-horizontal-on-navy.png" alt="PartsDoc" style="height:28px;width:auto;display:block;">
   </div>
   <div class="nav-links">
     <button class="nav-link active" onclick="navScroll('were',this)">Where We Were</button>
@@ -1414,12 +1409,15 @@ tbody tr:hover td { background:rgba(61,158,140,.04); }
 
     <!-- Channel rows -->
     <div style="font-family:var(--m);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;display:grid;grid-template-columns:180px 1fr 220px;gap:14px;padding:0 16px;">
-      <span>Channel</span><span>Monthly Revenue (£)</span><span>GP% / POR% — select</span>
+      <span>Channel</span><span>Monthly Revenue (£) — drag slider or type</span><span>GP% / POR% — select</span>
     </div>
 
     <div class="calc-row">
       <div class="calc-label">eBay <small>Fortress · Express · Urgency · Scope · Lab</small></div>
-      <input class="calc-rev-input" id="calc-rev-ebay" type="number" value="237000" min="0" step="5000" oninput="calcProfitCalc()">
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <input type="range" id="calc-slider-ebay" min="0" max="600000" step="5000" value="237000" style="width:100%;accent-color:var(--teal);" oninput="syncRev('ebay',this.value)">
+        <div style="display:flex;align-items:center;gap:8px;"><span style="font-family:var(--m);font-size:10px;color:var(--muted);">£</span><input class="calc-rev-input" id="calc-rev-ebay" type="number" value="237000" min="0" step="5000" style="width:110px;" oninput="syncRev('ebay',this.value)"></div>
+      </div>
       <div class="calc-gp-toggles" id="calc-gp-ebay-group">
         <button class="calc-gp-btn" onclick="setGP('ebay',20,this)">20%</button>
         <button class="calc-gp-btn" onclick="setGP('ebay',25,this)">25%</button>
@@ -1433,7 +1431,10 @@ tbody tr:hover td { background:rgba(61,158,140,.04); }
 
     <div class="calc-row">
       <div class="calc-label">Amazon <small>FBA + FBM</small></div>
-      <input class="calc-rev-input" id="calc-rev-amazon" type="number" value="120000" min="0" step="5000" oninput="calcProfitCalc()">
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <input type="range" id="calc-slider-amazon" min="0" max="400000" step="5000" value="120000" style="width:100%;accent-color:var(--teal);" oninput="syncRev('amazon',this.value)">
+        <div style="display:flex;align-items:center;gap:8px;"><span style="font-family:var(--m);font-size:10px;color:var(--muted);">£</span><input class="calc-rev-input" id="calc-rev-amazon" type="number" value="120000" min="0" step="5000" style="width:110px;" oninput="syncRev('amazon',this.value)"></div>
+      </div>
       <div class="calc-gp-toggles" id="calc-gp-amazon-group">
         <button class="calc-gp-btn" onclick="setGP('amazon',20,this)">20%</button>
         <button class="calc-gp-btn" onclick="setGP('amazon',25,this)">25%</button>
@@ -1447,7 +1448,10 @@ tbody tr:hover td { background:rgba(61,158,140,.04); }
 
     <div class="calc-row">
       <div class="calc-label">Website <small>Direct / partsdoc.co.uk</small></div>
-      <input class="calc-rev-input" id="calc-rev-website" type="number" value="0" min="0" step="5000" oninput="calcProfitCalc()">
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <input type="range" id="calc-slider-website" min="0" max="200000" step="5000" value="0" style="width:100%;accent-color:var(--teal);" oninput="syncRev('website',this.value)">
+        <div style="display:flex;align-items:center;gap:8px;"><span style="font-family:var(--m);font-size:10px;color:var(--muted);">£</span><input class="calc-rev-input" id="calc-rev-website" type="number" value="0" min="0" step="5000" style="width:110px;" oninput="syncRev('website',this.value)"></div>
+      </div>
       <div class="calc-gp-toggles" id="calc-gp-website-group">
         <button class="calc-gp-btn" onclick="setGP('website',20,this)">20%</button>
         <button class="calc-gp-btn" onclick="setGP('website',25,this)">25%</button>
@@ -1461,7 +1465,10 @@ tbody tr:hover td { background:rgba(61,158,140,.04); }
 
     <div class="calc-row">
       <div class="calc-label">Trade Counter <small>Walk-in / account customers</small></div>
-      <input class="calc-rev-input" id="calc-rev-trade" type="number" value="55000" min="0" step="5000" oninput="calcProfitCalc()">
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <input type="range" id="calc-slider-trade" min="0" max="200000" step="5000" value="55000" style="width:100%;accent-color:var(--teal);" oninput="syncRev('trade',this.value)">
+        <div style="display:flex;align-items:center;gap:8px;"><span style="font-family:var(--m);font-size:10px;color:var(--muted);">£</span><input class="calc-rev-input" id="calc-rev-trade" type="number" value="55000" min="0" step="5000" style="width:110px;" oninput="syncRev('trade',this.value)"></div>
+      </div>
       <div class="calc-gp-toggles" id="calc-gp-trade-group">
         <button class="calc-gp-btn" onclick="setGP('trade',20,this)">20%</button>
         <button class="calc-gp-btn" onclick="setGP('trade',25,this)">25%</button>
@@ -1475,7 +1482,10 @@ tbody tr:hover td { background:rgba(61,158,140,.04); }
 
     <div class="calc-row">
       <div class="calc-label">Other Revenue <small>Rental · Launderette · Interest</small></div>
-      <input class="calc-rev-input" id="calc-rev-other" type="number" value="6000" min="0" step="1000" oninput="calcProfitCalc()">
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <input type="range" id="calc-slider-other" min="0" max="50000" step="1000" value="6000" style="width:100%;accent-color:var(--teal);" oninput="syncRev('other',this.value)">
+        <div style="display:flex;align-items:center;gap:8px;"><span style="font-family:var(--m);font-size:10px;color:var(--muted);">£</span><input class="calc-rev-input" id="calc-rev-other" type="number" value="6000" min="0" step="1000" style="width:110px;" oninput="syncRev('other',this.value)"></div>
+      </div>
       <div class="calc-gp-toggles" id="calc-gp-other-group">
         <button class="calc-gp-btn" onclick="setGP('other',20,this)">20%</button>
         <button class="calc-gp-btn" onclick="setGP('other',25,this)">25%</button>
@@ -1943,7 +1953,19 @@ new Chart(document.getElementById('sjWaterfallChart'), {
     responsive:true, maintainAspectRatio:false,
     plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>{const rev=1906926;const pcts={'Revenue':'100%','Cost of Sales':(1367651/rev*100).toFixed(1)+'% of rev','Gross Profit':(539274/rev*100).toFixed(1)+'% of rev','Admin Costs':(506493/539274*100).toFixed(1)+'% of GP','Op Profit':(32781/rev*100).toFixed(1)+'% of rev'};return ' £'+c.raw.toLocaleString('en-GB',{maximumFractionDigits:0})+' ('+pcts[c.label]+')'}}}}   ,
     scales:{x:{grid:{display:false}},y:{grid,ticks:{callback:v=>'£'+(v/1000).toFixed(0)+'k'}}}
-  }
+  },
+  plugins:[{
+    id:'sjWfPct',
+    afterDraw(chart){
+      const {ctx} = chart; const rev=1906926; const gp=539274;
+      const pcts=[null,(1367651/rev*100).toFixed(1)+'%',(gp/rev*100).toFixed(1)+'%',(506493/gp*100).toFixed(1)+'% GP',(32781/rev*100).toFixed(1)+'%'];
+      chart.getDatasetMeta(0).data.forEach((bar,i)=>{
+        if(!pcts[i]) return;
+        ctx.save();ctx.fillStyle='rgba(229,235,240,0.8)';ctx.font='bold 10px "JetBrains Mono",monospace';
+        ctx.textAlign='center';ctx.fillText(pcts[i],bar.x,bar.y-7);ctx.restore();
+      });
+    }
+  }]
 });
 
 // ── Trajectory Chart ──
@@ -2268,29 +2290,18 @@ if(_sjPieEl && Chart.getChart(_sjPieEl)){
   const _existPie = Chart.getChart(_sjPieEl);
   _existPie.options.plugins = _existPie.options.plugins||{};
 }
-// SJ Waterfall % labels — drawn via a one-time afterDraw on page
-(function addWaterfallPct(){
-  const _wfEl = document.getElementById('sjWaterfallChart');
-  if(!_wfEl) return;
-  const _wfChart = Chart.getChart(_wfEl);
-  if(!_wfChart) return;
-  _wfChart.config.plugins = _wfChart.config.plugins||[];
-  _wfChart.config.plugins.push({
-    id:'wfPct',
-    afterDraw(chart){
-      const {ctx} = chart; const rev=1906926; const gp=539274;
-      const pcts=[null,(1367651/rev*100).toFixed(1)+'%',(539274/rev*100).toFixed(1)+'%',(506493/gp*100).toFixed(1)+'% GP',(32781/rev*100).toFixed(1)+'%'];
-      chart.getDatasetMeta(0).data.forEach((bar,i)=>{
-        if(!pcts[i]) return;
-        ctx.save();ctx.fillStyle='rgba(154,170,184,0.85)';ctx.font='bold 10px sans-serif';
-        ctx.textAlign='center';ctx.fillText(pcts[i],bar.x,bar.y-7);ctx.restore();
-      });
-    }
-  });
-  _wfChart.update();
-})();
+// SJ Waterfall % labels added inline — see sjWaterfallChart definition above
 
 // ── £1M Interactive Calculator ──
+function syncRev(channel, val){
+  const v = Math.max(0, parseInt(val)||0);
+  const inp = document.getElementById('calc-rev-'+channel);
+  const sld = document.getElementById('calc-slider-'+channel);
+  if(inp) inp.value = v;
+  if(sld) sld.value = v;
+  calcProfitCalc();
+}
+
 function setGP(channel, pct, btn){
   document.getElementById('calc-gp-'+channel).value = pct;
   const grp = document.getElementById('calc-gp-'+channel+'-group');
