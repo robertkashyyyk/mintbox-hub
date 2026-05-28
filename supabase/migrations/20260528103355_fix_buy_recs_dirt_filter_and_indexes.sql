@@ -3,11 +3,11 @@
 
 -- 1. Performance indexes on order_lines (CONCURRENTLY to avoid locking)
 --    These dramatically speed up the bo_live and s4w CTEs in get_buy_recommendations
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_order_lines_backorder_sku
+CREATE INDEX IF NOT EXISTS idx_order_lines_backorder_sku
   ON public.order_lines (sku, qty)
   WHERE order_status = 'ONBACKORDER';
 
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_order_lines_date_sku
+CREATE INDEX IF NOT EXISTS idx_order_lines_date_sku
   ON public.order_lines (order_date, sku, qty);
 
 -- 2. Ensure the lsa.min_threshold app setting exists (default 1 = ignore LSA of 0 or 1)
