@@ -1,0 +1,2480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PartsDoc Ltd — Financial Performance Dashboard FY 25-26</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root {
+  --navy-dark:   #0F1729;
+  --navy-mid:    #1A2640;
+  --navy-card:   #1E2D42;
+  --teal:        #3D9E8C;
+  --teal-light:  #52B7A2;
+  --fg:          #E5EBF0;
+  --muted:       #9AAAB8;
+  --off-white:   #F7F9FA;
+  --steel:       #4A5A66;
+  --border:      #3D4F5E;
+  --success:     #33CC66;
+  --warning:     #F0A820;
+  --destructive: #F56565;
+
+  --tl1: #6B1A2A;
+  --tl2: #D32F2F;
+  --tl3: #E65100;
+  --tl4: #F9A825;
+  --tl5: #2E7D32;
+  --tl6: #00838F;
+  --tl7: #3949AB;
+
+  --h: 'Barlow Condensed', sans-serif;
+  --b: 'Inter', sans-serif;
+  --m: 'JetBrains Mono', monospace;
+}
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+html { scroll-behavior: smooth; }
+body { background:var(--navy-dark); color:var(--fg); font-family:var(--b); font-size:14px; line-height:1.5; }
+
+/* ── NAV ── */
+.topbar {
+  position: sticky; top:0; z-index:100;
+  background:rgba(15,23,41,.95);
+  backdrop-filter: blur(12px);
+  border-bottom:1px solid var(--border);
+  display:flex; align-items:center; justify-content:space-between;
+  padding:0 40px; height:56px;
+}
+.logo {
+  font-family:var(--h);
+  font-size:1.5rem; font-weight:700;
+  color:var(--fg); letter-spacing:.05em;
+  display:flex; align-items:center; gap:10px;
+}
+.logo .spanner { color:var(--teal); }
+.logo sub { font-size:.65rem; color:var(--muted); font-family:var(--b); font-weight:400; letter-spacing:.02em; vertical-align:middle; margin-left:4px; }
+.nav-links { display:flex; gap:4px; }
+.nav-link {
+  font-family:var(--b); font-size:13px; font-weight:500;
+  color:var(--muted); padding:6px 14px; border-radius:4px;
+  cursor:pointer; border:none; background:none;
+  transition:all .2s;
+}
+.nav-link:hover { color:var(--fg); background:rgba(61,158,140,.1); }
+.nav-link.active { color:var(--teal); background:rgba(61,158,140,.12); }
+.fy-badge {
+  font-family:var(--m); font-size:11px; color:var(--muted);
+  border:1px solid var(--border); padding:4px 10px; border-radius:3px;
+}
+
+/* ── SECTIONS ── */
+.section { padding:52px 40px; max-width:1360px; margin:0 auto; }
+.section-divider {
+  border:none; height:1px;
+  background: linear-gradient(90deg, transparent, var(--border) 20%, var(--border) 80%, transparent);
+  margin:0;
+}
+
+.section-eyebrow {
+  font-family:var(--m); font-size:11px; color:var(--teal);
+  text-transform:uppercase; letter-spacing:.12em; margin-bottom:8px;
+}
+.section-title {
+  font-family:var(--h); font-size:2.4rem; font-weight:700;
+  color:var(--fg); line-height:1.1; margin-bottom:6px;
+}
+.section-subtitle { color:var(--muted); font-size:14px; margin-bottom:36px; max-width:680px; }
+
+/* ── CARDS ── */
+.card {
+  background:var(--navy-card); border:1px solid var(--border);
+  border-radius:8px; padding:24px;
+}
+.card-label {
+  font-family:var(--m); font-size:10px; color:var(--muted);
+  text-transform:uppercase; letter-spacing:.1em; margin-bottom:10px;
+}
+.card-val {
+  font-family:var(--m); font-size:1.8rem; font-weight:500;
+  color:var(--fg); letter-spacing:-.02em;
+}
+.card-val.pos { color:var(--success); }
+.card-val.neg { color:var(--destructive); }
+.card-val.teal { color:var(--teal-light); }
+.card-sub { font-family:var(--m); font-size:12px; color:var(--muted); margin-top:6px; }
+
+/* ── TRAFFIC LIGHT BADGE ── */
+.tl-badge {
+  display:inline-flex; align-items:center; gap:6px;
+  font-family:var(--m); font-size:11px; font-weight:500;
+  padding:3px 9px; border-radius:3px; margin-top:8px;
+}
+.tl1 { background:rgba(107,26,42,.25); color:#e57373; border:1px solid rgba(107,26,42,.5); }
+.tl2 { background:rgba(211,47,47,.2); color:#ef5350; border:1px solid rgba(211,47,47,.4); }
+.tl3 { background:rgba(230,81,0,.2); color:#ff7043; border:1px solid rgba(230,81,0,.4); }
+.tl4 { background:rgba(249,168,37,.15); color:#ffd54f; border:1px solid rgba(249,168,37,.35); }
+.tl5 { background:rgba(46,125,50,.2); color:#66bb6a; border:1px solid rgba(46,125,50,.4); }
+.tl6 { background:rgba(0,131,143,.2); color:#26c6da; border:1px solid rgba(0,131,143,.4); }
+.tl7 { background:rgba(57,73,171,.25); color:#7986cb; border:1px solid rgba(57,73,171,.5); }
+
+/* ── KPI GRIDS ── */
+.kpi-4 { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:28px; }
+.kpi-3 { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-bottom:28px; }
+.kpi-5 { display:grid; grid-template-columns:repeat(5,1fr); gap:14px; margin-bottom:28px; }
+
+/* ── CHARTS ── */
+.chart-2col { display:grid; grid-template-columns:3fr 2fr; gap:20px; margin-bottom:28px; }
+.chart-2eq { display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-bottom:28px; }
+.chart-title {
+  font-family:var(--m); font-size:10px; text-transform:uppercase;
+  letter-spacing:.1em; color:var(--muted); margin-bottom:18px;
+}
+.chart-wrap { position:relative; height:220px; }
+.chart-wrap.tall { height:270px; }
+
+/* ── TABLE ── */
+.tbl-wrap { overflow-x:auto; }
+table { width:100%; border-collapse:collapse; font-family:var(--m); font-size:12px; }
+thead th {
+  padding:10px 14px; text-align:right; color:var(--muted); font-size:10px;
+  text-transform:uppercase; letter-spacing:.07em;
+  background:rgba(26,38,64,.8); border-bottom:1px solid var(--border);
+}
+thead th:first-child { text-align:left; padding-left:20px; }
+tbody td { padding:9px 14px; text-align:right; border-bottom:1px solid rgba(61,79,94,.35); }
+tbody td:first-child { text-align:left; padding-left:20px; color:var(--muted); font-size:11px; }
+tbody tr:hover td { background:rgba(61,158,140,.04); }
+.tr-section td { font-size:9px; text-transform:uppercase; letter-spacing:.12em; color:var(--teal); background:rgba(61,158,140,.06); padding:8px 14px 5px; }
+.tr-section td:first-child { padding-left:20px; }
+.tr-subtotal td { font-weight:500; color:var(--fg); background:rgba(26,38,64,.6); border-top:1px solid var(--border); }
+.tr-subtotal td:first-child { color:var(--fg); }
+.tr-grand td { font-weight:500; font-size:13px; background:rgba(61,158,140,.08); border-top:2px solid var(--teal); color:var(--teal-light); }
+.tr-grand td:first-child { color:var(--teal); font-family:var(--h); font-size:14px; letter-spacing:.04em; }
+.col-proj { color:#7bc8bf !important; }
+.col-pos { color:var(--success) !important; }
+
+/* ── PROGRESS TRACKER ── */
+.progress-section {
+  background:var(--navy-card); border:1px solid var(--border);
+  border-radius:8px; padding:32px; margin-bottom:28px;
+}
+.progress-title { font-family:var(--h); font-size:1.4rem; font-weight:700; color:var(--fg); margin-bottom:6px; }
+.progress-sub { color:var(--muted); font-size:13px; margin-bottom:28px; }
+.progress-track { position:relative; height:36px; background:rgba(61,79,94,.4); border-radius:4px; overflow:hidden; margin-bottom:14px; }
+.progress-fill {
+  height:100%; background:linear-gradient(90deg, var(--teal) 0%, var(--teal-light) 100%);
+  border-radius:4px; transition:width 1s ease;
+  display:flex; align-items:center; justify-content:flex-end; padding-right:12px;
+}
+.progress-fill span { font-family:var(--m); font-size:12px; font-weight:500; color:var(--navy-dark); white-space:nowrap; }
+.progress-markers { display:flex; justify-content:space-between; margin-bottom:24px; }
+.progress-marker { font-family:var(--m); font-size:10px; color:var(--muted); text-align:center; }
+.progress-marker strong { display:block; color:var(--fg); font-size:11px; }
+.milestone-row { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-top:24px; }
+.milestone {
+  background:rgba(26,38,64,.7); border:1px solid var(--border);
+  border-radius:6px; padding:16px 18px;
+}
+.milestone.done { border-color:rgba(61,158,140,.4); background:rgba(61,158,140,.06); }
+.milestone.current { border-color:rgba(249,168,37,.4); background:rgba(249,168,37,.05); }
+.milestone.future { border-color:rgba(57,73,171,.3); background:rgba(57,73,171,.05); }
+.milestone-label { font-family:var(--m); font-size:10px; text-transform:uppercase; letter-spacing:.08em; margin-bottom:8px; }
+.milestone.done .milestone-label { color:var(--teal); }
+.milestone.current .milestone-label { color:var(--warning); }
+.milestone.future .milestone-label { color:#7986cb; }
+.milestone-val { font-family:var(--m); font-size:1.5rem; font-weight:500; color:var(--fg); }
+
+/* ── LEVER CARDS ── */
+.levers-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-bottom:28px; }
+.lever-card {
+  background:var(--navy-card); border:1px solid var(--border);
+  border-radius:8px; padding:22px;
+}
+.lever-num { font-family:var(--h); font-size:2.2rem; font-weight:700; color:var(--teal); opacity:.4; margin-bottom:8px; }
+.lever-title { font-family:var(--h); font-size:1.1rem; font-weight:700; color:var(--fg); margin-bottom:8px; letter-spacing:.03em; }
+.lever-body { font-size:13px; color:var(--muted); line-height:1.6; }
+.lever-body strong { color:var(--fg); font-weight:500; }
+.lever-stat { font-family:var(--m); font-size:11px; color:var(--teal-light); margin-top:12px; padding:6px 10px; background:rgba(61,158,140,.08); border-radius:3px; border-left:2px solid var(--teal); }
+
+/* ── £1M CALCULATOR ── */
+.calc-wrap { background:var(--navy-card); border:1px solid var(--border); border-radius:12px; padding:28px; margin-bottom:28px; }
+.calc-row { display:grid; grid-template-columns:180px 1fr 220px; gap:14px; align-items:center; margin-bottom:16px; padding:14px 16px; background:rgba(26,38,64,.7); border:1px solid rgba(61,79,94,.4); border-radius:8px; }
+.calc-label { font-family:var(--m); font-size:11px; color:var(--fg); font-weight:500; }
+.calc-label small { display:block; font-size:9px; color:var(--muted); margin-top:3px; }
+.calc-rev-input { width:100%; background:rgba(12,20,40,.8); border:1px solid rgba(61,79,94,.5); border-radius:5px; padding:8px 12px; color:var(--fg); font-family:var(--m); font-size:13px; outline:none; }
+.calc-rev-input:focus { border-color:var(--teal); }
+.calc-gp-toggles { display:flex; gap:4px; flex-wrap:wrap; }
+.calc-gp-btn { font-family:var(--m); font-size:10px; padding:5px 10px; background:rgba(26,38,64,.9); border:1px solid rgba(61,79,94,.5); border-radius:4px; color:var(--muted); cursor:pointer; transition:.15s; }
+.calc-gp-btn.active { background:rgba(61,158,140,.2); border-color:var(--teal); color:var(--teal-light); font-weight:500; }
+.calc-result-panel { background:rgba(12,20,40,.9); border:1px solid rgba(61,158,140,.3); border-radius:10px; padding:20px; margin-top:20px; }
+.calc-progress-track { height:28px; background:rgba(61,79,94,.4); border-radius:4px; overflow:hidden; margin:12px 0 6px; position:relative; }
+.calc-progress-fill { height:100%; border-radius:4px; transition:width .4s, background .4s; display:flex; align-items:center; justify-content:flex-end; padding-right:10px; font-family:var(--m); font-size:11px; font-weight:500; color:#fff; }
+.calc-lock-row { display:flex; align-items:center; gap:10px; margin-bottom:16px; }
+.calc-lock-row input[type=checkbox] { width:16px; height:16px; accent-color:var(--teal); cursor:pointer; }
+.calc-admin-hint { background:rgba(57,73,171,.1); border:1px solid rgba(57,73,171,.3); border-radius:6px; padding:10px 14px; font-family:var(--m); font-size:11px; color:#9fa8da; margin-top:10px; display:none; }
+
+/* ── INSIGHT BOX ── */
+.insight-box {
+  background:rgba(61,158,140,.06); border:1px solid rgba(61,158,140,.25);
+  border-left:3px solid var(--teal);
+  border-radius:6px; padding:16px 20px; margin-bottom:20px;
+  font-size:13px; color:var(--muted); line-height:1.7;
+}
+.insight-box strong { color:var(--fg); font-weight:500; }
+
+.warn-box {
+  background:rgba(240,168,32,.05); border:1px solid rgba(240,168,32,.2);
+  border-left:3px solid var(--warning);
+  border-radius:6px; padding:14px 18px; margin-bottom:16px;
+  font-size:12px; color:var(--muted); line-height:1.6;
+}
+
+/* ── MONTHLY TILE ROW ── */
+.month-tiles { display:grid; grid-template-columns:repeat(5,1fr); gap:14px; margin-bottom:28px; }
+.month-tile {
+  background:var(--navy-card); border:1px solid var(--border);
+  border-radius:8px; padding:18px 16px; text-align:center;
+}
+.month-tile.current { border-color:var(--teal); background:rgba(61,158,140,.07); }
+.month-tile.projected { border-color:rgba(57,73,171,.4); background:rgba(57,73,171,.06); }
+.mt-month { font-family:var(--h); font-size:1rem; font-weight:700; letter-spacing:.05em; color:var(--muted); margin-bottom:8px; }
+.mt-rev { font-family:var(--m); font-size:12px; color:var(--fg); margin-bottom:4px; }
+.mt-op { font-family:var(--m); font-size:1.2rem; font-weight:500; margin-top:8px; }
+.mt-op.pos { color:var(--success); }
+.mt-margin { font-family:var(--m); font-size:10px; color:var(--muted); margin-top:3px; }
+
+/* ── FOOTER ── */
+.footer {
+  border-top:1px solid var(--border);
+  padding:24px 40px;
+  display:flex; justify-content:space-between; align-items:center;
+  font-family:var(--m); font-size:11px; color:var(--steel);
+}
+
+/* ── FORECAST TABLE ── */
+.forecast-grid { display:grid; grid-template-columns:1fr 1.4fr; gap:20px; margin-bottom:28px; }
+
+/* ── NORMALISATION ── */
+.norm-toggle-row { display:flex; align-items:center; justify-content:space-between; margin-bottom:24px; }
+.norm-toggle-row h3 { font-family:var(--h); font-size:1.2rem; font-weight:700; color:var(--fg); letter-spacing:.03em; }
+.norm-toggle-row p { color:var(--muted); font-size:13px; margin-top:4px; }
+.toggle-btn {
+  display:flex; gap:0; border:1px solid var(--border); border-radius:5px; overflow:hidden;
+}
+.toggle-opt {
+  padding:7px 16px; font-family:var(--m); font-size:11px; color:var(--muted);
+  cursor:pointer; background:var(--navy-card); border:none; transition:all .15s;
+}
+.toggle-opt.on { background:rgba(61,158,140,.15); color:var(--teal); }
+.adj-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:24px; }
+.adj-card {
+  background:rgba(26,38,64,.7); border:1px solid var(--border);
+  border-radius:6px; padding:16px; position:relative;
+}
+.adj-card-label { font-family:var(--m); font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; margin-bottom:6px; }
+.adj-card-item { display:flex; justify-content:space-between; align-items:baseline; padding:4px 0; border-bottom:1px solid rgba(61,79,94,.3); font-family:var(--m); font-size:12px; }
+.adj-card-item:last-child { border-bottom:none; }
+.adj-card-item span { color:var(--muted); }
+.adj-pos { color:var(--success); }
+.adj-neg { color:var(--destructive); }
+.adj-neutral { color:var(--muted); }
+.norm-compare-grid { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+
+
+/* ── NORMALISATION ── */
+.norm-toggle-row { display:flex; align-items:center; justify-content:space-between; margin-bottom:24px; }
+.norm-toggle-row h3 { font-family:var(--h); font-size:1.2rem; font-weight:700; color:var(--fg); letter-spacing:.03em; }
+.norm-toggle-row p { color:var(--muted); font-size:13px; margin-top:4px; }
+.adj-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:24px; }
+.adj-card { background:rgba(26,38,64,.7); border:1px solid var(--border); border-radius:6px; padding:16px; }
+.adj-card-label { font-family:var(--m); font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; margin-bottom:6px; }
+.adj-card-item { display:flex; justify-content:space-between; align-items:baseline; padding:4px 0; border-bottom:1px solid rgba(61,79,94,.3); font-family:var(--m); font-size:12px; }
+.adj-card-item:last-child { border-bottom:none; }
+.adj-card-item span { color:var(--muted); }
+.adj-pos { color:var(--success) !important; }
+.adj-neg { color:var(--destructive) !important; }
+.adj-neutral { color:var(--steel) !important; }
+.norm-compare-grid { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+
+
+/* ── CONNECTED KPI ROW ── */
+.ckpi-row { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:28px; }
+.ckpi {
+  background:var(--navy-card); border:1px solid var(--border);
+  border-radius:8px; padding:20px 18px; position:relative; overflow:hidden;
+}
+.ckpi::after {
+  content:''; position:absolute; top:0; left:0; right:0; height:2px;
+  background:var(--border);
+}
+.ckpi.chapter1::after { background:linear-gradient(90deg,var(--tl2),#D32F2F); }
+.ckpi.chapter2::after { background:linear-gradient(90deg,var(--teal),var(--teal-light)); }
+.ckpi.chapter2.highlight::after { background:linear-gradient(90deg,var(--tl7),#7986cb); }
+.ckpi.chapter3::after { background:linear-gradient(90deg,#7986cb,var(--projected,#6b4fd8)); }
+.ckpi-label { font-family:var(--m); font-size:10px; text-transform:uppercase; letter-spacing:.09em; color:var(--muted); margin-bottom:10px; }
+.ckpi-val { font-family:var(--m); font-size:1.65rem; font-weight:500; color:var(--fg); letter-spacing:-.02em; line-height:1; margin-bottom:8px; }
+.ckpi-prev { font-family:var(--m); font-size:11px; color:var(--steel); margin-bottom:6px; }
+.ckpi-delta { font-family:var(--m); font-size:11px; font-weight:500; display:inline-flex; align-items:center; gap:4px; padding:3px 8px; border-radius:3px; }
+.ckpi-delta.pos { background:rgba(51,204,102,.1); color:var(--success); }
+.ckpi-delta.warn { background:rgba(240,168,32,.1); color:var(--warning); }
+.ckpi-delta.good-down { background:rgba(61,158,140,.1); color:var(--teal-light); }
+.ckpi-delta.target { background:rgba(57,73,171,.15); color:#9fa8da; }
+.ckpi-chapter-tag {
+  position:absolute; top:14px; right:14px;
+  font-family:var(--m); font-size:9px; text-transform:uppercase; letter-spacing:.08em;
+  color:var(--steel); opacity:.7;
+}
+
+/* ── TRACKER PAGE ── */
+#tracker-page { display:none; min-height:100vh; background:var(--navy-dark); }
+#tracker-page.active { display:block; }
+.financial-content.hidden { display:none; }
+.tracker-header { padding:32px 40px 24px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+.tracker-header h2 { font-family:var(--h); font-size:1.8rem; font-weight:700; color:var(--fg); letter-spacing:.03em; }
+.tracker-header p { color:var(--muted); font-size:13px; margin-top:4px; }
+.tracker-body { padding:32px 40px; max-width:1360px; margin:0 auto; }
+.tracker-controls { display:flex; align-items:center; gap:12px; margin-bottom:28px; flex-wrap:wrap; }
+.add-btn { font-family:var(--h); font-size:1rem; font-weight:700; letter-spacing:.05em; background:var(--teal); color:var(--navy-dark); border:none; border-radius:6px; padding:10px 22px; cursor:pointer; transition:background .15s; }
+.add-btn:hover { background:var(--teal-light); }
+.filter-btn { font-family:var(--m); font-size:11px; color:var(--muted); background:var(--navy-card); border:1px solid var(--border); border-radius:5px; padding:7px 14px; cursor:pointer; transition:all .15s; }
+.filter-btn.on { color:var(--teal); border-color:var(--teal); background:rgba(61,158,140,.1); }
+.item-grid { display:flex; flex-direction:column; gap:14px; }
+.item-card { background:var(--navy-card); border:1px solid var(--border); border-radius:8px; padding:22px 24px; display:grid; grid-template-columns:auto 1fr auto; gap:16px; align-items:start; transition:border-color .2s; }
+.item-card:hover { border-color:var(--teal); }
+.item-card.resolved { opacity:.55; }
+.item-card.resolved .item-title { text-decoration:line-through; color:var(--muted); }
+.priority-dot { width:12px; height:12px; border-radius:50%; margin-top:4px; flex-shrink:0; }
+.item-main { flex:1; }
+.item-title { font-family:var(--h); font-size:1.1rem; font-weight:700; color:var(--fg); letter-spacing:.02em; margin-bottom:4px; }
+.item-meta { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:8px; }
+.item-tag { font-family:var(--m); font-size:10px; padding:2px 8px; border-radius:3px; background:rgba(61,79,94,.6); color:var(--muted); }
+.item-date { font-family:var(--m); font-size:10px; color:var(--steel); }
+.item-desc { font-size:13px; color:var(--muted); line-height:1.6; margin-bottom:10px; }
+.item-log { border-left:2px solid var(--border); padding-left:12px; margin-top:10px; }
+.log-entry { font-family:var(--m); font-size:11px; color:var(--steel); padding:4px 0; border-bottom:1px solid rgba(61,79,94,.3); }
+.log-entry:last-child { border-bottom:none; }
+.log-entry span { color:var(--muted); }
+.item-actions { display:flex; flex-direction:column; gap:8px; align-items:flex-end; }
+.item-status { font-family:var(--m); font-size:10px; padding:4px 10px; border-radius:4px; text-transform:uppercase; letter-spacing:.07em; font-weight:500; }
+.status-open { background:rgba(245,101,101,.15); color:var(--destructive); border:1px solid rgba(245,101,101,.3); }
+.status-progress { background:rgba(240,168,32,.12); color:var(--warning); border:1px solid rgba(240,168,32,.3); }
+.status-ongoing { background:rgba(61,158,140,.12); color:var(--teal-light); border:1px solid rgba(61,158,140,.3); }
+.status-resolved { background:rgba(51,204,102,.1); color:var(--success); border:1px solid rgba(51,204,102,.25); }
+.action-btns { display:flex; gap:6px; }
+.act-btn { font-family:var(--m); font-size:10px; padding:4px 10px; border-radius:4px; cursor:pointer; border:1px solid var(--border); background:var(--navy-mid); color:var(--muted); transition:all .15s; }
+.act-btn:hover { color:var(--fg); border-color:var(--teal); }
+.tracker-stats { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:28px; }
+.t-stat { background:var(--navy-card); border:1px solid var(--border); border-radius:7px; padding:16px 18px; }
+.t-stat-val { font-family:var(--m); font-size:1.6rem; font-weight:500; color:var(--fg); }
+.t-stat-label { font-family:var(--m); font-size:10px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin-top:4px; }
+
+/* Modal */
+#item-modal { position:fixed; inset:0; background:rgba(15,23,41,.88); z-index:9999; display:none; align-items:center; justify-content:center; backdrop-filter:blur(4px); }
+#item-modal.open { display:flex; }
+.modal-card { background:var(--navy-card); border:1px solid var(--border); border-radius:10px; padding:32px; width:100%; max-width:560px; max-height:90vh; overflow-y:auto; }
+.modal-title { font-family:var(--h); font-size:1.4rem; font-weight:700; color:var(--fg); margin-bottom:22px; }
+.form-row { margin-bottom:16px; }
+.form-label { font-family:var(--m); font-size:10px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin-bottom:6px; display:block; }
+.form-input, .form-select, .form-textarea { width:100%; background:var(--navy-dark); border:1px solid var(--border); border-radius:5px; padding:10px 14px; color:var(--fg); font-family:var(--m); font-size:13px; outline:none; transition:border-color .2s; }
+.form-input:focus, .form-select:focus, .form-textarea:focus { border-color:var(--teal); }
+.form-select { cursor:pointer; }
+.form-textarea { min-height:80px; resize:vertical; }
+.form-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.modal-btns { display:flex; gap:10px; justify-content:flex-end; margin-top:20px; }
+.modal-cancel { font-family:var(--m); font-size:12px; background:none; border:1px solid var(--border); color:var(--muted); border-radius:5px; padding:9px 18px; cursor:pointer; }
+.modal-save { font-family:var(--h); font-size:1rem; font-weight:700; background:var(--teal); color:var(--navy-dark); border:none; border-radius:5px; padding:10px 22px; cursor:pointer; letter-spacing:.04em; }
+@keyframes slideUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:none; } }
+.section > * { animation:slideUp .5s ease backwards; }
+</style>
+</head>
+<body>
+<style>
+#pd-gate{position:fixed;inset:0;background:#0F1729;z-index:99999;display:flex;align-items:center;justify-content:center;font-family:'Inter',sans-serif}
+#pd-gate.hidden{display:none}
+.gate-card{background:#1E2D42;border:1px solid #3D4F5E;border-radius:12px;padding:48px 40px;width:100%;max-width:380px;text-align:center}
+.gate-logo{font-family:'Barlow Condensed',sans-serif;font-size:1.8rem;font-weight:700;color:#E5EBF0;letter-spacing:.06em;margin-bottom:4px}
+.gate-logo .t{color:#3D9E8C}
+.gate-sub{font-size:12px;color:#9AAAB8;font-family:'JetBrains Mono',monospace;margin-bottom:36px;letter-spacing:.05em}
+.gate-label{font-size:11px;color:#9AAAB8;text-align:left;margin-bottom:8px;font-family:'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:.08em}
+.gate-input{width:100%;background:#0F1729;border:1px solid #3D4F5E;border-radius:6px;padding:12px 16px;color:#E5EBF0;font-size:15px;font-family:'JetBrains Mono',monospace;letter-spacing:.1em;outline:none;transition:border-color .2s;text-align:center}
+.gate-input:focus{border-color:#3D9E8C}
+.gate-input.error{border-color:#F56565;animation:shake .3s ease}
+.gate-btn{width:100%;margin-top:16px;background:#3D9E8C;border:none;border-radius:6px;padding:13px;color:#0F1729;font-family:'Barlow Condensed',sans-serif;font-size:1.1rem;font-weight:700;letter-spacing:.06em;cursor:pointer;transition:background .15s}
+.gate-btn:hover{background:#52B7A2}
+.gate-err{font-size:12px;color:#F56565;margin-top:10px;min-height:18px;font-family:'JetBrains Mono',monospace}
+.gate-footer{font-size:11px;color:#4A5A66;margin-top:32px;font-family:'JetBrains Mono',monospace}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+</style>
+<div id="pd-gate">
+  <div class="gate-card">
+    <div class="gate-logo">PARTS<span class="t">DOC</span></div>
+    <div class="gate-sub">Financial Dashboard · FY 25–26</div>
+    <div class="gate-label">Access code</div>
+    <input class="gate-input" id="gate-input" type="password" placeholder="············" autocomplete="off" onkeydown="if(event.key==='Enter')gateSubmit()">
+    <button class="gate-btn" onclick="gateSubmit()">ENTER</button>
+    <div class="gate-err" id="gate-err"></div>
+    <div class="gate-footer">Authorised personnel only</div>
+  </div>
+</div>
+<script>
+(function(){
+  const K='pd_auth_26';
+  const H='5a1b8e2f9c4d7e0b3a6f1c8d5e2a9b4c7f0e3d6a1b8e5f2c9d4a7b0e3f6c1d';
+  function sh(s){let h=0;for(let i=0;i<s.length;i++){h=Math.imul(31,h)+s.charCodeAt(i)|0}return Math.abs(h).toString(16)}
+  function check(v){return sh(v)===sh('Rallycar-2')}
+  if(sessionStorage.getItem(K)==='1'){document.getElementById('pd-gate').classList.add('hidden');return}
+  window.gateSubmit=function(){
+    const v=document.getElementById('gate-input').value;
+    const inp=document.getElementById('gate-input');
+    const err=document.getElementById('gate-err');
+    if(check(v)){
+      sessionStorage.setItem(K,'1');
+      document.getElementById('pd-gate').classList.add('hidden');
+      err.textContent='';
+    } else {
+      inp.classList.add('error');
+      err.textContent='Incorrect access code.';
+      inp.value='';
+      setTimeout(()=>inp.classList.remove('error'),400);
+    }
+  };
+  document.getElementById('gate-input').focus();
+})();
+</script>
+
+
+<!-- TOP NAV -->
+<nav class="topbar">
+  <div class="logo">
+    <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
+      <path d="M13 2C7.48 2 3 6.48 3 12s4.48 10 10 10 10-4.48 10-10S18.52 2 13 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z" fill="#3D9E8C" opacity=".4"/>
+      <path d="M15.5 8.5a3 3 0 0 0-4.24 0L10 9.76l1.41 1.41.59-.59a1 1 0 0 1 1.42 0l2.12 2.12a1 1 0 0 1 0 1.42l-.59.59 1.41 1.41 1.26-1.26a3 3 0 0 0 0-4.24L15.5 8.5z" fill="#3D9E8C"/>
+      <path d="M10.5 12.5l-2 2a1 1 0 0 0 0 1.41l1.59 1.59a1 1 0 0 0 1.41 0l2-2L10.5 12.5z" fill="#52B7A2"/>
+    </svg>
+    PARTSDOC <sub>FY 25-26 · Management Accounts</sub>
+  </div>
+  <div class="nav-links">
+    <button class="nav-link active" onclick="navScroll('were',this)">Where We Were</button>
+    <button class="nav-link" onclick="navScroll('are',this)">Where We Are</button>
+    <button class="nav-link" onclick="navScroll('going',this)">Where We're Going</button>
+    <button class="nav-link" id="nav-items" onclick="toggleTracker()" style="border:1px solid rgba(240,168,32,.3);color:var(--warning);">Open Items</button>
+  </div>
+  <div class="fy-badge">FY Sep 25 – Aug 26</div>
+</nav>
+
+
+<!-- ═══════════════════════════════════════════════
+     SECTION 1 — WHERE WE WERE
+══════════════════════════════════════════════════ -->
+<div class="financial-content"><div id="were">
+<div class="section">
+  <div class="section-eyebrow">Chapter 1</div>
+  <div class="section-title">WHERE WE WERE</div>
+  <div class="section-subtitle">September 2025 – January 2026 · 5 months cumulative. The baseline: high revenue, compressed margins, minimal profit.</div>
+
+  <!-- KPIs -->
+  <div class="ckpi-row">
+    <div class="ckpi chapter1">
+      <div class="ckpi-chapter-tag">S–J baseline</div>
+      <div class="ckpi-label">Avg Monthly Revenue</div>
+      <div class="ckpi-val">£381,385</div>
+      <div class="ckpi-prev">£1.91M over 5 months</div>
+      <div class="ckpi-delta warn">CoS eating 71.7% of revenue</div>
+    </div>
+    <div class="ckpi chapter1">
+      <div class="ckpi-chapter-tag">S–J baseline</div>
+      <div class="ckpi-label">Gross Margin %</div>
+      <div class="ckpi-val">28.3%</div>
+      <div class="ckpi-prev">GP £539,274 · avg £107,855/mo</div>
+      <div class="ckpi-delta warn">Below 30% target</div>
+    </div>
+    <div class="ckpi chapter1 highlight" style="border-color:rgba(211,47,47,.4);">
+      <div class="ckpi-chapter-tag">S–J baseline</div>
+      <div class="ckpi-label">Admin as % of Gross Profit</div>
+      <div class="ckpi-val" style="color:var(--destructive);">93.9%</div>
+      <div class="ckpi-prev">£506,493 · avg £101,299/mo</div>
+      <div class="ckpi-delta warn" style="background:rgba(211,47,47,.1);color:var(--destructive);">Salaries alone = 39.7% of GP</div>
+    </div>
+    <div class="ckpi chapter1">
+      <div class="ckpi-chapter-tag">S–J baseline</div>
+      <div class="ckpi-label">Avg Monthly Op Profit</div>
+      <div class="ckpi-val" style="color:var(--destructive);">£6,556</div>
+      <div class="ckpi-prev">1.7% op margin</div>
+      <div class="tl-badge tl2" style="font-size:9px;margin-top:8px;">Level 2 — Bad</div>
+    </div>
+  </div>
+
+  <!-- Key % stats row -->
+  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px;">
+    <div style="background:rgba(211,47,47,.12);border:1px solid rgba(211,47,47,.3);border-radius:7px;padding:14px;text-align:center;">
+      <div style="font-family:var(--m);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">CoS / Revenue</div>
+      <div style="font-family:var(--m);font-size:1.5rem;font-weight:500;color:#ef5350;">71.7%</div>
+      <div style="font-family:var(--m);font-size:10px;color:var(--muted);margin-top:4px;">of every £1 earned</div>
+    </div>
+    <div style="background:rgba(211,47,47,.12);border:1px solid rgba(211,47,47,.3);border-radius:7px;padding:14px;text-align:center;">
+      <div style="font-family:var(--m);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Admin / GP</div>
+      <div style="font-family:var(--m);font-size:1.5rem;font-weight:500;color:#ef5350;">93.9%</div>
+      <div style="font-family:var(--m);font-size:10px;color:var(--muted);margin-top:4px;">of gross profit consumed</div>
+    </div>
+    <div style="background:rgba(211,47,47,.12);border:1px solid rgba(211,47,47,.3);border-radius:7px;padding:14px;text-align:center;">
+      <div style="font-family:var(--m);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Salaries / GP</div>
+      <div style="font-family:var(--m);font-size:1.5rem;font-weight:500;color:#ef5350;">39.7%</div>
+      <div style="font-family:var(--m);font-size:10px;color:var(--muted);margin-top:4px;">salary cost vs gross profit</div>
+    </div>
+    <div style="background:rgba(211,47,47,.12);border:1px solid rgba(211,47,47,.3);border-radius:7px;padding:14px;text-align:center;">
+      <div style="font-family:var(--m);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Op Margin</div>
+      <div style="font-family:var(--m);font-size:1.5rem;font-weight:500;color:#ef5350;">1.7%</div>
+      <div style="font-family:var(--m);font-size:10px;color:var(--muted);margin-top:4px;">operating profit margin</div>
+    </div>
+    <div style="background:rgba(211,47,47,.12);border:1px solid rgba(211,47,47,.3);border-radius:7px;padding:14px;text-align:center;">
+      <div style="font-family:var(--m);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Profit per £1k Revenue</div>
+      <div style="font-family:var(--m);font-size:1.5rem;font-weight:500;color:#ef5350;">£17</div>
+      <div style="font-family:var(--m);font-size:10px;color:var(--muted);margin-top:4px;">every £1,000 earned</div>
+    </div>
+  </div>
+
+  <div class="insight-box">
+    <strong>The core problem was simple:</strong> admin costs (£101k/month avg) were consuming <strong>93.9% of gross profit</strong>. Salaries alone took 39.7% of GP. Revenue was substantial — over £380k/month — but the business was keeping just £17 from every £1,000 it earned. The margin gap needed to close.
+  </div>
+
+  <!-- Charts -->
+  <div class="chart-2col">
+    <div class="card">
+      <div class="chart-title">Monthly P&L — Sept–Jan (5-month cumulative view)</div>
+      <div class="chart-wrap tall"><canvas id="sjChart"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="chart-title">Revenue by Channel (Sept–Jan total)</div>
+      <div class="chart-wrap tall"><canvas id="sjPieChart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Admin breakdown -->
+  <div class="chart-2eq">
+    <div class="card">
+      <div class="chart-title">Top Admin Cost Lines — Sept to Jan</div>
+      <div class="chart-wrap"><canvas id="sjAdminChart"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="chart-title">Cost Structure — Where GP Went</div>
+      <div class="chart-wrap"><canvas id="sjWaterfallChart"></canvas></div>
+    </div>
+  </div>
+
+  <div class="warn-box">
+    ⚠ <strong>Notable items:</strong> Director Pensions (£32,000 · 5 months), Consulting (£33,072), VA Outsourced Projects (£9,640), Depreciation (£4,709) and Insurance (£13,433) were among the largest non-staff admin costs. Salaries £213,881 over 5 months = £42,776/mo.
+  </div>
+
+  <!-- Pre-Sept context -->
+  <div style="background:rgba(107,26,42,.12);border:1px solid rgba(107,26,42,.4);border-left:3px solid #6B1A2A;border-radius:8px;padding:24px;margin-top:8px;">
+    <div style="font-family:var(--m);font-size:10px;color:#e57373;text-transform:uppercase;letter-spacing:.1em;margin-bottom:12px;">Context — Before September 2025</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;">
+      <div>
+        <div style="font-family:var(--h);font-size:1.1rem;font-weight:700;color:#ef5350;margin-bottom:8px;">The Root Problem</div>
+        <p style="color:var(--muted);font-size:13px;line-height:1.7;">A significant volume of order lines were being fulfilled at <strong style="color:var(--fg);">below cost price</strong>. Revenue looked healthy. Profit was being actively destroyed on every one of those transactions. High throughput, negative economics.</p>
+      </div>
+      <div>
+        <div style="font-family:var(--h);font-size:1.1rem;font-weight:700;color:#ef5350;margin-bottom:8px;">Why It Happened</div>
+        <p style="color:var(--muted);font-size:13px;line-height:1.7;">Without full cost visibility across all SKUs, the business couldn't know which lines were loss-making in real time. <strong style="color:var(--fg);">Pricing was set without accurate cost data.</strong> The result: volume without margin.</p>
+      </div>
+      <div>
+        <div style="font-family:var(--h);font-size:1.1rem;font-weight:700;color:var(--warning);margin-bottom:8px;">Where It Stands Now</div>
+        <p style="color:var(--muted);font-size:13px;line-height:1.7;">The shift to profit-driven pricing is underway. Loss-making lines are being identified and addressed. <strong style="color:var(--fg);">This is not complete</strong> — Chapter 2 shows the current breakdown. It is the single most important operational priority after stock tracking.</p>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:20px;">
+      <div style="text-align:center;padding:12px;background:rgba(26,38,64,.6);border-radius:5px;border:1px solid rgba(61,79,94,.4);">
+        <div style="font-family:var(--m);font-size:10px;color:var(--muted);margin-bottom:6px;">Revenue (S–J)</div>
+        <div style="font-family:var(--m);font-size:1.2rem;color:var(--fg);">£1.91M</div>
+        <div style="font-family:var(--m);font-size:10px;color:var(--muted);">Looked strong</div>
+      </div>
+      <div style="text-align:center;padding:12px;background:rgba(26,38,64,.6);border-radius:5px;border:1px solid rgba(61,79,94,.4);">
+        <div style="font-family:var(--m);font-size:10px;color:var(--muted);margin-bottom:6px;">GP Margin (S–J)</div>
+        <div style="font-family:var(--m);font-size:1.2rem;color:#ef5350;">28.3%</div>
+        <div style="font-family:var(--m);font-size:10px;color:var(--muted);">Below target</div>
+      </div>
+      <div style="text-align:center;padding:12px;background:rgba(26,38,64,.6);border-radius:5px;border:1px solid rgba(61,79,94,.4);">
+        <div style="font-family:var(--m);font-size:10px;color:var(--muted);margin-bottom:6px;">Op Profit (S–J avg)</div>
+        <div style="font-family:var(--m);font-size:1.2rem;color:#ef5350;">£6,556/mo</div>
+        <div style="font-family:var(--m);font-size:10px;color:var(--muted);">94% of GP eaten by admin</div>
+      </div>
+      <div style="text-align:center;padding:12px;background:rgba(26,38,64,.6);border-radius:5px;border:1px solid rgba(61,79,94,.4);">
+        <div style="font-family:var(--m);font-size:10px;color:var(--muted);margin-bottom:6px;">Diagnosis</div>
+        <div style="font-family:var(--m);font-size:1rem;color:var(--warning);">Revenue ≠ Profit</div>
+        <div style="font-family:var(--m);font-size:10px;color:var(--muted);">Lines sold below cost</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<hr class="section-divider">
+
+<!-- ═══════════════════════════════════════════════
+     SECTION 2 — WHERE WE ARE
+══════════════════════════════════════════════════ -->
+<div id="are">
+<div class="section">
+  <div class="section-eyebrow">Chapter 2</div>
+  <div class="section-title">WHERE WE ARE</div>
+  <div class="section-subtitle">February – May 2026 · Monthly actuals and a seasonal context. Mar–May is the strongest quarter — read individual months in that light.</div>
+
+  <!-- Connected KPI Row — same 4 metrics, updated figures -->
+  <div class="ckpi-row">
+    <div class="ckpi chapter2">
+      <div class="ckpi-chapter-tag">Feb–May</div>
+      <div class="ckpi-label">Avg Monthly Revenue</div>
+      <div class="ckpi-val">£422,914</div>
+      <div class="ckpi-prev">was £381,385 (S–J avg)</div>
+      <div class="ckpi-delta pos">↑ +10.9% per month</div>
+    </div>
+    <div class="ckpi chapter2">
+      <div class="ckpi-chapter-tag">Feb–May</div>
+      <div class="ckpi-label">Gross Margin %</div>
+      <div class="ckpi-val">40.5%</div>
+      <div class="ckpi-prev">was 28.3% (S–J avg)</div>
+      <div class="ckpi-delta pos">↑ +12.2 percentage points</div>
+    </div>
+    <div class="ckpi chapter2 highlight">
+      <div class="ckpi-chapter-tag">Feb–May</div>
+      <div class="ckpi-label">Admin as % of Gross Profit</div>
+      <div class="ckpi-val" style="color:var(--teal-light);">48.9%</div>
+      <div class="ckpi-prev">was 93.9% — nearly all of GP</div>
+      <div class="ckpi-delta good-down">↓ -45.0pp · Salaries now 21.8% of GP</div>
+    </div>
+    <div class="ckpi chapter2">
+      <div class="ckpi-chapter-tag">Feb–May</div>
+      <div class="ckpi-label">Avg Monthly Op Profit</div>
+      <div class="ckpi-val" style="color:var(--success);">£87,502</div>
+      <div class="ckpi-prev">was £6,556 (S–J avg)</div>
+      <div class="ckpi-delta pos">↑ +£80,945 / month · 20.7% margin</div>
+    </div>
+  </div>
+
+  <!-- Key % stats row — WHERE WE ARE -->
+  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px;">
+    <div style="background:rgba(61,158,140,.12);border:1px solid rgba(61,158,140,.3);border-radius:7px;padding:14px;text-align:center;">
+      <div style="font-family:var(--m);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">CoS / Revenue</div>
+      <div style="font-family:var(--m);font-size:1.5rem;font-weight:500;color:var(--teal-light);">59.5%</div>
+      <div style="font-family:var(--m);font-size:10px;color:var(--muted);margin-top:4px;">of every £1 earned</div>
+    </div>
+    <div style="background:rgba(61,158,140,.12);border:1px solid rgba(61,158,140,.3);border-radius:7px;padding:14px;text-align:center;">
+      <div style="font-family:var(--m);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Admin / GP</div>
+      <div style="font-family:var(--m);font-size:1.5rem;font-weight:500;color:var(--teal-light);">48.9%</div>
+      <div style="font-family:var(--m);font-size:10px;color:var(--muted);margin-top:4px;">of gross profit consumed</div>
+    </div>
+    <div style="background:rgba(61,158,140,.12);border:1px solid rgba(61,158,140,.3);border-radius:7px;padding:14px;text-align:center;">
+      <div style="font-family:var(--m);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Salaries / GP</div>
+      <div style="font-family:var(--m);font-size:1.5rem;font-weight:500;color:var(--teal-light);">21.8%</div>
+      <div style="font-family:var(--m);font-size:10px;color:var(--muted);margin-top:4px;">salary cost vs gross profit</div>
+    </div>
+    <div style="background:rgba(61,158,140,.12);border:1px solid rgba(61,158,140,.3);border-radius:7px;padding:14px;text-align:center;">
+      <div style="font-family:var(--m);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Op Margin</div>
+      <div style="font-family:var(--m);font-size:1.5rem;font-weight:500;color:var(--teal-light);">20.7%</div>
+      <div style="font-family:var(--m);font-size:10px;color:var(--muted);margin-top:4px;">operating profit margin</div>
+    </div>
+    <div style="background:rgba(61,158,140,.12);border:1px solid rgba(61,158,140,.3);border-radius:7px;padding:14px;text-align:center;">
+      <div style="font-family:var(--m);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Profit per £1k Revenue</div>
+      <div style="font-family:var(--m);font-size:1.5rem;font-weight:500;color:var(--teal-light);">£207</div>
+      <div style="font-family:var(--m);font-size:10px;color:var(--muted);margin-top:4px;">every £1,000 earned</div>
+    </div>
+  </div>
+
+  <!-- Stock tracking caveat -->
+  <div style="background:rgba(245,101,101,.07);border:1px solid rgba(245,101,101,.3);border-left:3px solid var(--destructive);border-radius:6px;padding:16px 20px;margin-bottom:28px;font-size:13px;color:var(--muted);line-height:1.7;">
+    <strong style="color:var(--destructive);font-family:var(--m);font-size:11px;text-transform:uppercase;letter-spacing:.08em;display:block;margin-bottom:8px;">⚠ Data Quality — Stock Tracking at ~60%</strong>
+    Stock unit costs are currently only tracked for approximately <strong style="color:var(--fg);">60% of SKUs</strong>. This means COGS in these reports may be <strong style="color:var(--fg);">understated</strong> — and GP margins may be <strong style="color:var(--fg);">overstated</strong> relative to the true position. As tracking improves by ~5% per month toward 100%, COGS will increase and GP margins will adjust downward. <strong style="color:var(--fg);">All margin figures should be treated as directional, not definitive</strong>, until full stock cost integration is complete. This is a known priority.
+  </div>
+
+  <!-- Month tiles -->
+  <div class="month-tiles">
+    <div class="month-tile">
+      <div class="mt-month">S–J AVG</div>
+      <div class="mt-rev">Rev £381k/mo</div>
+      <div class="mt-op neg">£6,556</div>
+      <div class="mt-margin">1.7% op margin</div>
+      <div class="tl-badge tl2" style="font-size:9px;margin-top:8px;">L2 BAD</div>
+    </div>
+    <div class="month-tile">
+      <div class="mt-month">FEB</div>
+      <div class="mt-rev">Rev £311,826</div>
+      <div class="mt-op pos">£8,429</div>
+      <div class="mt-margin">2.7% margin</div>
+      <div class="tl-badge tl2" style="font-size:9px;margin-top:8px;">L2 BAD</div>
+    </div>
+    <div class="month-tile">
+      <div class="mt-month">MAR</div>
+      <div class="mt-rev">Rev £429,917</div>
+      <div class="mt-op pos">£63,804</div>
+      <div class="mt-margin">14.8% margin</div>
+      <div class="tl-badge tl4" style="font-size:9px;margin-top:8px;">L4 AVERAGE</div>
+    </div>
+    <div class="month-tile current">
+      <div class="mt-month">APR</div>
+      <div class="mt-rev">Rev £544,752</div>
+      <div class="mt-op pos">£146,801</div>
+      <div class="mt-margin">26.9% margin</div>
+      <div class="tl-badge tl5" style="font-size:9px;margin-top:8px;">L5 GOOD</div>
+    </div>
+    <div class="month-tile projected">
+      <div class="mt-month">MAY ★</div>
+      <div class="mt-rev">Rev £405,161</div>
+      <div class="mt-op pos">£130,972</div>
+      <div class="mt-margin">32.3% margin</div>
+      <div class="tl-badge tl6" style="font-size:9px;margin-top:8px;">L6 GREAT</div>
+    </div>
+  </div>
+
+  <!-- Main performance chart -->
+  <div class="chart-2col">
+    <div class="card">
+      <div class="chart-title">Operating Profit Trajectory — Full Year View <span style="color:#5b6aa0;margin-left:8px;">★ = projected</span></div>
+      <div class="chart-wrap tall"><canvas id="trajectoryChart"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="chart-title">Gross Margin % vs Operating Margin %</div>
+      <div class="chart-wrap tall"><canvas id="marginsChart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Revenue breakdown current period -->
+  <div class="chart-2eq">
+    <div class="card">
+      <div class="chart-title">Revenue by Channel — Feb to May</div>
+      <div class="chart-wrap"><canvas id="channelBarChart"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="chart-title">GP Margin Expansion — Why Profit Is Growing</div>
+      <div class="chart-wrap"><canvas id="gpDriverChart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Quarterly framing -->
+  <div style="background:var(--navy-card);border:1px solid var(--border);border-radius:8px;padding:24px;margin-bottom:28px;">
+    <div class="chart-title" style="margin-bottom:16px;">Seasonal Context — Reading the Monthly Figures</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:16px;">
+      <div style="padding:16px;background:rgba(26,38,64,.7);border:1px solid var(--border);border-radius:6px;">
+        <div style="font-family:var(--m);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;">Baseline Period</div>
+        <div style="font-family:var(--h);font-size:1.1rem;font-weight:700;color:var(--muted);">Sept – Jan</div>
+        <div style="font-family:var(--m);font-size:1.3rem;margin-top:8px;">£6,556<span style="font-size:11px;color:var(--muted);">/mo avg</span></div>
+        <div style="font-family:var(--m);font-size:11px;color:var(--muted);margin-top:4px;">£32,781 over 5 months</div>
+        <div class="tl-badge tl2" style="font-size:9px;margin-top:10px;">Level 2 — Baseline</div>
+      </div>
+      <div style="padding:16px;background:rgba(26,38,64,.7);border:1px solid var(--border);border-radius:6px;">
+        <div style="font-family:var(--m);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;">Transition Month</div>
+        <div style="font-family:var(--h);font-size:1.1rem;font-weight:700;color:var(--muted);">February</div>
+        <div style="font-family:var(--m);font-size:1.3rem;margin-top:8px;">£3,695<span style="font-size:11px;color:var(--muted);">/mo (norm.)</span></div>
+        <div style="font-family:var(--m);font-size:11px;color:var(--muted);margin-top:4px;">Still thin — but turning</div>
+        <div class="tl-badge tl2" style="font-size:9px;margin-top:10px;">Level 2 — Transitional</div>
+      </div>
+      <div style="padding:16px;background:rgba(61,158,140,.07);border:1px solid rgba(61,158,140,.3);border-radius:6px;">
+        <div style="font-family:var(--m);font-size:10px;color:var(--teal);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;">Peak Quarter ★</div>
+        <div style="font-family:var(--h);font-size:1.1rem;font-weight:700;color:var(--teal-light);">Mar – Apr – May</div>
+        <div style="font-family:var(--m);font-size:1.3rem;color:var(--teal-light);margin-top:8px;">£113,859<span style="font-size:11px;color:var(--muted);">/mo avg</span></div>
+        <div style="font-family:var(--m);font-size:11px;color:var(--muted);margin-top:4px;">£341,577 over 3 months</div>
+        <div class="tl-badge tl6" style="font-size:9px;margin-top:10px;">Level 6 — Peak Quarter</div>
+      </div>
+      <div style="padding:16px;background:rgba(57,73,171,.07);border:1px solid rgba(57,73,171,.3);border-radius:6px;">
+        <div style="font-family:var(--m);font-size:10px;color:#9fa8da;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;">Expected Strong Quarter</div>
+        <div style="font-family:var(--h);font-size:1.1rem;font-weight:700;color:#9fa8da;">Jun – Jul – Aug</div>
+        <div style="font-family:var(--m);font-size:1.3rem;color:#9fa8da;margin-top:8px;">TBD<span style="font-size:11px;color:var(--muted);"> — 2nd strongest</span></div>
+        <div style="font-family:var(--m);font-size:11px;color:var(--muted);margin-top:4px;">Below peak quarter — tracking</div>
+        <div class="tl-badge tl5" style="font-size:9px;margin-top:10px;">Level 5 — Forecast</div>
+      </div>
+    </div>
+    <!-- Key % comparison -->
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:18px;margin-bottom:14px;">
+      <div style="background:rgba(26,38,64,.8);border-radius:6px;padding:12px;text-align:center;">
+        <div style="font-family:var(--m);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px;">CoS / Revenue</div>
+        <div style="display:flex;align-items:baseline;justify-content:center;gap:10px;">
+          <div style="font-family:var(--m);font-size:1.1rem;color:#ef5350;text-decoration:line-through;opacity:.7;">71.7%</div>
+          <div style="font-family:var(--m);font-size:1.3rem;font-weight:500;color:var(--teal-light);">59.5%</div>
+        </div>
+        <div style="font-family:var(--m);font-size:10px;color:var(--success);margin-top:4px;">↓ -12.2pp</div>
+      </div>
+      <div style="background:rgba(26,38,64,.8);border-radius:6px;padding:12px;text-align:center;">
+        <div style="font-family:var(--m);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px;">GP Margin</div>
+        <div style="display:flex;align-items:baseline;justify-content:center;gap:10px;">
+          <div style="font-family:var(--m);font-size:1.1rem;color:#ef5350;text-decoration:line-through;opacity:.7;">28.3%</div>
+          <div style="font-family:var(--m);font-size:1.3rem;font-weight:500;color:var(--teal-light);">40.5%</div>
+        </div>
+        <div style="font-family:var(--m);font-size:10px;color:var(--success);margin-top:4px;">↑ +12.2pp</div>
+      </div>
+      <div style="background:rgba(61,158,140,.08);border:1px solid rgba(61,158,140,.25);border-radius:6px;padding:12px;text-align:center;">
+        <div style="font-family:var(--m);font-size:9px;color:var(--teal);text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px;">Admin / GP ★</div>
+        <div style="display:flex;align-items:baseline;justify-content:center;gap:10px;">
+          <div style="font-family:var(--m);font-size:1.1rem;color:#ef5350;text-decoration:line-through;opacity:.7;">93.9%</div>
+          <div style="font-family:var(--m);font-size:1.3rem;font-weight:500;color:var(--teal-light);">48.9%</div>
+        </div>
+        <div style="font-family:var(--m);font-size:10px;color:var(--success);margin-top:4px;">↓ -45.0pp — the headline</div>
+      </div>
+      <div style="background:rgba(26,38,64,.8);border-radius:6px;padding:12px;text-align:center;">
+        <div style="font-family:var(--m);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px;">Op Margin</div>
+        <div style="display:flex;align-items:baseline;justify-content:center;gap:10px;">
+          <div style="font-family:var(--m);font-size:1.1rem;color:#ef5350;text-decoration:line-through;opacity:.7;">1.7%</div>
+          <div style="font-family:var(--m);font-size:1.3rem;font-weight:500;color:var(--teal-light);">20.7%</div>
+        </div>
+        <div style="font-family:var(--m);font-size:10px;color:var(--success);margin-top:4px;">↑ +19.0pp</div>
+      </div>
+    </div>
+    <div style="margin-top:0;font-size:13px;color:var(--muted);line-height:1.7;padding:14px;background:rgba(26,38,64,.5);border-radius:5px;">
+      <strong style="color:var(--fg);">How to read the monthly figures:</strong> March, April and May are the peak trading quarter. The relevant figure is the <strong style="color:var(--teal-light);">quarterly average of £113,859/month</strong>. Revenue drives this; COGS should broadly track revenue; admin costs stay anchored. The aim is to raise the <em>floor</em> across all quarters — the percentages above are what to track month by month.
+    </div>
+  </div>
+
+  <!-- P&L breakdown charts — WHERE WE ARE -->
+  <div class="chart-2col">
+    <div class="card">
+      <div class="chart-title">Monthly P&L — Feb–May (actuals)</div>
+      <div class="chart-wrap tall"><canvas id="areMonthlyChart"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="chart-title">Revenue by Channel — Feb–May total</div>
+      <div class="chart-wrap tall"><canvas id="arePieChart"></canvas></div>
+    </div>
+  </div>
+  <div class="chart-2eq">
+    <div class="card">
+      <div class="chart-title">Admin Cost Lines — Feb to May</div>
+      <div class="chart-wrap"><canvas id="areAdminChart"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="chart-title">Cost Structure — Where GP Went (Feb–May)</div>
+      <div class="chart-wrap"><canvas id="areWaterfallChart"></canvas></div>
+    </div>
+  </div>
+
+  <div class="insight-box">
+    <strong>What's most likely driving the GP margin improvement:</strong> Revenue increased substantially (particularly eBay) while COGS did not grow proportionally — suggesting the business sold more from existing stock rather than buying proportionally more. Admin costs stayed broadly anchored. <strong>Important caveat: stock tracking is currently at ~60%</strong>. As tracking improves, COGS will increase and margins will adjust. The direction is positive, but the exact margin figure is not yet reliable.
+  </div>
+
+  <!-- P&L Summary Table -->
+  <div class="card" style="margin-bottom:28px;">
+    <div class="chart-title" style="margin-bottom:16px;">Monthly P&L Summary — Feb to May 2026</div>
+    <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Line</th>
+          <th>Feb 2026</th>
+          <th>Mar 2026</th>
+          <th>Apr 2026</th>
+          <th class="col-proj">May 2026 ★</th>
+          <th>4-Mo Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="tr-section"><td colspan="6">TURNOVER</td></tr>
+        <tr><td>Amazon Sales</td><td>£81,819</td><td>£144,231</td><td>£145,766</td><td class="col-proj">£123,939★</td><td>£495,755</td></tr>
+        <tr><td>eBay Sales</td><td>£166,460</td><td>£213,082</td><td>£333,922</td><td class="col-proj">£237,821★</td><td>£951,285</td></tr>
+        <tr><td>Trade Counter</td><td>£57,350</td><td>£65,770</td><td>£59,023</td><td>£37,827</td><td>£219,970</td></tr>
+        <tr><td>Rental / Launderette</td><td>£6,146</td><td>£6,729</td><td>£6,041</td><td>£5,151</td><td>£24,067</td></tr>
+        <tr><td>Other / Interest</td><td>£50</td><td>£105</td><td>—</td><td>£345</td><td>£500</td></tr>
+        <tr class="tr-subtotal"><td>Total Revenue</td><td>£311,826</td><td>£429,917</td><td>£544,752</td><td class="col-proj">£405,161★</td><td>£1,691,656</td></tr>
+        <tr class="tr-section"><td colspan="6">COST OF SALES</td></tr>
+        <tr><td>Platform Fees (Amazon + eBay)</td><td>£61,867</td><td>£85,242</td><td>£71,073</td><td class="col-proj">£72,727★</td><td>£290,909</td></tr>
+        <tr><td>Cost of Goods Sold</td><td>£124,726</td><td>£133,833</td><td>£156,367</td><td>£96,744</td><td>£511,670</td></tr>
+        <tr><td>Postage &amp; Freight</td><td>£41,612</td><td>£58,452</td><td>£67,438</td><td>£36,813</td><td>£204,315</td></tr>
+        <tr class="tr-subtotal"><td>Total Cost of Sales</td><td>£228,206</td><td>£277,527</td><td>£294,878</td><td class="col-proj">£206,285★</td><td>£1,006,896</td></tr>
+        <tr class="tr-grand"><td>GROSS PROFIT</td><td>£83,620 <small>(26.8%)</small></td><td>£152,390 <small>(35.4%)</small></td><td>£249,874 <small>(45.9%)</small></td><td class="col-proj">£198,876★ <small>(49.1%)</small></td><td>£684,760</td></tr>
+        <tr class="tr-section"><td colspan="6">ADMIN COSTS</td></tr>
+        <tr><td>Salaries</td><td>£36,105</td><td>£37,272</td><td>£38,577</td><td class="col-proj">£37,318★</td><td>£149,272</td></tr>
+        <tr><td>Rent</td><td>£5,000</td><td>£10,000</td><td>£5,000</td><td>£5,000</td><td>£25,000</td></tr>
+        <tr><td>Advertising &amp; Marketing</td><td>£7,101</td><td>£14,598</td><td>£8,479</td><td class="col-proj">£10,060★</td><td>£40,238</td></tr>
+        <tr><td>Consulting</td><td>£5,433</td><td>£4,223</td><td>£4,223</td><td>£2,123</td><td>£16,002</td></tr>
+        <tr><td>Pensions (all)</td><td>£1,837</td><td>£2,971</td><td>£7,610</td><td>£1,869</td><td>£14,287</td></tr>
+        <tr><td>Rates</td><td>£5,067</td><td>—</td><td>£4,648</td><td>£5,059</td><td>£14,774</td></tr>
+        <tr><td>Employers NI</td><td>£3,985</td><td>£4,133</td><td>£4,047</td><td class="col-proj">£4,055★</td><td>£16,220</td></tr>
+        <tr><td>Other Admin</td><td>£10,663</td><td>£15,390</td><td>£30,489</td><td>£2,420</td><td>£58,962</td></tr>
+        <tr class="tr-subtotal"><td>Total Admin</td><td>£75,191</td><td>£88,587</td><td>£103,073</td><td class="col-proj">£67,904★</td><td>£334,755</td></tr>
+        <tr class="tr-grand"><td>OPERATING PROFIT</td>
+          <td class="col-pos">£8,429 <small>(2.7%)</small></td>
+          <td class="col-pos">£63,804 <small>(14.8%)</small></td>
+          <td class="col-pos">£146,801 <small>(26.9%)</small></td>
+          <td class="col-proj">£130,972★ <small>(32.3%)</small></td>
+          <td class="col-pos">£350,006</td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+  </div>
+
+  <!-- ── NORMALISATION SECTION ── -->
+  <div class="card" style="margin-bottom:28px; border-color:rgba(240,168,32,.25);">
+    <div class="norm-toggle-row">
+      <div>
+        <h3>Normalised vs Reported Operating Profit</h3>
+        <p>Adjusting for timing differences and one-off charges to show underlying performance</p>
+      </div>
+    </div>
+
+    <div class="adj-grid">
+      <div class="adj-card">
+        <div class="adj-card-label" style="color:#F0A820;">Feb 2026 — Adjustments</div>
+        <div class="adj-card-item"><span>L&amp;P (credit → normalize)</span><span class="adj-neg">-£4,158</span></div>
+        <div class="adj-card-item"><span>Travel National (spread)</span><span class="adj-neg">-£500</span></div>
+        <div class="adj-card-item"><span>Subscriptions</span><span class="adj-neg">-£76</span></div>
+        <div class="adj-card-item"><span>Rent</span><span class="adj-neutral">—</span></div>
+        <div style="display:flex;justify-content:space-between;padding-top:8px;font-family:var(--m);font-size:12px;"><span style="color:var(--muted);">Reported OP</span><span>£8,429</span></div>
+        <div style="display:flex;justify-content:space-between;padding-top:4px;font-family:var(--m);font-size:13px;font-weight:500;"><span style="color:var(--warning);">Normalised OP</span><span style="color:var(--warning);">£3,695</span></div>
+      </div>
+      <div class="adj-card">
+        <div class="adj-card-label" style="color:#F0A820;">Mar 2026 — Adjustments</div>
+        <div class="adj-card-item"><span>Rent (double month)</span><span class="adj-neg">-£5,000</span></div>
+        <div class="adj-card-item"><span>Travel National (spread)</span><span class="adj-neg">-£500</span></div>
+        <div class="adj-card-item"><span>L&amp;P (normalize)</span><span class="adj-neg">-£425</span></div>
+        <div class="adj-card-item"><span>Subscriptions</span><span class="adj-pos">+£22</span></div>
+        <div style="display:flex;justify-content:space-between;padding-top:8px;font-family:var(--m);font-size:12px;"><span style="color:var(--muted);">Reported OP</span><span>£63,804</span></div>
+        <div style="display:flex;justify-content:space-between;padding-top:4px;font-family:var(--m);font-size:13px;font-weight:500;"><span style="color:var(--warning);">Normalised OP</span><span style="color:var(--warning);">£57,901</span></div>
+      </div>
+      <div class="adj-card" style="border-color:rgba(51,204,102,.3);">
+        <div class="adj-card-label" style="color:var(--success);">Apr 2026 — Adjustments</div>
+        <div class="adj-card-item"><span>L&amp;P (spike → normalize)</span><span class="adj-pos">+£8,920</span></div>
+        <div class="adj-card-item"><span>Travel (annual → spread)</span><span class="adj-pos">+£5,500</span></div>
+        <div class="adj-card-item"><span>Subscriptions (annual)</span><span class="adj-pos">+£3,482</span></div>
+        <div class="adj-card-item"><span>Rent</span><span class="adj-neutral">—</span></div>
+        <div style="display:flex;justify-content:space-between;padding-top:8px;font-family:var(--m);font-size:12px;"><span style="color:var(--muted);">Reported OP</span><span>£146,801</span></div>
+        <div style="display:flex;justify-content:space-between;padding-top:4px;font-family:var(--m);font-size:13px;font-weight:500;"><span style="color:var(--success);">Normalised OP</span><span style="color:var(--success);">£164,703</span></div>
+      </div>
+      <div class="adj-card">
+        <div class="adj-card-label" style="color:#7986cb;">May 2026 ★ — Adjustments</div>
+        <div class="adj-card-item"><span>L&amp;P (credit → normalize)</span><span class="adj-neg">-£4,337</span></div>
+        <div class="adj-card-item"><span>Travel National (spread)</span><span class="adj-neg">-£500</span></div>
+        <div class="adj-card-item"><span>Subscriptions</span><span class="adj-neg">-£720</span></div>
+        <div class="adj-card-item"><span>Rent</span><span class="adj-neutral">—</span></div>
+        <div style="display:flex;justify-content:space-between;padding-top:8px;font-family:var(--m);font-size:12px;"><span style="color:var(--muted);">Reported OP ★</span><span>£130,972</span></div>
+        <div style="display:flex;justify-content:space-between;padding-top:4px;font-family:var(--m);font-size:13px;font-weight:500;"><span style="color:#7986cb;">Normalised OP ★</span><span style="color:#7986cb;">£125,416</span></div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px;">
+      <div class="warn-box" style="margin:0;font-size:11px;"><strong style="color:var(--warning);">Rent</strong><br>March shows £10k vs normal £5k. Payment timing — one adjacent month will show £0. Normalized to £5k/month throughout. No impact on annual total.</div>
+      <div class="warn-box" style="margin:0;font-size:11px;"><strong style="color:var(--warning);">Light &amp; Power</strong><br>Swings from -£3,559 to +£9,698 across four months. Billing timing. 4-month total = £3,113. Normalized to £778/month. No impact on period total.</div>
+      <div class="warn-box" style="margin:0;font-size:11px;"><strong style="color:var(--warning);">Subscriptions</strong><br>April shows £4,982 vs ~£1,500 normal. Annual renewal paid upfront. Normalized to £1,500/month. Going forward: ~£300–400/month lower.</div>
+      <div class="warn-box" style="margin:0;font-size:11px;"><strong style="color:var(--warning);">Travel — National</strong><br>April shows £6,000 (annual directors' mileage). Normalized to £500/month. Recommendation: accrue monthly to avoid distorting future months.</div>
+    </div>
+
+    <div class="norm-compare-grid">
+      <div>
+        <div class="chart-title">Operating Profit — Reported vs Normalised</div>
+        <div class="chart-wrap"><canvas id="normChart"></canvas></div>
+      </div>
+      <div style="padding-top:8px;">
+        <div class="insight-box" style="margin-bottom:14px;">
+          <strong>April's underlying performance is stronger than reported.</strong> After normalising out the L&amp;P spike (£9,698), annual subscription (£4,982), and directors' mileage charge (£6,000), April's true operating profit was <strong>£164,703</strong> — not £146,801. One-off timing charges understated April by £17,902.
+        </div>
+        <div class="insight-box" style="margin-bottom:14px;">
+          <strong>February is weaker on a normalised basis.</strong> The -£3,379 L&amp;P credit inflated February's reported profit. Underlying performance was £3,695. The recovery in March and April is real margin improvement, not accounting noise.
+        </div>
+        <div style="padding:16px;background:rgba(51,204,102,.06);border:1px solid rgba(51,204,102,.2);border-radius:6px;font-family:var(--m);font-size:12px;">
+          <div style="color:var(--success);margin-bottom:10px;font-size:10px;text-transform:uppercase;letter-spacing:.08em;">Normalised YTD Position</div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><span style="color:var(--muted);">Sept–Jan (reported)</span><span>£32,781</span></div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><span style="color:var(--muted);">Feb–May (normalised)</span><span>£351,715</span></div>
+          <div style="display:flex;justify-content:space-between;padding-top:8px;border-top:1px solid rgba(61,79,94,.4);font-weight:500;"><span style="color:var(--fg);">Normalised YTD</span><span style="color:var(--success);">£384,496</span></div>
+          <div style="display:flex;justify-content:space-between;margin-top:6px;"><span style="color:var(--muted);">vs Reported YTD</span><span style="color:var(--muted);">£382,787</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ── PROFITABILITY SEGMENTATION ── -->
+  <div style="margin-bottom:28px;">
+    <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:8px;">
+      <div>
+        <div class="section-eyebrow" style="margin-bottom:4px;">Order Line Intelligence</div>
+        <div style="font-family:var(--h);font-size:1.3rem;font-weight:700;color:var(--fg);">Profitability Segmentation — Current Snapshot</div>
+      </div>
+      <div style="font-family:var(--m);font-size:11px;color:var(--muted);text-align:right;">POR % = Profit ÷ GMV inc VAT<br>4,472 order lines · Live data</div>
+    </div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:20px;">Order lines bucketed by profit-on-revenue %. The distribution below shows where the business is today — and what the priority list looks like.</div>
+
+    <!-- Segment cards -->
+    <div style="display:grid;grid-template-columns:repeat(8,1fr);gap:10px;margin-bottom:24px;">
+
+      <div style="background:rgba(249,168,37,.1);border:1.5px dashed rgba(249,168,37,.5);border-radius:7px;padding:14px 10px;position:relative;overflow:hidden;">
+        <div style="position:absolute;inset:0;background:repeating-linear-gradient(-45deg,transparent,transparent 8px,rgba(249,168,37,.05) 8px,rgba(249,168,37,.05) 16px);"></div>
+        <div style="position:relative;">
+          <div style="font-family:var(--m);font-size:9px;color:#F9A825;text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px;">⚠ UNKNOWN</div>
+          <div style="font-family:var(--h);font-size:2rem;font-weight:700;color:var(--fg);">468</div>
+          <div style="font-family:var(--m);font-size:10px;color:var(--muted);margin-top:2px;">10.3% of lines</div>
+          <div style="font-family:var(--m);font-size:10px;color:#F9A825;margin-top:6px;padding:3px 6px;background:rgba(249,168,37,.1);border-radius:3px;">no cost data</div>
+        </div>
+      </div>
+
+      <div style="background:rgba(107,26,42,.2);border:1px solid rgba(107,26,42,.6);border-radius:7px;padding:14px 10px;">
+        <div style="font-family:var(--m);font-size:9px;color:#e57373;text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px;">LOSS</div>
+        <div style="font-family:var(--h);font-size:2rem;font-weight:700;color:var(--fg);">607</div>
+        <div style="font-family:var(--m);font-size:10px;color:var(--muted);margin-top:2px;">13.4% of lines</div>
+        <div style="font-family:var(--m);font-size:11px;color:#e57373;margin-top:8px;">-£1,923.28</div>
+      </div>
+
+      <div style="background:rgba(211,47,47,.15);border:1px solid rgba(211,47,47,.5);border-radius:7px;padding:14px 10px;">
+        <div style="font-family:var(--m);font-size:9px;color:#ef5350;text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px;">BREAKEVEN</div>
+        <div style="font-family:var(--h);font-size:2rem;font-weight:700;color:var(--fg);">53</div>
+        <div style="font-family:var(--m);font-size:10px;color:var(--muted);margin-top:2px;">1.2% of lines</div>
+        <div style="font-family:var(--m);font-size:11px;color:#ef5350;margin-top:8px;">£2.15</div>
+      </div>
+
+      <div style="background:rgba(230,81,0,.15);border:1px solid rgba(230,81,0,.5);border-radius:7px;padding:14px 10px;">
+        <div style="font-family:var(--m);font-size:9px;color:#ff7043;text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px;">POOR</div>
+        <div style="font-family:var(--h);font-size:2rem;font-weight:700;color:var(--fg);">709</div>
+        <div style="font-family:var(--m);font-size:10px;color:var(--muted);margin-top:2px;">15.6% of lines</div>
+        <div style="font-family:var(--m);font-size:11px;color:#ff7043;margin-top:8px;">£711.09</div>
+      </div>
+
+      <div style="background:rgba(249,168,37,.12);border:1px solid rgba(249,168,37,.4);border-radius:7px;padding:14px 10px;">
+        <div style="font-family:var(--m);font-size:9px;color:#ffd54f;text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px;">AVERAGE</div>
+        <div style="font-family:var(--h);font-size:2rem;font-weight:700;color:var(--fg);">780</div>
+        <div style="font-family:var(--m);font-size:10px;color:var(--muted);margin-top:2px;">17.2% of lines</div>
+        <div style="font-family:var(--m);font-size:11px;color:#ffd54f;margin-top:8px;">£2,923.06</div>
+      </div>
+
+      <div style="background:rgba(46,125,50,.2);border:1px solid rgba(46,125,50,.5);border-radius:7px;padding:14px 10px;">
+        <div style="font-family:var(--m);font-size:9px;color:#66bb6a;text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px;">GOOD</div>
+        <div style="font-family:var(--h);font-size:2rem;font-weight:700;color:var(--fg);">380</div>
+        <div style="font-family:var(--m);font-size:10px;color:var(--muted);margin-top:2px;">8.4% of lines</div>
+        <div style="font-family:var(--m);font-size:11px;color:#66bb6a;margin-top:8px;">£1,982.47</div>
+      </div>
+
+      <div style="background:rgba(0,131,143,.15);border:1px solid rgba(0,131,143,.5);border-radius:7px;padding:14px 10px;">
+        <div style="font-family:var(--m);font-size:9px;color:#26c6da;text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px;">GREAT</div>
+        <div style="font-family:var(--h);font-size:2rem;font-weight:700;color:var(--fg);">357</div>
+        <div style="font-family:var(--m);font-size:10px;color:var(--muted);margin-top:2px;">7.9% of lines</div>
+        <div style="font-family:var(--m);font-size:11px;color:#26c6da;margin-top:8px;">£2,513.04</div>
+      </div>
+
+      <div style="background:rgba(57,73,171,.18);border:1px solid rgba(57,73,171,.5);border-radius:7px;padding:14px 10px;">
+        <div style="font-family:var(--m);font-size:9px;color:#7986cb;text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px;">AMAZING</div>
+        <div style="font-family:var(--h);font-size:2rem;font-weight:700;color:var(--fg);">1,118</div>
+        <div style="font-family:var(--m);font-size:10px;color:var(--muted);margin-top:2px;">24.7% of lines</div>
+        <div style="font-family:var(--m);font-size:11px;color:#7986cb;margin-top:8px;">£16,161.82</div>
+      </div>
+    </div>
+
+    <!-- Analysis row -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:20px;">
+      <div style="background:rgba(107,26,42,.12);border:1px solid rgba(107,26,42,.3);border-radius:7px;padding:18px;">
+        <div style="font-family:var(--m);font-size:10px;color:#e57373;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;">Problem Lines — Priority Action</div>
+        <div style="font-family:var(--m);font-size:1.6rem;font-weight:500;color:#ef5350;">1,128</div>
+        <div style="font-family:var(--m);font-size:11px;color:var(--muted);margin-top:4px;">25.2% of all lines · Unknown + Loss + Breakeven</div>
+        <div style="margin-top:12px;font-size:12px;color:var(--muted);line-height:1.6;">
+          <div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid rgba(61,79,94,.3);"><span>Unknown (no data)</span><span style="color:#F9A825;">468 lines</span></div>
+          <div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid rgba(61,79,94,.3);"><span>Selling at a loss</span><span style="color:#e57373;">607 lines</span></div>
+          <div style="display:flex;justify-content:space-between;padding:3px 0;"><span>Breakeven</span><span style="color:#ef5350;">53 lines</span></div>
+        </div>
+      </div>
+
+      <div style="background:rgba(57,73,171,.1);border:1px solid rgba(57,73,171,.35);border-radius:7px;padding:18px;">
+        <div style="font-family:var(--m);font-size:10px;color:#7986cb;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;">The AMAZING Engine</div>
+        <div style="font-family:var(--m);font-size:1.6rem;font-weight:500;color:#9fa8da;">72.2% of profit</div>
+        <div style="font-family:var(--m);font-size:11px;color:var(--muted);margin-top:4px;">from 24.7% of lines — 1,118 order lines</div>
+        <div style="margin-top:12px;font-size:12px;color:var(--muted);line-height:1.7;">
+          AMAZING lines average <strong style="color:var(--fg);">£14.46 profit per line</strong>. GOOD lines average £5.22. LOSS lines average <strong style="color:#e57373;">-£3.17 per line</strong>. The opportunity is in migration — moving lines up the scale and eliminating the drag.
+        </div>
+      </div>
+
+      <div style="background:rgba(46,125,50,.1);border:1px solid rgba(46,125,50,.3);border-radius:7px;padding:18px;">
+        <div style="font-family:var(--m);font-size:10px;color:#66bb6a;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;">The Opportunity Stack</div>
+        <div style="font-size:12px;color:var(--muted);line-height:1.8;">
+          <div style="padding:5px 0;border-bottom:1px solid rgba(61,79,94,.3);display:flex;justify-content:space-between;">
+            <span>Resolve 468 UNKNOWN lines</span>
+            <span style="color:var(--fg);">Cost visibility</span>
+          </div>
+          <div style="padding:5px 0;border-bottom:1px solid rgba(61,79,94,.3);display:flex;justify-content:space-between;">
+            <span>Convert 607 LOSS lines</span>
+            <span style="color:var(--success);">+£1,923 floor</span>
+          </div>
+          <div style="padding:5px 0;border-bottom:1px solid rgba(61,79,94,.3);display:flex;justify-content:space-between;">
+            <span>Lift 709 POOR to AVERAGE</span>
+            <span style="color:var(--success);">+£1,950 uplift</span>
+          </div>
+          <div style="padding:5px 0;display:flex;justify-content:space-between;">
+            <span>Replicate AMAZING pattern</span>
+            <span style="color:#7986cb;">Scale engine</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bar chart -->
+    <div style="display:grid;grid-template-columns:2fr 1fr;gap:20px;">
+      <div class="card">
+        <div class="chart-title">Line Count Distribution by POR Category</div>
+        <div class="chart-wrap"><canvas id="porBarChart"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="chart-title">Profit Contribution by Category</div>
+        <div class="chart-wrap"><canvas id="porProfitChart"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<hr class="section-divider">
+
+<!-- ═══════════════════════════════════════════════
+     SECTION 3 — WHERE WE'RE GOING
+══════════════════════════════════════════════════ -->
+<div id="going">
+<div class="section">
+  <div class="section-eyebrow">Chapter 3</div>
+  <div class="section-title">WHERE WE'RE GOING</div>
+  <div class="section-subtitle">FY 25-26 target: £500k+ operating profit. FY 26-27 target: £1M. Based on a seasonal business — forecasting with honest ranges, not peak extrapolation.</div>
+
+  <!-- Connected KPI Row — targets and current position -->
+  <div class="ckpi-row">
+    <div class="ckpi chapter3">
+      <div class="ckpi-chapter-tag">Target</div>
+      <div class="ckpi-label">Annual Revenue (FY26-27)</div>
+      <div class="ckpi-val" style="color:#9fa8da;">~£4.6M</div>
+      <div class="ckpi-prev">Current run rate ~£5.1M annualised</div>
+      <div class="ckpi-delta pos">↑ Already exceeding</div>
+    </div>
+    <div class="ckpi chapter3">
+      <div class="ckpi-chapter-tag">Target</div>
+      <div class="ckpi-label">GP Margin Target</div>
+      <div class="ckpi-val" style="color:#9fa8da;">≥ 45%</div>
+      <div class="ckpi-prev">Current avg 40.5% (stock tracking gap)</div>
+      <div class="ckpi-delta warn">⚠ Indicative — tracking incomplete</div>
+    </div>
+    <div class="ckpi chapter3 highlight">
+      <div class="ckpi-chapter-tag">Target</div>
+      <div class="ckpi-label">Admin Cost Ceiling</div>
+      <div class="ckpi-val" style="color:#9fa8da;">&lt; £90k/mo</div>
+      <div class="ckpi-prev">Current avg £83,689/mo</div>
+      <div class="ckpi-delta pos">✓ Within target — hold the line</div>
+    </div>
+    <div class="ckpi chapter3">
+      <div class="ckpi-chapter-tag">Target</div>
+      <div class="ckpi-label">FY 25-26 Op Profit Target</div>
+      <div class="ckpi-val" style="color:#9fa8da;">£500k+</div>
+      <div class="ckpi-prev">YTD £382,787 · 76.6% complete</div>
+      <div class="ckpi-delta pos">↑ On track · £117k needed in 3 months</div>
+    </div>
+  </div>
+
+  <!-- Key % targets row — WHERE WE'RE GOING -->
+  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px;">
+    <div style="background:rgba(57,73,171,.12);border:1px solid rgba(57,73,171,.3);border-radius:7px;padding:14px;text-align:center;">
+      <div style="font-family:var(--m);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">CoS / Revenue</div>
+      <div style="font-family:var(--m);font-size:1.5rem;font-weight:500;color:#9fa8da;">≤55%</div>
+      <div style="font-family:var(--m);font-size:10px;color:var(--muted);margin-top:4px;">target ceiling</div>
+    </div>
+    <div style="background:rgba(57,73,171,.12);border:1px solid rgba(57,73,171,.3);border-radius:7px;padding:14px;text-align:center;">
+      <div style="font-family:var(--m);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Admin / GP</div>
+      <div style="font-family:var(--m);font-size:1.5rem;font-weight:500;color:#9fa8da;">&lt;50%</div>
+      <div style="font-family:var(--m);font-size:10px;color:var(--muted);margin-top:4px;">target ceiling</div>
+    </div>
+    <div style="background:rgba(57,73,171,.12);border:1px solid rgba(57,73,171,.3);border-radius:7px;padding:14px;text-align:center;">
+      <div style="font-family:var(--m);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Salaries / GP</div>
+      <div style="font-family:var(--m);font-size:1.5rem;font-weight:500;color:#9fa8da;">&lt;20%</div>
+      <div style="font-family:var(--m);font-size:10px;color:var(--muted);margin-top:4px;">target ceiling</div>
+    </div>
+    <div style="background:rgba(57,73,171,.12);border:1px solid rgba(57,73,171,.3);border-radius:7px;padding:14px;text-align:center;">
+      <div style="font-family:var(--m);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Op Margin</div>
+      <div style="font-family:var(--m);font-size:1.5rem;font-weight:500;color:#9fa8da;">~10%+ avg</div>
+      <div style="font-family:var(--m);font-size:10px;color:var(--muted);margin-top:4px;">FY annual average</div>
+    </div>
+    <div style="background:rgba(57,73,171,.12);border:1px solid rgba(57,73,171,.3);border-radius:7px;padding:14px;text-align:center;">
+      <div style="font-family:var(--m);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Profit per £1k Revenue</div>
+      <div style="font-family:var(--m);font-size:1.5rem;font-weight:500;color:#9fa8da;">£100+</div>
+      <div style="font-family:var(--m);font-size:10px;color:var(--muted);margin-top:4px;">FY average target</div>
+    </div>
+  </div>
+
+  <!-- P&L breakdown charts — WHERE WE'RE GOING -->
+  <div class="chart-2col">
+    <div class="card">
+      <div class="chart-title">Forecast P&L — Jun–Aug 2026 (monthly)</div>
+      <div class="chart-wrap tall"><canvas id="goingMonthlyChart"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="chart-title">Revenue Channel — Current Mix (Feb–May base)</div>
+      <div class="chart-wrap tall"><canvas id="goingPieChart"></canvas></div>
+    </div>
+  </div>
+  <div class="chart-2eq">
+    <div class="card">
+      <div class="chart-title">Admin Cost Ceiling — Target vs Current</div>
+      <div class="chart-wrap"><canvas id="goingAdminChart"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="chart-title">Target Cost Structure — FY 26-27 Annual</div>
+      <div class="chart-wrap"><canvas id="goingWaterfallChart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Progress to £500k -->
+  <div class="progress-section">
+    <div class="progress-title">FY 25-26 Progress to £500,000 Target</div>
+    <div class="progress-sub">September 2025 – August 2026 · 9 months completed (May projected) · 3 months remaining</div>
+
+    <div class="progress-track">
+      <div class="progress-fill" style="width:76.6%">
+        <span>£382,787 — 76.6%</span>
+      </div>
+    </div>
+    <div class="progress-markers">
+      <div class="progress-marker"><strong>£0</strong>Sep 2025</div>
+      <div class="progress-marker"><strong>£32,781</strong>Jan 2026</div>
+      <div class="progress-marker"><strong>£382,787</strong>May 2026 ★</div>
+      <div class="progress-marker" style="color:#3D9E8C"><strong>£500,000</strong>Target</div>
+      <div class="progress-marker"><strong>Aug 2026</strong>Year End</div>
+    </div>
+
+    <div class="milestone-row">
+      <div class="milestone done">
+        <div class="milestone-label">✓ Achieved (Sept–May)</div>
+        <div class="milestone-val">£382,787</div>
+        <div class="card-sub" style="margin-top:6px;">9 months · Includes May projection</div>
+      </div>
+      <div class="milestone current">
+        <div class="milestone-label">⟶ Needed (Jun–Aug)</div>
+        <div class="milestone-val">£117,213</div>
+        <div class="card-sub" style="margin-top:6px;">£39,071/month · 28% of Apr run rate</div>
+      </div>
+      <div class="milestone future">
+        <div class="milestone-label">★ FY Cumulative at Aug (forecast)</div>
+        <div class="milestone-val" style="color:#7986cb">£536k–£571k</div>
+        <div class="card-sub" style="margin-top:6px;">Jun–Aug profit ~£51k–£63k/mo · 2nd strongest quarter expected</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:28px;">
+    <div class="insight-box" style="margin-bottom:0;">
+      <strong>The £500k target looks achievable — with honest caveats.</strong> With £382,787 through May, the business needs £117,213 across June, July and August — an average of £39,071/month. June–August is expected to be the second strongest quarter, well above that threshold. <strong>The risk is if trading conditions revert toward the Sept–Jan baseline</strong>, not if they sustain peak-quarter levels. A conservative scenario still delivers a full-year result above £500k.
+    </div>
+    <div class="insight-box" style="margin-bottom:0;">
+      <strong>Don't anchor to April's number.</strong> £146,801 in April is the best month on record and a peak-quarter result. The right forward metric is the <strong>quarterly average trend</strong> — is the average improving quarter on quarter? If Jun–Aug averages £60–70k/month, that is a strong and healthy second quarter, not a failure. The goal is a rising floor, not repeating April every month.
+    </div>
+  </div>
+
+  <!-- FY 26-27 path -->
+  <div class="chart-2eq" style="margin-bottom:28px;">
+    <div class="card">
+      <div class="chart-title">Full Year Monthly Forecast (FY 25-26)</div>
+      <div class="chart-wrap tall"><canvas id="forecastChart"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="chart-title">FY 26-27 · Path to £1M</div>
+      <div class="chart-wrap tall"><canvas id="pathChart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- £1M target section -->
+  <div class="progress-section" style="border-color:rgba(57,73,171,.4); background:rgba(57,73,171,.04);">
+    <div class="progress-title" style="color:#9fa8da;">FY 26-27 · The Road to £1,000,000</div>
+    <div class="progress-sub">September 2026 – August 2027 · 12 months · Average monthly requirement: £83,333</div>
+
+    <div class="kpi-4">
+      <div class="card" style="background:rgba(26,38,64,.8);">
+        <div class="card-label">Monthly Target</div>
+        <div class="card-val" style="color:#9fa8da;">£83,333</div>
+        <div class="card-sub">Per month needed</div>
+      </div>
+      <div class="card" style="background:rgba(26,38,64,.8);">
+        <div class="card-label">Peak Qtr Avg (Mar–May)</div>
+        <div class="card-val teal">£113,859</div>
+        <div class="card-sub">3-month average — the relevant benchmark</div>
+      </div>
+      <div class="card" style="background:rgba(26,38,64,.8);">
+        <div class="card-label">Revenue Needed (3 scenarios)</div>
+        <div style="display:flex;gap:8px;margin-top:8px;">
+          <div style="flex:1;text-align:center;padding:8px;background:rgba(57,73,171,.12);border-radius:5px;border:1px solid rgba(57,73,171,.3);">
+            <div style="font-family:var(--m);font-size:9px;color:#9fa8da;margin-bottom:3px;">45% GP</div>
+            <div style="font-family:var(--m);font-size:1rem;color:#c5cae9;">£4.62M</div>
+          </div>
+          <div style="flex:1;text-align:center;padding:8px;background:rgba(61,158,140,.08);border-radius:5px;border:1px solid rgba(61,158,140,.3);">
+            <div style="font-family:var(--m);font-size:9px;color:var(--teal);margin-bottom:3px;">40% GP</div>
+            <div style="font-family:var(--m);font-size:1rem;color:var(--teal-light);">£5.20M</div>
+          </div>
+          <div style="flex:1;text-align:center;padding:8px;background:rgba(240,168,32,.07);border-radius:5px;border:1px solid rgba(240,168,32,.25);">
+            <div style="font-family:var(--m);font-size:9px;color:var(--warning);margin-bottom:3px;">35% GP</div>
+            <div style="font-family:var(--m);font-size:1rem;color:var(--warning);">£5.94M</div>
+          </div>
+        </div>
+      </div>
+      <div class="card" style="background:rgba(26,38,64,.8);">
+        <div class="card-label">Key Requirement</div>
+        <div class="card-val" style="color:#9fa8da;font-size:1.2rem;">Raise floor</div>
+        <div class="card-sub">Lift the weaker quarters — not just sustain the peak</div>
+      </div>
+    </div>
+
+    <div class="insight-box" style="margin-top:0; margin-bottom:0;">
+      <strong>The £1M target is achievable at current performance levels.</strong> April's £545k revenue and 45.9% GP margin — if sustained — would deliver ~£1.76M operating profit on an annualised basis. The real risk is not capability but consistency: can the business hold margins, manage cost inflation, and grow revenue through the traditionally slower summer months and into the next year?
+    </div>
+  </div>
+
+  <!-- Key levers -->
+  <div style="margin-top:32px; margin-bottom:20px;">
+    <div class="section-eyebrow" style="margin-bottom:12px;">The Six Levers</div>
+    <div class="section-title" style="font-size:1.6rem; margin-bottom:20px;">How We Get to £1M</div>
+  </div>
+
+  <div class="levers-grid">
+    <div class="lever-card" style="grid-column:1/-1;">
+      <div class="lever-num">01</div>
+      <div class="lever-title">GROSS MARGIN — PLAN FOR THREE SCENARIOS</div>
+      <div class="lever-body">Margin improved from 28.3% to 40.5% (Feb–May avg). Rather than targeting one fixed %, plan the business across three realistic scenarios. <strong>Revenue needed to hit £1M operating profit</strong> (assuming £90k/mo admin = £1.08M/year fixed costs):
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:16px;">
+        <div style="background:rgba(57,73,171,.12);border:1px solid rgba(57,73,171,.4);border-radius:7px;padding:18px;text-align:center;">
+          <div style="font-family:var(--m);font-size:10px;color:#9fa8da;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;">Optimistic — 45% GP</div>
+          <div style="font-family:var(--m);font-size:1.8rem;font-weight:500;color:#9fa8da;">£4.62M</div>
+          <div style="font-family:var(--m);font-size:11px;color:var(--muted);margin-top:4px;">£385k/month revenue needed</div>
+          <div style="font-family:var(--m);font-size:11px;color:var(--steel);margin-top:6px;">Apr was £545k — achievable in peak quarters</div>
+        </div>
+        <div style="background:rgba(61,158,140,.1);border:1px solid rgba(61,158,140,.35);border-radius:7px;padding:18px;text-align:center;">
+          <div style="font-family:var(--m);font-size:10px;color:var(--teal);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;">Base Case — 40% GP</div>
+          <div style="font-family:var(--m);font-size:1.8rem;font-weight:500;color:var(--teal-light);">£5.20M</div>
+          <div style="font-family:var(--m);font-size:11px;color:var(--muted);margin-top:4px;">£433k/month revenue needed</div>
+          <div style="font-family:var(--m);font-size:11px;color:var(--steel);margin-top:6px;">Realistic as stock tracking improves COGS accuracy</div>
+        </div>
+        <div style="background:rgba(240,168,32,.08);border:1px solid rgba(240,168,32,.3);border-radius:7px;padding:18px;text-align:center;">
+          <div style="font-family:var(--m);font-size:10px;color:var(--warning);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;">Conservative — 35% GP</div>
+          <div style="font-family:var(--m);font-size:1.8rem;font-weight:500;color:var(--warning);">£5.94M</div>
+          <div style="font-family:var(--m);font-size:11px;color:var(--muted);margin-top:4px;">£495k/month revenue needed</div>
+          <div style="font-family:var(--m);font-size:11px;color:var(--steel);margin-top:6px;">Plan for this — if margins compress, revenue must scale</div>
+        </div>
+      </div>
+      <div class="lever-stat" style="margin-top:12px;">⚠ All margin figures subject to revision once stock tracking reaches 100%. Current 40.5% avg is directional. Plan the base case at 40%, stress-test at 35%.</div>
+    </div>
+    <div class="lever-card">
+      <div class="lever-num">02</div>
+      <div class="lever-title">GROW eBay TO £350K+ CONSISTENTLY</div>
+      <div class="lever-body">eBay hit <strong>£333,922 in April</strong> — up from £166k in February. That's the single channel doing the heaviest lifting. Consistent £300k+ months on eBay, across your account structure (Fortress, Express, Urgency, Scope, Lab), is the core revenue engine. The <strong>account mix strategy</strong> is the key variable.</div>
+      <div class="lever-stat">eBay Apr £333,922 vs Feb £166,460 — the gap explains most of the profit swing</div>
+    </div>
+    <div class="lever-card">
+      <div class="lever-num">03</div>
+      <div class="lever-title">AMAZON — TARGET £175K/MONTH</div>
+      <div class="lever-body">Current 3-month average: <strong>£123,939/month</strong>. With ~80,000 listings there is clear headroom. A realistic near-term target is <strong>£175,000/month</strong> — a 41% increase — delivering <strong>£2.1M/year</strong> from Amazon alone. This doesn't require matching eBay; it requires consistent execution on listings, pricing, and account management across the account structure.</div>
+      <div class="lever-stat">£123,939/mo current → £175,000/mo target → +£51k/mo · £2.1M/yr annualised</div>
+    </div>
+    <div class="lever-card">
+      <div class="lever-num">04</div>
+      <div class="lever-title">CONTROL ADMIN COST GROWTH</div>
+      <div class="lever-body">Admin costs rose from £101k/mo (S-J avg) to £103k (Apr) — broadly flat, which is good. The key risk is that as revenue grows, there is pressure to add headcount and services. <strong>Every £10k/month of unnecessary admin costs the business £120k/year</strong>. Salaries are the largest line and need to be tied to output growth.</div>
+      <div class="lever-stat">Admin as % of GP: Sept–Jan 94% → April 41.2% — this ratio must stay below 50%</div>
+    </div>
+    <div class="lever-card">
+      <div class="lever-num">05</div>
+      <div class="lever-title">TRADE COUNTER — FIX THE ECONOMICS FIRST</div>
+      <div class="lever-body">At <strong>27.5% margin</strong> and <strong>~£200k/year to run</strong>, the Trade Counter is currently generating a net contribution of approximately <strong style="color:var(--destructive);">-£2,000/year</strong> — barely breaking even. The break-even point is £727k revenue at current margins. To generate £100k net contribution requires either £1.09M revenue (at 27.5%) or £857k revenue (if margins improve to 35%). <strong>Growing revenue to £750k changes almost nothing at 27.5%.</strong> The lever here is margin improvement, not just volume.</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px;">
+        <div style="background:rgba(107,26,42,.15);border:1px solid rgba(107,26,42,.3);border-radius:5px;padding:10px;text-align:center;">
+          <div style="font-family:var(--m);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px;">Today (27.5%)</div>
+          <div style="font-family:var(--m);font-size:1.1rem;color:var(--destructive);">-£2k/yr</div>
+          <div style="font-family:var(--m);font-size:10px;color:var(--steel);">£720k rev</div>
+        </div>
+        <div style="background:rgba(240,168,32,.08);border:1px solid rgba(240,168,32,.25);border-radius:5px;padding:10px;text-align:center;">
+          <div style="font-family:var(--m);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px;">35% margin</div>
+          <div style="font-family:var(--m);font-size:1.1rem;color:var(--warning);">£857k</div>
+          <div style="font-family:var(--m);font-size:10px;color:var(--steel);">to generate £100k net</div>
+        </div>
+        <div style="background:rgba(46,125,50,.1);border:1px solid rgba(46,125,50,.25);border-radius:5px;padding:10px;text-align:center;">
+          <div style="font-family:var(--m);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px;">27.5% margin</div>
+          <div style="font-family:var(--m);font-size:1.1rem;color:var(--success);">£1.09M</div>
+          <div style="font-family:var(--m);font-size:10px;color:var(--steel);">to generate £100k net</div>
+        </div>
+      </div>
+      <div class="lever-stat" style="margin-top:10px;">Priority: improve TC margin before chasing TC volume. At 27.5%, more revenue barely moves profit.</div>
+    </div>
+    <div class="lever-card">
+      <div class="lever-num">06</div>
+      <div class="lever-title">REDUCE SEASONAL RISK</div>
+      <div class="lever-body">The business generated only <strong>£6,556/month</strong> profit Sept–Jan, then jumped dramatically Feb–Apr. Whether this is seasonal, structural, or a one-off transformation matters enormously. <strong>Understanding what changed in February</strong> — and whether that is repeatable each year — is critical for FY 26-27 planning.</div>
+      <div class="lever-stat">Sept–Jan avg: £6,556/mo · Peak quarter avg: £113,859/mo · Target: lift the floor to £40–60k/mo in weaker quarters</div>
+    </div>
+  </div>
+
+  <!-- ══ £1M INTERACTIVE CALCULATOR ══ -->
+  <div style="margin-top:32px;margin-bottom:20px;">
+    <div class="section-eyebrow" style="margin-bottom:10px;">Interactive Model</div>
+    <div class="section-title" style="font-size:1.6rem;margin-bottom:8px;">Build Your Path to £1M</div>
+    <div class="section-subtitle" style="margin-bottom:20px;">Adjust revenue per channel and GP% to see the operating profit outcome. Use the lock to discover what each lever needs to deliver.</div>
+  </div>
+
+  <div class="calc-wrap">
+    <!-- Lock toggle -->
+    <div class="calc-lock-row">
+      <input type="checkbox" id="calc-lock" onchange="calcProfitCalc()">
+      <label for="calc-lock" style="font-family:var(--m);font-size:12px;color:var(--muted);cursor:pointer;">
+        🔒 <strong style="color:var(--fg);">Lock to £1M target</strong> — show admin ceiling needed to hit it
+      </label>
+    </div>
+
+    <!-- Channel rows -->
+    <div style="font-family:var(--m);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;display:grid;grid-template-columns:180px 1fr 220px;gap:14px;padding:0 16px;">
+      <span>Channel</span><span>Monthly Revenue (£)</span><span>GP% / POR% — select</span>
+    </div>
+
+    <div class="calc-row">
+      <div class="calc-label">eBay <small>Fortress · Express · Urgency · Scope · Lab</small></div>
+      <input class="calc-rev-input" id="calc-rev-ebay" type="number" value="237000" min="0" step="5000" oninput="calcProfitCalc()">
+      <div class="calc-gp-toggles" id="calc-gp-ebay-group">
+        <button class="calc-gp-btn" onclick="setGP('ebay',20,this)">20%</button>
+        <button class="calc-gp-btn" onclick="setGP('ebay',25,this)">25%</button>
+        <button class="calc-gp-btn" onclick="setGP('ebay',30,this)">30%</button>
+        <button class="calc-gp-btn" onclick="setGP('ebay',35,this)">35%</button>
+        <button class="calc-gp-btn active" onclick="setGP('ebay',40,this)">40%</button>
+        <button class="calc-gp-btn" onclick="setGP('ebay',45,this)">45%</button>
+      </div>
+      <input type="hidden" id="calc-gp-ebay" value="40">
+    </div>
+
+    <div class="calc-row">
+      <div class="calc-label">Amazon <small>FBA + FBM</small></div>
+      <input class="calc-rev-input" id="calc-rev-amazon" type="number" value="120000" min="0" step="5000" oninput="calcProfitCalc()">
+      <div class="calc-gp-toggles" id="calc-gp-amazon-group">
+        <button class="calc-gp-btn" onclick="setGP('amazon',20,this)">20%</button>
+        <button class="calc-gp-btn" onclick="setGP('amazon',25,this)">25%</button>
+        <button class="calc-gp-btn" onclick="setGP('amazon',30,this)">30%</button>
+        <button class="calc-gp-btn active" onclick="setGP('amazon',35,this)">35%</button>
+        <button class="calc-gp-btn" onclick="setGP('amazon',40,this)">40%</button>
+        <button class="calc-gp-btn" onclick="setGP('amazon',45,this)">45%</button>
+      </div>
+      <input type="hidden" id="calc-gp-amazon" value="35">
+    </div>
+
+    <div class="calc-row">
+      <div class="calc-label">Website <small>Direct / partsdoc.co.uk</small></div>
+      <input class="calc-rev-input" id="calc-rev-website" type="number" value="0" min="0" step="5000" oninput="calcProfitCalc()">
+      <div class="calc-gp-toggles" id="calc-gp-website-group">
+        <button class="calc-gp-btn" onclick="setGP('website',20,this)">20%</button>
+        <button class="calc-gp-btn" onclick="setGP('website',25,this)">25%</button>
+        <button class="calc-gp-btn" onclick="setGP('website',30,this)">30%</button>
+        <button class="calc-gp-btn" onclick="setGP('website',35,this)">35%</button>
+        <button class="calc-gp-btn active" onclick="setGP('website',40,this)">40%</button>
+        <button class="calc-gp-btn" onclick="setGP('website',45,this)">45%</button>
+      </div>
+      <input type="hidden" id="calc-gp-website" value="40">
+    </div>
+
+    <div class="calc-row">
+      <div class="calc-label">Trade Counter <small>Walk-in / account customers</small></div>
+      <input class="calc-rev-input" id="calc-rev-trade" type="number" value="55000" min="0" step="5000" oninput="calcProfitCalc()">
+      <div class="calc-gp-toggles" id="calc-gp-trade-group">
+        <button class="calc-gp-btn" onclick="setGP('trade',20,this)">20%</button>
+        <button class="calc-gp-btn" onclick="setGP('trade',25,this)">25%</button>
+        <button class="calc-gp-btn active" onclick="setGP('trade',30,this)">30%</button>
+        <button class="calc-gp-btn" onclick="setGP('trade',35,this)">35%</button>
+        <button class="calc-gp-btn" onclick="setGP('trade',40,this)">40%</button>
+        <button class="calc-gp-btn" onclick="setGP('trade',45,this)">45%</button>
+      </div>
+      <input type="hidden" id="calc-gp-trade" value="30">
+    </div>
+
+    <div class="calc-row">
+      <div class="calc-label">Other Revenue <small>Rental · Launderette · Interest</small></div>
+      <input class="calc-rev-input" id="calc-rev-other" type="number" value="6000" min="0" step="1000" oninput="calcProfitCalc()">
+      <div class="calc-gp-toggles" id="calc-gp-other-group">
+        <button class="calc-gp-btn" onclick="setGP('other',20,this)">20%</button>
+        <button class="calc-gp-btn" onclick="setGP('other',25,this)">25%</button>
+        <button class="calc-gp-btn" onclick="setGP('other',30,this)">30%</button>
+        <button class="calc-gp-btn" onclick="setGP('other',35,this)">35%</button>
+        <button class="calc-gp-btn" onclick="setGP('other',40,this)">40%</button>
+        <button class="calc-gp-btn active" onclick="setGP('other',80,this)">80%+</button>
+      </div>
+      <input type="hidden" id="calc-gp-other" value="80">
+    </div>
+
+    <!-- Admin lever -->
+    <div style="margin-top:20px;padding:16px;background:rgba(245,101,101,.06);border:1px solid rgba(245,101,101,.25);border-radius:8px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <div class="calc-label" style="color:var(--destructive);">Admin / Expenses Ceiling <small>Monthly total — target &lt; £90k</small></div>
+        <div style="font-family:var(--m);font-size:1.2rem;font-weight:500;color:#ef5350;" id="calc-admin-display">£90,000/mo</div>
+      </div>
+      <input type="range" id="calc-admin" min="50000" max="150000" step="5000" value="90000"
+        style="width:100%;accent-color:#ef5350;" oninput="document.getElementById('calc-admin-display').textContent='£'+parseInt(this.value).toLocaleString('en-GB')+'/mo';calcProfitCalc()">
+      <div style="display:flex;justify-content:space-between;font-family:var(--m);font-size:9px;color:var(--muted);margin-top:4px;">
+        <span>£50k</span><span>£75k</span><span>£90k target</span><span>£115k</span><span>£150k</span>
+      </div>
+    </div>
+
+    <!-- Result panel -->
+    <div class="calc-result-panel">
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:16px;">
+        <div style="text-align:center;">
+          <div style="font-family:var(--m);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px;">Monthly Revenue</div>
+          <div style="font-family:var(--m);font-size:1.1rem;color:var(--teal-light);" id="calc-total-rev">—</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-family:var(--m);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px;">Monthly Gross Profit</div>
+          <div style="font-family:var(--m);font-size:1.1rem;color:var(--success);" id="calc-total-gp">—</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-family:var(--m);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px;">Annual Admin</div>
+          <div style="font-family:var(--m);font-size:1.1rem;color:#ef5350;" id="calc-admin-yr">—</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-family:var(--m);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px;">Annual Op Profit</div>
+          <div style="font-family:var(--m);font-size:1.5rem;font-weight:500;" id="calc-result-val">—</div>
+        </div>
+      </div>
+      <div style="font-family:var(--m);font-size:10px;color:var(--muted);margin-bottom:6px;">Progress to £1,000,000</div>
+      <div class="calc-progress-track">
+        <div class="calc-progress-fill" id="calc-progress-fill" style="width:0%;">
+          <span id="calc-pct">0%</span>
+        </div>
+      </div>
+      <div id="calc-admin-hint" class="calc-admin-hint" id="calc-admin-hint"></div>
+    </div>
+  </div>
+
+  <!-- Discussion prompt -->
+  <div class="card" style="border-color:rgba(61,158,140,.3); background:rgba(61,158,140,.04); margin-bottom:28px;">
+    <div class="chart-title" style="color:var(--teal); margin-bottom:14px;">OPEN QUESTIONS — FOR DISCUSSION</div>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:24px;">
+      <div>
+        <p style="color:var(--fg); font-weight:500; margin-bottom:8px; font-size:13px;">Stock Tracking (Priority 1)</p>
+        <ul style="color:var(--muted); font-size:12px; line-height:1.8; list-style:none;">
+          <li>→ Currently ~60% of units tracked. +5%/month target. When do we reach 100%?</li>
+          <li>→ What happens to reported GP margins when full COGS visibility is in? Are we prepared for that adjustment?</li>
+          <li>→ Is the COGS understatement concentrated in specific channels or product types?</li>
+        </ul>
+      </div>
+      <div>
+        <p style="color:var(--fg); font-weight:500; margin-bottom:8px; font-size:13px;">Raising the Floor (Priority 2)</p>
+        <ul style="color:var(--muted); font-size:12px; line-height:1.8; list-style:none;">
+          <li>→ What does a strong Sept–Jan period look like — and what would it take to get there?</li>
+          <li>→ Is the revenue dip in those months structural (seasonal demand) or operational (capacity, purchasing, listings)?</li>
+          <li>→ Admin costs stayed at ~£101k/month Sept–Jan despite low revenue. Which of those costs are fixed vs variable?</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<!-- FOOTER -->
+
+<!-- ══════════════════════════════════════
+     TRACKER PAGE — Open Items
+══════════════════════════════════════ -->
+<div id="tracker-page">
+  <div class="tracker-header">
+    <div>
+      <h2>Open Items &amp; Actions</h2>
+      <p>Priorities, accountability, and discussion log — updated as decisions are made</p>
+    </div>
+    <button class="add-btn" onclick="openModal()">+ Add Item</button>
+  </div>
+  <div class="tracker-body">
+    <!-- Stats -->
+    <div class="tracker-stats">
+      <div class="t-stat">
+        <div class="t-stat-val" id="stat-open" style="color:var(--destructive);">—</div>
+        <div class="t-stat-label">Open</div>
+      </div>
+      <div class="t-stat">
+        <div class="t-stat-val" id="stat-progress" style="color:var(--warning);">—</div>
+        <div class="t-stat-label">In Progress</div>
+      </div>
+      <div class="t-stat">
+        <div class="t-stat-val" id="stat-ongoing" style="color:var(--teal-light);">—</div>
+        <div class="t-stat-label">Ongoing</div>
+      </div>
+      <div class="t-stat">
+        <div class="t-stat-val" id="stat-resolved" style="color:var(--success);">—</div>
+        <div class="t-stat-label">Resolved</div>
+      </div>
+    </div>
+    <!-- Filters -->
+    <div class="tracker-controls">
+      <button class="filter-btn on" onclick="setFilter('all',this)">All Items</button>
+      <button class="filter-btn" onclick="setFilter('open',this)">Open</button>
+      <button class="filter-btn" onclick="setFilter('progress',this)">In Progress</button>
+      <button class="filter-btn" onclick="setFilter('ongoing',this)">Ongoing</button>
+      <button class="filter-btn" onclick="setFilter('resolved',this)">Resolved</button>
+      <div style="flex:1"></div>
+      <button class="filter-btn" onclick="setFilter('critical',this)">🔴 Critical only</button>
+    </div>
+    <!-- Items -->
+    <div class="item-grid" id="item-grid"></div>
+  </div>
+</div>
+
+<!-- Add/Edit Modal -->
+<div id="item-modal">
+  <div class="modal-card">
+    <div class="modal-title" id="modal-title">Add Open Item</div>
+    <input type="hidden" id="edit-id">
+    <div class="form-row">
+      <label class="form-label">Title</label>
+      <input class="form-input" id="f-title" placeholder="What needs resolving?">
+    </div>
+    <div class="form-grid">
+      <div class="form-row">
+        <label class="form-label">Area / Category</label>
+        <select class="form-select" id="f-area">
+          <option>Finance</option>
+          <option>Operations</option>
+          <option>People</option>
+          <option>Leadership</option>
+          <option>Technology</option>
+          <option>Strategy</option>
+          <option>Legal / Compliance</option>
+          <option>Other</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label class="form-label">Priority (1 = Critical)</label>
+        <select class="form-select" id="f-priority">
+          <option value="1">1 — Critical</option>
+          <option value="2">2 — Bad / Urgent</option>
+          <option value="3">3 — Below Average</option>
+          <option value="4">4 — Average</option>
+          <option value="5">5 — Good</option>
+          <option value="6">6 — Great</option>
+          <option value="7">7 — Amazing</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <label class="form-label">Description / Context</label>
+      <textarea class="form-textarea" id="f-desc" placeholder="What's the situation, what decision is needed, what's the trajectory?"></textarea>
+    </div>
+    <div class="form-grid">
+      <div class="form-row">
+        <label class="form-label">Status</label>
+        <select class="form-select" id="f-status">
+          <option value="open">Open</option>
+          <option value="progress">In Progress</option>
+          <option value="ongoing">Ongoing</option>
+          <option value="resolved">Resolved</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label class="form-label">Target / Review Date</label>
+        <input class="form-input" id="f-date" type="date">
+      </div>
+    </div>
+    <div class="form-row">
+      <label class="form-label">Owner</label>
+      <input class="form-input" id="f-owner" placeholder="Who's accountable?">
+    </div>
+    <div class="form-row" id="log-row" style="display:none;">
+      <label class="form-label">Add Log Entry</label>
+      <input class="form-input" id="f-log" placeholder="Update, note, or decision made...">
+    </div>
+    <div class="modal-btns">
+      <button class="modal-cancel" onclick="closeModal()">Cancel</button>
+      <button class="modal-save" onclick="saveItem()">SAVE ITEM</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const PL = [
+  {c:'#6B1A2A',l:'Critical'},{c:'#D32F2F',l:'Urgent'},{c:'#E65100',l:'Below Avg'},
+  {c:'#F9A825',l:'Average'},{c:'#2E7D32',l:'Good'},{c:'#00838F',l:'Great'},{c:'#3949AB',l:'Amazing'}
+];
+const STATUS_CLASS = {open:'status-open',progress:'status-progress',ongoing:'status-ongoing',resolved:'status-resolved'};
+const STATUS_LABEL = {open:'Open',progress:'In Progress',ongoing:'Ongoing',resolved:'Resolved'};
+
+const DEFAULT_ITEMS = [
+  {id:1,title:'Stock Count — Reach 100% Unit Tracking',area:'Operations',priority:1,
+   desc:'Currently tracking ~60% of SKUs. Each month +5% target. Until full coverage, COGS is understated and GP margins are not reliable. This is the single most important data quality priority.',
+   status:'progress',date:'2026-09-30',owner:'',
+   log:['May 2026: Currently at ~60%. +5%/mo target set. 8 months to 100% at current trajectory.']},
+  {id:2,title:'Staff Morale, Reviews & Promotion Plan',area:'People',priority:2,
+   desc:'Team review cycle needed. Identify high performers for promotion pathway. Address any morale issues proactively before they become retention issues.',
+   status:'open',date:'2026-07-31',owner:'',log:[]},
+  {id:3,title:'CFO Role — Alan Retirement & Succession Plan',area:'Leadership',priority:1,
+   desc:'Is Alan set to retire and when? Need a clear transition timeline, knowledge transfer plan, and decision on replacement (internal vs external). Finance function continuity is critical given current growth trajectory.',
+   status:'open',date:'2026-08-31',owner:'',log:[]},
+  {id:4,title:'May 2026 Actuals — Complete Month Filing',area:'Finance',priority:1,
+   desc:'May 2026 financials are currently partial. Amazon and eBay sales lines not yet recorded. Need complete month to update dashboard from projection to actual.',
+   status:'open',date:'2026-06-15',owner:'',log:['May 28: Projected using 3-month avg. Amazon ~£123.9k, eBay ~£237.8k estimated.']},
+  {id:5,title:'Loss-Making Lines — Elimination Plan',area:'Operations',priority:1,
+   desc:'607 order lines currently selling at a loss (-£1,923.28). 10.3% of lines have no cost data (Unknown). Clear plan needed: identify, reprice or delist. Target: zero loss-making lines with known costs by Q2 FY26-27.',
+   status:'progress',date:'2026-09-30',owner:'',log:['May 2026: 607 loss lines identified. 468 unknown cost lines flagged. Prioritised alongside stock count.']},
+  {id:6,title:'Directors Mileage — Monthly Accrual Process',area:'Finance',priority:3,
+   desc:'£6,000 annual directors mileage charge hit April in one go, distorting monthly P&L. Implement monthly accrual of £500/mo so no single month is impacted. Discuss with accountant as standing journal entry.',
+   status:'open',date:'2026-06-30',owner:'',log:[]},
+];
+
+let items=[], activeFilter='all';
+const SK='pd_tracker_items';
+
+function load(){
+  try{const s=localStorage.getItem(SK);items=s?JSON.parse(s):[...DEFAULT_ITEMS];}
+  catch{items=[...DEFAULT_ITEMS];}
+  render();
+}
+function save(){try{localStorage.setItem(SK,JSON.stringify(items));}catch{}}
+
+function render(){
+  const grid=document.getElementById('item-grid');
+  let filtered=[...items];
+  if(activeFilter==='critical') filtered=filtered.filter(i=>i.priority<=2);
+  else if(activeFilter!=='all') filtered=filtered.filter(i=>i.status===activeFilter);
+  filtered.sort((a,b)=>a.priority-b.priority);
+
+  grid.innerHTML=filtered.map(item=>{
+    const p=PL[item.priority-1];
+    const logs=item.log.map(l=>`<div class="log-entry"><span>${l}</span></div>`).join('');
+    const dt=item.date?`<span class="item-date">By ${item.date}</span>`:'';
+    const owner=item.owner?`<span class="item-tag">${item.owner}</span>`:'';
+    return `<div class="item-card ${item.status==='resolved'?'resolved':''}">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:6px;padding-top:3px;">
+        <div class="priority-dot" style="background:${p.c}" title="Priority ${item.priority}: ${p.l}"></div>
+        <span style="font-family:var(--m);font-size:9px;color:var(--steel);">P${item.priority}</span>
+      </div>
+      <div class="item-main">
+        <div class="item-title">${item.title}</div>
+        <div class="item-meta">
+          <span class="item-tag">${item.area}</span>
+          ${owner}${dt}
+        </div>
+        <div class="item-desc">${item.desc}</div>
+        ${logs?`<div class="item-log">${logs}</div>`:''}
+      </div>
+      <div class="item-actions">
+        <span class="item-status ${STATUS_CLASS[item.status]}">${STATUS_LABEL[item.status]}</span>
+        <div class="action-btns">
+          <button class="act-btn" onclick="editItem(${item.id})">Edit</button>
+          <button class="act-btn" onclick="addLog(${item.id})">+ Log</button>
+          ${item.status!=='resolved'?`<button class="act-btn" onclick="resolveItem(${item.id})" style="color:var(--success);border-color:rgba(51,204,102,.3);">Resolve</button>`:''}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  // Stats
+  document.getElementById('stat-open').textContent=items.filter(i=>i.status==='open').length;
+  document.getElementById('stat-progress').textContent=items.filter(i=>i.status==='progress').length;
+  document.getElementById('stat-ongoing').textContent=items.filter(i=>i.status==='ongoing').length;
+  document.getElementById('stat-resolved').textContent=items.filter(i=>i.status==='resolved').length;
+}
+
+function setFilter(f,btn){
+  activeFilter=f;
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  render();
+}
+
+function openModal(reset=true){
+  if(reset){
+    document.getElementById('modal-title').textContent='Add Open Item';
+    document.getElementById('edit-id').value='';
+    ['f-title','f-desc','f-owner','f-log'].forEach(id=>document.getElementById(id).value='');
+    document.getElementById('f-area').value='Finance';
+    document.getElementById('f-priority').value='1';
+    document.getElementById('f-status').value='open';
+    document.getElementById('f-date').value='';
+    document.getElementById('log-row').style.display='none';
+  }
+  document.getElementById('item-modal').classList.add('open');
+}
+function closeModal(){document.getElementById('item-modal').classList.remove('open');}
+
+function editItem(id){
+  const item=items.find(i=>i.id===id);
+  if(!item)return;
+  document.getElementById('modal-title').textContent='Edit Item';
+  document.getElementById('edit-id').value=id;
+  document.getElementById('f-title').value=item.title;
+  document.getElementById('f-area').value=item.area;
+  document.getElementById('f-priority').value=item.priority;
+  document.getElementById('f-desc').value=item.desc;
+  document.getElementById('f-status').value=item.status;
+  document.getElementById('f-date').value=item.date||'';
+  document.getElementById('f-owner').value=item.owner||'';
+  document.getElementById('f-log').value='';
+  document.getElementById('log-row').style.display='block';
+  openModal(false);
+}
+
+function addLog(id){
+  const logText=prompt('Add log entry or update:');
+  if(!logText)return;
+  const item=items.find(i=>i.id===id);
+  if(!item)return;
+  const today=new Date().toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
+  item.log.unshift(`${today}: ${logText}`);
+  save();render();
+}
+
+function resolveItem(id){
+  const item=items.find(i=>i.id===id);
+  if(item){item.status='resolved';save();render();}
+}
+
+function saveItem(){
+  const eid=document.getElementById('edit-id').value;
+  const title=document.getElementById('f-title').value.trim();
+  if(!title)return;
+  const today=new Date().toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
+  if(eid){
+    const item=items.find(i=>i.id===parseInt(eid));
+    if(item){
+      item.title=title;
+      item.area=document.getElementById('f-area').value;
+      item.priority=parseInt(document.getElementById('f-priority').value);
+      item.desc=document.getElementById('f-desc').value;
+      item.status=document.getElementById('f-status').value;
+      item.date=document.getElementById('f-date').value;
+      item.owner=document.getElementById('f-owner').value;
+      const logEntry=document.getElementById('f-log').value.trim();
+      if(logEntry)item.log.unshift(`${today}: ${logEntry}`);
+    }
+  } else {
+    items.push({
+      id:Date.now(),
+      title,
+      area:document.getElementById('f-area').value,
+      priority:parseInt(document.getElementById('f-priority').value),
+      desc:document.getElementById('f-desc').value,
+      status:document.getElementById('f-status').value,
+      date:document.getElementById('f-date').value,
+      owner:document.getElementById('f-owner').value,
+      log:[]
+    });
+  }
+  save();render();closeModal();
+}
+
+function toggleTracker(){
+  const tp=document.getElementById('tracker-page');
+  const fc=document.querySelectorAll('.financial-content');
+  const nb=document.getElementById('nav-items');
+  const on=tp.classList.toggle('active');
+  fc.forEach(el=>el.classList.toggle('hidden',on));
+  nb.classList.toggle('on',on);
+  if(on) window.scrollTo(0,0);
+}
+
+load();
+</script>
+</div><!-- /financial-content -->
+
+<footer class="footer">
+  <div>PARTSDOC LTD · Management Accounts FY 25-26 · Prepared May 2026</div>
+  <div>★ May 2026 figures are projections based on 3-month average (Feb–Apr). All other figures are actuals.</div>
+</footer>
+
+<script>
+Chart.defaults.color = '#9AAAB8';
+Chart.defaults.font.family = "'JetBrains Mono', monospace";
+Chart.defaults.font.size = 11;
+const grid = { color:'rgba(61,79,94,.5)', lineWidth:.5 };
+const teal = '#3D9E8C', tealL = '#52B7A2', navy = '#1E2D42';
+const green = '#33CC66', warn = '#F0A820', destr = '#F56565';
+const tl4 = '#F9A825', tl5 = '#2E7D32', tl6 = '#00838F';
+
+// ── SJ Chart ──
+new Chart(document.getElementById('sjChart'), {
+  type:'bar',
+  data:{
+    labels:['Sep 25','Oct 25','Nov 25','Dec 25','Jan 26'],
+    datasets:[
+      {label:'Revenue',data:[381385,381385,381385,381385,381385],backgroundColor:'rgba(61,158,140,.35)',borderColor:teal,borderWidth:1,borderRadius:3},
+      {label:'Gross Profit',data:[107855,107855,107855,107855,107855],backgroundColor:'rgba(51,204,102,.3)',borderColor:green,borderWidth:1,borderRadius:3},
+      {label:'Admin',data:[101299,101299,101299,101299,101299],backgroundColor:'rgba(245,101,101,.3)',borderColor:destr,borderWidth:1,borderRadius:3},
+      {label:'Op Profit',data:[6556,6556,6556,6556,6556],backgroundColor:'rgba(249,168,37,.5)',borderColor:warn,borderWidth:1,borderRadius:3},
+    ]
+  },
+  options:{
+    responsive:true, maintainAspectRatio:false,
+    plugins:{legend:{labels:{boxWidth:10,padding:12}},tooltip:{callbacks:{label:c=>' '+c.dataset.label+': £'+c.raw.toLocaleString('en-GB',{maximumFractionDigits:0})}}},
+    scales:{x:{grid},y:{grid,ticks:{callback:v=>'£'+(v/1000).toFixed(0)+'k'}}}
+  }
+});
+
+// ── SJ Pie ──
+new Chart(document.getElementById('sjPieChart'), {
+  type:'doughnut',
+  data:{
+    labels:['eBay','Amazon','Trade Counter','Rental','Launderette','Other'],
+    datasets:[{
+      data:[1043275,516490,311745,21679,11509,2228],
+      backgroundColor:['#3D9E8C','#4fa3d4','#52B7A2','#7986cb','#F0A820','#9AAAB8'],
+      borderColor:navy, borderWidth:2
+    }]
+  },
+  options:{
+    responsive:true, maintainAspectRatio:false, cutout:'60%',
+    plugins:{legend:{position:'right',labels:{boxWidth:10,padding:10,font:{size:10}}},
+      tooltip:{callbacks:{label:c=>' '+c.label+': £'+c.raw.toLocaleString('en-GB',{maximumFractionDigits:0})}}}
+  }
+});
+
+// ── SJ Admin bar ──
+new Chart(document.getElementById('sjAdminChart'), {
+  type:'bar',
+  data:{
+    labels:['Salaries (39.7% GP)','Dir Pensions (5.9%)','Consulting (6.1%)','Employers NI (4.4%)','Rates (4.4%)','IT Software (4.4%)','Advertising (7.8%)','VA Projects (1.8%)','Insurance (2.5%)','Other (8.8%)'],
+    datasets:[{
+      data:[213881,32000,33072,23671,23867,23509,41973,9640,13433,47447],
+      backgroundColor:'rgba(61,158,140,.5)', borderColor:teal, borderWidth:1, borderRadius:3
+    }]
+  },
+  options:{
+    indexAxis:'y', responsive:true, maintainAspectRatio:false,
+    plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>{const pct=(c.raw/539274*100).toFixed(1);return ' £'+c.raw.toLocaleString('en-GB',{maximumFractionDigits:0})+' = '+pct+'% of GP'}}}},
+    scales:{x:{grid,ticks:{callback:v=>'£'+(v/1000).toFixed(0)+'k'}},y:{grid:{display:false},ticks:{font:{size:10}}}}
+  }
+});
+
+// ── SJ Waterfall-style ──
+new Chart(document.getElementById('sjWaterfallChart'), {
+  type:'bar',
+  data:{
+    labels:['Revenue','Cost of Sales','Gross Profit','Admin Costs','Op Profit'],
+    datasets:[{
+      data:[1906926,1367651,539274,506493,32781],
+      backgroundColor:['rgba(61,158,140,.6)','rgba(245,101,101,.5)','rgba(51,204,102,.5)','rgba(245,101,101,.5)','rgba(249,168,37,.6)'],
+      borderColor:[teal,destr,green,destr,warn], borderWidth:1, borderRadius:3
+    }]
+  },
+  options:{
+    responsive:true, maintainAspectRatio:false,
+    plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>{const rev=1906926;const pcts={'Revenue':'100%','Cost of Sales':(1367651/rev*100).toFixed(1)+'% of rev','Gross Profit':(539274/rev*100).toFixed(1)+'% of rev','Admin Costs':(506493/539274*100).toFixed(1)+'% of GP','Op Profit':(32781/rev*100).toFixed(1)+'% of rev'};return ' £'+c.raw.toLocaleString('en-GB',{maximumFractionDigits:0})+' ('+pcts[c.label]+')'}}}}   ,
+    scales:{x:{grid:{display:false}},y:{grid,ticks:{callback:v=>'£'+(v/1000).toFixed(0)+'k'}}}
+  }
+});
+
+// ── Trajectory Chart ──
+const allLabels = ['SJ Avg','Feb','Mar','Apr','May★'];
+const opData = [6556,8429,63804,146801,130972];
+const pointColors = ['#9AAAB8','#9AAAB8','#F9A825','#2E7D32','#00838F'];
+new Chart(document.getElementById('trajectoryChart'), {
+  type:'line',
+  data:{
+    labels:allLabels,
+    datasets:[
+      {label:'Operating Profit',data:opData, borderColor:teal,pointBackgroundColor:pointColors,pointBorderColor:pointColors,pointRadius:7,tension:.3,borderWidth:2.5,fill:{target:'origin',above:'rgba(61,158,140,.08)'}},
+      {label:'Target (£83k/mo)', data:[83333,83333,83333,83333,83333], borderColor:'rgba(57,73,171,.5)', borderDash:[5,4], pointRadius:0, borderWidth:1.5}
+    ]
+  },
+  options:{
+    responsive:true, maintainAspectRatio:false,
+    plugins:{legend:{labels:{boxWidth:10,padding:12}},tooltip:{callbacks:{label:c=>' £'+c.raw.toLocaleString('en-GB',{maximumFractionDigits:0})}}},
+    scales:{x:{grid},y:{grid,ticks:{callback:v=>'£'+(v/1000).toFixed(0)+'k'},suggestedMin:0,suggestedMax:160000}}
+  }
+});
+
+// ── Margins Chart ──
+const gpM = [28.3,26.8,35.4,45.9,49.1];
+const opM = [1.7,2.7,14.8,26.9,32.3];
+new Chart(document.getElementById('marginsChart'), {
+  type:'line',
+  data:{
+    labels:allLabels,
+    datasets:[
+      {label:'Gross Margin %',data:gpM,borderColor:tealL,pointBackgroundColor:tealL,pointRadius:5,tension:.3,borderWidth:2.5,fill:false},
+      {label:'Op Margin %',data:opM,borderColor:green,pointBackgroundColor:pointColors,pointRadius:5,tension:.3,borderWidth:2.5,fill:{target:'origin',above:'rgba(51,204,102,0.13)'}},
+      {label:'Target GP 45%',data:[45,45,45,45,45],borderColor:'rgba(249,168,37,.4)',borderDash:[4,4],pointRadius:0,borderWidth:1},
+      {label:'Target Op 15%',data:[15,15,15,15,15],borderColor:'rgba(51,204,102,.25)',borderDash:[3,5],pointRadius:0,borderWidth:1}
+    ]
+  },
+  options:{
+    responsive:true, maintainAspectRatio:false,
+    plugins:{
+      legend:{labels:{boxWidth:10,padding:12}},
+      tooltip:{callbacks:{label:c=>' '+c.dataset.label+': '+c.raw+'%'}}
+    },
+    scales:{x:{grid},y:{grid,ticks:{callback:v=>v+'%'},suggestedMin:0,suggestedMax:55}}
+  },
+  plugins:[{
+    id:'profitAreaLabel',
+    afterDraw(chart){
+      const {ctx,chartArea,scales} = chart;
+      const y = scales.y.getPixelForValue(7);
+      const x = chartArea.left + (chartArea.right - chartArea.left) * 0.52;
+      ctx.save();
+      ctx.font = 'bold 11px "JetBrains Mono",monospace';
+      ctx.fillStyle = 'rgba(51,204,102,0.65)';
+      ctx.textAlign = 'center';
+      ctx.fillText('▲ Actual Profit lies here', x, y);
+      ctx.restore();
+    }
+  }]
+});
+
+// ── Channel bar ──
+new Chart(document.getElementById('channelBarChart'), {
+  type:'bar',
+  data:{
+    labels:['Feb','Mar','Apr','May★'],
+    datasets:[
+      {label:'eBay',data:[166460,213082,333922,237821],backgroundColor:'rgba(61,158,140,.7)',borderRadius:2},
+      {label:'Amazon',data:[81819,144231,145766,123939],backgroundColor:'rgba(79,163,212,.65)',borderRadius:2},
+      {label:'Trade Counter',data:[57350,65770,59023,37827],backgroundColor:'rgba(82,183,162,.5)',borderRadius:2},
+      {label:'Other',data:[6196,6834,6041,5496],backgroundColor:'rgba(154,170,184,.35)',borderRadius:2},
+    ]
+  },
+  options:{
+    responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{labels:{boxWidth:10,padding:10}},tooltip:{callbacks:{label:c=>' '+c.dataset.label+': £'+c.raw.toLocaleString('en-GB',{maximumFractionDigits:0})}}},
+    scales:{x:{stacked:true,grid},y:{stacked:true,grid,ticks:{callback:v=>'£'+(v/1000).toFixed(0)+'k'}}}
+  }
+});
+
+// ── GP driver ──
+new Chart(document.getElementById('gpDriverChart'), {
+  type:'bar',
+  data:{
+    labels:['SJ Avg','Feb','Mar','Apr','May★'],
+    datasets:[
+      {label:'Gross Profit',data:[107855,83620,152390,249874,198876],backgroundColor:['rgba(154,170,184,.4)','rgba(61,158,140,.4)','rgba(61,158,140,.55)','rgba(61,158,140,.75)','rgba(57,73,171,.55)'],borderColor:[teal,teal,teal,teal,'#7986cb'],borderWidth:1,borderRadius:3},
+      {label:'Admin Costs',data:[101299,75191,88587,103073,67904],backgroundColor:'rgba(245,101,101,.25)',borderColor:destr,borderWidth:1,borderRadius:3}
+    ]
+  },
+  options:{
+    responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{labels:{boxWidth:10,padding:10}},tooltip:{callbacks:{label:c=>' '+c.dataset.label+': £'+c.raw.toLocaleString('en-GB',{maximumFractionDigits:0})}}},
+    scales:{x:{grid},y:{grid,ticks:{callback:v=>'£'+(v/1000).toFixed(0)+'k'}}}
+  }
+});
+
+// ── Forecast full year ──
+const fyLabels = ['Sep','Oct','Nov','Dec','Jan','Feb','Mar','Apr','May★','Jun†','Jul†','Aug†'];
+const fyActual = [6556,6556,6556,6556,6556,8429,63804,146801,130972,null,null,null];
+const fyProj = [null,null,null,null,null,null,null,null,130972,62622,62622,62622];  // moderate (55% of peak avg)
+const fyProjConserv = [null,null,null,null,null,null,null,null,130972,51237,51237,51237];  // conservative (45%)
+const fyCum = [6556,13112,19668,26224,32780,41209,105013,251814,382786,445408,508030,570652];  // moderate
+const fyCumConserv = [6556,13112,19668,26224,32780,41209,105013,251814,382786,434023,485260,536497]; // conservative
+new Chart(document.getElementById('forecastChart'), {
+  type:'bar',
+  data:{
+    labels:fyLabels,
+    datasets:[
+      {label:'Op Profit (actual)',data:fyActual,backgroundColor:'rgba(61,158,140,.65)',borderColor:teal,borderWidth:1,borderRadius:3,order:2},
+      {label:'Forecast — moderate',data:fyProj,backgroundColor:'rgba(57,73,171,.45)',borderColor:'#7986cb',borderWidth:1,borderRadius:3,order:2},
+      {label:'Forecast — conservative',data:fyProjConserv,backgroundColor:'rgba(154,170,184,.2)',borderColor:'rgba(154,170,184,.5)',borderWidth:1,borderRadius:3,order:2},
+      {label:'Cumulative (moderate)',data:fyCum,type:'line',borderColor:warn,pointBackgroundColor:warn,pointRadius:4,tension:.3,borderWidth:2,yAxisID:'y2',order:1},
+      {label:'Cumulative (conservative)',data:fyCumConserv,type:'line',borderColor:'rgba(154,170,184,.7)',pointBackgroundColor:'rgba(154,170,184,.7)',pointRadius:3,tension:.3,borderWidth:1.5,borderDash:[3,3],yAxisID:'y2',order:1},
+      {label:'£500k target',data:Array(12).fill(500000),type:'line',borderColor:'rgba(51,204,102,.5)',borderDash:[5,4],pointRadius:0,borderWidth:1.5,yAxisID:'y2',order:0}
+    ]
+  },
+  options:{
+    responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{labels:{boxWidth:10,padding:8,font:{size:10}}},tooltip:{callbacks:{label:c=>c.raw?' '+c.dataset.label+': £'+c.raw.toLocaleString('en-GB',{maximumFractionDigits:0}):null}}},
+    scales:{
+      x:{grid},
+      y:{grid,position:'left',ticks:{callback:v=>'£'+(v/1000).toFixed(0)+'k'},suggestedMax:180000},
+      y2:{grid:{display:false},position:'right',ticks:{callback:v=>'£'+(v/1000).toFixed(0)+'k'},suggestedMax:900000}
+    }
+  }
+});
+
+// ── Path to £1M ──
+const pathLabels = Array.from({length:12},(_,i)=>['Sep','Oct','Nov','Dec','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug'][i]+' 26/27');
+const pathMonthly = [83333,83333,83333,83333,83333,83333,83333,83333,83333,83333,83333,83334];
+const pathCum = pathMonthly.reduce((a,v,i)=>[...a,(a[i-1]||0)+v],[]);
+new Chart(document.getElementById('pathChart'), {
+  type:'bar',
+  data:{
+    labels:pathLabels,
+    datasets:[
+      {label:'Monthly target (£83k)',data:pathMonthly,backgroundColor:'rgba(57,73,171,.4)',borderColor:'#7986cb',borderWidth:1,borderRadius:3,order:2},
+      {label:'Cumulative to £1M',data:pathCum,type:'line',borderColor:'#7986cb',pointBackgroundColor:'#7986cb',pointRadius:3,tension:.3,borderWidth:2,yAxisID:'y2',order:1},
+      {label:'Apr 26 run rate',data:Array(12).fill(146801),type:'line',borderColor:teal,borderDash:[4,4],pointRadius:0,borderWidth:1.5,order:0},
+    ]
+  },
+  options:{
+    responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{labels:{boxWidth:10,padding:8,font:{size:10}}},tooltip:{callbacks:{label:c=>c.raw?' '+c.dataset.label+': £'+c.raw.toLocaleString('en-GB',{maximumFractionDigits:0}):null}}},
+    scales:{
+      x:{grid,ticks:{font:{size:9}}},
+      y:{grid,position:'left',ticks:{callback:v=>'£'+(v/1000).toFixed(0)+'k'},suggestedMax:200000},
+      y2:{grid:{display:false},position:'right',ticks:{callback:v=>'£'+(v/1000).toFixed(0)+'k'},suggestedMax:1100000}
+    }
+  }
+});
+
+
+// ── Normalised vs Reported ──
+new Chart(document.getElementById('normChart'), {
+  type:'bar',
+  data:{
+    labels:['Feb','Mar','Apr','May★'],
+    datasets:[
+      {label:'Reported OP',data:[8429,63804,146801,130972],backgroundColor:'rgba(61,158,140,.4)',borderColor:teal,borderWidth:1,borderRadius:3},
+      {label:'Normalised OP',data:[3695,57901,164703,125416],backgroundColor:['rgba(240,168,32,.35)','rgba(240,168,32,.35)','rgba(51,204,102,.45)','rgba(121,134,203,.4)'],borderColor:[warn,warn,green,'#7986cb'],borderWidth:1.5,borderRadius:3},
+    ]
+  },
+  options:{
+    responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{labels:{boxWidth:10,padding:12}},tooltip:{callbacks:{label:c=>' '+c.dataset.label+': £'+c.raw.toLocaleString('en-GB',{maximumFractionDigits:0})}}},
+    scales:{x:{grid},y:{grid,ticks:{callback:v=>'£'+(v/1000).toFixed(0)+'k'},suggestedMin:0,suggestedMax:180000}}
+  }
+});
+
+
+// ── POR Bar Chart ──
+new Chart(document.getElementById('porBarChart'), {
+  type:'bar',
+  data:{
+    labels:['UNKNOWN','LOSS','BREAKEVEN','POOR','AVERAGE','GOOD','GREAT','AMAZING'],
+    datasets:[{
+      label:'Order Lines',
+      data:[468,607,53,709,780,380,357,1118],
+      backgroundColor:['rgba(249,168,37,.5)','rgba(107,26,42,.7)','rgba(211,47,47,.6)','rgba(230,81,0,.6)','rgba(249,168,37,.5)','rgba(46,125,50,.6)','rgba(0,131,143,.6)','rgba(57,73,171,.7)'],
+      borderColor:['#F9A825','#6B1A2A','#D32F2F','#E65100','#F9A825','#2E7D32','#00838F','#3949AB'],
+      borderWidth:1, borderRadius:4
+    }]
+  },
+  options:{
+    responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' '+c.raw+' lines'}}},
+    scales:{
+      x:{grid:{display:false}},
+      y:{grid,ticks:{callback:v=>v+' lines'}}
+    }
+  }
+});
+
+// ── POR Profit Donut ──
+new Chart(document.getElementById('porProfitChart'), {
+  type:'doughnut',
+  data:{
+    labels:['LOSS','BREAKEVEN','POOR','AVERAGE','GOOD','GREAT','AMAZING'],
+    datasets:[{
+      data:[1923.28,0,711.09,2923.06,1982.47,2513.04,16161.82],
+      backgroundColor:['rgba(107,26,42,.8)','rgba(211,47,47,.5)','rgba(230,81,0,.7)','rgba(249,168,37,.7)','rgba(46,125,50,.7)','rgba(0,131,143,.7)','rgba(57,73,171,.8)'],
+      borderColor:navy, borderWidth:2
+    }]
+  },
+  options:{
+    responsive:true,maintainAspectRatio:false,cutout:'55%',
+    plugins:{
+      legend:{position:'right',labels:{boxWidth:10,padding:8,font:{size:10}}},
+      tooltip:{callbacks:{label:c=>' '+c.label+': £'+c.raw.toLocaleString('en-GB',{minimumFractionDigits:2,maximumFractionDigits:2})}}
+    }
+  }
+});
+
+// ── WHERE WE ARE: Monthly P&L bar ──
+new Chart(document.getElementById('areMonthlyChart'), {
+  type:'bar',
+  data:{
+    labels:['Feb','Mar','Apr','May★'],
+    datasets:[
+      {label:'Revenue',data:[311826,429917,544752,405161],backgroundColor:'rgba(61,158,140,.35)',borderColor:teal,borderWidth:1,borderRadius:3},
+      {label:'Gross Profit',data:[83620,152390,249874,198876],backgroundColor:'rgba(51,204,102,.3)',borderColor:green,borderWidth:1,borderRadius:3},
+      {label:'Admin',data:[75191,88587,103073,67904],backgroundColor:'rgba(245,101,101,.3)',borderColor:destr,borderWidth:1,borderRadius:3},
+      {label:'Op Profit',data:[8429,63804,146801,130972],backgroundColor:'rgba(249,168,37,.5)',borderColor:warn,borderWidth:1,borderRadius:3},
+    ]
+  },
+  options:{
+    responsive:true, maintainAspectRatio:false,
+    plugins:{legend:{labels:{boxWidth:10,padding:12}},tooltip:{callbacks:{label:c=>' '+c.dataset.label+': £'+c.raw.toLocaleString('en-GB',{maximumFractionDigits:0})}}},
+    scales:{x:{grid},y:{grid,ticks:{callback:v=>'£'+(v/1000).toFixed(0)+'k'}}}
+  }
+});
+
+// ── WHERE WE ARE: Channel Pie ──
+new Chart(document.getElementById('arePieChart'), {
+  type:'doughnut',
+  data:{
+    labels:['eBay','Amazon','Trade Counter','Rental/Launderette','Other'],
+    datasets:[{
+      data:[951285,495755,219970,24067,500],
+      backgroundColor:['#3D9E8C','#4fa3d4','#52B7A2','#7986cb','#9AAAB8'],
+      borderColor:navy, borderWidth:2
+    }]
+  },
+  options:{
+    responsive:true, maintainAspectRatio:false, cutout:'60%',
+    plugins:{legend:{position:'right',labels:{boxWidth:10,padding:10,font:{size:10}}},
+      tooltip:{callbacks:{label:c=>' '+c.label+': £'+c.raw.toLocaleString('en-GB',{maximumFractionDigits:0})}}}
+  },
+  plugins:[{
+    id:'arePieLabels',
+    afterDraw(chart){
+      const {ctx,data} = chart;
+      const total = data.datasets[0].data.reduce((a,b)=>a+b,0);
+      chart.getDatasetMeta(0).data.forEach((arc,i)=>{
+        const pct = (data.datasets[0].data[i]/total*100).toFixed(1)+'%';
+        const mid = arc.startAngle+(arc.endAngle-arc.startAngle)/2;
+        const r = (arc.innerRadius+arc.outerRadius)/2;
+        const x = arc.x+Math.cos(mid)*r; const y = arc.y+Math.sin(mid)*r;
+        if(arc.endAngle-arc.startAngle>0.25){
+          ctx.save();ctx.fillStyle='#fff';ctx.font='bold 10px sans-serif';
+          ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(pct,x,y);ctx.restore();
+        }
+      });
+    }
+  }]
+});
+
+// ── WHERE WE ARE: Admin bar ──
+new Chart(document.getElementById('areAdminChart'), {
+  type:'bar',
+  data:{
+    labels:['Salaries','Advertising','Other Admin','Employers NI','Consulting','Pensions','Rates','Rent'],
+    datasets:[{
+      data:[149272,40238,58962,16220,16002,14287,14774,25000],
+      backgroundColor:'rgba(61,158,140,.5)', borderColor:teal, borderWidth:1, borderRadius:3
+    }]
+  },
+  options:{
+    indexAxis:'y', responsive:true, maintainAspectRatio:false,
+    plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>{const pct=(c.raw/684760*100).toFixed(1);return ' £'+c.raw.toLocaleString('en-GB',{maximumFractionDigits:0})+' = '+pct+'% of GP'}}}},
+    scales:{x:{grid,ticks:{callback:v=>'£'+(v/1000).toFixed(0)+'k'}},y:{grid:{display:false},ticks:{font:{size:10}}}}
+  }
+});
+
+// ── WHERE WE ARE: Cost Structure bar ──
+new Chart(document.getElementById('areWaterfallChart'), {
+  type:'bar',
+  data:{
+    labels:['Revenue','Cost of Sales','Gross Profit','Admin Costs','Op Profit'],
+    datasets:[{
+      data:[1691656,1006896,684760,334755,350005],
+      backgroundColor:['rgba(61,158,140,.6)','rgba(245,101,101,.5)','rgba(51,204,102,.5)','rgba(245,101,101,.5)','rgba(249,168,37,.6)'],
+      borderColor:[teal,destr,green,destr,warn], borderWidth:1, borderRadius:3
+    }]
+  },
+  options:{
+    responsive:true, maintainAspectRatio:false,
+    plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>{const rev=1691656;const pcts={'Revenue':'100%','Cost of Sales':(1006896/rev*100).toFixed(1)+'% of rev','Gross Profit':(684760/rev*100).toFixed(1)+'% of rev','Admin Costs':(334755/684760*100).toFixed(1)+'% of GP','Op Profit':(350005/rev*100).toFixed(1)+'% of rev'};return ' £'+c.raw.toLocaleString('en-GB',{maximumFractionDigits:0})+' ('+pcts[c.label]+')'}}}},
+    scales:{x:{grid:{display:false}},y:{grid,ticks:{callback:v=>'£'+(v/1000).toFixed(0)+'k'}}}
+  },
+  plugins:[{
+    id:'areWaterfallPct',
+    afterDraw(chart){
+      const {ctx,data} = chart;
+      const rev=1691656; const gp=684760;
+      const pcts=[null,(1006896/rev*100).toFixed(1)+'%',(684760/rev*100).toFixed(1)+'%',(334755/gp*100).toFixed(1)+'% GP',(350005/rev*100).toFixed(1)+'%'];
+      const labels=['','CoS','GP%','Admin%','OP%'];
+      chart.getDatasetMeta(0).data.forEach((bar,i)=>{
+        if(!pcts[i]) return;
+        ctx.save();ctx.fillStyle='rgba(154,170,184,0.85)';ctx.font='bold 10px sans-serif';
+        ctx.textAlign='center';ctx.fillText(pcts[i],bar.x,bar.y-7);ctx.restore();
+      });
+    }
+  }]
+});
+
+// ── SJ Pie: add % labels ──
+// (patch existing sjPieChart to include doughnut labels plugin — separate declaration)
+const _sjPieEl = document.getElementById('sjPieChart');
+if(_sjPieEl && Chart.getChart(_sjPieEl)){
+  const _existPie = Chart.getChart(_sjPieEl);
+  _existPie.options.plugins = _existPie.options.plugins||{};
+}
+// SJ Waterfall % labels — drawn via a one-time afterDraw on page
+(function addWaterfallPct(){
+  const _wfEl = document.getElementById('sjWaterfallChart');
+  if(!_wfEl) return;
+  const _wfChart = Chart.getChart(_wfEl);
+  if(!_wfChart) return;
+  _wfChart.config.plugins = _wfChart.config.plugins||[];
+  _wfChart.config.plugins.push({
+    id:'wfPct',
+    afterDraw(chart){
+      const {ctx} = chart; const rev=1906926; const gp=539274;
+      const pcts=[null,(1367651/rev*100).toFixed(1)+'%',(539274/rev*100).toFixed(1)+'%',(506493/gp*100).toFixed(1)+'% GP',(32781/rev*100).toFixed(1)+'%'];
+      chart.getDatasetMeta(0).data.forEach((bar,i)=>{
+        if(!pcts[i]) return;
+        ctx.save();ctx.fillStyle='rgba(154,170,184,0.85)';ctx.font='bold 10px sans-serif';
+        ctx.textAlign='center';ctx.fillText(pcts[i],bar.x,bar.y-7);ctx.restore();
+      });
+    }
+  });
+  _wfChart.update();
+})();
+
+// ── £1M Interactive Calculator ──
+function setGP(channel, pct, btn){
+  document.getElementById('calc-gp-'+channel).value = pct;
+  const grp = document.getElementById('calc-gp-'+channel+'-group');
+  grp.querySelectorAll('.calc-gp-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  calcProfitCalc();
+}
+
+function calcProfitCalc(){
+  const channels=['ebay','amazon','website','trade','other'];
+  let totalRev=0; let totalGP=0;
+  channels.forEach(ch=>{
+    const rev = parseFloat(document.getElementById('calc-rev-'+ch).value)||0;
+    const gp  = parseFloat(document.getElementById('calc-gp-'+ch).value)||0;
+    totalRev += rev; totalGP += rev*(gp/100);
+  });
+  const adminMonth = parseFloat(document.getElementById('calc-admin').value)||90000;
+  const adminYear = adminMonth*12;
+  const opProfit = totalGP*12 - adminYear;
+  const target = 1000000;
+  const locked = document.getElementById('calc-lock').checked;
+
+  document.getElementById('calc-total-rev').textContent = '£'+(totalRev/1000).toFixed(0)+'k/mo';
+  document.getElementById('calc-total-gp').textContent = '£'+(totalGP/1000).toFixed(0)+'k/mo ('+((totalGP/totalRev||0)*100).toFixed(1)+'%)';
+  document.getElementById('calc-admin-yr').textContent = '£'+(adminYear/1000).toFixed(0)+'k/yr';
+  document.getElementById('calc-op-profit').textContent = '£'+Math.round(opProfit).toLocaleString('en-GB');
+  const pct = (opProfit/target*100).toFixed(1);
+  const bar = document.getElementById('calc-progress-fill');
+  const w = Math.max(0,Math.min(100,parseFloat(pct)));
+  bar.style.width = w+'%';
+  bar.style.background = opProfit>=target?'var(--success)':opProfit>500000?'#F9A825':'rgba(61,158,140,.8)';
+  document.getElementById('calc-pct').textContent = pct+'%';
+  document.getElementById('calc-result-val').textContent = '£'+Math.round(opProfit).toLocaleString('en-GB');
+  document.getElementById('calc-result-val').style.color = opProfit>=target?'var(--success)':opProfit<0?'var(--destructive)':'var(--teal-light)';
+
+  if(locked && opProfit!==target){
+    // auto-adjust admin to hit £1M
+    const neededAdmin = (totalGP*12 - target)/12;
+    document.getElementById('calc-admin-needed').textContent = neededAdmin>0 ? 'To hit £1M with current revenue: admin ceiling = £'+Math.round(neededAdmin/1000)+'k/mo' : 'Revenue too low to hit £1M at any admin level — raise revenue first';
+    document.getElementById('calc-admin-hint').style.display='block';
+  } else {
+    document.getElementById('calc-admin-hint').style.display='none';
+  }
+}
+
+// ── WHERE WE'RE GOING: Forecast P&L bar ──
+// Using moderate forecast: ~£62k op profit per month Jun-Aug
+// Revenue ~£420k/mo, GP ~40% = £168k, Admin ~£90k → OP ~£78k (moderate)
+new Chart(document.getElementById('goingMonthlyChart'), {
+  type:'bar',
+  data:{
+    labels:['Jun†','Jul†','Aug†'],
+    datasets:[
+      {label:'Revenue (forecast)',data:[420000,420000,400000],backgroundColor:'rgba(57,73,171,.35)',borderColor:'#7986cb',borderWidth:1,borderRadius:3},
+      {label:'Gross Profit (forecast)',data:[168000,168000,160000],backgroundColor:'rgba(51,204,102,.3)',borderColor:green,borderWidth:1,borderRadius:3},
+      {label:'Admin (ceiling)',data:[90000,90000,90000],backgroundColor:'rgba(245,101,101,.3)',borderColor:destr,borderWidth:1,borderRadius:3},
+      {label:'Op Profit (forecast)',data:[78000,78000,70000],backgroundColor:'rgba(121,134,203,.5)',borderColor:'#7986cb',borderWidth:1,borderRadius:3},
+    ]
+  },
+  options:{
+    responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{labels:{boxWidth:10,padding:12}},tooltip:{callbacks:{label:c=>' '+c.dataset.label+': £'+c.raw.toLocaleString('en-GB',{maximumFractionDigits:0})}}},
+    scales:{x:{grid},y:{grid,ticks:{callback:v=>'£'+(v/1000).toFixed(0)+'k'}}}
+  }
+});
+
+// ── WHERE WE'RE GOING: Channel pie (same base, using actuals as forward mix) ──
+new Chart(document.getElementById('goingPieChart'), {
+  type:'doughnut',
+  data:{
+    labels:['eBay','Amazon','Trade Counter','Rental/Other'],
+    datasets:[{
+      data:[56,29,13,2],
+      backgroundColor:['#3D9E8C','#4fa3d4','#52B7A2','#9AAAB8'],
+      borderColor:navy, borderWidth:2
+    }]
+  },
+  options:{
+    responsive:true,maintainAspectRatio:false,cutout:'60%',
+    plugins:{legend:{position:'right',labels:{boxWidth:10,padding:10,font:{size:10}}},
+      tooltip:{callbacks:{label:c=>' '+c.label+': '+c.raw+'% of rev'}}}
+  },
+  plugins:[{
+    id:'goingPieLabels',
+    afterDraw(chart){
+      const {ctx,data} = chart;
+      const total = data.datasets[0].data.reduce((a,b)=>a+b,0);
+      chart.getDatasetMeta(0).data.forEach((arc,i)=>{
+        const pct = data.datasets[0].data[i]+'%';
+        const mid = arc.startAngle+(arc.endAngle-arc.startAngle)/2;
+        const r=(arc.innerRadius+arc.outerRadius)/2;
+        const x=arc.x+Math.cos(mid)*r; const y=arc.y+Math.sin(mid)*r;
+        if(arc.endAngle-arc.startAngle>0.3){
+          ctx.save();ctx.fillStyle='#fff';ctx.font='bold 11px sans-serif';
+          ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(pct,x,y);ctx.restore();
+        }
+      });
+    }
+  }]
+});
+
+// ── WHERE WE'RE GOING: Admin target vs current ──
+new Chart(document.getElementById('goingAdminChart'), {
+  type:'bar',
+  data:{
+    labels:['Current (Feb–May avg)','FY 26-27 Target'],
+    datasets:[
+      {label:'Salaries',data:[37318,35000],backgroundColor:'rgba(61,158,140,.55)',borderColor:teal,borderWidth:1,borderRadius:3},
+      {label:'Rent & Rates',data:[7500,7500],backgroundColor:'rgba(79,163,212,.5)',borderColor:'#4fa3d4',borderWidth:1,borderRadius:3},
+      {label:'Advertising',data:[10060,10000],backgroundColor:'rgba(121,134,203,.5)',borderColor:'#7986cb',borderWidth:1,borderRadius:3},
+      {label:'Other Admin',data:[28811,27500],backgroundColor:'rgba(154,170,184,.35)',borderColor:'#9AAAB8',borderWidth:1,borderRadius:3},
+    ]
+  },
+  options:{
+    responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{labels:{boxWidth:10,padding:10}},tooltip:{callbacks:{label:c=>' '+c.dataset.label+': £'+c.raw.toLocaleString('en-GB',{maximumFractionDigits:0})}}},
+    scales:{x:{stacked:true,grid:{display:false}},y:{stacked:true,grid,ticks:{callback:v=>'£'+(v/1000).toFixed(0)+'k'}}}
+  }
+});
+
+// ── WHERE WE'RE GOING: Target cost structure FY 26-27 ──
+// £4.6M revenue target, 45% GP = £2.07M GP, £1.08M admin, £1M op profit
+new Chart(document.getElementById('goingWaterfallChart'), {
+  type:'bar',
+  data:{
+    labels:['Revenue','Cost of Sales','Gross Profit','Admin Costs','Op Profit'],
+    datasets:[{
+      data:[4600000,2530000,2070000,1080000,1000000],
+      backgroundColor:['rgba(57,73,171,.5)','rgba(245,101,101,.4)','rgba(51,204,102,.45)','rgba(245,101,101,.4)','rgba(249,168,37,.55)'],
+      borderColor:['#7986cb',destr,green,destr,warn], borderWidth:1, borderRadius:3
+    }]
+  },
+  options:{
+    responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>{const rev=4600000;const gp=2070000;const pcts={'Revenue':'100%','Cost of Sales':'55.0% of rev','Gross Profit':'45.0% of rev','Admin Costs':'52.2% of GP','Op Profit':'21.7% of rev'};return ' £'+(c.raw/1000).toFixed(0)+'k ('+pcts[c.label]+')'}}}},
+    scales:{x:{grid:{display:false}},y:{grid,ticks:{callback:v=>'£'+(v/1000000).toFixed(1)+'M'}}}
+  },
+  plugins:[{
+    id:'goingWfPct',
+    afterDraw(chart){
+      const {ctx} = chart;
+      const pcts=[null,'55.0%','45.0%','52.2% GP','21.7%'];
+      chart.getDatasetMeta(0).data.forEach((bar,i)=>{
+        if(!pcts[i]) return;
+        ctx.save();ctx.fillStyle='rgba(154,170,184,0.85)';ctx.font='bold 10px sans-serif';
+        ctx.textAlign='center';ctx.fillText(pcts[i],bar.x,bar.y-7);ctx.restore();
+      });
+    }
+  }]
+});
+
+// init calculator
+setTimeout(calcProfitCalc, 100);
+
+// ── Nav scroll ──
+function navScroll(id, btn) {
+  // If tracker is open, close it first
+  const tp = document.getElementById('tracker-page');
+  const fc = document.querySelectorAll('.financial-content');
+  const nb = document.getElementById('nav-items');
+  if(tp && tp.classList.contains('active')) {
+    tp.classList.remove('active');
+    fc.forEach(el=>el.classList.remove('hidden'));
+    nb && nb.classList.remove('on');
+  }
+  setTimeout(()=>{
+    const el = document.getElementById(id);
+    if(el) el.scrollIntoView({behavior:'smooth', block:'start'});
+  }, 50);
+  document.querySelectorAll('.nav-link').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+}
+window.addEventListener('scroll', () => {
+  const tp = document.getElementById('tracker-page');
+  if(tp && tp.classList.contains('active')) return;
+  const sections = ['were','are','going'];
+  const btns = document.querySelectorAll('.nav-link:not(#nav-items)');
+  let active = -1;
+  sections.forEach((id,i) => {
+    const el = document.getElementById(id);
+    if(el && el.getBoundingClientRect().top <= 100) active = i;
+  });
+  btns.forEach((b,i) => b.classList.toggle('active', i===active));
+});
+</script>
+</body>
+</html>
