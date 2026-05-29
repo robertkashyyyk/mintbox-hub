@@ -1406,7 +1406,7 @@ tbody tr:hover td { background:rgba(61,158,140,.04); }
     <div class="calc-lock-row">
       <input type="checkbox" id="calc-lock" onchange="calcProfitCalc()">
       <label for="calc-lock" style="font-family:var(--m);font-size:12px;color:var(--muted);cursor:pointer;">
-        🔒 <strong style="color:var(--fg);">Lock to £1M target</strong> — show admin ceiling needed to hit it
+        🔒 <strong style="color:var(--fg);">Lock to £1M</strong> — auto-sets admin slider to the exact ceiling needed at current revenue/GP
       </label>
     </div>
 
@@ -1539,7 +1539,7 @@ tbody tr:hover td { background:rgba(61,158,140,.04); }
           <span id="calc-pct">0%</span>
         </div>
       </div>
-      <div id="calc-admin-hint" class="calc-admin-hint" id="calc-admin-hint"></div>
+      <div id="calc-admin-hint" class="calc-admin-hint" style="display:none;font-family:var(--m);font-size:11px;padding:8px 12px;margin-top:8px;border-radius:4px;background:rgba(249,168,32,.08);border:1px solid rgba(249,168,32,.25);color:var(--warning);"><span id="calc-admin-needed"></span></div>
     </div>
   </div>
 
@@ -2321,16 +2321,36 @@ function calcProfitCalc(){
     const gp  = parseFloat(document.getElementById('calc-gp-'+ch).value)||0;
     totalRev += rev; totalGP += rev*(gp/100);
   });
-  const adminMonth = parseFloat(document.getElementById('calc-admin').value)||90000;
-  const adminYear = adminMonth*12;
-  const opProfit = totalGP*12 - adminYear;
   const target = 1000000;
   const locked = document.getElementById('calc-lock').checked;
+  let adminMonth = parseFloat(document.getElementById('calc-admin').value)||90000;
+
+  // LOCK MODE: auto-move admin slider to exactly hit £1M
+  const hintEl = document.getElementById('calc-admin-hint');
+  const hintMsg = document.getElementById('calc-admin-needed');
+  if(locked){
+    const neededAdmin = (totalGP*12 - target)/12;
+    if(neededAdmin > 0){
+      const clamped = Math.min(150000, neededAdmin);
+      adminMonth = clamped;
+      document.getElementById('calc-admin').value = Math.round(clamped);
+      document.getElementById('calc-admin-display').textContent = '£'+Math.round(clamped).toLocaleString('en-GB')+'/mo';
+      const flag = neededAdmin > 150000 ? '🔴 admin cap hit — raise revenue' : neededAdmin < 80000 ? '🟢 very achievable' : neededAdmin < 105000 ? '🟡 tight but realistic' : '🟠 ambitious — review headcount';
+      hintMsg.textContent = 'Locked to £1M: admin ceiling auto-set to £'+Math.round(neededAdmin/1000)+'k/mo — '+flag;
+    } else {
+      hintMsg.textContent = 'GP too low to hit £1M at any admin level — raise revenue or GP% first';
+    }
+    hintEl.style.display = 'block';
+  } else {
+    hintEl.style.display = 'none';
+  }
+
+  const adminYear = adminMonth*12;
+  const opProfit = totalGP*12 - adminYear;
 
   document.getElementById('calc-total-rev').textContent = '£'+(totalRev/1000).toFixed(0)+'k/mo';
   document.getElementById('calc-total-gp').textContent = '£'+(totalGP/1000).toFixed(0)+'k/mo ('+((totalGP/totalRev||0)*100).toFixed(1)+'%)';
   document.getElementById('calc-admin-yr').textContent = '£'+(adminYear/1000).toFixed(0)+'k/yr';
-  document.getElementById('calc-op-profit').textContent = '£'+Math.round(opProfit).toLocaleString('en-GB');
   const pct = (opProfit/target*100).toFixed(1);
   const bar = document.getElementById('calc-progress-fill');
   const w = Math.max(0,Math.min(100,parseFloat(pct)));
@@ -2339,15 +2359,6 @@ function calcProfitCalc(){
   document.getElementById('calc-pct').textContent = pct+'%';
   document.getElementById('calc-result-val').textContent = '£'+Math.round(opProfit).toLocaleString('en-GB');
   document.getElementById('calc-result-val').style.color = opProfit>=target?'var(--success)':opProfit<0?'var(--destructive)':'var(--teal-light)';
-
-  if(locked && opProfit!==target){
-    // auto-adjust admin to hit £1M
-    const neededAdmin = (totalGP*12 - target)/12;
-    document.getElementById('calc-admin-needed').textContent = neededAdmin>0 ? 'To hit £1M with current revenue: admin ceiling = £'+Math.round(neededAdmin/1000)+'k/mo' : 'Revenue too low to hit £1M at any admin level — raise revenue first';
-    document.getElementById('calc-admin-hint').style.display='block';
-  } else {
-    document.getElementById('calc-admin-hint').style.display='none';
-  }
 }
 
 // ── WHERE WE'RE GOING: Forecast P&L bar ──
