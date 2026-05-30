@@ -14,7 +14,8 @@ const corsHeaders = {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
+const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY") ?? "";
+const REMOVE_BG_API_KEY = Deno.env.get("REMOVE_BG_API_KEY") ?? "";
 const FIRECRAWL_API_KEY = Deno.env.get("FIRECRAWL_API_KEY") ?? "";
 
 const MIN_DIM = 380;
@@ -240,30 +241,27 @@ function base64ToBytes(b64: string): Uint8Array {
 }
 
 async function bgRemoveAndNormalise(bytes: Uint8Array, mime: string): Promise<Uint8Array | null> {
-  const dataUrl = `data:${mime};base64,${bytesToBase64(bytes)}`;
-  const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: "google/gemini-2.5-flash-image",
-      modalities: ["image", "text"],
-      messages: [{
-        role: "user",
-        content: [
-          { type: "text", text: "Remove the background completely and replace with pure white (#FFFFFF). Keep the product centred, do not crop, no shadows, no text, no watermark, no border. Return only a clean square 1000x1000 image." },
-          { type: "image_url", image_url: { url: dataUrl } },
-        ],
-      }],
-    }),
-  });
-  if (!r.ok) { console.error("AI gateway bgRemove", r.status, await r.text()); return null; }
-  const j = await r.json();
-  const imgs = j?.choices?.[0]?.message?.images;
-  if (Array.isArray(imgs) && imgs[0]?.image_url?.url) {
-    const m = (imgs[0].image_url.url as string).match(/^data:[^;]+;base64,(.+)$/);
-    if (m) return base64ToBytes(m[1]);
+  // Uses remove.bg API if key is configured; otherwise returns null (raw image uploaded as-is)
+  if (!REMOVE_BG_API_KEY) {
+    console.log("REMOVE_BG_API_KEY not set — skipping background removal, uploading raw image");
+    return null;
   }
-  return null;
+  try {
+    const form = new FormData();
+    form.append("image_file", new Blob([bytes], { type: mime }), "image");
+    form.append("size", "auto");
+    const r = await fetch("https://api.remove.bg/v1.0/removebg", {
+      method: "POST",
+      headers: { "X-Api-Key": REMOVE_BG_API_KEY },
+      body: form,
+    });
+    if (!r.ok) { console.error("remove.bg error", r.status, await r.text()); return null; }
+    const buf = new Uint8Array(await r.arrayBuffer());
+    return buf;
+  } catch (e) {
+    console.error("bgRemoveAndNormalise exception", e);
+    return null;
+  }
 }
 
 async function uploadFinal(sku: string, bytes: Uint8Array): Promise<string> {
@@ -360,17 +358,23 @@ Rank these from MOST LIKELY to be the actual product photo to LEAST LIKELY.
 Reject obvious banners, logos, category headers, related-product thumbnails, and unrelated images.
 Prefer URLs whose filename or path contains the part number (${cleanSku}).
 Respond ONLY with a JSON array of indices, best first, e.g. [3,0,7].`;
-    const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    if (!ANTHROPIC_API_KEY) return candidates.map((_, i) => i);
+    const r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
-      headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+      headers: {
+        "x-api-key": ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: "claude-haiku-4-5",
+        max_tokens: 256,
         messages: [{ role: "user", content: prompt }],
       }),
     });
     if (!r.ok) { console.error("AI rank", r.status, await r.text()); return candidates.map((_, i) => i); }
     const j = await r.json();
-    const txt: string = j?.choices?.[0]?.message?.content ?? "";
+    const txt: string = j?.content?.[0]?.text ?? "";
     const m = txt.match(/\[[\s\S]*?\]/);
     if (!m) return candidates.map((_, i) => i);
     const arr = JSON.parse(m[0]);
@@ -538,20 +542,15 @@ async function processJob(job: Job): Promise<{ outcome: string; detail?: string 
 
     if (dims.w >= MIN_DIM && dims.h >= MIN_DIM) {
       const cleaned = await bgRemoveAndNormalise(fetched.bytes, fetched.ct);
-      if (!cleaned) {
-        await finalize("watermark_review", "needs_review", {
-          source_page_url: c.pageUrl, source_image_url: c.imageUrl,
-          raw_width: dims.w, raw_height: dims.h,
-          notes: `bg-removal failed via ${c.source} (score ${c.score}); review. ${notes.join(" | ")}`,
-        });
-        return { outcome: "watermark_review" };
-      }
+      // If bg removal unavailable/failed, upload raw image rather than blocking
+      const toUpload = cleaned ?? fetched.bytes;
+      const bgNote = cleaned ? "bg-removed" : "raw-no-bg-removal";
       try {
-        const path = await uploadFinal(job.sku, cleaned);
+        const path = await uploadFinal(job.sku, toUpload);
         await finalize("stored", "success", {
           source_page_url: c.pageUrl, source_image_url: c.imageUrl,
           raw_width: dims.w, raw_height: dims.h, storage_path: path,
-          notes: `via ${c.source} score=${c.score} tpl="${c.fromTemplate ?? "-"}" (attempt ${attempted}/${ranked.length}). ${notes.join(" | ")}`,
+          notes: `via ${c.source} score=${c.score} tpl="${c.fromTemplate ?? "-"}" ${bgNote} (attempt ${attempted}/${ranked.length}). ${notes.join(" | ")}`,
         }, c.imageUrl);
         return { outcome: "stored", detail: path };
       } catch (e) {

@@ -27,7 +27,7 @@ serve(async (req) => {
 
     const resend = new Resend(resendApiKey);
     
-    const appUrl = Deno.env.get("APP_URL") || "https://mintbox-hub.lovable.app";
+    const appUrl = Deno.env.get("APP_URL") || "https://partsdochub.com";
     const signupUrl = `${appUrl}/auth`;
     
     console.log(`Sending invitation to ${email} with signup URL: ${signupUrl}`);

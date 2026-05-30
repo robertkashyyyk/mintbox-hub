@@ -1,4 +1,4 @@
-// Parse a carrier document (PDF) using Lovable AI and persist extracted penalties.
+// Parse a carrier document (PDF) using Claude (Anthropic) and persist extracted penalties.
 // Triggered after a document row + storage upload exists.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
@@ -20,9 +20,9 @@ Deno.serve(async (req) => {
 
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      return json({ error: "LOVABLE_API_KEY not configured" }, 500);
+    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+    if (!ANTHROPIC_API_KEY) {
+      return json({ error: "ANTHROPIC_API_KEY not configured" }, 500);
     }
 
     const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
@@ -53,72 +53,82 @@ Deno.serve(async (req) => {
 
     const arrayBuf = await fileBlob.arrayBuffer();
     const base64 = arrayBufferToBase64(arrayBuf);
-    const dataUrl = `data:application/pdf;base64,${base64}`;
 
-    // Ask Lovable AI (Gemini) to extract structured penalty data
-    const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    // Ask Claude to extract structured penalty data from the PDF
+    const aiResp = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
+        "x-api-key": ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: "claude-opus-4-5",
+        max_tokens: 4096,
+        system: `You are an expert at extracting structured data from UK courier documents — specifically Royal Mail invoice files and penalty/surcharge notices.
+
+Royal Mail penalty notices list each parcel on a separate line with:
+- A tracking number (usually starts with letters like JD, SD, QQ, BJ etc.)
+- A surcharge reason code (e.g. F001, F002, S001, W001)
+- The declared format/size the sender claimed
+- The actual format/size Royal Mail measured
+- The penalty/surcharge amount in GBP
+
+Invoice documents list service charges, VAT, and surcharge totals.
+
+Extract every individual penalty/surcharge line. Dates must be ISO YYYY-MM-DD. Amounts are GBP numbers (no £ symbol). If a field is not present, omit it or use null.`,
         messages: [
-          {
-            role: "system",
-            content:
-              "You extract structured data from courier (Royal Mail / DPD / Evri / Hermes) invoices and penalty notices. Always return a single tool call. Dates must be ISO YYYY-MM-DD. Amounts are GBP numbers (no symbols). If a field is not present, omit it.",
-          },
           {
             role: "user",
             content: [
               {
-                type: "text",
-                text: `Extract every penalty / surcharge line from this ${doc.doc_type}. For each line capture: tracking_number, penalty_amount, reason_code, reason_text, declared_format, actual_format, penalty_date. Also return document-level totals and the document date.`,
+                type: "document",
+                source: {
+                  type: "base64",
+                  media_type: "application/pdf",
+                  data: base64,
+                },
               },
-              { type: "image_url", image_url: { url: dataUrl } },
+              {
+                type: "text",
+                text: `This is a Royal Mail ${doc.doc_type}. Extract every penalty/surcharge line. For each line capture: tracking_number, penalty_amount, reason_code, reason_text, declared_format, actual_format, penalty_date. Also return the document-level total_amount, period_start, and period_end if shown.`,
+              },
             ],
           },
         ],
         tools: [
           {
-            type: "function",
-            function: {
-              name: "record_carrier_document",
-              description: "Record a carrier document and its penalty lines",
-              parameters: {
-                type: "object",
-                properties: {
-                  document_date: { type: "string", description: "ISO date" },
-                  period_start: { type: "string" },
-                  period_end: { type: "string" },
-                  total_amount: { type: "number" },
-                  penalties: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        tracking_number: { type: "string" },
-                        penalty_amount: { type: "number" },
-                        reason_code: { type: "string" },
-                        reason_text: { type: "string" },
-                        declared_format: { type: "string" },
-                        actual_format: { type: "string" },
-                        penalty_date: { type: "string" },
-                      },
-                      required: ["penalty_amount"],
-                      additionalProperties: false,
+            name: "record_carrier_document",
+            description: "Record a carrier document and all its penalty lines",
+            input_schema: {
+              type: "object",
+              properties: {
+                document_date: { type: "string", description: "ISO date YYYY-MM-DD" },
+                period_start: { type: "string", description: "ISO date YYYY-MM-DD" },
+                period_end: { type: "string", description: "ISO date YYYY-MM-DD" },
+                total_amount: { type: "number", description: "Total GBP amount" },
+                penalties: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      tracking_number: { type: "string" },
+                      penalty_amount: { type: "number" },
+                      reason_code: { type: "string" },
+                      reason_text: { type: "string" },
+                      declared_format: { type: "string" },
+                      actual_format: { type: "string" },
+                      penalty_date: { type: "string" },
                     },
+                    required: ["penalty_amount"],
                   },
                 },
-                required: ["penalties"],
-                additionalProperties: false,
               },
+              required: ["penalties"],
             },
           },
         ],
-        tool_choice: { type: "function", function: { name: "record_carrier_document" } },
+        tool_choice: { type: "tool", name: "record_carrier_document" },
       }),
     });
 
@@ -128,27 +138,22 @@ Deno.serve(async (req) => {
         aiResp.status === 429
           ? "Rate limit exceeded — please retry shortly."
           : aiResp.status === 402
-            ? "AI credits exhausted — top up Lovable AI usage."
-            : `AI gateway error (${aiResp.status}): ${t.slice(0, 300)}`;
+            ? "Anthropic API credits exhausted."
+            : `Claude API error (${aiResp.status}): ${t.slice(0, 300)}`;
       await markFailed(supabase, document_id, msg);
       return json({ error: msg }, aiResp.status);
     }
 
     const aiJson = await aiResp.json();
-    const toolCall = aiJson.choices?.[0]?.message?.tool_calls?.[0];
-    if (!toolCall?.function?.arguments) {
-      await markFailed(supabase, document_id, "AI did not return structured output");
-      return json({ error: "AI did not return structured output", raw: aiJson }, 500);
+
+    // Claude tool use: content block with type "tool_use"
+    const toolUseBlock = aiJson.content?.find((b: any) => b.type === "tool_use");
+    if (!toolUseBlock?.input) {
+      await markFailed(supabase, document_id, "Claude did not return structured output");
+      return json({ error: "Claude did not return structured output", raw: aiJson }, 500);
     }
 
-    let parsed: any;
-    try {
-      parsed = JSON.parse(toolCall.function.arguments);
-    } catch (e) {
-      await markFailed(supabase, document_id, "Invalid JSON from AI");
-      return json({ error: "Invalid JSON from AI" }, 500);
-    }
-
+    const parsed = toolUseBlock.input;
     const penalties: any[] = Array.isArray(parsed.penalties) ? parsed.penalties : [];
 
     // Insert penalties

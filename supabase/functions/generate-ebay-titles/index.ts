@@ -15,9 +15,9 @@ serve(async (req) => {
     const { brand, modelPartNumber, compatibility } = await req.json();
     console.log(`Generating eBay titles for: ${brand} ${modelPartNumber}`);
 
-    const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
-    if (!lovableApiKey) {
-      throw new Error('LOVABLE_API_KEY not configured');
+    const anthropicApiKey = Deno.env.get('ANTHROPIC_API_KEY');
+    if (!anthropicApiKey) {
+      throw new Error('ANTHROPIC_API_KEY not configured');
     }
 
     // Build context for AI
@@ -43,24 +43,20 @@ eBay Title Best Practices:
 Return ONLY a JSON array of title strings, no other text:
 ["title1", "title2", "title3", ...]`;
 
-    console.log('Calling Lovable AI for title generation');
-    
-    const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    console.log('Calling Claude for title generation');
+
+    const aiResponse = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${lovableApiKey}`,
+        'x-api-key': anthropicApiKey,
+        'anthropic-version': '2023-06-01',
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [
-          { 
-            role: 'system', 
-            content: 'You are an expert at creating eBay listing titles. Return only valid JSON arrays of title strings.' 
-          },
-          { role: 'user', content: prompt }
-        ],
-        temperature: 0.7,
+        model: 'claude-haiku-4-5',
+        max_tokens: 1024,
+        system: 'You are an expert at creating eBay listing titles. Return only valid JSON arrays of title strings.',
+        messages: [{ role: 'user', content: prompt }],
       }),
     });
 
@@ -71,7 +67,7 @@ Return ONLY a JSON array of title strings, no other text:
     }
 
     const aiData = await aiResponse.json();
-    const generatedText = aiData.choices?.[0]?.message?.content || '';
+    const generatedText = aiData.content?.[0]?.text || '';
     console.log('AI response:', generatedText);
 
     // Parse the JSON array from AI response
