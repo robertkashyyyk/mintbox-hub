@@ -25,13 +25,13 @@ jobs:
           VITE_SUPABASE_PROJECT_ID: ${{ secrets.VITE_SUPABASE_PROJECT_ID }}
         run: npm run build
 
-      - name: Deploy to Droplet
+            - name: Deploy to Droplet
         env:
           SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           DROPLET_IP: 165.22.126.226
         run: |
           mkdir -p ~/.ssh
-          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          echo "$SSH_PRIVATE_KEY" | base64 -d > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no root@$DROPLET_IP \
             "mkdir -p /var/www/partsdochub"
