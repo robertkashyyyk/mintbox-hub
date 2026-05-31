@@ -25,7 +25,7 @@ jobs:
           VITE_SUPABASE_PROJECT_ID: ${{ secrets.VITE_SUPABASE_PROJECT_ID }}
         run: npm run build
 
-            - name: Deploy to Droplet
+      - name: Deploy to Droplet
         env:
           SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           DROPLET_IP: 165.22.126.226
