@@ -117,7 +117,11 @@ export const useStockHealth = () => {
       }
 
       if (filters.excludeOutOfStock) {
-        query = query.neq("health_category", "Out of Stock");
+        // Exclude all zero-stock categories: "Out of Stock" (has velocity, no stock)
+        // AND "Non Selling" (no velocity, no stock) — both have on_hand_qty = 0.
+        query = query
+          .neq("health_category", "Out of Stock")
+          .neq("health_category", "Non Selling");
       }
 
       if (filters.excludeDirt && dirtSkus.length > 0) {
