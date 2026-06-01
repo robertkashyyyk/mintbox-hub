@@ -45,7 +45,8 @@ const TILE_GROUPS: Array<{ label: string; tone: string; cats: string[] }> = [
   { label: "Low / Critical / OOS", tone: "border-destructive/40 bg-destructive/10", cats: ["Low Stock","Critical","Out of Stock"] },
   { label: "Overstock",   tone: "border-blue-500/40 bg-blue-500/10",    cats: ["Overstock","Extreme Overstock"] },
   { label: "Unhealthy",   tone: "border-yellow-500/40 bg-yellow-500/10",cats: ["Unhealthy"] },
-  { label: "Dead / Non Selling",   tone: "border-border bg-muted/30",   cats: ["Dead Stock","Non Selling"] },
+  { label: "Dead Stock",    tone: "border-border bg-muted/30",         cats: ["Dead Stock"] },
+  { label: "Non Selling",   tone: "border-teal-500/40 bg-teal-500/10", cats: ["Non Selling"] },
   { label: "Missing Baseline / Unknown", tone: "border-warning/40 bg-warning/10", cats: ["Missing Baseline","Unknown"] },
 ];
 

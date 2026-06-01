@@ -81,6 +81,9 @@ export const useStockValuation = () => {
     try {
       let q = supabase.from("stock_valuation" as any).select("*", { count: "exact" });
 
+      // Always exclude remote (15D) SKUs — Coleraine live warehouse only.
+      q = q.eq("is_remote", false);
+
       if (filters.search) q = q.ilike("sku", `%${filters.search}%`);
       if (filters.brandId !== "all") q = q.eq("brand_id", filters.brandId);
       if (filters.healthCategory !== "all")
