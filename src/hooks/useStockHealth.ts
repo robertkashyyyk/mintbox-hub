@@ -11,6 +11,7 @@ export interface StockHealthRow {
   weeks_of_cover: number;
   base_multiplier: number;
   health_category: string;
+  quarantined: boolean;
   units_4w?: number;
 }
 
@@ -39,7 +40,6 @@ export const useStockHealth = () => {
   const [loading, setLoading] = useState(true);
   const [totalCount, setTotalCount] = useState(0);
   const [summary, setSummary] = useState<StockHealthSummary | null>(null);
-  const [dirtSkus, setDirtSkus] = useState<string[]>([]);
   const [page, setPage] = useState(1);
   const pageSize = 50;
   const { toast } = useToast();
@@ -51,7 +51,6 @@ export const useStockHealth = () => {
       search: parsed.search ?? "",
       brandId: parsed.brandId ?? "all",
       healthCategory: parsed.healthCategory ?? "all",
-      // Migrate legacy `onlyProblems` toggle to the new bad-problems toggle.
       onlyGoodProblems: parsed.onlyGoodProblems ?? false,
       onlyBadProblems: parsed.onlyBadProblems ?? parsed.onlyProblems ?? false,
       excludeDirt: parsed.excludeDirt ?? false,
@@ -78,17 +77,6 @@ export const useStockHealth = () => {
     localStorage.setItem("stockHealthSortOrder", sortOrder);
   }, [sortOrder]);
 
-  // Load the dirt (quarantined) SKU list once — small set (~hundreds).
-  useEffect(() => {
-    (async () => {
-      const { data: dirt } = await supabase
-        .from("products_cache")
-        .select("sku")
-        .eq("quarantined", true);
-      setDirtSkus((dirt ?? []).map((r: any) => r.sku).filter(Boolean));
-    })();
-  }, []);
-
   const fetchData = async () => {
     try {
       setLoading(true);
@@ -97,7 +85,12 @@ export const useStockHealth = () => {
         .from("sku_stock_health")
         .select("*", { count: "exact" });
 
-      // Apply filters
+      // Dirt filter — server-side via the quarantined column in the MV.
+      // Previously used a client-side NOT IN list which broke at scale (~40k items).
+      if (filters.excludeDirt) {
+        query = query.eq("quarantined", false);
+      }
+
       if (filters.search) {
         query = query.ilike("sku", `%${filters.search}%`);
       }
@@ -124,25 +117,15 @@ export const useStockHealth = () => {
           .neq("health_category", "Non Selling");
       }
 
-      if (filters.excludeDirt && dirtSkus.length > 0) {
-        // PostgREST `not.in` with parenthesised list
-        const list = `(${dirtSkus.map((s) => `"${s.replace(/"/g, '\\"')}"`).join(",")})`;
-        query = query.not("sku", "in", list);
-      }
-
-      // Apply sorting
       query = query.order(sortBy, { ascending: sortOrder === "asc" });
 
-      // Apply pagination
       const from = (page - 1) * pageSize;
-      const to = from + pageSize - 1;
-      query = query.range(from, to);
+      query = query.range(from, from + pageSize - 1);
 
       const { data: healthData, error, count } = await query;
-
       if (error) throw error;
 
-      // Fetch brand names
+      // Fetch brand names and velocity for the current page
       const brandIds = [...new Set(healthData?.map(row => row.brand_id).filter(Boolean))];
       const skus = (healthData ?? []).map((r: any) => r.sku).filter(Boolean);
 
@@ -175,9 +158,6 @@ export const useStockHealth = () => {
     }
   };
 
-  // Fetch top-level summary via server-side RPC (no row-cap; aggregates the full
-  // 180k+ SKU view). Respects brand + excludeDirt; ignores text + category filters
-  // so the tiles remain a stable overview the user can drill into.
   const fetchSummary = async () => {
     try {
       const { data, error } = await supabase.rpc("get_stock_health_summary" as any, {
@@ -186,29 +166,25 @@ export const useStockHealth = () => {
       });
       if (error) throw error;
       const row: any = Array.isArray(data) ? data[0] : data;
-      if (!row) {
-        setSummary(null);
-        return;
-      }
+      if (!row) { setSummary(null); return; }
       setSummary({
         totalSkus: Number(row.total_skus ?? 0),
         dirtSkus: Number(row.dirt_skus ?? 0),
         byCategory: (row.by_category ?? {}) as Record<string, number>,
         totalOnHand: Number(row.total_on_hand ?? 0),
       });
-    } catch (e) {
-      // Soft fail — summary is non-critical.
+    } catch {
       setSummary(null);
     }
   };
 
   useEffect(() => {
     fetchData();
-  }, [filters, sortBy, sortOrder, page, dirtSkus]);
+  }, [filters, sortBy, sortOrder, page]);
 
   useEffect(() => {
     fetchSummary();
-  }, [filters.brandId, filters.excludeDirt, dirtSkus]);
+  }, [filters.brandId, filters.excludeDirt]);
 
   const handleSort = (column: string) => {
     if (sortBy === column) {
@@ -229,7 +205,9 @@ export const useStockHealth = () => {
     loading,
     totalCount,
     summary,
-    dirtSkusCount: dirtSkus.length,
+    // Dirt count now comes from the summary RPC (quarantined flag in MV),
+    // not from a separately-loaded client-side list.
+    dirtSkusCount: summary?.dirtSkus ?? 0,
     page,
     pageSize,
     setPage,
