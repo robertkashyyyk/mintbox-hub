@@ -109,6 +109,15 @@ export const LOG_ACTIONS = {
   BRAND_UPDATE:          "brand.update",
   BRAND_DELETE:          "brand.delete",
 
+  // Products — cost & box qty
+  COST_UPDATE:           "product.cost_update",
+  COST_BULK_UPDATE:      "product.cost_bulk_update",
+  BOX_QTY_UPDATE:        "product.box_qty_update",
+  BOX_QTY_BULK_UPDATE:   "product.box_qty_bulk_update",
+
+  // Purchase Orders (additional)
+  PO_SPLIT:              "purchase_order.split",
+
   // System
   MINTSOFT_SYNC:         "system.mintsoft_sync",
   STOCK_HEALTH_REFRESH:  "system.stock_health_refresh",

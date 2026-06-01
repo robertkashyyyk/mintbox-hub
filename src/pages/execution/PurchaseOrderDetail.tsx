@@ -28,6 +28,7 @@ import { Label } from "@/components/ui/label";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { logActivity, LOG_ACTIONS } from "@/lib/activityLog";
 
 // Add `days` working days (Mon–Fri) to `from` and return YYYY-MM-DD
 const addWorkingDays = (from: Date, days: number): string => {
@@ -139,6 +140,7 @@ const PurchaseOrderDetail = () => {
         return rest;
       });
       if (vars.pushCost) {
+        logActivity({ action: LOG_ACTIONS.COST_UPDATE, entityType: "product", entityLabel: vars.sku, detail: { cost_price: vars.pushCost, source: "po_line" } });
         toast({ title: "Cost saved", description: `${vars.sku} updated and pushed to Mintsoft.` });
       }
     },
@@ -153,6 +155,7 @@ const PurchaseOrderDetail = () => {
       return { sku, value };
     },
     onSuccess: ({ sku, value }) => {
+      logActivity({ action: LOG_ACTIONS.BOX_QTY_UPDATE, entityType: "product", entityLabel: sku, detail: { box_quantity: value, source: "po_line" } });
       toast({ title: "Box quantity learned", description: `${sku} now defaults to box of ${value}.` });
       qc.invalidateQueries({ queryKey: ["po-detail", id] });
     },
@@ -169,6 +172,7 @@ const PurchaseOrderDetail = () => {
       return data as { mintsoft_po_id?: number; lines_sent?: number; skipped?: { sku: string; reason: string }[] };
     },
     onSuccess: (data) => {
+      logActivity({ action: LOG_ACTIONS.PO_SUBMIT, entityType: "purchase_order", entityId: id, detail: { mintsoft_po_id: data?.mintsoft_po_id, lines_sent: data?.lines_sent, skipped: data?.skipped?.length || 0 } });
       const skipped = data?.skipped?.length || 0;
       toast({
         title: "PO sent to Mintsoft",
@@ -236,6 +240,7 @@ const PurchaseOrderDetail = () => {
       return newPo;
     },
     onSuccess: (newPo: any) => {
+      logActivity({ action: LOG_ACTIONS.PO_SPLIT, entityType: "purchase_order", entityId: id, detail: { new_po_id: newPo.id, new_po_number: newPo.po_number, lines_moved: selected.size } });
       toast({
         title: "PO split",
         description: `${selected.size} line(s) moved to ${newPo.po_number}.`,

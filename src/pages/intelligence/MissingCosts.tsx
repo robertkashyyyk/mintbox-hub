@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
+import { logActivity, LOG_ACTIONS } from "@/lib/activityLog";
 
 type Row = {
   id: string;
@@ -262,6 +263,7 @@ const MissingCosts = () => {
       if (error) throw error;
       const result = data?.results?.[0];
       if (!result?.ok) throw new Error(result?.error ?? "Unknown error");
+      logActivity({ action: LOG_ACTIONS.COST_UPDATE, entityType: "product", entityId: row.id, entityLabel: row.sku, detail: { cost_price: val } });
       toast.success(`${row.sku}: cost £${val.toFixed(2)} sent to Mintsoft`);
       setEdits((e) => { const n = { ...e }; delete n[row.id]; return n; });
       qc.setQueryData(["missing-costs-all"], (old: any[] | undefined) => (old ?? []).filter((p) => p.id !== row.id));
@@ -316,7 +318,10 @@ const MissingCosts = () => {
         toast.error(`Batch failed: ${e?.message}`);
       }
     }
-    if (okCount > 0) toast.success(`${okCount} cost prices sent to Mintsoft${failCount ? ` · ${failCount} failed` : ""}`);
+    if (okCount > 0) {
+      logActivity({ action: LOG_ACTIONS.COST_BULK_UPDATE, detail: { updated: okCount, failed: failCount }, outcome: failCount > 0 ? "failure" : "success" });
+      toast.success(`${okCount} cost prices sent to Mintsoft${failCount ? ` · ${failCount} failed` : ""}`);
+    }
     qc.invalidateQueries({ queryKey: ["missing-costs-all"] });
   }
 

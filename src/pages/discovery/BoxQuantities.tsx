@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/table";
 import { PackagePlus, Search, Loader2, Save } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { logActivity, LOG_ACTIONS } from "@/lib/activityLog";
 
 const PAGE_SIZE = 100;
 
@@ -55,6 +56,7 @@ const BoxQuantities = () => {
       if (error) throw error;
     },
     onSuccess: (_, vars) => {
+      logActivity({ action: LOG_ACTIONS.BOX_QTY_UPDATE, entityType: "product", entityId: vars.id, detail: { box_quantity: vars.value } });
       setEdits((prev) => {
         const { [vars.id]: _drop, ...rest } = prev;
         return rest;
@@ -72,9 +74,11 @@ const BoxQuantities = () => {
   const dirtyCount = Object.keys(edits).length;
 
   const saveAll = async () => {
+    const count = Object.keys(edits).length;
     for (const [id, value] of Object.entries(edits)) {
       await saveOne.mutateAsync({ id, value });
     }
+    if (count > 1) logActivity({ action: LOG_ACTIONS.BOX_QTY_BULK_UPDATE, detail: { count } });
   };
 
   return (

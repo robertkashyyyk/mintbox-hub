@@ -12,6 +12,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Search, RefreshCw, Truck, ChevronRight, ChevronDown, Trash2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { logActivity, LOG_ACTIONS } from "@/lib/activityLog";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -88,6 +89,7 @@ const PurchaseOrders = () => {
         .delete()
         .eq("id", po.id);
       if (error) throw error;
+      logActivity({ action: LOG_ACTIONS.PO_DELETE, entityType: "purchase_order", entityId: po.id, entityLabel: po.po_number || po.id.slice(0, 8), detail: { mintsoft_po_id: po.mintsoft_po_id ?? null } });
       toast({
         title: "PO deleted",
         description: po.mintsoft_po_id

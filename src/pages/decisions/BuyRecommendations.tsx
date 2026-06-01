@@ -22,6 +22,7 @@ import {
 import { useSentPoSuppression } from "@/hooks/useSentPoSuppression";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { logActivity, LOG_ACTIONS } from "@/lib/activityLog";
 
 const formatGBP = (n: number) =>
   new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP", maximumFractionDigits: 0 }).format(n || 0);
@@ -288,6 +289,7 @@ const BuyRecommendations = () => {
       const { error: linesErr } = await sb.from("purchase_order_lines").insert(lines);
       if (linesErr) throw linesErr;
 
+      logActivity({ action: LOG_ACTIONS.PO_CREATE, entityType: "purchase_order", entityId: po.id, entityLabel: po.id, detail: { supplier: currentSupplier.supplierName, lines: lines.length, total_qty: totalUnits, total_cost: totalCost } });
       toast({
         title: "Draft PO created",
         description: `${lines.length} lines for ${currentSupplier.supplierName}.`,
