@@ -19,6 +19,7 @@ import { useLsaBrandSummary } from "@/hooks/useLsaBrandSummary";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { logActivity, LOG_ACTIONS } from "@/lib/activityLog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const ALL = "__all__";
@@ -217,7 +218,14 @@ const LsaCalibration = () => {
       if (error) throw error;
       return data as { updated: number; failed: number; results: Array<{ sku: string; ok: boolean; error?: string }> };
     },
-    onSuccess: (res) => {
+    onSuccess: (res, rows) => {
+      logActivity({
+        action: LOG_ACTIONS.LSA_BULK_APPLY,
+        entityType: "brand",
+        entityLabel: detailBrandName || undefined,
+        detail: { updated: res.updated, failed: res.failed, sku_count: rows.length },
+        outcome: res.failed > 0 ? "failure" : "success",
+      });
       toast({
         title: "Mintsoft updated",
         description: `${res.updated} updated, ${res.failed} failed.`,

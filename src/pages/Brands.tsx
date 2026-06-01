@@ -51,6 +51,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { logActivity, LOG_ACTIONS } from "@/lib/activityLog";
 
 const Brands = () => {
   const queryClient = useQueryClient();
@@ -93,8 +94,9 @@ const Brands = () => {
       const { error } = await supabase.from("brands").insert(data);
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["brands-with-count"] });
+      logActivity({ action: LOG_ACTIONS.BRAND_CREATE, entityType: "brand", entityLabel: variables.name });
       toast({
         title: "Success",
         description: "Brand created successfully",
@@ -120,15 +122,32 @@ const Brands = () => {
   });
 
   const updateBrandMutation = useMutation({
-    mutationFn: async (data: { id: string; updates: any }) => {
+    mutationFn: async (data: { id: string; updates: any; prevAutoLsa?: boolean }) => {
       const { error } = await supabase
         .from("brands")
         .update(data.updates)
         .eq("id", data.id);
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["brands-with-count"] });
+      // Log auto_lsa toggle separately so it's easy to find in the audit trail
+      if (variables.prevAutoLsa !== undefined && variables.prevAutoLsa !== variables.updates.auto_update_lsa) {
+        logActivity({
+          action: LOG_ACTIONS.LSA_TOGGLE_AUTO,
+          entityType: "brand",
+          entityId: variables.id,
+          entityLabel: variables.updates.name,
+          detail: { field: "auto_update_lsa", old: variables.prevAutoLsa, new: variables.updates.auto_update_lsa },
+        });
+      } else {
+        logActivity({
+          action: LOG_ACTIONS.BRAND_UPDATE,
+          entityType: "brand",
+          entityId: variables.id,
+          entityLabel: variables.updates.name,
+        });
+      }
       toast({
         title: "Success",
         description: "Brand updated successfully",
@@ -145,13 +164,14 @@ const Brands = () => {
   });
 
   const deleteBrandMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("brands").delete().eq("id", id);
+    mutationFn: async (data: { id: string; name: string }) => {
+      const { error } = await supabase.from("brands").delete().eq("id", data.id);
       if (error) throw error;
     },
-    onSuccess: async () => {
+    onSuccess: async (_data, variables) => {
       await queryClient.invalidateQueries({ queryKey: ["brands-with-count"] });
       await queryClient.refetchQueries({ queryKey: ["brands-with-count"] });
+      logActivity({ action: LOG_ACTIONS.BRAND_DELETE, entityType: "brand", entityId: variables.id, entityLabel: variables.name });
       toast({
         title: "Success",
         description: "Brand deleted successfully",
@@ -209,12 +229,13 @@ const Brands = () => {
     updateBrandMutation.mutate({
       id: editingBrand.id,
       updates,
+      prevAutoLsa: !!editingBrand.auto_update_lsa,
     });
   };
 
   const handleDelete = () => {
     if (!deletingBrand) return;
-    deleteBrandMutation.mutate(deletingBrand.id);
+    deleteBrandMutation.mutate({ id: deletingBrand.id, name: deletingBrand.name });
   };
 
   const handleAddBrand = () => {
