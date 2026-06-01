@@ -2,8 +2,8 @@ import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageLoader } from "@/components/ui/PageLoader";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Skeleton } from "@/components/ui/skeleton";
 import { AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, Save } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -416,7 +416,7 @@ const MissingCosts = () => {
           </div>
 
           {loadingProducts ? (
-            <div className="space-y-2">{[...Array(8)].map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
+            <PageLoader rows={8} columns={[120, 280, 100, 80]} label="Loading missing costs" />
           ) : pageRows.length === 0 ? (
             <div className="text-sm text-foreground/60 py-6 text-center">No matches.</div>
           ) : (

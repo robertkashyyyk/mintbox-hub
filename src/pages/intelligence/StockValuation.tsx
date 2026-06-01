@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageLoader } from "@/components/ui/PageLoader";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -244,7 +245,7 @@ const StockValuation = () => {
           </div>
 
           {loading ? (
-            <div className="text-center py-8 text-muted-foreground">Loading…</div>
+            <PageLoader rows={10} columns={[120, 100, 80, 80, 100, 120]} label="Loading stock valuation" />
           ) : data.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">No SKUs match the current filters.</div>
           ) : (

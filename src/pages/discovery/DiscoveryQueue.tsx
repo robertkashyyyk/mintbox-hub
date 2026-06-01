@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Skeleton } from "@/components/ui/skeleton";
+import { PageLoader } from "@/components/ui/PageLoader";
 import { AlertCircle, Clock, CheckCircle2, RefreshCw } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
@@ -145,11 +145,7 @@ const DiscoveryQueue = () => {
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="space-y-2">
-              {[...Array(5)].map((_, i) => (
-                <Skeleton key={i} className="h-12 w-full" />
-              ))}
-            </div>
+            <PageLoader rows={8} columns={[120, 260, 100, 100, 80]} label="Loading discovery queue" />
           ) : products && products.length > 0 ? (
             <Table>
               <TableHeader>

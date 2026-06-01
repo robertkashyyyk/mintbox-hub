@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageLoader } from "@/components/ui/PageLoader";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -350,7 +351,7 @@ const BuyRecommendations = () => {
         </Card>
 
         {isLoading ? (
-          <Card><CardContent className="py-12 text-center text-muted-foreground">Loading recommendations…</CardContent></Card>
+          <PageLoader rows={8} columns={[120, 220, 80, 80, 80, 80, 100]} label="Loading recommendations" />
         ) : filteredSupplierGroups.length === 0 ? (
           <Card><CardContent className="py-12 text-center text-muted-foreground">
             No suppliers have SKUs that need ordering right now.

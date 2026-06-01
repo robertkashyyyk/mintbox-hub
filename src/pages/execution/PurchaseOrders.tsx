@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageLoader } from "@/components/ui/PageLoader";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -264,7 +265,7 @@ const PurchaseOrders = () => {
           </CardHeader>
           <CardContent>
             {isLoading ? (
-              <p className="text-muted-foreground py-6 text-center">Loading…</p>
+              <PageLoader rows={6} columns={[100, 120, 180, 80, 80, 80]} label="Loading purchase orders" />
             ) : filtered.length === 0 ? (
               <p className="text-muted-foreground py-6 text-center">No purchase orders yet.</p>
             ) : (

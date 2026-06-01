@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import ModuleHeader from "@/components/ModuleHeader";
 import { Card } from "@/components/ui/card";
+import { PageLoader } from "@/components/ui/PageLoader";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -100,11 +101,9 @@ const LsaUnmatchedSkus = () => {
           </thead>
           <tbody>
             {isLoading ? (
-              <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">
-                  Loading…
-                </td>
-              </tr>
+              <tr><td colSpan={5} className="p-0 border-0">
+                <PageLoader rows={8} columns={[140, 80, 120, 120, 120]} label="Loading LSA unmatched SKUs" />
+              </td></tr>
             ) : filtered.length === 0 ? (
               <tr>
                 <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">

@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Skeleton } from "@/components/ui/skeleton";
+import { PageLoader } from "@/components/ui/PageLoader";
 import { Link2Off, Play, EyeOff, Search, RotateCw, DownloadCloud } from "lucide-react";
 import ModuleHeader from "@/components/ModuleHeader";
 import { supabase } from "@/integrations/supabase/client";
@@ -385,9 +385,9 @@ const OrphanSkus = () => {
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                Array.from({ length: 8 }).map((_, i) => (
-                  <TableRow key={i}><TableCell colSpan={6}><Skeleton className="h-6 w-full" /></TableCell></TableRow>
-                ))
+                <TableRow><TableCell colSpan={6} className="p-0 border-0">
+                  <PageLoader rows={8} columns={[140, 260, 120, 80, 80, 80]} label="Loading orphan SKUs" />
+                </TableCell></TableRow>
               ) : !rows?.length ? (
                 <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">No orphan SKUs match this filter.</TableCell></TableRow>
               ) : rows.map((r) => (

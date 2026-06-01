@@ -7,7 +7,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
+import { PageLoader } from "@/components/ui/PageLoader";
 import { Button } from "@/components/ui/button";
 import { SkuFilters } from "@/components/sku-database/SkuFilters";
 import { useSkuDatabase } from "@/hooks/useSkuDatabase";
@@ -176,11 +176,7 @@ const SkuDatabase = () => {
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="space-y-2">
-              {[...Array(5)].map((_, i) => (
-                <Skeleton key={i} className="h-12 w-full" />
-              ))}
-            </div>
+            <PageLoader rows={8} columns={[120, 80, 120, 260, 80, 80, 80, 80]} label="Loading products" />
           ) : products && products.length > 0 ? (
             <>
               <div className="rounded-md border overflow-x-auto">

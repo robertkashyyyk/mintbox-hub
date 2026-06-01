@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
+import { PageLoader } from "@/components/ui/PageLoader";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -152,10 +153,7 @@ const SalesOrders = () => {
       <Card>
         <CardContent className="pt-4">
           {isLoading ? (
-            <div className="flex flex-col items-center justify-center py-16 gap-3">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">Loading order telemetry…</p>
-            </div>
+            <PageLoader rows={8} columns={[80, 100, 180, 80, 80, 80, 80]} label="Loading order telemetry" />
           ) : telemetryError ? (
             <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
               <p className="text-sm font-medium text-destructive">Failed to load order telemetry</p>

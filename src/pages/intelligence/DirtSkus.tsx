@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
+import { PageLoader } from "@/components/ui/PageLoader";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -153,7 +153,7 @@ const DirtSkus = () => {
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="space-y-2">{[...Array(5)].map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
+            <PageLoader rows={8} columns={[120, 100, 80, 80, 140]} label="Loading dirt SKUs" />
           ) : filtered.length === 0 ? (
             <div className="text-sm text-foreground/60 py-6 text-center">
               {grouped.length === 0 ? "No dirt SKUs in this period 🎉" : "Nothing matches the current filter."}
