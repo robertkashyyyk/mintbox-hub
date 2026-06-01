@@ -1,7 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useState } from "react";
-import { Pencil, Trash2, Plus, Loader2, Zap } from "lucide-react";
+import { Pencil, Trash2, Plus, Loader2, Zap, Tag } from "lucide-react";
+import ModuleHeader from "@/components/ModuleHeader";
 import {
   Table,
   TableBody,
@@ -247,18 +248,19 @@ const Brands = () => {
   };
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">Brands</h1>
-          <p className="text-foreground/60">
-            Manage brands and view product counts
-          </p>
+    <div className="space-y-6">
+      <div className="flex items-start justify-between gap-4">
+        <ModuleHeader
+          title="Brands"
+          description="Manage brands and view product counts"
+          icon={Tag}
+        />
+        <div className="flex-shrink-0 pt-1">
+          <Button onClick={() => setIsAddingBrand(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Brand
+          </Button>
         </div>
-        <Button onClick={() => setIsAddingBrand(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          Add Brand
-        </Button>
       </div>
 
       <Card>

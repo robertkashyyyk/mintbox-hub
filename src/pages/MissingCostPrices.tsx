@@ -24,7 +24,7 @@ const MissingCostPrices = () => {
   });
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="space-y-6">
       <div className="flex items-center gap-3">
         <AlertCircle className="h-8 w-8 text-orange-500" />
         <div>

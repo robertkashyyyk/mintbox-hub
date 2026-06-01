@@ -3,7 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PageLoader } from "@/components/ui/PageLoader";
-import { AlertCircle, Clock, CheckCircle2, RefreshCw } from "lucide-react";
+import { AlertCircle, Clock, CheckCircle2, RefreshCw, ListChecks } from "lucide-react";
+import ModuleHeader from "@/components/ModuleHeader";
 import { useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { formatDistanceToNow } from "date-fns";
@@ -75,12 +76,11 @@ const DiscoveryQueue = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-3xl font-bold tracking-tight text-foreground">Product Discovery Queue</h2>
-        <p className="text-foreground/60">
-          Products discovered from orders or catalog imports that need enrichment (cost price, stock info, or categories).
-        </p>
-      </div>
+      <ModuleHeader
+        title="Discovery Queue"
+        description="Products discovered from orders or catalog imports that need enrichment (cost price, stock info, or categories)."
+        icon={ListChecks}
+      />
 
       {/* Enrichment Progress Stats */}
       {enrichmentStats && (

@@ -29,7 +29,7 @@ const ProblematicOrders = () => {
   });
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="space-y-6">
       <div className="flex items-center gap-3">
         <AlertTriangle className="h-8 w-8 text-red-500" />
         <div>

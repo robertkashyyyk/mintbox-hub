@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Upload, CheckCircle, XCircle, Copy, Loader2, ImageIcon, Clock, Wrench } from "lucide-react";
+import { ArrowLeft, Upload, CheckCircle, XCircle, Copy, Loader2, ImageIcon, Clock, Wrench, Images } from "lucide-react";
+import ModuleHeader from "@/components/ModuleHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -208,15 +209,18 @@ const BulkImageUpload = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <Button variant="ghost" size="sm" className="text-pd-accent hover:text-pd-accent-light mb-2" onClick={() => navigate("/discovery")}>
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back to Discovery
-        </Button>
-        <h1 className="text-2xl font-bold text-foreground">Bulk Image Upload</h1>
-        <p className="text-sm text-foreground/60">
-          Drop image files named by SKU. Matched images go to products; unmatched ones are queued for review.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <ModuleHeader
+          title="Bulk Image Upload"
+          description="Drop image files named by SKU. Matched images go to products; unmatched ones are queued for review."
+          icon={Images}
+        />
+        <div className="flex-shrink-0 pt-1">
+          <Button variant="outline" size="sm" className="text-pd-accent border-pd-accent/30 hover:bg-pd-accent/10" onClick={() => navigate("/discovery")}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Discovery
+          </Button>
+        </div>
       </div>
         <Card>
           <CardContent className="p-8">

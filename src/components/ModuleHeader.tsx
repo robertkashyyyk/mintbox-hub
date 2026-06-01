@@ -11,7 +11,7 @@ const ModuleHeader = ({ title, description, icon: Icon, backgroundImage }: Modul
   // Compact inline header — used when no banner image is provided
   if (!backgroundImage) {
     return (
-      <div className="flex items-center gap-4 mb-6">
+      <div className="flex items-center gap-4">
         <div className="h-10 w-10 rounded-xl bg-pd-accent/20 border border-pd-accent/30 flex items-center justify-center flex-shrink-0">
           <Icon className="h-5 w-5 text-pd-accent" />
         </div>
