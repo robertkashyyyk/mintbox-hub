@@ -31,16 +31,25 @@ export const useBuyRecommendationsRpc = (opts?: {
     queryKey: ["buy-recs-rpc", opts?.supplierId, opts?.brandId, opts?.includePending],
     queryFn: async () => {
       const sb = supabase as any;
-      // Override PostgREST default cap (1000) via Range header
-      const { data, error } = await sb
-        .rpc("get_buy_recommendations", {
-          p_supplier_id: opts?.supplierId ?? null,
-          p_brand_id: opts?.brandId ?? null,
-          p_include_pending: !!opts?.includePending,
-        })
-        .range(0, 49999);
-      if (error) throw error;
-      return (data || []) as BuyRecommendationRow[];
+      // PostgREST caps RPC results at 1000 rows even with .range() — paginate manually.
+      const PAGE = 1000;
+      const all: BuyRecommendationRow[] = [];
+      let from = 0;
+      while (true) {
+        const { data, error } = await sb
+          .rpc("get_buy_recommendations", {
+            p_supplier_id: opts?.supplierId ?? null,
+            p_brand_id: opts?.brandId ?? null,
+            p_include_pending: !!opts?.includePending,
+          })
+          .range(from, from + PAGE - 1);
+        if (error) throw error;
+        const rows = (data || []) as BuyRecommendationRow[];
+        all.push(...rows);
+        if (rows.length < PAGE) break; // last page
+        from += PAGE;
+      }
+      return all;
     },
     staleTime: 30_000,
   });
