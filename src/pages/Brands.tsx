@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PageLoader } from "@/components/ui/PageLoader";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
@@ -266,11 +267,11 @@ const Brands = () => {
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="space-y-2">
-              <Skeleton className="h-12 w-full" />
-              <Skeleton className="h-12 w-full" />
-              <Skeleton className="h-12 w-full" />
-            </div>
+            <PageLoader
+              rows={10}
+              columns={[180, 80, 100, 120, 120, 80, 80, 80, 100]}
+              label="Loading brands"
+            />
           ) : (
             <Table>
               <TableHeader>

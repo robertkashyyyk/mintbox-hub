@@ -11,9 +11,10 @@
 --   - GRANT SELECT on sku_stock_health to authenticated (was lost in May 7 migration)
 --   - sku_health_summary_cache creation (created directly via API on 2026-05-31)
 
--- ── Step 1: Drop dependent objects ─────────────────────────────────────────────
+-- ── Step 1: Drop dependent objects (in dependency order) ──────────────────────
 DROP MATERIALIZED VIEW IF EXISTS public.sku_health_summary_cache;
 DROP VIEW IF EXISTS public.buy_recommendations;
+DROP VIEW IF EXISTS public.stock_valuation;          -- depends on sku_stock_health via LEFT JOIN
 DROP MATERIALIZED VIEW IF EXISTS public.sku_stock_health;
 
 -- ── Step 2: Rebuild sku_stock_health excluding remote (15D) SKUs ───────────────
@@ -94,7 +95,25 @@ WHERE base_multiplier IS NOT NULL
   AND avg_weekly_units > 0
   AND (avg_weekly_units * (base_multiplier * 2::numeric) - on_hand_qty) > 0;
 
--- ── Step 5: get_stock_health_summary — ensure it stays on the summary cache ────
+-- ── Step 5: Restore stock_valuation view ──────────────────────────────────────
+CREATE OR REPLACE VIEW public.stock_valuation
+WITH (security_invoker = true) AS
+SELECT
+  pc.sku,
+  pc.brand_id,
+  b.name                                                          AS brand_name,
+  COALESCE(pc.current_stock, 0)::numeric                         AS current_stock,
+  pc.cost_price,
+  (COALESCE(pc.cost_price, 0) * COALESCE(pc.current_stock, 0))::numeric AS net_value,
+  COALESCE(sh.health_category, 'Unknown')                        AS health_category,
+  pc.quarantined,
+  (pc.name ILIKE '15D%')::boolean                                AS is_remote
+FROM public.products_cache pc
+LEFT JOIN public.sku_stock_health sh ON sh.sku = pc.sku
+LEFT JOIN public.brands b            ON b.id   = pc.brand_id
+WHERE COALESCE(pc.discontinued, false) = false;
+
+-- ── Step 7: get_stock_health_summary — ensure it stays on the summary cache ────
 -- (Re-apply in case the function was ever reverted to the slow version)
 CREATE OR REPLACE FUNCTION public.get_stock_health_summary(
   p_brand_id     uuid    DEFAULT NULL,

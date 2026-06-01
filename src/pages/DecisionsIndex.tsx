@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ShoppingBag, Flame, TrendingDown, Package, Sparkles } from "lucide-react";
+import { ShoppingBag, ShoppingCart, Gauge, Plug, Sparkles } from "lucide-react";
 import ModuleHeader from "@/components/ModuleHeader";
 import decisionsBanner from "@/assets/banners/decisions-banner.jpg";
 
@@ -9,9 +9,9 @@ const DecisionsIndex = () => {
 
   const options = [
     { title: "Buy Recommendations", description: "AI-driven purchase order suggestions based on velocity", icon: ShoppingBag, onClick: () => navigate("/decisions/buying") },
-    { title: "Liquidation Candidates", description: "Products recommended for clearance or fire sale", icon: Flame, onClick: () => navigate("/decisions/liquidation") },
-    { title: "Price Moves", description: "Suggested pricing adjustments for competitiveness", icon: TrendingDown, onClick: () => navigate("/decisions/price-moves") },
-    { title: "Bundle Suggestions", description: "Product combinations for bundling opportunities", icon: Package, onClick: () => navigate("/decisions/bundles") },
+    { title: "Purchase Orders", description: "Create and manage purchase orders for suppliers", icon: ShoppingCart, onClick: () => navigate("/execution/purchase-orders") },
+    { title: "LSA Calibration", description: "Review and adjust listing strategy advisor settings", icon: Gauge, onClick: () => navigate("/decisions/lsa-calibration") },
+    { title: "3D Reprice", description: "Trigger repricing runs via 3D Sellers integration", icon: Plug, onClick: () => navigate("/decisions/threeds-reprice") },
   ];
 
   return (

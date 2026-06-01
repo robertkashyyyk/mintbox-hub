@@ -8,7 +8,7 @@ const ExecutionIndex = () => {
   const navigate = useNavigate();
 
   const options = [
-    { title: "Purchase Order Builder", description: "Create and manage purchase orders for suppliers", icon: ShoppingCart, onClick: () => navigate("/execution/purchase-orders") },
+    { title: "Purchase Orders", description: "Create and manage purchase orders for suppliers", icon: ShoppingCart, onClick: () => navigate("/execution/purchase-orders") },
     { title: "Price Hunter", description: "eBay price checks and automated pricing updates", icon: DollarSign, onClick: () => navigate("/execution/price-hunter") },
     { title: "Remote Stock Updates", description: "Configure and manage remote stock feed types", icon: RefreshCw, onClick: () => navigate("/execution/remote-stock-updates") },
     { title: "Listing Cloner", description: "Create and manage eBay listings from templates", icon: Copy, onClick: () => navigate("/execution/listing-cloner") },

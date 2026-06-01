@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
-import { 
+import {
   Search, Database, Tag, AlertCircle, Activity, FileText,
   TrendingUp, DollarSign, Calendar,
-  ShoppingBag, Flame, TrendingDown, Package,
+  ShoppingBag, TrendingDown, Package,
   ShoppingCart, RefreshCw, Copy,
   Users, Key, CreditCard, LogOut, UserCircle, Gauge,
   ChevronDown, ChevronRight, LayoutDashboard, Settings,
-  Images, Clock, Plug, Truck, AlertTriangle, Sliders, Beaker, BarChart3, ArrowUpDown
+  Images, Clock, Plug, Truck, AlertTriangle, Sliders, Beaker, BarChart3, ArrowUpDown,
+  PoundSterling, Link2Off, HelpCircle, ClipboardList
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -95,9 +96,10 @@ export function AppSidebar() {
       basePath: "/intelligence",
       icon: TrendingUp,
       items: [
-        { title: "Profit", url: "/intelligence/profit", icon: DollarSign },
+        { title: "Profit Intelligence", url: "/intelligence/profit", icon: DollarSign },
         { title: "Velocity & Coverage", url: "/intelligence/velocity", icon: TrendingUp },
         { title: "Stock Health", url: "/intelligence/stock-health", icon: Activity },
+        { title: "Stock Valuation", url: "/intelligence/stock-valuation", icon: PoundSterling },
         { title: "Pricing Signals", url: "/intelligence/pricing", icon: DollarSign },
         { title: "Seasonality", url: "/intelligence/seasonality", icon: Calendar },
         { title: "Missing Costs", url: "/intelligence/missing-costs", icon: AlertCircle },
@@ -109,11 +111,14 @@ export function AppSidebar() {
       basePath: "/housekeeping",
       icon: Clock,
       items: [
-        { title: "Overview", url: "/housekeeping", icon: Clock },
         { title: "Missing Costs", url: "/intelligence/missing-costs", icon: AlertCircle },
         { title: "Dirt SKUs", url: "/intelligence/dirt-skus", icon: AlertTriangle },
         { title: "Pending Images", url: "/discovery/pending-images", icon: Images },
         { title: "Discovery Queue", url: "/discovery/discovery-queue", icon: Search },
+        { title: "Missing Barcodes", url: "/discovery/products?filter=no-barcode", icon: Tag },
+        { title: "Carrier Remeasure", url: "/operations/carriers/remeasure", icon: Truck },
+        { title: "Orphan SKUs", url: "/housekeeping/orphan-skus", icon: Link2Off },
+        { title: "LSA Unmatched SKUs", url: "/housekeeping/lsa-unmatched", icon: HelpCircle },
       ],
     },
     {
@@ -123,36 +128,20 @@ export function AppSidebar() {
       requireSenior: true,
       items: [
         { title: "Buy Recommendations", url: "/decisions/buying", icon: ShoppingBag },
-        { title: "LSA Calibration", url: "/decisions/lsa-calibration", icon: Gauge },
-        { title: "Liquidation Candidates", url: "/decisions/liquidation", icon: Flame },
-        { title: "Price Moves", url: "/decisions/price-moves", icon: TrendingDown },
-        { title: "Bundle Suggestions", url: "/decisions/bundles", icon: Package },
-        { title: "3D Reprice", url: "/decisions/threeds-reprice", icon: Plug },
-      ],
-    },
-    {
-      label: "Execution",
-      basePath: "/execution",
-      icon: ShoppingCart,
-      requireSenior: true,
-      items: [
         { title: "Purchase Orders", url: "/execution/purchase-orders", icon: ShoppingCart },
-        { title: "Price Hunter", url: "/execution/price-hunter", icon: DollarSign },
-        { title: "Remote Stock Updates", url: "/execution/remote-stock-updates", icon: RefreshCw },
-        { title: "Listing Cloner", url: "/execution/listing-cloner", icon: Copy },
+        { title: "LSA Calibration", url: "/decisions/lsa-calibration", icon: Gauge },
+        { title: "3D Reprice", url: "/decisions/threeds-reprice", icon: Plug },
       ],
     },
     {
       label: "Operations",
       basePath: "/operations",
-      icon: Gauge,
+      icon: Activity,
       requireSenior: true,
       items: [
-        { title: "Dashboard", url: "/operations/dashboard", icon: LayoutDashboard },
-        { title: "Trends", url: "/operations/trends", icon: TrendingUp },
-        { title: "SKU Analysis", url: "/operations/sku-analysis", icon: Package },
         { title: "Order Telemetry", url: "/operations/order-telemetry", icon: Activity, superOnly: true },
         { title: "Carriers", url: "/operations/carriers", icon: Truck },
+        { title: "SKU Analysis", url: "/operations/sku-analysis", icon: Package },
         { title: "Reports", url: "/operations/reports", icon: FileText, superOnly: true },
       ],
     },
@@ -162,9 +151,11 @@ export function AppSidebar() {
       icon: LayoutDashboard,
       requireSenior: true,
       items: [
+        { title: "Operations Dashboard", url: "/operations/dashboard", icon: Activity },
         { title: "Warehouse Performance", url: "/dashboards/warehouse", icon: LayoutDashboard },
-        { title: "Packing Area", url: "/dashboards/packing", icon: Package },
+        { title: "Packing Area Display", url: "/dashboards/packing", icon: Package },
         { title: "Weekly Summary", url: "/dashboards/weekly", icon: TrendingUp },
+        { title: "Trends", url: "/operations/trends", icon: TrendingUp },
         { title: "Back Orders", url: "/dashboards/backorders", icon: TrendingDown },
       ],
     },
@@ -183,15 +174,6 @@ export function AppSidebar() {
         { title: "Profit Rules", url: "/admin/profit-rules", icon: Sliders },
         { title: "Suppliers", url: "/admin/suppliers", icon: Truck },
         { title: "SKU Transformations", url: "/admin/sku-transformations", icon: ArrowUpDown },
-      ],
-    },
-    {
-      label: "Vendors",
-      basePath: "/admin/suppliers",
-      icon: Truck,
-      requireSenior: true,
-      items: [
-        { title: "Suppliers", url: "/admin/suppliers", icon: Truck },
       ],
     },
   ];
@@ -370,6 +352,14 @@ export function AppSidebar() {
       
       <SidebarFooter>
         <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild isActive={isActive("/progress-log")} tooltip="Progress Log">
+              <NavLink to="/progress-log">
+                <ClipboardList className="h-4 w-4" />
+                <span>Progress Log</span>
+              </NavLink>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton asChild isActive={isActive("/profile")} tooltip="Profile">
               <NavLink to="/profile">

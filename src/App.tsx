@@ -119,6 +119,9 @@ import BackOrders from "./pages/dashboards/BackOrders";
 import GamesIndex from "./pages/games/GamesIndex";
 import MissingCostsGame from "./pages/games/MissingCostsGame";
 
+// Progress Log
+import ProgressLog from "./pages/ProgressLog";
+
 // Configure QueryClient with better error handling and retry logic
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -275,11 +278,17 @@ const App = () => (
             <Route path="/games" element={<GamesIndex />} />
             <Route path="/games/mcg" element={<MissingCostsGame />} />
 
+            {/* Progress Log */}
+            <Route path="/progress-log" element={<ProgressLog />} />
+
             {/* Archived legacy pages — redirect to appropriate modules */}
             <Route path="/ebay-admin" element={<Navigate to="/admin/integrations" replace />} />
             <Route path="/missing-cost-prices" element={<Navigate to="/intelligence/stock-health" replace />} />
             <Route path="/problematic-orders" element={<Navigate to="/operations/order-telemetry" replace />} />
           </Route>
+
+          {/* Section redirects */}
+          <Route path="/execution" element={<Navigate to="/decisions" replace />} />
 
           {/* Legacy Redirects */}
           <Route path="/dashboard" element={<Navigate to="/execution/purchase-orders" replace />} />
