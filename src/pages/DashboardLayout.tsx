@@ -161,7 +161,7 @@ const DashboardLayout = () => {
       <div className="min-h-screen flex w-full bg-background dark">
         <AppSidebar />
 
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex flex-col min-w-0">
           {/* Idle warning banner — super_users only, after 2 hours of inactivity */}
           {showIdleWarning && isSuperUser && !maintenanceMode && (
             <div className="bg-blue-500/10 border-b border-blue-500/20 px-4 py-2 flex items-center justify-between gap-4 text-sm text-blue-400">

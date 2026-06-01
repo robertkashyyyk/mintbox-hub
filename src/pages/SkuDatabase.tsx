@@ -19,9 +19,10 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
-import { ArrowUpDown, Download, ImageIcon } from "lucide-react";
+import { ArrowUpDown, Download, ImageIcon, Database } from "lucide-react";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
+import ModuleHeader from "@/components/ModuleHeader";
 
 const SkuDatabase = () => {
   const {
@@ -150,17 +151,18 @@ const SkuDatabase = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">SKU Database</h1>
-          <p className="text-foreground/60 mt-2">
-            Showing {filteredCount} of {totalCount} products
-          </p>
+      <div className="flex items-start justify-between gap-4">
+        <ModuleHeader
+          title="Products"
+          description={`Showing ${filteredCount} of ${totalCount} products`}
+          icon={Database}
+        />
+        <div className="flex-shrink-0 pt-1">
+          <Button onClick={exportToCSV} disabled={isLoading || products.length === 0}>
+            <Download className="h-4 w-4 mr-2" />
+            Export
+          </Button>
         </div>
-        <Button onClick={exportToCSV} disabled={isLoading || products.length === 0}>
-          <Download className="h-4 w-4 mr-2" />
-          Export Filtered View
-        </Button>
       </div>
 
       <SkuFilters
