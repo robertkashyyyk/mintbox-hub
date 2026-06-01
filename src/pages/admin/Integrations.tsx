@@ -10,9 +10,10 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { 
-  ArrowLeft, Plug, CheckCircle2, XCircle, AlertCircle, Loader2, RefreshCw, ExternalLink, Settings2
+import {
+  ArrowLeft, Plug, CheckCircle2, XCircle, AlertCircle, Loader2, RefreshCw, ExternalLink, Settings2, Link2
 } from "lucide-react";
+import ModuleHeader from "@/components/ModuleHeader";
 import { format } from "date-fns";
 import type { Json } from "@/integrations/supabase/types";
 
@@ -141,19 +142,24 @@ const Integrations = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between gap-4">
         <div>
           <Button variant="ghost" size="sm" className="text-pd-accent hover:text-pd-accent-light mb-2" onClick={() => navigate("/admin")}>
             <ArrowLeft className="h-4 w-4 mr-2" />Back to Administration
           </Button>
-          <h1 className="text-2xl font-bold text-foreground">Integrations</h1>
-          <p className="text-sm text-foreground/60">Manage connections to external services</p>
+          <ModuleHeader
+            title="Integrations"
+            description="Manage connections to external services."
+            icon={Link2}
+          />
         </div>
-        <Button variant="outlineDark" size="sm" asChild>
-          <a href="https://docs.lovable.dev/features/security" target="_blank" rel="noopener noreferrer">
-            <ExternalLink className="h-4 w-4 mr-1" />Managing Secrets
-          </a>
-        </Button>
+        <div className="flex-shrink-0 pt-1">
+          <Button variant="outlineDark" size="sm" asChild>
+            <a href="https://docs.lovable.dev/features/security" target="_blank" rel="noopener noreferrer">
+              <ExternalLink className="h-4 w-4 mr-1" />Managing Secrets
+            </a>
+          </Button>
+        </div>
       </div>
 
       <div className="p-4 bg-muted/50 rounded-lg border">

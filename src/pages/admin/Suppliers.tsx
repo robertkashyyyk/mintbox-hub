@@ -17,7 +17,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Pencil, Trash2, DownloadCloud, Loader2, AlertTriangle } from "lucide-react";
+import { Plus, Pencil, Trash2, DownloadCloud, Loader2, AlertTriangle, Building2 } from "lucide-react";
+import ModuleHeader from "@/components/ModuleHeader";
 
 interface Supplier {
   id: string;
@@ -231,12 +232,13 @@ const Suppliers = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">Suppliers</h1>
-          <p className="text-foreground/60">Vendors used to fulfil purchase orders.</p>
-        </div>
-        <div className="flex gap-2">
+      <div className="flex items-start justify-between gap-4">
+        <ModuleHeader
+          title="Suppliers"
+          description="Vendors used to fulfil purchase orders."
+          icon={Building2}
+        />
+        <div className="flex-shrink-0 pt-1 flex gap-2">
           <Button
             variant="outline"
             disabled={pulling}

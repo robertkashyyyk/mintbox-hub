@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TrendingUp, ChevronLeft, ChevronRight, AlertTriangle, RefreshCw, ArrowUp, ArrowDown, ArrowUpDown, LineChart as LineChartIcon } from "lucide-react";
+import ModuleHeader from "@/components/ModuleHeader";
 import { Link } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
 
@@ -232,17 +233,13 @@ const ProfitDashboard = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
-            <TrendingUp className="h-6 w-6 text-pd-accent" />
-            Profit Intelligence
-          </h1>
-          <p className="text-sm text-foreground/60 mt-1">
-            Weekly revenue, costs, channel fees, courier spend and POR — calculated from live order lines.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
+      <div className="flex items-start justify-between gap-4">
+        <ModuleHeader
+          title="Profit Dashboard"
+          description="Weekly revenue, costs, channel fees, courier spend and POR — calculated from live order lines."
+          icon={TrendingUp}
+        />
+        <div className="flex-shrink-0 pt-1 flex items-center gap-2">
           <Button asChild variant="outline" size="sm">
             <Link to="/intelligence/profit/graphs">
               <LineChartIcon className="h-4 w-4 mr-2" />

@@ -2,7 +2,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ArrowUpDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowUpDown, ChevronLeft, ChevronRight, TrendingUp } from "lucide-react";
+import ModuleHeader from "@/components/ModuleHeader";
 import { useSkuVelocity } from "@/hooks/useSkuVelocity";
 import { VelocityFilters } from "@/components/intelligence/VelocityFilters";
 import { Link } from "react-router-dom";
@@ -42,12 +43,11 @@ const VelocityCoverage = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-3xl font-bold tracking-tight text-foreground">Velocity & Coverage</h2>
-        <p className="text-foreground/60">
-          Sales velocity analysis showing product movement over 30, 60, and 90-day periods.
-        </p>
-      </div>
+      <ModuleHeader
+        title="Velocity & Coverage"
+        description="Sales velocity analysis showing product movement over 30, 60, and 90-day periods."
+        icon={TrendingUp}
+      />
 
       <Card>
         <CardHeader>

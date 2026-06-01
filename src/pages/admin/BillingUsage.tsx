@@ -1,15 +1,15 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CreditCard } from "lucide-react";
+import ModuleHeader from "@/components/ModuleHeader";
 
 const BillingUsage = () => {
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-3xl font-bold tracking-tight text-foreground">Billing & Usage</h2>
-        <p className="text-foreground/60">
-          View Xask usage and billing information.
-        </p>
-      </div>
+      <ModuleHeader
+        title="Billing & Usage"
+        description="View Xask usage and billing information."
+        icon={CreditCard}
+      />
 
       <Card>
         <CardHeader>

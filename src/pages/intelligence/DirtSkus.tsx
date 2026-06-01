@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertTriangle, ArrowUpDown, ArrowUp, ArrowDown, X } from "lucide-react";
+import ModuleHeader from "@/components/ModuleHeader";
 import { Link } from "react-router-dom";
 
 type RangeKey = "1" | "2" | "4" | "8";
@@ -105,15 +106,11 @@ const DirtSkus = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
-          <AlertTriangle className="h-6 w-6 text-warning" />
-          Dirt SKUs
-        </h1>
-        <p className="text-sm text-foreground/60 mt-1">
-          SKUs that don't match a known brand prefix style. These slip past brand-routing rules and skew profit/ownership reports.
-        </p>
-      </div>
+      <ModuleHeader
+        title="Dirt SKUs"
+        description="SKUs that don't match a known brand prefix style. These slip past brand-routing rules and skew profit/ownership reports."
+        icon={AlertTriangle}
+      />
 
       <Card>
         <CardHeader>

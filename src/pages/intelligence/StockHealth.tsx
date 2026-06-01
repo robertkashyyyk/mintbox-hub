@@ -4,6 +4,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, Activity, RefreshCw } from "lucide-react";
+import ModuleHeader from "@/components/ModuleHeader";
 import { StockHealthFilters } from "@/components/intelligence/StockHealthFilters";
 import { useStockHealth } from "@/hooks/useStockHealth";
 import { Link } from "react-router-dom";
@@ -84,20 +85,18 @@ const StockHealth = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight text-foreground">Stock Health</h2>
-          <p className="text-foreground/60">
-            Stock levels, overstock, and shortage analysis powered by sales velocity.
-          </p>
-          <p className="text-xs text-foreground/50 mt-1">
-            Snapshot auto-refreshes daily at 06:30 UTC. Use Refresh now after editing brand base multipliers.
-          </p>
+      <div className="flex items-start justify-between gap-4">
+        <ModuleHeader
+          title="Stock Health"
+          description="Stock levels, overstock, and shortage analysis powered by sales velocity."
+          icon={Activity}
+        />
+        <div className="flex-shrink-0 pt-1">
+          <Button variant="outline" size="sm" onClick={handleRefreshSnapshot} disabled={refreshing}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? "animate-spin" : ""}`} />
+            {refreshing ? "Refreshing…" : "Refresh now"}
+          </Button>
         </div>
-        <Button variant="outline" size="sm" onClick={handleRefreshSnapshot} disabled={refreshing}>
-          <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? "animate-spin" : ""}`} />
-          {refreshing ? "Refreshing…" : "Refresh now"}
-        </Button>
       </div>
 
       {/* Top-level KPI cards. Click a category card to filter the table below. */}

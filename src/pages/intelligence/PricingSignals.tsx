@@ -12,7 +12,8 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { TrendingUp, Send, Calculator, Search, AlertTriangle } from "lucide-react";
+import { TrendingUp, Send, Calculator, Search, AlertTriangle, TrendingDown } from "lucide-react";
+import ModuleHeader from "@/components/ModuleHeader";
 import { useToast } from "@/hooks/use-toast";
 
 // ---------- helpers ----------
@@ -311,17 +312,11 @@ const PricingSignals = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-3 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
-            <TrendingUp className="h-6 w-6 text-pd-accent" />
-            Pricing Signals
-          </h1>
-          <p className="text-sm text-foreground/60 mt-1">
-            Repricing tools driven by last week's profit data.
-          </p>
-        </div>
-      </div>
+      <ModuleHeader
+        title="Pricing Signals"
+        description="Repricing tools driven by last week's profit data."
+        icon={TrendingDown}
+      />
 
       <Tabs defaultValue="loss-changes" className="w-full">
         <TabsList>

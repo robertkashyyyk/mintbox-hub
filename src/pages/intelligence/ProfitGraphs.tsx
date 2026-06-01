@@ -3,7 +3,8 @@ import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, RefreshCw, TrendingUp } from "lucide-react";
+import { ArrowLeft, RefreshCw, TrendingUp, BarChart2 } from "lucide-react";
+import ModuleHeader from "@/components/ModuleHeader";
 import {
   ResponsiveContainer, LineChart, Line, AreaChart, Area, BarChart, Bar, ComposedChart,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -98,14 +99,18 @@ const ProfitGraphs = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="sm" asChild>
             <Link to="/intelligence/profit"><ArrowLeft className="h-4 w-4 mr-1" />Back</Link>
           </Button>
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">Profit — Graphs</h1>
+          <ModuleHeader
+            title="Profit — Graphs"
+            description="Weekly revenue, profit, and cost trends over time."
+            icon={BarChart2}
+          />
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex-shrink-0 pt-1 flex items-center gap-2">
           <Button variant="ghost" size="sm" onClick={rebuildAll} disabled={busy}>
             <RefreshCw className={`h-4 w-4 mr-2 ${busy ? "animate-spin" : ""}`} />
             Rebuild all weeks

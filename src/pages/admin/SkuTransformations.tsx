@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, ArrowLeftRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import ModuleHeader from "@/components/ModuleHeader";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SkuLogicTab } from "@/components/admin/sku-transformations/SkuLogicTab";
 import { RulesTab } from "@/components/admin/sku-transformations/RulesTab";
@@ -9,17 +10,17 @@ const SkuTransformations = () => {
   const navigate = useNavigate();
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">SKU Transformations</h1>
-          <p className="text-sm text-muted-foreground">
-            Classify SKUs and define how procurement packs and multiplier SKUs map to base stock units.
-            Phase 2: admin/classification only — no operational behaviour changes yet.
-          </p>
+      <div className="flex items-start justify-between gap-4">
+        <ModuleHeader
+          title="SKU Transformations"
+          description="Classify SKUs and define how procurement packs and multiplier SKUs map to base stock units."
+          icon={ArrowLeftRight}
+        />
+        <div className="flex-shrink-0 pt-1">
+          <Button variant="ghost" size="sm" onClick={() => navigate("/admin")} className="text-pd-accent">
+            <ArrowLeft className="h-4 w-4 mr-1" /> Back to Admin
+          </Button>
         </div>
-        <Button variant="ghost" size="sm" onClick={() => navigate("/admin")} className="text-pd-accent">
-          <ArrowLeft className="h-4 w-4 mr-1" /> Back to Admin
-        </Button>
       </div>
 
       <Tabs defaultValue="logic">

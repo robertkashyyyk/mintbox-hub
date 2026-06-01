@@ -1,5 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { Settings, Shield, AlertTriangle, ArrowLeft, Package, Clock, Gauge, SlidersHorizontal, Truck } from "lucide-react";
+import ModuleHeader from "@/components/ModuleHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
@@ -173,13 +174,11 @@ const SystemSettings = () => {
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Administration
           </Button>
-          <div className="flex items-center gap-3">
-            <Settings className="h-6 w-6 text-pd-accent" />
-            <div>
-              <h1 className="text-2xl font-bold text-foreground">System Settings</h1>
-              <p className="text-sm text-foreground/60">Application-wide configuration and feature flags</p>
-            </div>
-          </div>
+          <ModuleHeader
+            title="System Settings"
+            description="Application-wide configuration and feature flags."
+            icon={Settings}
+          />
         </div>
 
         <div className="max-w-2xl space-y-6">

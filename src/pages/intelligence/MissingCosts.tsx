@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { PageLoader } from "@/components/ui/PageLoader";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, Save } from "lucide-react";
+import ModuleHeader from "@/components/ModuleHeader";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -327,15 +328,11 @@ const MissingCosts = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
-          <AlertCircle className="h-6 w-6 text-destructive" />
-          Missing Cost Prices
-        </h1>
-        <p className="text-sm text-foreground/60 mt-1">
-          Without a cost price we cannot compute profit. Edit cost inline and push back to Mintsoft.
-        </p>
-      </div>
+      <ModuleHeader
+        title="Missing Cost Prices"
+        description="Without a cost price we cannot compute profit. Edit cost inline and push back to Mintsoft."
+        icon={AlertCircle}
+      />
 
       <Card className="border-destructive/40">
         <CardContent className="p-4 flex items-center justify-between flex-wrap gap-3">

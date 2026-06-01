@@ -15,7 +15,8 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Upload, Loader2, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Upload, Loader2, AlertTriangle, RefreshCw } from "lucide-react";
+import ModuleHeader from "@/components/ModuleHeader";
 import { format } from "date-fns";
 
 interface Store {
@@ -198,10 +199,11 @@ export default function ThreedsReprice() {
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back to Decisions
         </Button>
-        <h1 className="text-2xl font-bold text-foreground">3D Reprice</h1>
-        <p className="text-sm text-foreground/60">
-          Pick a store, tick the SKUs you want to reprice, type the new price, then push to 3D via SFTP.
-        </p>
+        <ModuleHeader
+          title="3D Reprice"
+          description="Pick a store, tick the SKUs you want to reprice, type the new price, then push to 3D via SFTP."
+          icon={RefreshCw}
+        />
       </div>
 
       <Card>

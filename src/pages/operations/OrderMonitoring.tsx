@@ -1,14 +1,17 @@
 import { OrderStatusSnapshots } from "@/components/dashboard/OrderStatusSnapshots";
 import { BackorderAgeingSnapshot } from "@/components/dashboard/BackorderAgeingSnapshot";
 import { SnapshotControls } from "@/components/operations/SnapshotControls";
+import ModuleHeader from "@/components/ModuleHeader";
+import { Activity } from "lucide-react";
 
 const OrderMonitoring = () => {
   return (
     <div className="space-y-8">
-      <div>
-      <h1 className="text-2xl font-bold text-foreground">Order Status Monitoring</h1>
-        <p className="text-foreground/60">Track order status snapshots and daily progress</p>
-      </div>
+      <ModuleHeader
+        title="Order Status Monitoring"
+        description="Track order status snapshots and daily progress."
+        icon={Activity}
+      />
 
       <SnapshotControls />
       

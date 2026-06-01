@@ -3,7 +3,8 @@ import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, RefreshCw, TrendingUp } from "lucide-react";
+import { ArrowLeft, RefreshCw, TrendingUp, BarChart2 } from "lucide-react";
+import ModuleHeader from "@/components/ModuleHeader";
 import {
   ResponsiveContainer, LineChart, Line, AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -110,17 +111,23 @@ const StockValuationGraphs = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="sm" asChild>
             <Link to="/intelligence/stock-valuation"><ArrowLeft className="h-4 w-4 mr-1" />Back</Link>
           </Button>
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">Stock Valuation — Graphs</h1>
+          <ModuleHeader
+            title="Stock Valuation — Graphs"
+            description="Weekly snapshots of stock value, units, and health category breakdown."
+            icon={BarChart2}
+          />
         </div>
-        <Button variant="outline" size="sm" onClick={snapshotNow} disabled={snapping}>
-          <RefreshCw className={`h-4 w-4 mr-2 ${snapping ? "animate-spin" : ""}`} />
-          Snapshot now
-        </Button>
+        <div className="flex-shrink-0 pt-1">
+          <Button variant="outline" size="sm" onClick={snapshotNow} disabled={snapping}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${snapping ? "animate-spin" : ""}`} />
+            Snapshot now
+          </Button>
+        </div>
       </div>
 
       <p className="text-sm text-muted-foreground">

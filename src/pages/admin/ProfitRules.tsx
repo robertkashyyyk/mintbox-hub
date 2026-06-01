@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Settings, Plus, Save, Trash2 } from "lucide-react";
+import { Settings, Plus, Save, Trash2, Percent } from "lucide-react";
+import ModuleHeader from "@/components/ModuleHeader";
 import { toast } from "@/hooks/use-toast";
 
 interface FeeRule {
@@ -105,15 +106,11 @@ const ProfitRules = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
-          <Settings className="h-6 w-6 text-pd-accent" />
-          Profit Rules
-        </h1>
-        <p className="text-sm text-foreground/60 mt-1">
-          Channel fee formulas and courier costs used by the Profit Intelligence dashboard.
-        </p>
-      </div>
+      <ModuleHeader
+        title="Profit Rules"
+        description="Channel fee formulas and courier costs used by the Profit Intelligence dashboard."
+        icon={Percent}
+      />
 
       {/* Channel Fee Rules */}
       <Card>
