@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -15,9 +15,14 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Upload, Loader2, AlertTriangle, RefreshCw } from "lucide-react";
+import { ArrowLeft, Upload, Loader2, AlertTriangle, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
 import ModuleHeader from "@/components/ModuleHeader";
 import { format } from "date-fns";
+import {
+  type Tier, type FeeRule, type CostFlag,
+  TIER_OPTIONS, TIER_TARGET_POR_PCT, SUSPECT_COST_MULTIPLE,
+  effectiveFeesFor, backSolveGrossPrice, classifyCost, toGross,
+} from "@/lib/reprice";
 
 interface Store {
   id: string;
@@ -32,9 +37,12 @@ interface Candidate {
   brand_name: string | null;
   units_sold: number;
   revenue: number | null;
+  cost_total: number | null;
+  fees_total: number | null;
+  courier_total: number | null;
   profit: number | null;
   por_pct: number | null;
-  current_price: number | null;
+  current_price: number | null; // NET (ex-VAT) latest sold price
   current_stock: number | null;
 }
 interface PushLog {
@@ -46,27 +54,36 @@ interface PushLog {
   error_message: string | null;
 }
 
+/** Candidate enriched with per-unit economics + the gross prices we actually use. */
+interface EnrichedRow extends Candidate {
+  costUnit: number;
+  grossLastSold: number | null; // current_price grossed up (what eBay shows)
+  flag: CostFlag;
+  suggestedGross: number | null; // back-solved to the chosen tier
+}
+
+const PAGE_SIZE = 50;
+
 const gbp = (n: number | null | undefined) =>
   n == null ? "—" :
     new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(n);
 const pct = (n: number | null | undefined) =>
   n == null ? "—" : `${n.toFixed(1)}%`;
 
-/**
- * Suggested new price = break-even + 5% headroom.
- * profit_per_unit = profit / units. If profit < 0 we add the loss back
- * onto the current price so the SKU at least breaks even, plus a small
- * cushion. Only returned when we have current_price, units > 0 and a
- * negative profit — otherwise the user can keep the current price.
- */
-const suggestPrice = (c: Candidate): number | null => {
-  if (c.current_price == null || c.units_sold <= 0 || c.profit == null) return null;
-  if (c.profit >= 0) return null;
-  const lossPerUnit = -c.profit / c.units_sold; // positive
-  const suggested = c.current_price + lossPerUnit;
-  // 5% cushion so we don't sit exactly on break-even
-  return Math.round(suggested * 1.05 * 100) / 100;
-};
+function Pager({ page, pageCount, onChange }: { page: number; pageCount: number; onChange: (p: number) => void }) {
+  if (pageCount <= 1) return null;
+  return (
+    <div className="flex items-center justify-end gap-2 pt-3 text-sm">
+      <span className="text-muted-foreground">Page {page} of {pageCount}</span>
+      <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => onChange(page - 1)}>
+        <ChevronLeft className="h-4 w-4" />
+      </Button>
+      <Button variant="outline" size="sm" disabled={page >= pageCount} onClick={() => onChange(page + 1)}>
+        <ChevronRight className="h-4 w-4" />
+      </Button>
+    </div>
+  );
+}
 
 export default function ThreedsReprice() {
   const navigate = useNavigate();
@@ -77,7 +94,10 @@ export default function ThreedsReprice() {
   const [days, setDays] = useState(90);
   const [search, setSearch] = useState("");
   const [lossOnly, setLossOnly] = useState(false);
-  const [selected, setSelected] = useState<Record<string, { checked: boolean; price: string }>>({});
+  const [tier, setTier] = useState<Tier>("breakeven");
+  const [selected, setSelected] = useState<Record<string, { checked: boolean; price?: string }>>({});
+  const [page, setPage] = useState(1);
+  const [flagPage, setFlagPage] = useState(1);
 
   const { data: stores, isLoading: storesLoading } = useQuery({
     queryKey: ["threeds_stores"],
@@ -91,7 +111,25 @@ export default function ThreedsReprice() {
     },
   });
 
+  const { data: feeRules } = useQuery({
+    queryKey: ["channel_fee_rules"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("channel_fee_rules")
+        .select("channel_pattern, vat_rate, fee_pct, fixed_fee, priority, active")
+        .eq("active", true)
+        .order("priority");
+      if (error) throw error;
+      return data as FeeRule[];
+    },
+  });
+
   const activeStore = stores?.find((s) => s.id === storeId) ?? null;
+
+  const fees = useMemo(
+    () => effectiveFeesFor(activeStore?.mintsoft_channel ?? "", feeRules),
+    [activeStore?.mintsoft_channel, feeRules],
+  );
 
   const { data: candidates, isLoading: candLoading, refetch } = useQuery({
     queryKey: ["threeds_candidates", activeStore?.mintsoft_channel, days],
@@ -121,27 +159,81 @@ export default function ThreedsReprice() {
     },
   });
 
-  const filtered = useMemo(() => {
-    let rows = candidates ?? [];
+  // Enrich every candidate with per-unit economics, cost flag and a back-solved
+  // gross price for the chosen tier.
+  const enriched = useMemo<EnrichedRow[]>(() => {
+    const targetPorFrac = TIER_TARGET_POR_PCT[tier] / 100;
+    return (candidates ?? []).map((c) => {
+      const units = c.units_sold > 0 ? c.units_sold : 0;
+      const costUnit = units > 0 ? (c.cost_total ?? 0) / units : 0;
+      const courierUnit = units > 0 ? (c.courier_total ?? 0) / units : 0;
+      const grossLastSold = toGross(c.current_price, fees.vat);
+      const flag = classifyCost({ costTotal: c.cost_total, unitsSold: units, grossPrice: grossLastSold });
+      const suggestedGross =
+        flag === null
+          ? backSolveGrossPrice({
+              costUnit,
+              courierUnit,
+              fixedFeeUnit: fees.fixedFee,
+              feePct: fees.feePct,
+              vat: fees.vat,
+              targetPorFrac,
+            })
+          : null;
+      return { ...c, costUnit, grossLastSold, flag, suggestedGross };
+    });
+  }, [candidates, tier, fees]);
+
+  const matchesSearch = (r: EnrichedRow) => {
+    if (!search.trim()) return true;
+    const q = search.toLowerCase();
+    return (
+      r.sku.toLowerCase().includes(q) ||
+      (r.product_name ?? "").toLowerCase().includes(q) ||
+      (r.brand_name ?? "").toLowerCase().includes(q)
+    );
+  };
+
+  const repriceable = useMemo(() => {
+    let rows = enriched.filter((r) => r.flag === null);
     if (lossOnly) rows = rows.filter((r) => (r.profit ?? 0) < 0);
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      rows = rows.filter(
-        (r) =>
-          r.sku.toLowerCase().includes(q) ||
-          (r.product_name ?? "").toLowerCase().includes(q) ||
-          (r.brand_name ?? "").toLowerCase().includes(q),
-      );
-    }
-    return rows;
-  }, [candidates, lossOnly, search]);
+    return rows.filter(matchesSearch);
+  }, [enriched, lossOnly, search]);
+
+  const flagged = useMemo(
+    () => enriched.filter((r) => r.flag !== null).filter(matchesSearch),
+    [enriched, search],
+  );
+
+  const missingCount = useMemo(() => enriched.filter((r) => r.flag === "missing_cost").length, [enriched]);
+  const suspectCount = useMemo(() => enriched.filter((r) => r.flag === "suspect_cost").length, [enriched]);
+
+  // Reset pagination + selection when the working set changes.
+  useEffect(() => { setPage(1); }, [search, lossOnly, tier, storeId, days]);
+  useEffect(() => { setFlagPage(1); }, [search, storeId, days]);
+  useEffect(() => { setSelected({}); }, [storeId, days]);
+
+  const pageCount = Math.max(1, Math.ceil(repriceable.length / PAGE_SIZE));
+  const pageRows = useMemo(
+    () => repriceable.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+    [repriceable, page],
+  );
+  const flagPageCount = Math.max(1, Math.ceil(flagged.length / PAGE_SIZE));
+  const flagPageRows = useMemo(
+    () => flagged.slice((flagPage - 1) * PAGE_SIZE, flagPage * PAGE_SIZE),
+    [flagged, flagPage],
+  );
+
+  // Effective price for a row = user override, else the tier suggestion.
+  const effectivePrice = (r: EnrichedRow): string =>
+    selected[r.sku]?.price ?? (r.suggestedGross != null ? r.suggestedGross.toFixed(2) : "");
 
   const selectedRows = useMemo(() => {
-    return Object.entries(selected)
-      .filter(([_, v]) => v.checked && v.price.trim() !== "")
-      .map(([sku, v]) => ({ sku, new_price: parseFloat(v.price) }))
-      .filter((r) => !isNaN(r.new_price) && r.new_price >= 0);
-  }, [selected]);
+    return repriceable
+      .filter((r) => selected[r.sku]?.checked)
+      .map((r) => ({ sku: r.sku, new_price: parseFloat(effectivePrice(r)) }))
+      .filter((r) => !isNaN(r.new_price) && r.new_price > 0);
+  }, [repriceable, selected]);
 
   const pushMutation = useMutation({
     mutationFn: async () => {
@@ -167,25 +259,27 @@ export default function ThreedsReprice() {
     },
   });
 
+  // Select / clear all rows on the CURRENT page only.
   const toggleAll = (checked: boolean) => {
-    if (!checked) {
-      setSelected({});
-      return;
-    }
-    const next: typeof selected = {};
-    for (const r of filtered) {
-      const suggestion = suggestPrice(r);
-      next[r.sku] = {
-        checked: true,
-        price:
-          selected[r.sku]?.price ||
-          (suggestion != null ? suggestion.toFixed(2) : r.current_price?.toFixed(2) ?? ""),
-      };
-    }
-    setSelected(next);
+    setSelected((prev) => {
+      const next = { ...prev };
+      for (const r of pageRows) {
+        if (checked) next[r.sku] = { checked: true, price: prev[r.sku]?.price };
+        else delete next[r.sku];
+      }
+      return next;
+    });
   };
+  const allChecked = pageRows.length > 0 && pageRows.every((r) => selected[r.sku]?.checked);
 
-  const allChecked = filtered.length > 0 && filtered.every((r) => selected[r.sku]?.checked);
+  const flagBadge = (f: CostFlag) =>
+    f === "missing_cost" ? (
+      <Badge variant="destructive"><AlertTriangle className="h-3 w-3 mr-1" />missing cost</Badge>
+    ) : f === "suspect_cost" ? (
+      <Badge variant="secondary" className="border-warning/70 bg-warning/20 text-warning">
+        <AlertTriangle className="h-3 w-3 mr-1" />suspect cost
+      </Badge>
+    ) : null;
 
   return (
     <div className="space-y-6">
@@ -201,7 +295,7 @@ export default function ThreedsReprice() {
         </Button>
         <ModuleHeader
           title="3D Reprice"
-          description="Pick a store, tick the SKUs you want to reprice, type the new price, then push to 3D via SFTP."
+          description="Pick a store, choose the profitability tier to move prices to, review the suggested inc-VAT price, then push to 3D via SFTP."
           icon={RefreshCw}
         />
       </div>
@@ -240,6 +334,19 @@ export default function ThreedsReprice() {
               </SelectContent>
             </Select>
           </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-muted-foreground">Move prices to</label>
+            <Select value={tier} onValueChange={(v) => setTier(v as Tier)}>
+              <SelectTrigger className="w-[160px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {TIER_OPTIONS.map((t) => (
+                  <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <div className="flex flex-col gap-1 flex-1 min-w-[200px]">
             <label className="text-xs text-muted-foreground">Search SKU / brand / name</label>
             <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="e.g. NGK-05747" />
@@ -257,9 +364,16 @@ export default function ThreedsReprice() {
       {activeStore && (
         <Card>
           <CardHeader className="pb-3 flex flex-row items-center justify-between">
-            <CardTitle className="text-base">
-              {filtered.length} SKUs · {selectedRows.length} selected
-            </CardTitle>
+            <div>
+              <CardTitle className="text-base">
+                {repriceable.length} repriceable · {selectedRows.length} selected
+              </CardTitle>
+              <p className="text-xs text-muted-foreground mt-1">
+                New price targets the <strong>{TIER_OPTIONS.find((t) => t.value === tier)?.label}</strong> band
+                ({pct(TIER_TARGET_POR_PCT[tier])} POR) and is shown <strong>inc VAT</strong> ({Math.round(fees.vat * 100)}%),
+                fee {Math.round(fees.feePct * 100)}% + {gbp(fees.fixedFee)} fixed.
+              </p>
+            </div>
             <Button
               onClick={() => pushMutation.mutate()}
               disabled={pushMutation.isPending || selectedRows.length === 0}
@@ -274,89 +388,130 @@ export default function ThreedsReprice() {
           <CardContent className="overflow-x-auto">
             {candLoading ? (
               <Skeleton className="h-64 w-full" />
-            ) : filtered.length === 0 ? (
+            ) : repriceable.length === 0 ? (
               <div className="py-12 text-center text-sm text-muted-foreground">
-                No SKUs sold on this channel in the selected window.
+                No repriceable SKUs for this store / window / filter.
               </div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-10">
-                      <Checkbox
-                        checked={allChecked}
-                        onCheckedChange={(v) => toggleAll(!!v)}
-                      />
-                    </TableHead>
-                    <TableHead>SKU</TableHead>
-                    <TableHead>Brand</TableHead>
-                    <TableHead className="text-right">Units</TableHead>
-                    <TableHead className="text-right">Revenue</TableHead>
-                    <TableHead className="text-right">Profit</TableHead>
-                    <TableHead className="text-right">PoR%</TableHead>
-                    <TableHead className="text-right">Stock</TableHead>
-                    <TableHead className="text-right">Last Sold £</TableHead>
-                    <TableHead className="text-right w-[120px]">New Price £</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filtered.map((r) => {
-                    const sel = selected[r.sku];
-                    const negative = (r.profit ?? 0) < 0;
-                    const suggestion = suggestPrice(r);
-                    const defaultPrice =
-                      suggestion != null ? suggestion.toFixed(2) : r.current_price?.toFixed(2) ?? "";
-                    return (
-                      <TableRow key={r.sku} className={negative ? "bg-destructive/5" : ""}>
-                        <TableCell>
-                          <Checkbox
-                            checked={!!sel?.checked}
-                            onCheckedChange={(v) =>
-                              setSelected((p) => ({
-                                ...p,
-                                [r.sku]: {
-                                  checked: !!v,
-                                  price: p[r.sku]?.price || defaultPrice,
-                                },
-                              }))
-                            }
-                          />
-                        </TableCell>
-                        <TableCell className="font-mono text-xs">{r.sku}</TableCell>
-                        <TableCell>{r.brand_name ?? "—"}</TableCell>
-                        <TableCell className="text-right">{r.units_sold}</TableCell>
-                        <TableCell className="text-right">{gbp(r.revenue)}</TableCell>
-                        <TableCell className={`text-right font-medium ${negative ? "text-destructive" : ""}`}>
-                          {gbp(r.profit)}
-                        </TableCell>
-                        <TableCell className="text-right">{pct(r.por_pct)}</TableCell>
-                        <TableCell className="text-right">{r.current_stock ?? "—"}</TableCell>
-                        <TableCell className="text-right">{gbp(r.current_price)}</TableCell>
-                        <TableCell className="text-right">
-                          <Input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            className="h-8 w-24 text-right ml-auto"
-                            value={sel?.price ?? ""}
-                            onChange={(e) =>
-                              setSelected((p) => ({
-                                ...p,
-                                [r.sku]: {
-                                  checked: p[r.sku]?.checked ?? false,
-                                  price: e.target.value,
-                                },
-                              }))
-                            }
-                            placeholder={defaultPrice}
-                          />
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+              <>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-10">
+                        <Checkbox checked={allChecked} onCheckedChange={(v) => toggleAll(!!v)} />
+                      </TableHead>
+                      <TableHead>SKU</TableHead>
+                      <TableHead>Brand</TableHead>
+                      <TableHead className="text-right">Units</TableHead>
+                      <TableHead className="text-right">Revenue</TableHead>
+                      <TableHead className="text-right">Profit</TableHead>
+                      <TableHead className="text-right">PoR%</TableHead>
+                      <TableHead className="text-right">Cost ea</TableHead>
+                      <TableHead className="text-right">Stock</TableHead>
+                      <TableHead className="text-right">Last Sold £<br /><span className="text-[10px] font-normal text-muted-foreground">inc VAT</span></TableHead>
+                      <TableHead className="text-right w-[120px]">New £<br /><span className="text-[10px] font-normal text-muted-foreground">inc VAT</span></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {pageRows.map((r) => {
+                      const sel = selected[r.sku];
+                      const negative = (r.profit ?? 0) < 0;
+                      const defaultPrice = r.suggestedGross != null ? r.suggestedGross.toFixed(2) : "";
+                      return (
+                        <TableRow key={r.sku} className={negative ? "bg-destructive/5" : ""}>
+                          <TableCell>
+                            <Checkbox
+                              checked={!!sel?.checked}
+                              onCheckedChange={(v) =>
+                                setSelected((p) => ({
+                                  ...p,
+                                  [r.sku]: { checked: !!v, price: p[r.sku]?.price },
+                                }))
+                              }
+                            />
+                          </TableCell>
+                          <TableCell className="font-mono text-xs">{r.sku}</TableCell>
+                          <TableCell>{r.brand_name ?? "—"}</TableCell>
+                          <TableCell className="text-right">{r.units_sold}</TableCell>
+                          <TableCell className="text-right">{gbp(r.revenue)}</TableCell>
+                          <TableCell className={`text-right font-medium ${negative ? "text-destructive" : ""}`}>
+                            {gbp(r.profit)}
+                          </TableCell>
+                          <TableCell className="text-right">{pct(r.por_pct)}</TableCell>
+                          <TableCell className="text-right">{gbp(r.costUnit)}</TableCell>
+                          <TableCell className="text-right">{r.current_stock ?? "—"}</TableCell>
+                          <TableCell className="text-right">{gbp(r.grossLastSold)}</TableCell>
+                          <TableCell className="text-right">
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              className="h-8 w-24 text-right ml-auto"
+                              value={effectivePrice(r)}
+                              onChange={(e) =>
+                                setSelected((p) => ({
+                                  ...p,
+                                  [r.sku]: { checked: p[r.sku]?.checked ?? false, price: e.target.value },
+                                }))
+                              }
+                              placeholder={defaultPrice}
+                            />
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+                <Pager page={page} pageCount={pageCount} onChange={setPage} />
+              </>
             )}
+          </CardContent>
+        </Card>
+      )}
+
+      {activeStore && flagged.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-warning" />
+              {flagged.length} flagged — fix cost before repricing
+            </CardTitle>
+            <p className="text-xs text-muted-foreground mt-1">
+              {missingCount} missing cost (zero/blank) · {suspectCount} suspect cost
+              (cost/unit &gt; {SUSPECT_COST_MULTIPLE}× the inc-VAT sale price — likely a pack cost on a single listing).
+              These are excluded from repricing until the cost is corrected in the catalogue.
+            </p>
+          </CardHeader>
+          <CardContent className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>SKU</TableHead>
+                  <TableHead>Brand</TableHead>
+                  <TableHead>Flag</TableHead>
+                  <TableHead className="text-right">Units</TableHead>
+                  <TableHead className="text-right">Revenue</TableHead>
+                  <TableHead className="text-right">Cost ea</TableHead>
+                  <TableHead className="text-right">Stock</TableHead>
+                  <TableHead className="text-right">Last Sold £<br /><span className="text-[10px] font-normal text-muted-foreground">inc VAT</span></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {flagPageRows.map((r) => (
+                  <TableRow key={r.sku}>
+                    <TableCell className="font-mono text-xs">{r.sku}</TableCell>
+                    <TableCell>{r.brand_name ?? "—"}</TableCell>
+                    <TableCell>{flagBadge(r.flag)}</TableCell>
+                    <TableCell className="text-right">{r.units_sold}</TableCell>
+                    <TableCell className="text-right">{gbp(r.revenue)}</TableCell>
+                    <TableCell className="text-right">{r.flag === "missing_cost" ? "—" : gbp(r.costUnit)}</TableCell>
+                    <TableCell className="text-right">{r.current_stock ?? "—"}</TableCell>
+                    <TableCell className="text-right">{gbp(r.grossLastSold)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+            <Pager page={flagPage} pageCount={flagPageCount} onChange={setFlagPage} />
           </CardContent>
         </Card>
       )}
