@@ -80,3 +80,6 @@ verify_jwt = false
 
 [functions.mintsoft-fetch-todays-asns]
 verify_jwt = false
+
+[functions.ingest-3ds-orders]
+verify_jwt = false

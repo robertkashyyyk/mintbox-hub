@@ -6,12 +6,40 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Loader2, Save } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { ArrowLeft, Loader2, Save, ExternalLink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { toast as sonnerToast } from "sonner";
 import { format } from "date-fns";
 import ProductImageUpload from "@/components/discovery/ProductImageUpload";
 import { MintsoftCategoriesEditor } from "@/components/MintsoftCategoriesEditor";
+
+interface ThreedsListing {
+  base_sku: string;
+  sku: string;
+  q_code: string | null;
+  external_item_id: string | null;
+  marketplace: string | null;
+  channel: string | null;
+  store_name: string | null;
+  currency: string | null;
+  item_name: string | null;
+  item_url: string | null;
+  last_unit_price: number | null;
+  last_order_date: string | null;
+  orders_90d: number | null;
+  units_90d: number | null;
+  revenue_90d: number | null;
+  fvf_90d: number | null;
+  real_fee_rate: number | null;
+}
+
+const CCY_SYMBOL: Record<string, string> = { GBP: "£", EUR: "€", USD: "$", AUD: "A$", CAD: "C$" };
+function money(value: number | null | undefined, currency: string | null | undefined): string {
+  if (value == null) return "—";
+  const sym = CCY_SYMBOL[currency ?? ""] ?? (currency ? `${currency} ` : "£");
+  return `${sym}${Number(value).toFixed(2)}`;
+}
 
 export default function ProductDetail() {
   const { id } = useParams<{ id: string }>();
@@ -51,6 +79,22 @@ export default function ProductDetail() {
         .order("name");
       if (error) throw error;
       return data;
+    },
+  });
+
+  // Real eBay listings tied to this SKU (and its Q-variants), from 3DS orders.
+  const { data: listings, isError: listingsError } = useQuery({
+    queryKey: ["threeds-listings", product?.sku],
+    enabled: !!product?.sku,
+    retry: false,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("threeds_listings" as any)
+        .select("*")
+        .eq("base_sku", product!.sku)
+        .order("units_90d", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as unknown as ThreedsListing[];
     },
   });
 
@@ -285,6 +329,20 @@ export default function ProductDetail() {
         </div>
       </div>
 
+      <Tabs defaultValue="overview" className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="listings">
+            Listings & Channels
+            {listings && listings.length > 0 && (
+              <span className="ml-2 rounded-full bg-pd-accent/15 px-1.5 text-xs text-pd-accent">{listings.length}</span>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="pricing">Price Hunter</TabsTrigger>
+          <TabsTrigger value="images">Images</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="overview">
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         <Card>
           <CardHeader>
@@ -377,8 +435,92 @@ export default function ProductDetail() {
             />
           </CardContent>
         </Card>
+      </div>
+        </TabsContent>
 
-        <Card className="md:col-span-2 lg:col-span-2">
+        <TabsContent value="listings">
+          <Card>
+            <CardHeader>
+              <CardTitle>eBay Listings & Channels</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {listingsError ? (
+                <div className="text-sm text-muted-foreground">
+                  3DS orders ingestion isn’t set up yet — listings will appear here once it has run.
+                </div>
+              ) : !listings ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Loading listings…
+                </div>
+              ) : listings.length === 0 ? (
+                <div className="space-y-1 text-sm text-muted-foreground">
+                  <p>No 3D Sellers order history found for <span className="font-mono">{product.sku}</span> or its Q-variants yet.</p>
+                  <p className="text-xs">Listings appear here once the 3DS orders ingestion has run.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b text-left text-xs uppercase tracking-wide text-muted-foreground">
+                        <th className="py-2 pr-3">SKU</th>
+                        <th className="py-2 pr-3">eBay Item #</th>
+                        <th className="py-2 pr-3">Marketplace</th>
+                        <th className="py-2 pr-3 text-right">Last Price</th>
+                        <th className="py-2 pr-3 text-right">Units 90d</th>
+                        <th className="py-2 pr-3 text-right">Real Fee</th>
+                        <th className="py-2 pr-3">Last Sold</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {listings.map((l) => (
+                        <tr key={`${l.sku}-${l.external_item_id}-${l.marketplace}`} className="border-b last:border-0">
+                          <td className="py-2 pr-3 font-mono">
+                            {l.sku}
+                            {l.q_code && (
+                              <Badge variant="secondary" className="ml-2 text-[10px]">{l.q_code.replace(/^-/, "")}</Badge>
+                            )}
+                          </td>
+                          <td className="py-2 pr-3 font-mono">
+                            {l.external_item_id ? (
+                              l.item_url ? (
+                                <a
+                                  href={l.item_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 text-primary hover:underline"
+                                >
+                                  {l.external_item_id}
+                                  <ExternalLink className="h-3 w-3" />
+                                </a>
+                              ) : (
+                                l.external_item_id
+                              )
+                            ) : "—"}
+                          </td>
+                          <td className="py-2 pr-3">{l.marketplace ?? "—"}</td>
+                          <td className="py-2 pr-3 text-right tabular-nums">{money(l.last_unit_price, l.currency)}</td>
+                          <td className="py-2 pr-3 text-right tabular-nums">{l.units_90d ?? 0}</td>
+                          <td className="py-2 pr-3 text-right tabular-nums">
+                            {l.real_fee_rate != null ? `${(l.real_fee_rate * 100).toFixed(1)}%` : "—"}
+                          </td>
+                          <td className="py-2 pr-3">
+                            {l.last_order_date ? format(new Date(l.last_order_date), "dd MMM yyyy") : "—"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    Real fee = actual eBay final-value fees ÷ gross sales over the last 90 days. Q-variants of this SKU are grouped here automatically.
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="pricing">
+        <Card>
           <CardHeader>
             <CardTitle>Price Hunter</CardTitle>
           </CardHeader>
@@ -428,10 +570,12 @@ export default function ProductDetail() {
             )}
           </CardContent>
         </Card>
-      </div>
+        </TabsContent>
 
-      {/* Product Images */}
-      <ProductImageUpload productId={product.id} productSku={product.sku} />
+        <TabsContent value="images">
+          <ProductImageUpload productId={product.id} productSku={product.sku} />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
