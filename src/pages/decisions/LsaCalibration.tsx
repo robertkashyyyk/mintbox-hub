@@ -14,6 +14,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { ArrowLeft, Gauge, Loader2, RefreshCw, Search, Sparkles, Zap } from "lucide-react";
+import { PageLoader } from "@/components/ui/PageLoader";
 import { useLsaCalibration, type LsaCalibrationRow } from "@/hooks/useLsaCalibration";
 import { useLsaBrandSummary } from "@/hooks/useLsaBrandSummary";
 import { useQuery } from "@tanstack/react-query";
@@ -345,8 +346,8 @@ const LsaCalibration = () => {
                 </TableHeader>
                 <TableBody>
                   {brandsLoading ? (
-                    <TableRow><TableCell colSpan={9} className="text-center py-12">
-                      <Loader2 className="h-5 w-5 animate-spin mx-auto text-muted-foreground" />
+                    <TableRow><TableCell colSpan={9} className="p-0">
+                      <PageLoader rows={6} columns={[160, 60, 60, 60, 60, 60, 60, 60, 80]} label="Loading brands" />
                     </TableCell></TableRow>
                   ) : filteredBrands.length === 0 ? (
                     <TableRow><TableCell colSpan={9} className="text-center py-12 text-muted-foreground">
@@ -511,6 +512,9 @@ const LsaCalibration = () => {
       </Card>
 
       {/* Table */}
+      {isLoading ? (
+        <PageLoader rows={10} columns={[40, 160, 260, 100, 60, 60, 50, 80, 80, 100, 80]} label="Loading SKUs" />
+      ) : (
       <Card>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
@@ -550,11 +554,7 @@ const LsaCalibration = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {isLoading ? (
-                  <TableRow><TableCell colSpan={11} className="text-center py-12">
-                    <Loader2 className="h-5 w-5 animate-spin mx-auto text-muted-foreground" />
-                  </TableCell></TableRow>
-                ) : filtered.length === 0 ? (
+                {filtered.length === 0 ? (
                   <TableRow><TableCell colSpan={11} className="text-center py-12 text-muted-foreground">
                     No SKUs match the current filters.
                   </TableCell></TableRow>
@@ -634,6 +634,7 @@ const LsaCalibration = () => {
           </div>
         </CardContent>
       </Card>
+      )}
     </div>
   );
 };
