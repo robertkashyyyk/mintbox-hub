@@ -8,7 +8,11 @@
 --  (2) exclude junk SKUs flagged for Mintsoft deletion: any '-DEL' / '-PNR'
 --      token (these are not real listings and must be ignored).
 
-CREATE OR REPLACE VIEW public.threeds_listings AS
+-- NOTE: CREATE OR REPLACE VIEW cannot insert a column mid-list (Postgres only
+-- allows appending). pack_size goes in at position 4, so we must DROP + CREATE.
+DROP VIEW IF EXISTS public.threeds_listings;
+
+CREATE VIEW public.threeds_listings AS
 SELECT
   t.base_sku,
   t.sku,
