@@ -290,6 +290,7 @@ const App = () => (
             {/* Games */}
             <Route path="/games" element={<GamesIndex />} />
             <Route path="/games/mcg" element={<MissingCostsGame />} />
+            <Route path="/games/scg" element={<StockCountGame />} />
 
             {/* Progress Log */}
             <Route path="/progress-log" element={<ProgressLog />} />
