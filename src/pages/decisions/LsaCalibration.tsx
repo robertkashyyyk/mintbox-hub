@@ -198,10 +198,10 @@ const LsaCalibration = () => {
       const skus = rowsToPush.map((r) => r.sku);
       const { data: products, error: pErr } = await supabase
         .from("products_cache")
-        .select("sku, mintsoft_product_id")
+        .select("sku, mintsoft_id")
         .in("sku", skus);
       if (pErr) throw pErr;
-      const idMap = new Map((products || []).map((p: any) => [p.sku, p.mintsoft_product_id]));
+      const idMap = new Map((products || []).map((p: any) => [p.sku, p.mintsoft_id]));
       const items = rowsToPush
         .map((r) => ({
           sku: r.sku,
