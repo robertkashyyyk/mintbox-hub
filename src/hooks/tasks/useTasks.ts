@@ -1,11 +1,12 @@
 /**
  * Task Manager data layer — all task queries and mutations (spec §10).
  *
- * The tasks tables are not yet in the generated Supabase types (the migration
- * 20260601130000_tasks_and_audit_log.sql must be applied and types regenerated).
- * Until then we cast the client to `any` at the call boundary and return the
- * strongly-typed domain shapes from src/types/tasks.ts, so the rest of the app
- * stays fully typed.
+ * The tasks tables ARE in the generated Supabase types (migration
+ * 20260601150000_tasks_and_audit_log.sql applied + types regenerated), so the
+ * client below is fully typed: table, column and RPC names are checked at the
+ * call boundary. Query results are cast through `unknown` to the narrower domain
+ * shapes in src/types/tasks.ts (which use literal unions like PriorityLevel /
+ * TaskStatus where the generated rows use plain number / enum strings).
  */
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
@@ -17,12 +18,13 @@ import type {
   TaskWithSortScore,
   TaskComment,
   TaskActivity,
+  TaskStatus,
   CreateTaskInput,
   UpdateTaskInput,
 } from "@/types/tasks";
 
-// Loosely-typed client for the not-yet-generated tables.
-const sb = supabase as any;
+// Typed Supabase client (alias kept for brevity across the call sites).
+const sb = supabase;
 
 const OPEN_STATUSES = ["todo", "in_progress", "blocked"];
 
@@ -55,7 +57,7 @@ export function useTodayTasks() {
       const userId = await getUserId();
       const { data, error } = await sb.rpc("get_today_tasks", { p_user_id: userId });
       if (error) throw error;
-      return (data ?? []) as TaskWithSortScore[];
+      return (data ?? []) as unknown as TaskWithSortScore[];
     },
   });
 }
@@ -72,13 +74,13 @@ export function useMyTasks(opts?: { search?: string; status?: string; priority?:
         .or(`created_by.eq.${userId},assigned_to.eq.${userId}`)
         .order("sort_score", { ascending: false });
 
-      if (opts?.status) query = query.eq("status", opts.status);
+      if (opts?.status) query = query.eq("status", opts.status as TaskStatus);
       if (opts?.priority) query = query.eq("priority_level", opts.priority);
 
       const { data, error } = await query;
       if (error) throw error;
 
-      let rows = (data ?? []) as TaskWithSortScore[];
+      let rows = (data ?? []) as unknown as TaskWithSortScore[];
       if (opts?.search) {
         const s = opts.search.toLowerCase();
         rows = rows.filter(
@@ -102,7 +104,7 @@ export function useAllTasks() {
         .select("*")
         .order("sort_score", { ascending: false });
       if (error) throw error;
-      return (data ?? []) as TaskWithSortScore[];
+      return (data ?? []) as unknown as TaskWithSortScore[];
     },
   });
 }
@@ -118,7 +120,7 @@ export function useTask(id: string | undefined) {
         .eq("id", id)
         .single();
       if (error) throw error;
-      return data as TaskWithSortScore;
+      return data as unknown as TaskWithSortScore;
     },
   });
 }
@@ -134,7 +136,7 @@ export function useTaskComments(taskId: string | undefined) {
         .eq("task_id", taskId)
         .order("created_at", { ascending: true });
       if (error) throw error;
-      return (data ?? []) as TaskComment[];
+      return (data ?? []) as unknown as TaskComment[];
     },
   });
 }
@@ -150,7 +152,7 @@ export function useTaskActivity(taskId: string | undefined) {
         .eq("task_id", taskId)
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return (data ?? []) as TaskActivity[];
+      return (data ?? []) as unknown as TaskActivity[];
     },
   });
 }
@@ -167,7 +169,7 @@ export function useOpenTaskCount() {
         .from("tasks")
         .select("id", { count: "exact", head: true })
         .or(`created_by.eq.${userId},assigned_to.eq.${userId}`)
-        .in("status", OPEN_STATUSES);
+        .in("status", OPEN_STATUSES as TaskStatus[]);
       if (error) throw error;
       return count ?? 0;
     },
@@ -199,7 +201,7 @@ export function useAssignableUsers() {
         .select("id, email, full_name")
         .order("email");
       if (error) throw error;
-      return (data ?? []) as { id: string; email: string | null; full_name: string | null }[];
+      return (data ?? []) as unknown as { id: string; email: string | null; full_name: string | null }[];
     },
   });
 }
@@ -231,7 +233,7 @@ export function useCreateTask() {
         .single();
       if (error) throw error;
 
-      const task = data as Task;
+      const task = data as unknown as Task;
       await logAuditEvent({
         action_type: AuditActions.TASK_CREATED,
         entity_type: "task",
@@ -271,7 +273,7 @@ export function useUpdateTask() {
 
       const { data, error } = await sb.from("tasks").update(patch).eq("id", id).select().single();
       if (error) throw error;
-      const task = data as Task;
+      const task = data as unknown as Task;
 
       if (prior && patch.status && patch.status !== prior.status) {
         await logAuditEvent({
@@ -352,11 +354,11 @@ export function useDeprioritisationCheck() {
       .from("tasks_with_sort_score")
       .select("title, sort_score")
       .or(`created_by.eq.${userId},assigned_to.eq.${userId}`)
-      .in("status", OPEN_STATUSES)
+      .in("status", OPEN_STATUSES as TaskStatus[])
       .order("sort_score", { ascending: false })
       .limit(5);
 
-    const top = (data ?? []) as { title: string; sort_score: number }[];
+    const top = (data ?? []) as unknown as { title: string; sort_score: number }[];
     // Estimate the new task's score from priority alone (urgency unknown pre-save).
     const newScore = newUrgencyEstimate * 0.6 + (6 - newPriority) * 10 * 0.4;
     const displaced = top.filter((t) => t.sort_score < newScore).map((t) => t.title);

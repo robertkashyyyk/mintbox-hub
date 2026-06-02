@@ -7,13 +7,11 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { AuditLogEntry } from "@/types/tasks";
 
-const sb = supabase as any;
-
 export function useAuditLog(opts?: { search?: string; actionType?: string; limit?: number }) {
   return useQuery({
     queryKey: ["audit-log", opts],
     queryFn: async (): Promise<AuditLogEntry[]> => {
-      let query = sb
+      let query = supabase
         .from("audit_log")
         .select("*")
         .order("created_at", { ascending: false })
@@ -26,7 +24,7 @@ export function useAuditLog(opts?: { search?: string; actionType?: string; limit
       const { data, error } = await query;
       if (error) throw error;
 
-      let rows = (data ?? []) as AuditLogEntry[];
+      let rows = (data ?? []) as unknown as AuditLogEntry[];
       if (opts?.search) {
         const s = opts.search.toLowerCase();
         rows = rows.filter(
@@ -47,12 +45,12 @@ export function useAuditActionTypes() {
   return useQuery({
     queryKey: ["audit-log-action-types"],
     queryFn: async (): Promise<string[]> => {
-      const { data, error } = await sb
+      const { data, error } = await supabase
         .from("audit_log")
         .select("action_type")
         .order("action_type");
       if (error) throw error;
-      const set = new Set<string>((data ?? []).map((r: { action_type: string }) => r.action_type));
+      const set = new Set<string>((data ?? []).map((r) => r.action_type));
       return Array.from(set).sort();
     },
   });

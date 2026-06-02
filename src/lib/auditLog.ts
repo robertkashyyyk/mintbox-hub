@@ -5,18 +5,12 @@
  * IMPORTANT (spec §5.1 completeness note): this is the application-layer path and
  * is only as complete as developer discipline. For the highest-sensitivity tables
  * (cost price, RBAC/role changes, API key rotation, PO state) a DB-trigger backstop
- * must ALSO write to audit_log so changes are captured even when they bypass the
- * app. That backstop is a separate, follow-up migration — see project memory.
+ * ALSO writes to audit_log so changes are captured even when they bypass the app.
+ * That backstop is live — migration 20260601150200_audit_trigger_backstop.sql.
  */
 
 import { supabase } from "@/integrations/supabase/client";
-
-// Tasks/audit tables aren't in the generated Supabase types until the migration
-// is applied and types are regenerated. Narrow cast keeps the call site clean.
-const sb = supabase as unknown as {
-  from: (table: string) => any;
-  auth: typeof supabase.auth;
-};
+import type { Json } from "@/integrations/supabase/types";
 
 /** Canonical action-type constants (spec §5.2 / §5.3). */
 export const AuditActions = {
@@ -79,7 +73,7 @@ export async function logAuditEvent(args: LogAuditEventArgs): Promise<void> {
   try {
     const {
       data: { user },
-    } = await sb.auth.getUser();
+    } = await supabase.auth.getUser();
     if (!user) {
       console.warn("[auditLog] skipped — no authenticated user", args.action_type);
       return;
@@ -88,17 +82,17 @@ export async function logAuditEvent(args: LogAuditEventArgs): Promise<void> {
     const actorDisplayName =
       (user.user_metadata?.full_name as string | undefined) ?? user.email ?? null;
 
-    const { error } = await sb.from("audit_log").insert({
+    const { error } = await supabase.from("audit_log").insert({
       actor_user_id: user.id,
       actor_display_name: actorDisplayName,
       action_type: args.action_type,
       entity_type: args.entity_type,
       entity_id: args.entity_id ?? null,
       entity_label: args.entity_label ?? null,
-      old_value: args.old_value ?? null,
-      new_value: args.new_value ?? null,
+      old_value: (args.old_value ?? null) as Json,
+      new_value: (args.new_value ?? null) as Json,
       // session_id captured from the access token; IP is added server-side where available.
-      session_id: (await sb.auth.getSession()).data.session?.access_token?.slice(-12) ?? null,
+      session_id: (await supabase.auth.getSession()).data.session?.access_token?.slice(-12) ?? null,
     });
 
     if (error) console.warn("[auditLog] insert failed:", error.message);
