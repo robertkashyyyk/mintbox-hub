@@ -12,13 +12,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import ModuleHeader from "@/components/ModuleHeader";
 import {
-  CheckCircle2, Circle, Clock, XCircle,
+  CheckCircle2, Circle, Clock, XCircle, Activity,
   HelpCircle, ClipboardList, ChevronDown, ChevronRight, ExternalLink,
 } from "lucide-react";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-type Status = "live" | "in-progress" | "planned" | "decision-needed" | "retired";
+type Status = "live" | "in-progress" | "testing" | "planned" | "decision-needed" | "retired";
 
 interface LogItem {
   name: string;
@@ -98,7 +98,7 @@ const ITEMS: LogItem[] = [
   { section: "Tasks & Governance", name: "Create / Task Detail", route: "/tasks/new", status: "live", notes: "Create form with deprioritisation warning + detail page with inline status/priority, comments, activity timeline. Live.", detail: "Ambient capture also available via the header Task Drawer (CheckSquare icon) — Today + Quick Add tabs with a live open-task badge driven by Supabase Realtime. All writes flow through audited mutation hooks. Data-layer casts tightened onto regenerated Supabase types (Jun 2026)." },
   { section: "Tasks & Governance", name: "Urgency engine + scheduled recalc", route: undefined, status: "live", notes: "DB-side compute_urgency_score() recomputed on every write AND on a 15-min pg_cron sweep. Live.", detail: "Inputs: overdue +35, due ≤24h +30 / ≤48h +20 / ≤72h +10, stalled in-progress >3 days +15, urgency flag +10, system-generated +10, priority 4 −10 / 5 −20, clamped 0–100. The cron job (recalc-task-urgency-15min) is guarded on the pg_cron extension being present. Defined in migration 20260601150000." },
   { section: "Tasks & Governance", name: "Audit Log", route: "/audit", status: "live", notes: "Append-only governance ledger — who changed what, with before/after values. Read-only viewer with search + action-type filter. Super/senior only. Live.", detail: "Append-only is enforced two ways: RLS has INSERT + SELECT policies but deliberately NO UPDATE/DELETE, and the authenticated role is granted only SELECT, INSERT. logAuditEvent() is the app-layer write path. DB-trigger backstop (20260601150200) covers cost price, user_roles, API keys, and PO state tables — fires on changes that bypass the app layer too." },
-  { section: "Tasks & Governance", name: "Stock Count Game", route: "/games/scg", status: "in-progress", notes: "Gamified warehouse stock-count tool — surfaces never-counted SKUs, records counts, pushes on-hand quantities back to Mintsoft via stocktake-sync edge function.", detail: "Built Jun 2026. Picks SKUs that have never been counted (or not counted recently), presents them one at a time in a game-style UI. Counts stored in DB; stocktake-sync edge function deployed to vcfbegjpkvxkqpptyxni — pushes Product/BulkOnHandStockUpdate to Mintsoft. Open item: confirm exact field names for BulkOnHandStockUpdate (currently sending ProductId, WarehouseId, OnHand — needs verification against Mintsoft API docs or a live test response)." },
+  { section: "Tasks & Governance", name: "Stock Count Game", route: "/games/scg", status: "testing", notes: "Gamified warehouse stock-count tool — surfaces never-counted SKUs, records counts, pushes on-hand quantities back to Mintsoft via stocktake-sync edge function. In testing.", detail: "Built Jun 2026. Picks SKUs that have never been counted (or not counted recently), presents them one at a time in a game-style UI. Counts stored in DB; stocktake-sync edge function deployed to vcfbegjpkvxkqpptyxni — pushes Product/BulkOnHandStockUpdate to Mintsoft. Open item: confirm exact field names for BulkOnHandStockUpdate (currently sending ProductId, WarehouseId, OnHand — needs verification against Mintsoft API docs or a live test response)." },
 
   // ── DECISIONS OPEN ─────────────────────────────────────────────────────────
   { section: "Open Decisions", name: "Task Manager: default landing", status: "live", notes: "✅ Resolved Jun 2026 — migrations applied, /tasks is now the live environment.", detail: "Migrations 20260601150000/150100/150200 applied to vcfbegjpkvxkqpptyxni. Auth.tsx can now be updated to redirect to /tasks as the post-login default per spec §10 if desired." },
@@ -118,6 +118,7 @@ const ITEMS: LogItem[] = [
 const STATUS_CONFIG: Record<Status, { label: string; color: string; icon: React.ElementType }> = {
   "live":             { label: "Live",           color: "bg-green-500/15 text-green-600 border-green-500/30",   icon: CheckCircle2 },
   "in-progress":      { label: "In Progress",    color: "bg-blue-500/15 text-blue-500 border-blue-500/30",     icon: Clock },
+  "testing":          { label: "Testing",        color: "bg-orange-500/15 text-orange-500 border-orange-500/30", icon: Activity },
   "planned":          { label: "Planned",        color: "bg-amber-500/15 text-amber-500 border-amber-500/30",  icon: Circle },
   "decision-needed":  { label: "Decision Needed",color: "bg-purple-500/15 text-purple-500 border-purple-500/30", icon: HelpCircle },
   "retired":          { label: "Retired",        color: "bg-muted/40 text-muted-foreground border-border",     icon: XCircle },
