@@ -118,9 +118,19 @@ import BackOrders from "./pages/dashboards/BackOrders";
 // Games
 import GamesIndex from "./pages/games/GamesIndex";
 import MissingCostsGame from "./pages/games/MissingCostsGame";
+import StockCountGame from "./pages/games/StockCountGame";
 
 // Progress Log
 import ProgressLog from "./pages/ProgressLog";
+
+// Task Manager + Audit Log
+import TasksLayout from "./pages/tasks/TasksLayout";
+import TasksToday from "./pages/tasks/TasksToday";
+import TasksMy from "./pages/tasks/TasksMy";
+import TasksAll from "./pages/tasks/TasksAll";
+import TaskNew from "./pages/tasks/TaskNew";
+import TaskDetail from "./pages/tasks/TaskDetail";
+import AuditLog from "./pages/AuditLog";
 
 // Configure QueryClient with better error handling and retry logic
 const queryClient = new QueryClient({
@@ -285,6 +295,16 @@ const App = () => (
             <Route path="/ebay-admin" element={<Navigate to="/admin/integrations" replace />} />
             <Route path="/missing-cost-prices" element={<Navigate to="/intelligence/stock-health" replace />} />
             <Route path="/problematic-orders" element={<Navigate to="/operations/order-telemetry" replace />} />
+          </Route>
+
+          {/* Task environment — distinct teal layout, self auth-gating (spec §3.2) */}
+          <Route element={<TasksLayout />}>
+            <Route path="/tasks" element={<TasksToday />} />
+            <Route path="/tasks/my" element={<TasksMy />} />
+            <Route path="/tasks/all" element={<TasksAll />} />
+            <Route path="/tasks/new" element={<TaskNew />} />
+            <Route path="/tasks/:id" element={<TaskDetail />} />
+            <Route path="/audit" element={<AuditLog />} />
           </Route>
 
           {/* Section redirects */}

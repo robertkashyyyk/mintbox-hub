@@ -5,6 +5,7 @@ import { Session } from "@supabase/supabase-js";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { NotificationBell } from "@/components/dashboard/NotificationBell";
+import { TaskDrawerTrigger } from "@/components/tasks/TaskDrawerTrigger";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { LogOut, Loader2, ExternalLink, WrenchIcon, ClipboardList } from "lucide-react";
@@ -243,6 +244,7 @@ const DashboardLayout = () => {
                     <ExternalLink className="h-5 w-5" />
                   </a>
                 </Button>
+                <TaskDrawerTrigger />
                 <NotificationBell />
               </div>
             </div>

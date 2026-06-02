@@ -7,7 +7,7 @@ import {
   Users, Key, CreditCard, LogOut, UserCircle, Gauge,
   ChevronDown, ChevronRight, LayoutDashboard, Settings,
   Images, Clock, Plug, Truck, AlertTriangle, Sliders, Beaker, BarChart3, ArrowUpDown,
-  PoundSterling, Link2Off, HelpCircle, ClipboardList
+  PoundSterling, Link2Off, HelpCircle, ClipboardList, CheckSquare
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -269,6 +269,14 @@ export function AppSidebar() {
                   </NavLink>
                 </SidebarMenuButton>
               </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={currentPath.startsWith("/tasks")} tooltip="Tasks">
+                  <NavLink to="/tasks">
+                    <CheckSquare className="h-4 w-4" />
+                    <span>Tasks</span>
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -351,6 +359,16 @@ export function AppSidebar() {
               </NavLink>
             </SidebarMenuButton>
           </SidebarMenuItem>
+          {isSeniorOrSuper && (
+            <SidebarMenuItem>
+              <SidebarMenuButton asChild isActive={isActive("/audit")} tooltip="Audit Log">
+                <NavLink to="/audit">
+                  <ClipboardList className="h-4 w-4" />
+                  <span>Audit Log</span>
+                </NavLink>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
           <SidebarMenuItem>
             <SidebarMenuButton asChild isActive={isActive("/profile")} tooltip="Profile">
               <NavLink to="/profile">

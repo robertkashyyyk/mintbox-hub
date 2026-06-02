@@ -17,7 +17,10 @@ type Mode = "password" | "magic";
 const Auth = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const redirectTo = (location.state as any)?.from || "/menu";
+  // Default landing is the Task Manager (spec §10). NOTE: this must only ship
+  // AFTER the tasks migration is applied — otherwise users land on TasksToday,
+  // which calls the get_today_tasks RPC that won't yet exist.
+  const redirectTo = (location.state as any)?.from || "/tasks";
   const [, setSession] = useState<Session | null>(null);
   const [mode, setMode] = useState<Mode>("password");
   const [email, setEmail] = useState("");
@@ -49,7 +52,7 @@ const Auth = () => {
       } else {
         const { error } = await supabase.auth.signInWithOtp({
           email,
-          options: { emailRedirectTo: `${window.location.origin}/menu` },
+          options: { emailRedirectTo: `${window.location.origin}/tasks` },
         });
         if (error) throw error;
         toast({
