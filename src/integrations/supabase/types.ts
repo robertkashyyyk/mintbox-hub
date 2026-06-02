@@ -10,10 +10,55 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "13.0.5"
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
+      activity_log: {
+        Row: {
+          action: string
+          actor_email: string | null
+          actor_id: string | null
+          actor_type: string
+          created_at: string
+          detail: Json | null
+          entity_id: string | null
+          entity_label: string | null
+          entity_type: string | null
+          error_message: string | null
+          id: string
+          outcome: string
+        }
+        Insert: {
+          action: string
+          actor_email?: string | null
+          actor_id?: string | null
+          actor_type: string
+          created_at?: string
+          detail?: Json | null
+          entity_id?: string | null
+          entity_label?: string | null
+          entity_type?: string | null
+          error_message?: string | null
+          id?: string
+          outcome?: string
+        }
+        Update: {
+          action?: string
+          actor_email?: string | null
+          actor_id?: string | null
+          actor_type?: string
+          created_at?: string
+          detail?: Json | null
+          entity_id?: string | null
+          entity_label?: string | null
+          entity_type?: string | null
+          error_message?: string | null
+          id?: string
+          outcome?: string
+        }
+        Relationships: []
+      }
       agent_runs: {
         Row: {
           error: string | null
@@ -218,6 +263,51 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      audit_log: {
+        Row: {
+          action_type: string
+          actor_display_name: string | null
+          actor_user_id: string | null
+          created_at: string
+          entity_id: string | null
+          entity_label: string | null
+          entity_type: string
+          id: string
+          ip_address: string | null
+          new_value: Json | null
+          old_value: Json | null
+          session_id: string | null
+        }
+        Insert: {
+          action_type: string
+          actor_display_name?: string | null
+          actor_user_id?: string | null
+          created_at?: string
+          entity_id?: string | null
+          entity_label?: string | null
+          entity_type: string
+          id?: string
+          ip_address?: string | null
+          new_value?: Json | null
+          old_value?: Json | null
+          session_id?: string | null
+        }
+        Update: {
+          action_type?: string
+          actor_display_name?: string | null
+          actor_user_id?: string | null
+          created_at?: string
+          entity_id?: string | null
+          entity_label?: string | null
+          entity_type?: string
+          id?: string
+          ip_address?: string | null
+          new_value?: Json | null
+          old_value?: Json | null
+          session_id?: string | null
+        }
+        Relationships: []
       }
       backorder_age_snapshot: {
         Row: {
@@ -1615,36 +1705,6 @@ export type Database = {
           },
         ]
       }
-      import_rules: {
-        Row: {
-          created_at: string
-          description: string
-          enabled: boolean
-          id: string
-          pattern: string
-          rule_type: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          description: string
-          enabled?: boolean
-          id?: string
-          pattern: string
-          rule_type?: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          description?: string
-          enabled?: boolean
-          id?: string
-          pattern?: string
-          rule_type?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
       ingest_logs: {
         Row: {
           created_at: string
@@ -2737,6 +2797,7 @@ export type Database = {
       }
       products_cache: {
         Row: {
+          active: boolean | null
           back_order_qty: number | null
           barcode: string | null
           barcode_type_id: string | null
@@ -2756,20 +2817,24 @@ export type Database = {
           height: number | null
           id: string
           key_features: string[] | null
+          last_enriched: string | null
           last_mintsoft_resolve_attempt_at: string | null
           last_stock_sync: string | null
           length: number | null
           low_stock_alert_level: number | null
+          lsa: number | null
           marketing_description: string | null
           marketing_title: string | null
           mintsoft_back_orders: number | null
           mintsoft_categories: string[] | null
+          mintsoft_id: number | null
           mintsoft_product_id: number | null
           mintsoft_resolve_attempts: number
           mintsoft_resolve_ignored: boolean
           mintsoft_resolved_at: string | null
           name: string
           on_order: number | null
+          on_order_qty: number | null
           ph_brand: string | null
           ph_brand_best_item_id: string | null
           ph_brand_best_price: number | null
@@ -2785,17 +2850,20 @@ export type Database = {
           ph_plain_best_seller: string | null
           ph_search_term: string | null
           ph_status: string | null
+          prefix: string | null
           public_visible: boolean
           quarantined: boolean
           rrp: number | null
           sku: string
           spec_sheet_url: string | null
+          supplier_id: string | null
           suppliers: string | null
           trade_price: number | null
           updated_at: string | null
           weight: number | null
         }
         Insert: {
+          active?: boolean | null
           back_order_qty?: number | null
           barcode?: string | null
           barcode_type_id?: string | null
@@ -2815,20 +2883,24 @@ export type Database = {
           height?: number | null
           id?: string
           key_features?: string[] | null
+          last_enriched?: string | null
           last_mintsoft_resolve_attempt_at?: string | null
           last_stock_sync?: string | null
           length?: number | null
           low_stock_alert_level?: number | null
+          lsa?: number | null
           marketing_description?: string | null
           marketing_title?: string | null
           mintsoft_back_orders?: number | null
           mintsoft_categories?: string[] | null
+          mintsoft_id?: number | null
           mintsoft_product_id?: number | null
           mintsoft_resolve_attempts?: number
           mintsoft_resolve_ignored?: boolean
           mintsoft_resolved_at?: string | null
           name: string
           on_order?: number | null
+          on_order_qty?: number | null
           ph_brand?: string | null
           ph_brand_best_item_id?: string | null
           ph_brand_best_price?: number | null
@@ -2844,17 +2916,20 @@ export type Database = {
           ph_plain_best_seller?: string | null
           ph_search_term?: string | null
           ph_status?: string | null
+          prefix?: string | null
           public_visible?: boolean
           quarantined?: boolean
           rrp?: number | null
           sku: string
           spec_sheet_url?: string | null
+          supplier_id?: string | null
           suppliers?: string | null
           trade_price?: number | null
           updated_at?: string | null
           weight?: number | null
         }
         Update: {
+          active?: boolean | null
           back_order_qty?: number | null
           barcode?: string | null
           barcode_type_id?: string | null
@@ -2874,20 +2949,24 @@ export type Database = {
           height?: number | null
           id?: string
           key_features?: string[] | null
+          last_enriched?: string | null
           last_mintsoft_resolve_attempt_at?: string | null
           last_stock_sync?: string | null
           length?: number | null
           low_stock_alert_level?: number | null
+          lsa?: number | null
           marketing_description?: string | null
           marketing_title?: string | null
           mintsoft_back_orders?: number | null
           mintsoft_categories?: string[] | null
+          mintsoft_id?: number | null
           mintsoft_product_id?: number | null
           mintsoft_resolve_attempts?: number
           mintsoft_resolve_ignored?: boolean
           mintsoft_resolved_at?: string | null
           name?: string
           on_order?: number | null
+          on_order_qty?: number | null
           ph_brand?: string | null
           ph_brand_best_item_id?: string | null
           ph_brand_best_price?: number | null
@@ -2903,11 +2982,13 @@ export type Database = {
           ph_plain_best_seller?: string | null
           ph_search_term?: string | null
           ph_status?: string | null
+          prefix?: string | null
           public_visible?: boolean
           quarantined?: boolean
           rrp?: number | null
           sku?: string
           spec_sheet_url?: string | null
+          supplier_id?: string | null
           suppliers?: string | null
           trade_price?: number | null
           updated_at?: string | null
@@ -3673,6 +3754,165 @@ export type Database = {
             referencedColumns: ["key"]
           },
         ]
+      }
+      task_activity_log: {
+        Row: {
+          action: string
+          actor_user_id: string | null
+          created_at: string
+          detail: Json | null
+          id: string
+          task_id: string
+        }
+        Insert: {
+          action: string
+          actor_user_id?: string | null
+          created_at?: string
+          detail?: Json | null
+          id?: string
+          task_id: string
+        }
+        Update: {
+          action?: string
+          actor_user_id?: string | null
+          created_at?: string
+          detail?: Json | null
+          id?: string
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_activity_log_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_activity_log_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks_with_sort_score"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      task_comments: {
+        Row: {
+          author_user_id: string | null
+          body: string
+          created_at: string
+          id: string
+          is_system_note: boolean
+          task_id: string
+        }
+        Insert: {
+          author_user_id?: string | null
+          body: string
+          created_at?: string
+          id?: string
+          is_system_note?: boolean
+          task_id: string
+        }
+        Update: {
+          author_user_id?: string | null
+          body?: string
+          created_at?: string
+          id?: string
+          is_system_note?: boolean
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_comments_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_comments_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks_with_sort_score"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tasks: {
+        Row: {
+          assigned_to: string | null
+          completed_at: string | null
+          created_at: string
+          created_by: string
+          description: string | null
+          due_date: string | null
+          id: string
+          last_status_change_at: string
+          linked_entity_id: string | null
+          linked_entity_label: string | null
+          linked_entity_type: string | null
+          priority_level: number
+          reminder_at: string | null
+          source_module: string | null
+          source_rule: string | null
+          status: Database["public"]["Enums"]["task_status"]
+          tags: string[]
+          task_type: Database["public"]["Enums"]["task_type"]
+          title: string
+          updated_at: string
+          urgency_score: number
+          user_urgency_flag: boolean
+        }
+        Insert: {
+          assigned_to?: string | null
+          completed_at?: string | null
+          created_at?: string
+          created_by: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          last_status_change_at?: string
+          linked_entity_id?: string | null
+          linked_entity_label?: string | null
+          linked_entity_type?: string | null
+          priority_level?: number
+          reminder_at?: string | null
+          source_module?: string | null
+          source_rule?: string | null
+          status?: Database["public"]["Enums"]["task_status"]
+          tags?: string[]
+          task_type?: Database["public"]["Enums"]["task_type"]
+          title: string
+          updated_at?: string
+          urgency_score?: number
+          user_urgency_flag?: boolean
+        }
+        Update: {
+          assigned_to?: string | null
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          last_status_change_at?: string
+          linked_entity_id?: string | null
+          linked_entity_label?: string | null
+          linked_entity_type?: string | null
+          priority_level?: number
+          reminder_at?: string | null
+          source_module?: string | null
+          source_rule?: string | null
+          status?: Database["public"]["Enums"]["task_status"]
+          tags?: string[]
+          task_type?: Database["public"]["Enums"]["task_type"]
+          title?: string
+          updated_at?: string
+          urgency_score?: number
+          user_urgency_flag?: boolean
+        }
+        Relationships: []
       }
       threeds_reprice_pushes: {
         Row: {
@@ -4507,6 +4747,31 @@ export type Database = {
           },
         ]
       }
+      sku_health_summary_cache: {
+        Row: {
+          brand_id: string | null
+          health_category: string | null
+          quarantined: boolean | null
+          sku_count: number | null
+          total_on_hand: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "products_cache_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "products_cache_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands_missing_base_multiplier"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sku_master_v: {
         Row: {
           allow_marketplace_sale: boolean | null
@@ -4616,6 +4881,7 @@ export type Database = {
           brand_id: string | null
           health_category: string | null
           on_hand_qty: number | null
+          quarantined: boolean | null
           sku: string | null
           weeks_of_cover: number | null
         }
@@ -4716,6 +4982,36 @@ export type Database = {
           },
         ]
       }
+      tasks_with_sort_score: {
+        Row: {
+          assigned_to: string | null
+          assignee_email: string | null
+          completed_at: string | null
+          created_at: string | null
+          created_by: string | null
+          creator_email: string | null
+          description: string | null
+          due_date: string | null
+          id: string | null
+          last_status_change_at: string | null
+          linked_entity_id: string | null
+          linked_entity_label: string | null
+          linked_entity_type: string | null
+          priority_level: number | null
+          reminder_at: string | null
+          sort_score: number | null
+          source_module: string | null
+          source_rule: string | null
+          status: Database["public"]["Enums"]["task_status"] | null
+          tags: string[] | null
+          task_type: Database["public"]["Enums"]["task_type"] | null
+          title: string | null
+          updated_at: string | null
+          urgency_score: number | null
+          user_urgency_flag: boolean | null
+        }
+        Relationships: []
+      }
       vw_orphan_skus: {
         Row: {
           brand_id: string | null
@@ -4779,6 +5075,7 @@ export type Database = {
           resolved_count: number
         }[]
       }
+      audit_actor_display_name: { Args: never; Returns: string }
       backfill_profit_weekly_snapshots: { Args: never; Returns: number }
       bulk_update_lsa_from_sftp: {
         Args: { _payload: Json }
@@ -4810,6 +5107,18 @@ export type Database = {
       }
       capability_rank: {
         Args: { c: Database["public"]["Enums"]["app_capability"] }
+        Returns: number
+      }
+      compute_urgency_score: {
+        Args: {
+          p_due_date: string
+          p_last_status_change_at: string
+          p_now: string
+          p_priority_level: number
+          p_status: Database["public"]["Enums"]["task_status"]
+          p_task_type: Database["public"]["Enums"]["task_type"]
+          p_user_urgency_flag: boolean
+        }
         Returns: number
       }
       derive_marketplace_order_id: {
@@ -5166,6 +5475,42 @@ export type Database = {
           units_sold: number
         }[]
       }
+      get_today_tasks: {
+        Args: { p_user_id: string }
+        Returns: {
+          assigned_to: string | null
+          assignee_email: string | null
+          completed_at: string | null
+          created_at: string | null
+          created_by: string | null
+          creator_email: string | null
+          description: string | null
+          due_date: string | null
+          id: string | null
+          last_status_change_at: string | null
+          linked_entity_id: string | null
+          linked_entity_label: string | null
+          linked_entity_type: string | null
+          priority_level: number | null
+          reminder_at: string | null
+          sort_score: number | null
+          source_module: string | null
+          source_rule: string | null
+          status: Database["public"]["Enums"]["task_status"] | null
+          tags: string[] | null
+          task_type: Database["public"]["Enums"]["task_type"] | null
+          title: string | null
+          updated_at: string | null
+          urgency_score: number | null
+          user_urgency_flag: boolean | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "tasks_with_sort_score"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       get_top_missing_cost_skus: {
         Args: { p_limit?: number }
         Returns: {
@@ -5243,6 +5588,11 @@ export type Database = {
           would_create: number
           would_resolve: number
         }[]
+      }
+      recalculate_all_open_urgency: { Args: never; Returns: number }
+      recalculate_urgency_score: {
+        Args: { p_task_id: string }
+        Returns: undefined
       }
       refresh_lsa_brand_summary: { Args: never; Returns: undefined }
       refresh_sku_health_internal: { Args: never; Returns: undefined }
@@ -5385,6 +5735,8 @@ export type Database = {
         | "no_feed"
       severity_type: "info" | "warning" | "critical"
       sku_type: "BASE" | "PROCUREMENT_PACK" | "MULTIPLIER" | "BUNDLE" | "ALT"
+      task_status: "todo" | "in_progress" | "blocked" | "done" | "cancelled"
+      task_type: "user_created" | "system_generated"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -5551,6 +5903,10 @@ export const Constants = {
       ],
       severity_type: ["info", "warning", "critical"],
       sku_type: ["BASE", "PROCUREMENT_PACK", "MULTIPLIER", "BUNDLE", "ALT"],
+      task_status: ["todo", "in_progress", "blocked", "done", "cancelled"],
+      task_type: ["user_created", "system_generated"],
     },
   },
 } as const
+A new version of Supabase CLI is available: v2.104.0 (currently installed v2.101.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
