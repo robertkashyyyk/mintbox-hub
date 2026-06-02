@@ -12,8 +12,9 @@
 --   <SERVICE_ROLE_KEY> below with the project's service_role key before running.
 --   (Kept as a placeholder here so the real secret is never committed to git.)
 
-CREATE EXTENSION IF NOT EXISTS pg_cron;
-CREATE EXTENSION IF NOT EXISTS pg_net;
+-- pg_cron and pg_net are already enabled on this project (other crons use them).
+-- Do NOT re-run CREATE EXTENSION: it re-triggers pg_cron's after-create grant
+-- script and fails with "2BP01: dependent privileges exist".
 
 SELECT cron.schedule(
   'ingest-3ds-orders-nightly',
