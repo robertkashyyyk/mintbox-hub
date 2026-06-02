@@ -25,18 +25,11 @@ export const useSkuVelocity = () => {
     return saved ? JSON.parse(saved) : { field: "avg_weekly_units", direction: "desc" };
   });
 
-  const [filters, setFilters] = useState<Filters>(() => {
-    const saved = localStorage.getItem("velocity_filters");
-    return saved ? JSON.parse(saved) : { search: "", brandId: "all", minAvgWeekly: "" };
-  });
+  const [filters, setFilters] = useState<Filters>({ search: "", brandId: "all", minAvgWeekly: "" });
 
   useEffect(() => {
     localStorage.setItem("velocity_sort", JSON.stringify(sort));
   }, [sort]);
-
-  useEffect(() => {
-    localStorage.setItem("velocity_filters", JSON.stringify(filters));
-  }, [filters]);
 
   const { data: brandsData } = useQuery({
     queryKey: ["brands"],

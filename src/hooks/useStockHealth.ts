@@ -44,18 +44,14 @@ export const useStockHealth = () => {
   const pageSize = 50;
   const { toast } = useToast();
 
-  const [filters, setFilters] = useState<StockHealthFilters>(() => {
-    const saved = localStorage.getItem("stockHealthFilters");
-    const parsed = saved ? JSON.parse(saved) : {};
-    return {
-      search: parsed.search ?? "",
-      brandId: parsed.brandId ?? "all",
-      healthCategory: parsed.healthCategory ?? "all",
-      onlyGoodProblems: parsed.onlyGoodProblems ?? false,
-      onlyBadProblems: parsed.onlyBadProblems ?? parsed.onlyProblems ?? false,
-      excludeDirt: parsed.excludeDirt ?? false,
-      excludeOutOfStock: parsed.excludeOutOfStock ?? false,
-    };
+  const [filters, setFilters] = useState<StockHealthFilters>({
+    search: "",
+    brandId: "all",
+    healthCategory: "all",
+    onlyGoodProblems: false,
+    onlyBadProblems: false,
+    excludeDirt: false,
+    excludeOutOfStock: false,
   });
 
   const [sortBy, setSortBy] = useState<string>(() => {
@@ -64,10 +60,6 @@ export const useStockHealth = () => {
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">(() => {
     return (localStorage.getItem("stockHealthSortOrder") as "asc" | "desc") || "asc";
   });
-
-  useEffect(() => {
-    localStorage.setItem("stockHealthFilters", JSON.stringify(filters));
-  }, [filters]);
 
   useEffect(() => {
     localStorage.setItem("stockHealthSortBy", sortBy);

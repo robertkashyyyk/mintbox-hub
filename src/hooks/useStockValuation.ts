@@ -57,10 +57,7 @@ export const useStockValuation = () => {
   const [page, setPage] = useState(1);
   const pageSize = 50;
 
-  const [filters, setFilters] = useState<StockValuationFilters>(() => {
-    const saved = localStorage.getItem("stockValuationFilters");
-    return saved ? { ...DEFAULT_FILTERS, ...JSON.parse(saved) } : DEFAULT_FILTERS;
-  });
+  const [filters, setFilters] = useState<StockValuationFilters>(DEFAULT_FILTERS);
   const [sortBy, setSortBy] = useState<string>(
     () => localStorage.getItem("stockValuationSortBy") || "net_value"
   );
@@ -68,9 +65,6 @@ export const useStockValuation = () => {
     () => (localStorage.getItem("stockValuationSortOrder") as "asc" | "desc") || "desc"
   );
 
-  useEffect(() => {
-    localStorage.setItem("stockValuationFilters", JSON.stringify(filters));
-  }, [filters]);
   useEffect(() => {
     localStorage.setItem("stockValuationSortBy", sortBy);
     localStorage.setItem("stockValuationSortOrder", sortOrder);

@@ -26,39 +26,25 @@ const ITEMS_PER_PAGE = 100;
 export const useSkuDatabase = () => {
   const [page, setPage] = useState(1);
   const [sort, setSort] = useState<SortState>({ field: "sku", direction: "asc" });
-  const [filters, setFilters] = useState<FilterState>(() => {
-    const saved = localStorage.getItem("skuDatabaseFilters");
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      // Ensure hasImages exists for backward compat
-      if (parsed.hasImages === undefined) parsed.hasImages = false;
-      return parsed;
-    }
-    return {
-      search: "",
-      brand: "",
-      status: "",
-      categories: [],
-      stockMin: 0,
-      stockMax: 10000,
-      backOrderMin: 0,
-      backOrderMax: 10000,
-      onOrderMin: 0,
-      onOrderMax: 10000,
-      qtyToOrderMin: 0,
-      qtyToOrderMax: 10000,
-      costPriceMin: 0,
-      costPriceMax: 1000,
-      lastSyncedFrom: "",
-      lastSyncedTo: "",
-      hasImages: false,
-    };
+  const [filters, setFilters] = useState<FilterState>({
+    search: "",
+    brand: "",
+    status: "",
+    categories: [],
+    stockMin: 0,
+    stockMax: 10000,
+    backOrderMin: 0,
+    backOrderMax: 10000,
+    onOrderMin: 0,
+    onOrderMax: 10000,
+    qtyToOrderMin: 0,
+    qtyToOrderMax: 10000,
+    costPriceMin: 0,
+    costPriceMax: 1000,
+    lastSyncedFrom: "",
+    lastSyncedTo: "",
+    hasImages: false,
   });
-
-  // Save filters to localStorage
-  useEffect(() => {
-    localStorage.setItem("skuDatabaseFilters", JSON.stringify(filters));
-  }, [filters]);
 
   // Save sort to localStorage
   useEffect(() => {
