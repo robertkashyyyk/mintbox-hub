@@ -18,6 +18,7 @@ interface ThreedsListing {
   base_sku: string;
   sku: string;
   q_code: string | null;
+  pack_size: number | null;
   external_item_id: string | null;
   marketplace: string | null;
   channel: string | null;
@@ -465,7 +466,9 @@ export default function ProductDetail() {
                         <th className="py-2 pr-3">SKU</th>
                         <th className="py-2 pr-3">eBay Item #</th>
                         <th className="py-2 pr-3">Marketplace</th>
-                        <th className="py-2 pr-3 text-right">Last Price</th>
+                        <th className="py-2 pr-3">Pack</th>
+                        <th className="py-2 pr-3 text-right">Pack Price</th>
+                        <th className="py-2 pr-3 text-right">Per Item</th>
                         <th className="py-2 pr-3 text-right">Units 90d</th>
                         <th className="py-2 pr-3 text-right">Real Fee</th>
                         <th className="py-2 pr-3">Last Sold</th>
@@ -498,7 +501,13 @@ export default function ProductDetail() {
                             ) : "—"}
                           </td>
                           <td className="py-2 pr-3">{l.marketplace ?? "—"}</td>
+                          <td className="py-2 pr-3">{(l.pack_size ?? 1) > 1 ? `${l.pack_size}-pack` : "single"}</td>
                           <td className="py-2 pr-3 text-right tabular-nums">{money(l.last_unit_price, l.currency)}</td>
+                          <td className="py-2 pr-3 text-right tabular-nums text-muted-foreground">
+                            {l.last_unit_price != null && (l.pack_size ?? 1) > 1
+                              ? money(l.last_unit_price / (l.pack_size as number), l.currency)
+                              : "—"}
+                          </td>
                           <td className="py-2 pr-3 text-right tabular-nums">{l.units_90d ?? 0}</td>
                           <td className="py-2 pr-3 text-right tabular-nums">
                             {l.real_fee_rate != null ? `${(l.real_fee_rate * 100).toFixed(1)}%` : "—"}
@@ -511,7 +520,7 @@ export default function ProductDetail() {
                     </tbody>
                   </table>
                   <p className="mt-3 text-xs text-muted-foreground">
-                    Real fee = actual eBay final-value fees ÷ gross sales over the last 90 days. Q-variants of this SKU are grouped here automatically.
+                    Pack = the -Q code multiplier (e.g. -Q02 = 2-pack); “Per Item” is the pack price ÷ pack size. Real fee = actual eBay final-value fees ÷ gross sales over the last 90 days. Q-variants of this SKU are grouped here automatically.
                   </p>
                 </div>
               )}
