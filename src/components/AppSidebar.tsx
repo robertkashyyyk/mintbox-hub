@@ -81,7 +81,7 @@ export function AppSidebar() {
         { title: "Products", url: "/discovery/products", icon: Database },
         { title: "Brands", url: "/discovery/brands", icon: Tag },
         { title: "Discovery Queue", url: "/discovery/discovery-queue", icon: AlertCircle },
-        { title: "Bulk Image Upload", url: "/discovery/bulk-images", icon: Images },
+        { title: "Images", url: "/discovery/images", icon: Images },
       ],
     },
     {
@@ -104,7 +104,7 @@ export function AppSidebar() {
       items: [
         { title: "Missing Costs", url: "/intelligence/missing-costs", icon: AlertCircle },
         { title: "Dirt SKUs", url: "/intelligence/dirt-skus", icon: AlertTriangle },
-        { title: "Pending Images", url: "/discovery/pending-images", icon: Images },
+        { title: "Images", url: "/discovery/images", icon: Images },
         { title: "Discovery Queue", url: "/discovery/discovery-queue", icon: Search },
         { title: "Missing Barcodes", url: "/discovery/products?filter=no-barcode", icon: Tag },
         { title: "Carrier Remeasure", url: "/operations/carriers/remeasure", icon: Truck },

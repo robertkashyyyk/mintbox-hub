@@ -19,10 +19,12 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
-import { ArrowUpDown, Download, ImageIcon, Database } from "lucide-react";
+import { ArrowUpDown, Download, ImageIcon, Database, PackagePlus } from "lucide-react";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
 import ModuleHeader from "@/components/ModuleHeader";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import BoxQuantities from "@/pages/discovery/BoxQuantities";
 
 const SkuDatabase = () => {
   const {
@@ -154,7 +156,7 @@ const SkuDatabase = () => {
       <div className="flex items-start justify-between gap-4">
         <ModuleHeader
           title="Products"
-          description={`Showing ${filteredCount} of ${totalCount} products`}
+          description="Full product catalogue — stock levels, costs, LSA, and order quantities."
           icon={Database}
         />
         <div className="flex-shrink-0 pt-1">
@@ -165,6 +167,20 @@ const SkuDatabase = () => {
         </div>
       </div>
 
+      <Tabs defaultValue="products">
+        <TabsList>
+          <TabsTrigger value="products">
+            <Database className="h-4 w-4 mr-2" />
+            Products
+          </TabsTrigger>
+          <TabsTrigger value="box-quantities">
+            <PackagePlus className="h-4 w-4 mr-2" />
+            Box Quantities
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="products" className="mt-6">
+
       <SkuFilters
         filters={filters}
         onFiltersChange={handleFiltersChange}
@@ -174,7 +190,7 @@ const SkuDatabase = () => {
 
       <Card>
         <CardHeader>
-          <CardTitle>Products</CardTitle>
+          <CardTitle>Products <span className="text-sm font-normal text-muted-foreground ml-2">{filteredCount} of {totalCount}</span></CardTitle>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -352,6 +368,13 @@ const SkuDatabase = () => {
           )}
         </CardContent>
       </Card>
+
+        </TabsContent>
+
+        <TabsContent value="box-quantities" className="mt-6">
+          <BoxQuantities />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };

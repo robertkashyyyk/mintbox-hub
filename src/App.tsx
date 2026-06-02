@@ -61,6 +61,7 @@ import CarrierSettings from "./pages/operations/carriers/CarrierSettings";
 
 // Discovery Pages
 import DiscoveryQueue from "./pages/discovery/DiscoveryQueue";
+import ImagesPage from "./pages/discovery/Images";
 import BulkImageUpload from "./pages/discovery/BulkImageUpload";
 import PendingImages from "./pages/discovery/PendingImages";
 import ImageScout from "./pages/discovery/ImageScout";
@@ -199,8 +200,10 @@ const App = () => (
             <Route path="/discovery/brands" element={<Brands />} />
             <Route path="/discovery/discovery-queue" element={<DiscoveryQueue />} />
             <Route path="/discovery/feed-imports" element={<Importing />} />
-            <Route path="/discovery/bulk-images" element={<BulkImageUpload />} />
-            <Route path="/discovery/pending-images" element={<PendingImages />} />
+            <Route path="/discovery/images" element={<ImagesPage />} />
+            {/* Legacy redirects — old bookmarks still work */}
+            <Route path="/discovery/bulk-images" element={<Navigate to="/discovery/images" replace />} />
+            <Route path="/discovery/pending-images" element={<Navigate to="/discovery/images?tab=pending-review" replace />} />
             <Route path="/discovery/image-scout" element={<ImageScout />} />
             <Route path="/discovery/image-scout/brand-profiles" element={<ImageScoutBrandProfiles />} />
             <Route path="/discovery/image-scout/qa-run" element={<ImageScoutQARun />} />
