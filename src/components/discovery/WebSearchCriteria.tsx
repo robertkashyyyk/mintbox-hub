@@ -22,6 +22,7 @@ export type Criteria = {
   contains: string;
   category: string;
   minCost: string;
+  minUnits: string; // min units sold in last 90d
   onlyMissingDims: boolean;
   requireBarcode: boolean;
   notYetSearched: boolean;
@@ -30,7 +31,7 @@ export type Criteria = {
 };
 
 const DEFAULTS: Criteria = {
-  brandIds: [], prefixes: "", contains: "", category: "", minCost: "",
+  brandIds: [], prefixes: "", contains: "", category: "", minCost: "", minUnits: "",
   onlyMissingDims: true, requireBarcode: true, notYetSearched: true,
   inStockOnly: false, batchSize: 25,
 };
@@ -47,6 +48,7 @@ function applyFilters(qIn: any, c: Criteria) {
   if (prefixes.length) q = q.in("prefix", prefixes);
   if (c.contains.trim()) q = q.or(`sku.ilike.%${c.contains.trim()}%,name.ilike.%${c.contains.trim()}%`);
   if (c.minCost.trim() && !isNaN(Number(c.minCost))) q = q.gte("cost_price", Number(c.minCost));
+  if (c.minUnits.trim() && !isNaN(Number(c.minUnits))) q = q.gte("units_sold_90d", Number(c.minUnits));
   if (c.category.trim()) q = q.contains("mintsoft_categories", [c.category.trim()]);
   return q;
 }
@@ -75,7 +77,7 @@ const WebSearchCriteria = ({
     queryKey: ["web-search-criteria-count", c],
     queryFn: async () => {
       const { count } = await applyFilters(
-        supabase.from("products_cache").select("sku", { count: "exact", head: true }),
+        (supabase as any).from("products_cache").select("sku", { count: "exact", head: true }),
         c,
       );
       return count ?? 0;
@@ -89,9 +91,10 @@ const WebSearchCriteria = ({
     setFetchingRun(true);
     try {
       const { data, error } = await applyFilters(
-        supabase.from("products_cache").select("sku"),
+        (supabase as any).from("products_cache").select("sku"),
         c,
       )
+        .order("velocity_per_week", { ascending: false, nullsFirst: false }) // top sellers first
         .order("dim_search_checked_at", { ascending: true, nullsFirst: true })
         .limit(c.batchSize);
       if (error) throw error;
@@ -116,6 +119,7 @@ const WebSearchCriteria = ({
         contains: c.contains,
         category: c.category,
         min_cost: c.minCost ? Number(c.minCost) : null,
+        min_units_90d: c.minUnits ? Number(c.minUnits) : null,
         require_barcode: c.requireBarcode,
         only_missing_dims: c.onlyMissingDims,
         in_stock_only: c.inStockOnly,
@@ -191,6 +195,12 @@ const WebSearchCriteria = ({
             <Label className="text-xs">Min cost price (£)</Label>
             <Input type="number" placeholder="any" value={c.minCost}
                    onChange={(e) => set({ minCost: e.target.value })} />
+          </div>
+
+          <div>
+            <Label className="text-xs">Min units sold (90d)</Label>
+            <Input type="number" placeholder="any" value={c.minUnits}
+                   onChange={(e) => set({ minUnits: e.target.value })} />
           </div>
 
           <div>
