@@ -21,7 +21,7 @@ type Row = {
   current_stock: number | null;
   brand_id: string | null;
   brand_name?: string | null;
-  mintsoft_product_id: number | null;
+  mintsoft_id: number | null;
   units_28d: number;
   last_sold: string | null;
 };
@@ -38,11 +38,11 @@ async function fetchAllProductsMissingCost() {
   while (true) {
     const { data, error } = await supabase
       .from("products_cache")
-      .select("id, sku, name, suppliers, current_stock, brand_id, mintsoft_product_id")
+      .select("id, sku, name, suppliers, current_stock, brand_id, mintsoft_id")
       .is("cost_price", null)
       .eq("discontinued", false)
       .eq("quarantined", false)
-      .not("mintsoft_product_id", "is", null)
+      .not("mintsoft_id", "is", null)
       .order("sku", { ascending: true })
       .range(from, from + step - 1);
     if (error) throw error;
@@ -252,14 +252,14 @@ const MissingCosts = () => {
       toast.error("Enter a valid cost between 0 and 100,000");
       return;
     }
-    if (!row.mintsoft_product_id) {
+    if (!row.mintsoft_id) {
       toast.error(`No Mintsoft product ID for ${row.sku}`);
       return;
     }
     setSaving((s) => ({ ...s, [row.id]: true }));
     try {
       const { data, error } = await supabase.functions.invoke("update-product-cost", {
-        body: { items: [{ mintsoft_product_id: row.mintsoft_product_id, sku: row.sku, cost_price: val }] },
+        body: { items: [{ mintsoft_id: row.mintsoft_id, sku: row.sku, cost_price: val }] },
       });
       if (error) throw error;
       const result = data?.results?.[0];
@@ -278,7 +278,7 @@ const MissingCosts = () => {
 
   async function saveAllPage() {
     const items = pageRows
-      .filter((r) => edits[r.id] && r.mintsoft_product_id)
+      .filter((r) => edits[r.id] && r.mintsoft_id)
       .map((r) => ({
         row: r,
         val: Number(edits[r.id]),
@@ -296,7 +296,7 @@ const MissingCosts = () => {
     let failCount = 0;
     for (const ch of chunks) {
       const payload = ch.map(({ row, val }) => ({
-        mintsoft_product_id: row.mintsoft_product_id!,
+        mintsoft_id: row.mintsoft_id!,
         sku: row.sku,
         cost_price: val,
       }));
@@ -441,7 +441,7 @@ const MissingCosts = () => {
                   {pageRows.map((p) => {
                     const editVal = edits[p.id] ?? "";
                     const isSaving = !!saving[p.id];
-                    const noMs = !p.mintsoft_product_id;
+                    const noMs = !p.mintsoft_id;
                     return (
                       <TableRow key={p.id}>
                         <TableCell className="font-mono text-xs">{p.sku}</TableCell>

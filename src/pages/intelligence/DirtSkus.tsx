@@ -12,18 +12,19 @@ import { AlertTriangle, ArrowUpDown, ArrowUp, ArrowDown, X } from "lucide-react"
 import ModuleHeader from "@/components/ModuleHeader";
 import { Link } from "react-router-dom";
 
-type RangeKey = "1" | "2" | "4" | "8";
+type RangeKey = "1" | "2" | "4" | "8" | "12";
 const RANGE_LABEL: Record<RangeKey, string> = {
   "1": "Last week",
   "2": "Last 2 weeks",
   "4": "Last 4 weeks",
   "8": "Last 8 weeks",
+  "12": "Last 12 weeks",
 };
 
 type SortKey = "sku" | "product_name" | "lines" | "qty" | "revenue" | "profit" | "last_seen";
 
 const DirtSkus = () => {
-  const [range, setRange] = useState<RangeKey>("8");
+  const [range, setRange] = useState<RangeKey>("4");
   const [search, setSearch] = useState("");
   const [resolved, setResolved] = useState<Set<string>>(new Set());
   const [sortKey, setSortKey] = useState<SortKey>("lines");
