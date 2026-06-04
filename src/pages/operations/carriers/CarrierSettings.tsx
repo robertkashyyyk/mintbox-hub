@@ -25,7 +25,7 @@ type FormatService = {
   max_length_mm: number | null;
   max_width_mm: number | null;
   max_height_mm: number | null;
-  max_weight_g: number | null;
+  max_weight_kg: number | null;
   price_pence: number | null;
   is_format_category: boolean;
   sort_order: number;
@@ -329,7 +329,7 @@ const PackersTab = ({ packers, onChange, loading }: { packers: Packer[]; onChang
 // ---------------- Format Services ----------------
 const EMPTY_FORMAT: Omit<FormatService, "id"> = {
   carrier_id: null, name: "", slug: "", mintsoft_category_id: null,
-  max_length_mm: null, max_width_mm: null, max_height_mm: null, max_weight_g: null,
+  max_length_mm: null, max_width_mm: null, max_height_mm: null, max_weight_kg: null,
   price_pence: null, is_format_category: true, sort_order: 0, active: true, notes: null,
 };
 
@@ -418,8 +418,8 @@ const FormatServicesTab = ({ formats, carriers, onChange, loading }: { formats: 
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <Label>Max weight (g)</Label>
-                  <Input type="number" value={form.max_weight_g ?? ""} onChange={e => f("max_weight_g", e.target.value ? Number(e.target.value) : null)} placeholder="750" />
+                  <Label>Max weight (kg)</Label>
+                  <Input type="number" value={form.max_weight_kg ?? ""} onChange={e => f("max_weight_kg", e.target.value ? Number(e.target.value) : null)} placeholder="0.75" />
                 </div>
                 <div className="space-y-1.5">
                   <Label>Price (pence)</Label>
@@ -473,7 +473,7 @@ const FormatServicesTab = ({ formats, carriers, onChange, loading }: { formats: 
                     ? `${dim(s.max_length_mm)}×${dim(s.max_width_mm)}×${dim(s.max_height_mm)}`
                     : "—"}
                 </TableCell>
-                <TableCell className="text-right text-sm">{s.max_weight_g != null ? `${s.max_weight_g}g` : "—"}</TableCell>
+                <TableCell className="text-right text-sm">{s.max_weight_kg != null ? `${s.max_weight_kg}kg` : "—"}</TableCell>
                 <TableCell className="text-right text-sm">{price(s.price_pence)}</TableCell>
                 <TableCell className="text-sm text-muted-foreground">{s.mintsoft_category_id ?? "—"}</TableCell>
                 <TableCell>{s.active ? "Yes" : "No"}</TableCell>

@@ -221,14 +221,14 @@ export default function RemeasureGame() {
             <th>Current category</th>
             <th>Current dims (Mintsoft)</th>
             <th>Penalty: declared → actual</th>
-            <th>New L (cm)</th><th>New W (cm)</th><th>New H (cm)</th><th>Weight (g)</th>
+            <th>New L (cm)</th><th>New W (cm)</th><th>New H (cm)</th><th>Weight (kg)</th>
             <th>Notes / Packaging?</th>
           </tr></thead>
           <tbody>
             ${printTasks.map(t => {
               const d = dimsMap.get(t.sku) as any;
               const cats = d?.mintsoft_categories?.filter(Boolean).join(", ") || "—";
-              const dims = d ? `${d.length ?? "?"}×${d.length ?? "?"}×${d.height ?? "?"}cm ${d.weight ?? "?"}g` : "—";
+              const dims = d ? `${d.length ?? "?"}×${d.depth ?? "?"}×${d.height ?? "?"}cm ${d.weight ?? "?"}kg` : "—";
               return `
               <tr>
                 <td class="sku">${t.sku}</td>
@@ -577,7 +577,7 @@ export default function RemeasureGame() {
                   { label: "L (cm)", val: currentDims?.length },
                   { label: "W (cm)", val: currentDims?.depth },
                   { label: "H (cm)", val: currentDims?.height },
-                  { label: "Weight (g)", val: currentDims?.weight },
+                  { label: "Weight (kg)", val: currentDims?.weight },
                 ].map(({ label, val }) => (
                   <div key={label} className="bg-background/50 rounded p-2">
                     <p className="text-xs text-muted-foreground">{label}</p>
@@ -633,8 +633,8 @@ export default function RemeasureGame() {
                 value={height} onChange={e => setHeight(e.target.value)} className="h-12 text-lg text-center" />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="rm-wt" className="text-sm">Weight (g)</Label>
-              <Input id="rm-wt" inputMode="decimal" placeholder="0"
+              <Label htmlFor="rm-wt" className="text-sm">Weight (kg)</Label>
+              <Input id="rm-wt" inputMode="decimal" placeholder="0.00"
                 value={weight} onChange={e => setWeight(e.target.value)} className="h-12 text-lg text-center" />
             </div>
           </div>

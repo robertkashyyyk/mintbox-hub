@@ -21,7 +21,7 @@ import { format } from "date-fns";
 import {
   type Tier, type FeeRule, type CostFlag,
   TIER_OPTIONS, TIER_TARGET_POR_PCT, SUSPECT_COST_MULTIPLE,
-  effectiveFeesFor, backSolveGrossPrice, classifyCost, toGross,
+  effectiveFeesFor, backSolveGrossPrice, classifyCost, toGross, feeInputsForBackSolve,
 } from "@/lib/reprice";
 
 interface Store {
@@ -33,11 +33,16 @@ interface Store {
 }
 interface Candidate {
   sku: string;
+  base_sku: string | null;
+  pack_size: number | null; // Q-code multiplier (Q0N => N), 1 for singles
   product_name: string | null;
   brand_name: string | null;
   units_sold: number;
   revenue: number | null;
+  base_unit_cost: number | null; // products_cache cost of the BASE (single) SKU
+  pack_cost_unit: number | null; // base_unit_cost × pack_size (Robert's rule)
   cost_total: number | null;
+  real_fee_rate: number | null; // measured fvf/gross from 3DS orders (~22%), or null
   fees_total: number | null;
   courier_total: number | null;
   profit: number | null;
@@ -60,6 +65,8 @@ interface EnrichedRow extends Candidate {
   grossLastSold: number | null; // current_price grossed up (what eBay shows)
   flag: CostFlag;
   suggestedGross: number | null; // back-solved to the chosen tier
+  feePctUsed: number; // fee rate the back-solve used (real or modeled)
+  usedRealFee: boolean; // true when the measured 3DS fee rate was used
 }
 
 const PAGE_SIZE = 50;
@@ -165,22 +172,31 @@ export default function ThreedsReprice() {
     const targetPorFrac = TIER_TARGET_POR_PCT[tier] / 100;
     return (candidates ?? []).map((c) => {
       const units = c.units_sold > 0 ? c.units_sold : 0;
-      const costUnit = units > 0 ? (c.cost_total ?? 0) / units : 0;
+      // Pack-aware cost: prefer the derived pack_cost_unit (base unit cost ×
+      // pack_size) from the RPC; fall back to cost_total/units for safety.
+      const costUnit =
+        c.pack_cost_unit != null && c.pack_cost_unit > 0
+          ? c.pack_cost_unit
+          : units > 0 ? (c.cost_total ?? 0) / units : 0;
       const courierUnit = units > 0 ? (c.courier_total ?? 0) / units : 0;
       const grossLastSold = toGross(c.current_price, fees.vat);
+      // Flag on the pack-aware cost: cost_total from the RPC is already
+      // pack_cost_unit × units (NULL when the base cost is missing).
       const flag = classifyCost({ costTotal: c.cost_total, unitsSold: units, grossPrice: grossLastSold });
+      // Prefer the measured real eBay fee rate (~22%) over the modeled default.
+      const { feePct, fixedFeeUnit, usedReal } = feeInputsForBackSolve(c.real_fee_rate, fees);
       const suggestedGross =
         flag === null
           ? backSolveGrossPrice({
               costUnit,
               courierUnit,
-              fixedFeeUnit: fees.fixedFee,
-              feePct: fees.feePct,
+              fixedFeeUnit,
+              feePct,
               vat: fees.vat,
               targetPorFrac,
             })
           : null;
-      return { ...c, costUnit, grossLastSold, flag, suggestedGross };
+      return { ...c, costUnit, grossLastSold, flag, suggestedGross, feePctUsed: feePct, usedRealFee: usedReal };
     });
   }, [candidates, tier, fees]);
 
@@ -370,8 +386,9 @@ export default function ThreedsReprice() {
               </CardTitle>
               <p className="text-xs text-muted-foreground mt-1">
                 New price targets the <strong>{TIER_OPTIONS.find((t) => t.value === tier)?.label}</strong> band
-                ({pct(TIER_TARGET_POR_PCT[tier])} POR) and is shown <strong>inc VAT</strong> ({Math.round(fees.vat * 100)}%),
-                fee {Math.round(fees.feePct * 100)}% + {gbp(fees.fixedFee)} fixed.
+                ({pct(TIER_TARGET_POR_PCT[tier])} POR) and is shown <strong>inc VAT</strong> ({Math.round(fees.vat * 100)}%).
+                Uses each listing's <strong>real eBay fee</strong> (from 3DS orders) where known, else the modeled
+                {" "}{Math.round(fees.feePct * 100)}% + {gbp(fees.fixedFee)} fixed. Pack SKUs (-Q0N) cost = single-unit cost × pack size.
               </p>
             </div>
             <Button
@@ -402,11 +419,13 @@ export default function ThreedsReprice() {
                       </TableHead>
                       <TableHead>SKU</TableHead>
                       <TableHead>Brand</TableHead>
+                      <TableHead className="text-center">Pack</TableHead>
                       <TableHead className="text-right">Units</TableHead>
                       <TableHead className="text-right">Revenue</TableHead>
                       <TableHead className="text-right">Profit</TableHead>
                       <TableHead className="text-right">PoR%</TableHead>
                       <TableHead className="text-right">Cost ea</TableHead>
+                      <TableHead className="text-right">Fee</TableHead>
                       <TableHead className="text-right">Stock</TableHead>
                       <TableHead className="text-right">Last Sold £<br /><span className="text-[10px] font-normal text-muted-foreground">inc VAT</span></TableHead>
                       <TableHead className="text-right w-[120px]">New £<br /><span className="text-[10px] font-normal text-muted-foreground">inc VAT</span></TableHead>
@@ -432,6 +451,13 @@ export default function ThreedsReprice() {
                           </TableCell>
                           <TableCell className="font-mono text-xs">{r.sku}</TableCell>
                           <TableCell>{r.brand_name ?? "—"}</TableCell>
+                          <TableCell className="text-center">
+                            {(r.pack_size ?? 1) > 1 ? (
+                              <Badge variant="secondary" className="font-mono text-[10px]">{r.pack_size}-pack</Badge>
+                            ) : (
+                              <span className="text-muted-foreground text-xs">single</span>
+                            )}
+                          </TableCell>
                           <TableCell className="text-right">{r.units_sold}</TableCell>
                           <TableCell className="text-right">{gbp(r.revenue)}</TableCell>
                           <TableCell className={`text-right font-medium ${negative ? "text-destructive" : ""}`}>
@@ -439,6 +465,11 @@ export default function ThreedsReprice() {
                           </TableCell>
                           <TableCell className="text-right">{pct(r.por_pct)}</TableCell>
                           <TableCell className="text-right">{gbp(r.costUnit)}</TableCell>
+                          <TableCell className="text-right">
+                            <span title={r.usedRealFee ? "Real eBay fee from 3DS orders" : "Modeled channel fee (no 3DS data)"}>
+                              {pct(r.feePctUsed * 100)}{r.usedRealFee ? "" : "*"}
+                            </span>
+                          </TableCell>
                           <TableCell className="text-right">{r.current_stock ?? "—"}</TableCell>
                           <TableCell className="text-right">{gbp(r.grossLastSold)}</TableCell>
                           <TableCell className="text-right">

@@ -639,7 +639,7 @@ const TaskDialog = ({
               <Input placeholder="L (cm)" value={length} onChange={(e) => setLength(e.target.value)} />
               <Input placeholder="W (cm)" value={width} onChange={(e) => setWidth(e.target.value)} />
               <Input placeholder="H (cm)" value={height} onChange={(e) => setHeight(e.target.value)} />
-              <Input placeholder="Weight (g)" value={weight} onChange={(e) => setWeight(e.target.value)} />
+              <Input placeholder="Weight (kg)" value={weight} onChange={(e) => setWeight(e.target.value)} />
             </div>
             <p className="text-xs text-muted-foreground mt-2">
               Update Mintsoft directly with these values. This page just records what was set.

@@ -71,6 +71,29 @@ export interface EffectiveFees {
 
 export const DEFAULT_FEES: EffectiveFees = { vat: 0.2, feePct: 0.12, fixedFee: 0.36 };
 
+/**
+ * Sane bounds for a MEASURED eBay fee rate (final_value_fee / gross price, from
+ * the 3DS orders feed). Outside this band the measurement is noise (e.g. a single
+ * refunded/odd line) and we fall back to the modeled channel fee.
+ */
+export const REAL_FEE_MIN = 0.05;
+export const REAL_FEE_MAX = 0.4;
+
+/**
+ * Resolve the fee inputs for the back-solve. Prefers the measured real fee rate
+ * (fvf/gross — which ALREADY includes the £0.36 fixed fee + promoted-listing
+ * fees, so fixedFeeUnit becomes 0) over the modeled channel default.
+ */
+export function feeInputsForBackSolve(
+  realFeeRate: number | null | undefined,
+  fallback: EffectiveFees,
+): { feePct: number; fixedFeeUnit: number; usedReal: boolean } {
+  if (realFeeRate != null && realFeeRate >= REAL_FEE_MIN && realFeeRate <= REAL_FEE_MAX) {
+    return { feePct: realFeeRate, fixedFeeUnit: 0, usedReal: true };
+  }
+  return { feePct: fallback.feePct, fixedFeeUnit: fallback.fixedFee, usedReal: false };
+}
+
 /** Convert a SQL LIKE pattern (%, _) to an anchored, case-insensitive RegExp. */
 function likeToRegExp(pattern: string): RegExp {
   const escaped = pattern
