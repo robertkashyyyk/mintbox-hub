@@ -69,6 +69,7 @@ const STATUS_OPTIONS = [
   { value: "in_progress", label: "In progress" },
   { value: "completed", label: "Completed" },
   { value: "packer_issue", label: "Packer issue" },
+  { value: "packaging_issue", label: "Packaging issue" },
   { value: "blocked", label: "Blocked" },
 ];
 
@@ -77,6 +78,7 @@ const STATUS_VARIANTS: Record<string, string> = {
   in_progress: "bg-blue-500/15 text-blue-300 border border-blue-500/30",
   completed: "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30",
   packer_issue: "bg-destructive/15 text-destructive border border-destructive/30",
+  packaging_issue: "bg-orange-500/15 text-orange-400 border border-orange-500/30",
   blocked: "bg-muted text-muted-foreground",
 };
 
@@ -171,7 +173,8 @@ const CarrierRemeasure = () => {
     setSkuPage(1);
     setTaskPage(1);
     let list = tasks;
-    if (statusFilter === "open") list = list.filter((t) => !["completed"].includes(t.status));
+    if (statusFilter === "open") list = list.filter((t) => !["completed", "packaging_issue"].includes(t.status));
+    else if (statusFilter === "packaging_issues") list = list.filter((t) => t.status === "packaging_issue");
     else if (statusFilter !== "all") list = list.filter((t) => t.status === statusFilter);
     if (search.trim()) {
       const q = search.toLowerCase();
@@ -210,11 +213,12 @@ const CarrierRemeasure = () => {
   const filteredPage = filtered.slice((taskPage - 1) * TASK_PAGE_SIZE, taskPage * TASK_PAGE_SIZE);
 
   const stats = useMemo(() => {
-    const open = tasks.filter((t) => t.status !== "completed").length;
+    const open = tasks.filter((t) => !["completed"].includes(t.status)).length;
     const completed = tasks.filter((t) => t.status === "completed").length;
     const issues = tasks.filter((t) => t.status === "packer_issue").length;
-    const skus = new Set(tasks.filter((t) => t.status !== "completed").map((t) => t.sku)).size;
-    return { open, completed, issues, skus };
+    const packagingIssues = tasks.filter((t) => t.status === "packaging_issue").length;
+    const skus = new Set(tasks.filter((t) => !["completed"].includes(t.status)).map((t) => t.sku)).size;
+    return { open, completed, issues, packagingIssues, skus };
   }, [tasks]);
 
   return (
@@ -248,10 +252,11 @@ const CarrierRemeasure = () => {
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <Stat label="Open tasks" value={stats.open} />
         <Stat label="Distinct SKUs" value={stats.skus} />
         <Stat label="Completed" value={stats.completed} className="text-emerald-400" />
+        <Stat label="Packaging issues" value={stats.packagingIssues} className="text-orange-400" />
         <Stat label="Packer issues" value={stats.issues} className="text-destructive" />
       </div>
 
@@ -265,6 +270,7 @@ const CarrierRemeasure = () => {
             <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="open">Open</SelectItem>
+              <SelectItem value="packaging_issues">⚠ Packaging issues</SelectItem>
               <SelectItem value="all">All</SelectItem>
               {STATUS_OPTIONS.map((s) => (
                 <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
