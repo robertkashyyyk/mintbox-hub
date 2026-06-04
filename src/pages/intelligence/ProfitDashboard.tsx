@@ -12,6 +12,7 @@ import { TrendingUp, ChevronLeft, ChevronRight, AlertTriangle, RefreshCw, ArrowU
 import ModuleHeader from "@/components/ModuleHeader";
 import { Link } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
+import OrderLineDetailSheet, { type SelectedLine } from "@/components/intelligence/OrderLineDetailSheet";
 
 // ISO 8601 week helpers — Mon start, week 1 = first Thursday
 function isoWeekOf(date: Date): { year: number; week: number } {
@@ -166,6 +167,7 @@ const ProfitDashboard = () => {
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(100);
+  const [selectedLine, setSelectedLine] = useState<SelectedLine | null>(null);
 
   const channelOptions = useMemo(() => {
     const set = new Set<string>();
@@ -481,8 +483,17 @@ const ProfitDashboard = () => {
                   </TableHeader>
                   <TableBody>
                     {pagedLines.map((l: any, i: number) => (
-                      <TableRow key={`${l.mintsoft_order_id}-${l.line_index}-${i}`}>
-                        <TableCell className="font-mono text-xs">{l.mintsoft_order_id}</TableCell>
+                      <TableRow
+                        key={`${l.mintsoft_order_id}-${l.line_index}-${i}`}
+                        className="cursor-pointer hover:bg-muted/50"
+                        onClick={() => setSelectedLine({
+                          mintsoft_order_id: l.mintsoft_order_id,
+                          line_index: l.line_index,
+                          sku: l.sku,
+                          channel: l.channel,
+                        })}
+                      >
+                        <TableCell className="font-mono text-xs text-pd-accent underline-offset-2 hover:underline">{l.mintsoft_order_id}</TableCell>
                         <TableCell className="font-medium">{l.sku}</TableCell>
                         <TableCell className="text-xs text-foreground/70">{l.channel ?? "—"}</TableCell>
                         <TableCell className="text-right">{l.qty}</TableCell>
@@ -593,6 +604,12 @@ const ProfitDashboard = () => {
           )}
         </CardContent>
       </Card>
+
+      <OrderLineDetailSheet
+        line={selectedLine}
+        open={selectedLine !== null}
+        onOpenChange={(o) => { if (!o) setSelectedLine(null); }}
+      />
     </div>
   );
 };
