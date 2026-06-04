@@ -51,6 +51,7 @@ import OpsReports from "./pages/operations/OpsReports";
 import DespatchPerformanceReport from "./pages/operations/reports/DespatchPerformanceReport";
 import OpsTrends from "./pages/operations/OpsTrends";
 import OpsSkuAnalysis from "./pages/operations/OpsSkuAnalysis";
+import EbayPerformance from "./pages/operations/EbayPerformance";
 
 // Operations / Carriers Pages
 import CarriersIndex from "./pages/operations/carriers/CarriersIndex";
@@ -69,6 +70,8 @@ import ImageScoutBrandProfiles from "./pages/discovery/ImageScoutBrandProfiles";
 import ImageScoutQARun from "./pages/discovery/ImageScoutQARun";
 import ImageScoutCalibration from "./pages/discovery/ImageScoutCalibration";
 import BoxQuantities from "./pages/discovery/BoxQuantities";
+import WebSearcherIndex from "./pages/discovery/WebSearcherIndex";
+import DimsWeights from "./pages/discovery/DimsWeights";
 
 // Intelligence Pages
 import VelocityCoverage from "./pages/intelligence/VelocityCoverage";
@@ -210,6 +213,8 @@ const App = () => (
             <Route path="/discovery/image-scout/qa-run" element={<ImageScoutQARun />} />
             <Route path="/discovery/image-scout/calibration" element={<ImageScoutCalibration />} />
             <Route path="/discovery/box-quantities" element={<BoxQuantities />} />
+            <Route path="/discovery/web-searcher" element={<WebSearcherIndex />} />
+            <Route path="/discovery/web-searcher/dims-weights" element={<DimsWeights />} />
 
             {/* Intelligence Sub-Routes */}
             <Route path="/intelligence/velocity" element={<VelocityCoverage />} />
@@ -269,6 +274,7 @@ const App = () => (
             <Route path="/operations/reports/despatch-performance" element={<DespatchPerformanceReport />} />
             <Route path="/operations/trends" element={<OpsTrends />} />
             <Route path="/operations/sku-analysis" element={<OpsSkuAnalysis />} />
+            <Route path="/operations/ebay-performance" element={<EbayPerformance />} />
             <Route path="/operations/carriers" element={<CarriersIndex />} />
             <Route path="/operations/carriers/documents" element={<CarrierDocuments />} />
             <Route path="/operations/carriers/penalties" element={<CarrierPenalties />} />

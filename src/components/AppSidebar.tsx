@@ -7,7 +7,7 @@ import {
   Users, Key, CreditCard, LogOut, UserCircle, Gauge,
   ChevronDown, ChevronRight, LayoutDashboard, Settings,
   Images, Clock, Plug, Truck, AlertTriangle, Sliders, Beaker, BarChart3, ArrowUpDown,
-  PoundSterling, Link2Off, HelpCircle, ClipboardList, CheckSquare, Gamepad2
+  PoundSterling, Link2Off, HelpCircle, ClipboardList, CheckSquare, Gamepad2, Globe
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -82,6 +82,7 @@ export function AppSidebar() {
         { title: "Brands", url: "/discovery/brands", icon: Tag },
         { title: "Discovery Queue", url: "/discovery/discovery-queue", icon: AlertCircle },
         { title: "Images", url: "/discovery/images", icon: Images },
+        { title: "Web Searcher", url: "/discovery/web-searcher", icon: Globe },
       ],
     },
     {
@@ -133,6 +134,7 @@ export function AppSidebar() {
         { title: "Order Telemetry", url: "/operations/order-telemetry", icon: Activity, superOnly: true },
         { title: "Carriers", url: "/operations/carriers", icon: Truck },
         { title: "SKU Analysis", url: "/operations/sku-analysis", icon: Package },
+        { title: "eBay Performance", url: "/operations/ebay-performance", icon: ShoppingBag },
         { title: "Reports", url: "/operations/reports", icon: FileText, superOnly: true },
       ],
     },
