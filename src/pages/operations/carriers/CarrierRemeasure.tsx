@@ -77,6 +77,9 @@ const STATUS_VARIANTS: Record<string, string> = {
   blocked: "bg-muted text-muted-foreground",
 };
 
+const SKU_PAGE_SIZE = 25;
+const TASK_PAGE_SIZE = 50;
+
 const CarrierRemeasure = () => {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
@@ -85,6 +88,8 @@ const CarrierRemeasure = () => {
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<Task | null>(null);
   const [creating, setCreating] = useState(false);
+  const [skuPage, setSkuPage] = useState(1);
+  const [taskPage, setTaskPage] = useState(1);
   const [newSku, setNewSku] = useState("");
   const [newOrderId, setNewOrderId] = useState("");
   const [newAssignee, setNewAssignee] = useState("");
@@ -160,6 +165,8 @@ const CarrierRemeasure = () => {
   }
 
   const filtered = useMemo(() => {
+    setSkuPage(1);
+    setTaskPage(1);
     let list = tasks;
     if (statusFilter === "open") list = list.filter((t) => !["completed"].includes(t.status));
     else if (statusFilter !== "all") list = list.filter((t) => t.status === statusFilter);
@@ -192,6 +199,12 @@ const CarrierRemeasure = () => {
       }))
       .sort((a, b) => b.openCount - a.openCount || b.totalCost - a.totalCost);
   }, [filtered]);
+
+  const skuPageCount = Math.max(1, Math.ceil(skuGroups.length / SKU_PAGE_SIZE));
+  const skuGroupsPage = skuGroups.slice((skuPage - 1) * SKU_PAGE_SIZE, skuPage * SKU_PAGE_SIZE);
+
+  const taskPageCount = Math.max(1, Math.ceil(filtered.length / TASK_PAGE_SIZE));
+  const filteredPage = filtered.slice((taskPage - 1) * TASK_PAGE_SIZE, taskPage * TASK_PAGE_SIZE);
 
   const stats = useMemo(() => {
     const open = tasks.filter((t) => t.status !== "completed").length;
@@ -255,9 +268,14 @@ const CarrierRemeasure = () => {
       {/* Worklist by SKU */}
       <Card>
         <CardHeader>
-          <div className="flex items-center gap-2">
-            <ClipboardList className="h-5 w-5 text-primary" />
-            <CardTitle>Worklist — grouped by SKU</CardTitle>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <ClipboardList className="h-5 w-5 text-primary" />
+              <CardTitle>Worklist — grouped by SKU</CardTitle>
+            </div>
+            <span className="text-sm text-muted-foreground">
+              {skuGroups.length} SKU{skuGroups.length !== 1 ? "s" : ""}
+            </span>
           </div>
           <CardDescription>SKUs with the most open hits show first.</CardDescription>
         </CardHeader>
@@ -282,7 +300,7 @@ const CarrierRemeasure = () => {
                     </TableCell>
                   </TableRow>
                 )}
-                {skuGroups.map((g) => {
+                {skuGroupsPage.map((g) => {
                   const first = g.items[0];
                   return (
                     <TableRow key={g.sku}>
@@ -308,14 +326,28 @@ const CarrierRemeasure = () => {
               </TableBody>
             </Table>
           </div>
+          {skuPageCount > 1 && (
+            <div className="flex items-center justify-between mt-4 text-sm text-muted-foreground">
+              <span>Page {skuPage} of {skuPageCount} · {skuGroups.length} SKUs</span>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" disabled={skuPage === 1} onClick={() => setSkuPage(p => p - 1)}>Previous</Button>
+                <Button variant="outline" size="sm" disabled={skuPage === skuPageCount} onClick={() => setSkuPage(p => p + 1)}>Next</Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
       {/* Detailed task table */}
       <Card>
         <CardHeader>
-          <CardTitle>All tasks</CardTitle>
-          <CardDescription>Individual penalty-linked tasks.</CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>All tasks</CardTitle>
+              <CardDescription>Individual penalty-linked tasks.</CardDescription>
+            </div>
+            <span className="text-sm text-muted-foreground">{filtered.length} task{filtered.length !== 1 ? "s" : ""}</span>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
@@ -339,7 +371,7 @@ const CarrierRemeasure = () => {
                     </TableCell>
                   </TableRow>
                 )}
-                {filtered.slice(0, 100).map((t) => (
+                {filteredPage.map((t) => (
                   <TableRow key={t.id}>
                     <TableCell className="font-mono text-xs">{t.sku}</TableCell>
                     <TableCell className="font-mono text-xs">{t.mintsoft_order_id ?? "—"}</TableCell>
@@ -363,6 +395,15 @@ const CarrierRemeasure = () => {
               </TableBody>
             </Table>
           </div>
+          {taskPageCount > 1 && (
+            <div className="flex items-center justify-between mt-4 text-sm text-muted-foreground">
+              <span>Page {taskPage} of {taskPageCount} · {filtered.length} tasks</span>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" disabled={taskPage === 1} onClick={() => setTaskPage(p => p - 1)}>Previous</Button>
+                <Button variant="outline" size="sm" disabled={taskPage === taskPageCount} onClick={() => setTaskPage(p => p + 1)}>Next</Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 

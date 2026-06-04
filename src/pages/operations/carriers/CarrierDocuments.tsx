@@ -167,17 +167,33 @@ const CarrierDocuments = () => {
       return;
     }
 
-    // Soft duplicate warning: same filename for the same carrier?
-    const { data: dupes } = await supabase
+    // Hard duplicate check: SHA-256 hash of file contents (rename-proof)
+    const hashBuffer = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
+    const fileHash = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, "0")).join("");
+
+    const { data: hashDupes } = await supabase
+      .from("carrier_documents")
+      .select("id, document_date, doc_type, original_filename")
+      .eq("file_hash", fileHash)
+      .limit(1);
+
+    if (hashDupes && hashDupes.length > 0) {
+      const d = hashDupes[0] as any;
+      toast.error(`This file has already been uploaded (${d.original_filename ?? "unknown"} · ${d.document_date}). Identical content detected.`);
+      return;
+    }
+
+    // Soft fallback: same filename for the same carrier (different file, same name)
+    const { data: nameDupes } = await supabase
       .from("carrier_documents")
       .select("id, document_date, doc_type")
       .eq("carrier_id", carrierId)
       .eq("original_filename", file.name)
       .limit(3);
 
-    if (dupes && dupes.length > 0) {
+    if (nameDupes && nameDupes.length > 0) {
       const carrierName = carriers.find((c) => c.id === carrierId)?.name ?? "this carrier";
-      const lines = dupes
+      const lines = nameDupes
         .map((x: any) => `• ${x.document_date} — ${String(x.doc_type).replace("_", " ")}`)
         .join("\n");
       const proceed = window.confirm(
@@ -208,6 +224,7 @@ const CarrierDocuments = () => {
           file_size_bytes: file.size,
           mime_type: file.type || "application/pdf",
           parse_status: "pending",
+          file_hash: fileHash,
         })
         .select("id")
         .single();
