@@ -3,7 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import ModuleHeader from "@/components/ModuleHeader";
-import { Ruler, ArrowLeft, Check, X, Pencil, ExternalLink, Info, Search } from "lucide-react";
+import { Ruler, ArrowLeft, Check, X, Pencil, ExternalLink } from "lucide-react";
+import WebSearchCriteria from "@/components/discovery/WebSearchCriteria";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -222,10 +223,10 @@ const DimsWeights = () => {
     onError: (e: any) => toast.error(e.message ?? "Update failed"),
   });
 
-  const runSearch = useMutation({
-    mutationFn: async () => {
+  const runBatch = useMutation({
+    mutationFn: async (skus: string[]) => {
       const { data, error } = await supabase.functions.invoke("web-search-dimensions", {
-        body: { dryRun: false, limit: 25 },
+        body: { dryRun: false, skus },
       });
       if (error) throw error;
       return data as { processed: number; found: number; no_data: number };
@@ -272,26 +273,8 @@ const DimsWeights = () => {
         <StatCard label="Applied" value={stats?.applied} />
       </div>
 
-      {/* Worker control */}
-      <Card>
-        <CardContent className="flex items-start gap-3 py-4 text-sm">
-          <Info className="h-4 w-4 mt-0.5 text-primary flex-shrink-0" />
-          <div className="flex-1">
-            <span className="font-medium">Run the search worker</span> to look up the next batch of
-            candidates and fill the review queue below. Nothing is written to Mintsoft — approved
-            values stay in the catalogue until the push script runs.
-            <div className="mt-2">
-              <Button size="sm" onClick={() => runSearch.mutate()} disabled={runSearch.isPending}>
-                <Search className="h-3.5 w-3.5 mr-1" />
-                {runSearch.isPending ? "Searching…" : "Run search (next 25)"}
-              </Button>
-            </div>
-            <div className="text-[11px] text-foreground/40 mt-1">
-              Requires the <code>web-search-dimensions</code> function deployed and the migration applied.
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Batch builder */}
+      <WebSearchCriteria onRun={(skus) => runBatch.mutate(skus)} running={runBatch.isPending} />
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2">
