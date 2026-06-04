@@ -100,6 +100,23 @@ function TierCell({ value, tier, suffix = "%" }: { value: number | null; tier: T
   );
 }
 
+// ── Breach task creator ───────────────────────────────────────────
+async function createBreachTask(title: string, description: string) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+  await (supabase as any).from("tasks").insert({
+    title,
+    description,
+    assigned_to: user.id,
+    status: "todo",
+    priority: 1, // Urgent
+    area: "operations",
+    source: "system",
+    is_system_generated: true,
+    due_at: new Date().toISOString(),
+  });
+}
+
 // ── ISO week helpers ──────────────────────────────────────────────
 function isoWeekStart(year: number, week: number): string {
   const jan4 = new Date(year, 0, 4);
@@ -222,12 +239,28 @@ function OdrTab() {
         .upsert(rows, { onConflict: "account_id,year,week_number" });
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: async (_, vars: any) => {
       toast.success(`Week ${week} ODR saved`);
       setShowForm(false);
       setForms({});
       qc.invalidateQueries({ queryKey: ["ebay-odr"] });
       qc.invalidateQueries({ queryKey: ["ebay-odr-recent"] });
+
+      // Check for threshold breaches and create tasks
+      const breachingAccounts: string[] = [];
+      for (const acc of accounts) {
+        const f = forms[acc.id] ?? blankOdrForm();
+        const tdr = Number(f.cos_pct || 0) + Number(f.ccwsr_pct || 0);
+        const ldr = Number(f.ldr_pct || 0);
+        if (tdr > 0.5 || ldr > 3) breachingAccounts.push(acc.code);
+      }
+      if (breachingAccounts.length > 0) {
+        toast.warning(`⚠️ Threshold breach on ${breachingAccounts.join(", ")} — task created`);
+        await createBreachTask(
+          `eBay ODR breach — Week ${week}: ${breachingAccounts.join(", ")}`,
+          `One or more accounts exceeded eBay thresholds (TDR > 0.5% or LDR > 3%) in Week ${week} ${year}.\n\nAccounts: ${breachingAccounts.join(", ")}\n\nReview in Operations → eBay Performance and take corrective action.`
+        );
+      }
     },
     onError: (e: any) => toast.error(e.message),
   });
@@ -492,8 +525,23 @@ function ResponseTimesTab() {
           { onConflict: "date" });
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       toast.success("Response time entry saved");
+      // Check for breach — 7d > 12 is "needs attention", > 24 is critical
+      const v7 = Number(open7 || 0), v14 = Number(open14 || 0), v30 = Number(open30 || 0);
+      if (v7 > 24 || v14 > 24 || v30 > 30) {
+        toast.warning("⚠️ Response times are critical — task created");
+        await createBreachTask(
+          `eBay response times critical — ${date}`,
+          `Open message counts are above critical thresholds:\n7-day: ${v7} · 14-day: ${v14} · 30-day: ${v30}\n\nThresholds: 7d ≤ 24, 14d ≤ 24, 30d ≤ 30\n\nReview in Operations → eBay Performance.`
+        );
+      } else if (v7 > 12 || v14 > 12) {
+        toast.warning("⚠️ Response times need attention — task created");
+        await createBreachTask(
+          `eBay response times need attention — ${date}`,
+          `Open message counts are above normal thresholds:\n7-day: ${v7} · 14-day: ${v14} · 30-day: ${v30}\n\nReview in Operations → eBay Performance.`
+        );
+      }
       setShowForm(false); setOpen7(""); setOpen14(""); setOpen30(""); setNotes("");
       qc.invalidateQueries({ queryKey: ["ebay-rt"] });
     },
