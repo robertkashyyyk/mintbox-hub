@@ -134,6 +134,7 @@ export function AppSidebar() {
         { title: "Order Telemetry", url: "/operations/order-telemetry", icon: Activity, superOnly: true },
         { title: "Carriers", url: "/operations/carriers", icon: Truck },
         { title: "SKU Analysis", url: "/operations/sku-analysis", icon: Package },
+        { title: "Despatch KPIs", url: "/operations/despatch-kpis", icon: Truck },
         { title: "eBay Performance", url: "/operations/ebay-performance", icon: ShoppingBag },
         { title: "Reports", url: "/operations/reports", icon: FileText, superOnly: true },
       ],

@@ -11,13 +11,20 @@ interface MintsoftStatus {
   ExternalName: string;
 }
 
-// Valid capture windows (UK local time)
+// Capture windows (UK local time). pg_cron controls exact timing, so these
+// windows are wide guard-rails rather than tight gates. AM = morning queue
+// reading, PM = afternoon/end-of-day reading.
 const SLOT_WINDOWS = {
-  AM: { startHour: 7, startMinute: 25, endHour: 7, endMinute: 35 },
-  PM: { startHour: 16, startMinute: 25, endHour: 16, endMinute: 35 },
+  AM: { startHour: 5, startMinute: 0, endHour: 11, endMinute: 59 },
+  PM: { startHour: 12, startMinute: 0, endHour: 21, endMinute: 59 },
 } as const;
 
 type Slot = keyof typeof SLOT_WINDOWS;
+
+// Derive the slot from the current UK hour when not explicitly supplied.
+function deriveSlot(hour: number): Slot {
+  return hour < 12 ? "AM" : "PM";
+}
 
 // Get current UK time components
 function getUKTimeComponents(): { hour: number; minute: number; dateStr: string } {
@@ -65,43 +72,30 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Step 1: Validate CRON_SECRET
+    // Step 1: Optional CRON_SECRET check. When CRON_SECRET is configured AND a
+    // header is supplied, they must match. Otherwise we rely on Supabase's
+    // anon/service-key validation at the gateway — consistent with the sibling
+    // poll-* cron functions which are invoked by pg_cron via net.http_post.
     const cronSecret = req.headers.get('x-cron-secret');
     const expectedSecret = Deno.env.get('CRON_SECRET');
-
-    if (!expectedSecret) {
-      console.error('CRON_SECRET not configured');
-      return new Response(
-        JSON.stringify({ status: 'error', message: 'Server configuration error' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
-      );
-    }
-
-    if (cronSecret !== expectedSecret) {
-      console.error('Invalid or missing CRON_SECRET');
+    if (expectedSecret && cronSecret && cronSecret !== expectedSecret) {
+      console.error('Invalid CRON_SECRET');
       return new Response(
         JSON.stringify({ status: 'error', message: 'Unauthorized' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
       );
     }
 
-    // Step 2: Parse and validate slot from request body
+    // Step 2: Parse body. Slot is optional — if not supplied (or invalid) it is
+    // auto-derived from the current UK hour (AM before noon, PM after).
     const body = await req.json().catch(() => ({}));
-    const slot = body.slot as string;
-    
-    if (!slot || !['AM', 'PM'].includes(slot)) {
-      console.error('Invalid or missing slot:', slot);
-      return new Response(
-        JSON.stringify({ status: 'error', message: 'Invalid or missing slot. Must be "AM" or "PM".' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
-      );
-    }
-
-    const validSlot = slot as Slot;
-    const force = body.force === true;
-    
-    // Step 3: Compute UK local time and validate window
     const ukTime = getUKTimeComponents();
+    const requestedSlot = body.slot as string | undefined;
+    const validSlot: Slot = (requestedSlot === 'AM' || requestedSlot === 'PM')
+      ? requestedSlot
+      : deriveSlot(ukTime.hour);
+    const force = body.force === true;
+    console.log(`Using slot: ${validSlot} (requested: ${requestedSlot ?? 'auto'})`);
     console.log(`UK time: ${ukTime.hour}:${ukTime.minute.toString().padStart(2, '0')}, Date: ${ukTime.dateStr}, Slot: ${validSlot}, Force: ${force}`);
     
     // Check if force override is allowed

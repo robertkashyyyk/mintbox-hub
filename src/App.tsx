@@ -52,6 +52,7 @@ import DespatchPerformanceReport from "./pages/operations/reports/DespatchPerfor
 import OpsTrends from "./pages/operations/OpsTrends";
 import OpsSkuAnalysis from "./pages/operations/OpsSkuAnalysis";
 import EbayPerformance from "./pages/operations/EbayPerformance";
+import DespatchKpis from "./pages/operations/DespatchKpis";
 
 // Operations / Carriers Pages
 import CarriersIndex from "./pages/operations/carriers/CarriersIndex";
@@ -275,6 +276,7 @@ const App = () => (
             <Route path="/operations/trends" element={<OpsTrends />} />
             <Route path="/operations/sku-analysis" element={<OpsSkuAnalysis />} />
             <Route path="/operations/ebay-performance" element={<EbayPerformance />} />
+            <Route path="/operations/despatch-kpis" element={<DespatchKpis />} />
             <Route path="/operations/carriers" element={<CarriersIndex />} />
             <Route path="/operations/carriers/documents" element={<CarrierDocuments />} />
             <Route path="/operations/carriers/penalties" element={<CarrierPenalties />} />

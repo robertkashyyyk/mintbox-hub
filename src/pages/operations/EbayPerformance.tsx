@@ -105,15 +105,18 @@ async function createBreachTask(title: string, description: string) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return;
   await (supabase as any).from("tasks").insert({
+    created_by: user.id,
+    assigned_to: user.id,
+    task_type: "system_generated",
     title,
     description,
-    assigned_to: user.id,
     status: "todo",
-    priority: 1, // Urgent
-    area: "operations",
-    source: "system",
-    is_system_generated: true,
-    due_at: new Date().toISOString(),
+    priority_level: 1,        // urgent
+    user_urgency_flag: true,
+    due_date: new Date().toISOString(),
+    source_module: "ebay_performance",
+    source_rule: "breach",
+    tags: ["ebay", "breach"],
   });
 }
 
