@@ -222,6 +222,23 @@ const DimsWeights = () => {
     onError: (e: any) => toast.error(e.message ?? "Update failed"),
   });
 
+  const runSearch = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke("web-search-dimensions", {
+        body: { dryRun: false, limit: 25 },
+      });
+      if (error) throw error;
+      return data as { processed: number; found: number; no_data: number };
+    },
+    onSuccess: (d) => {
+      toast.success(`Searched ${d.processed} · ${d.found} found · ${d.no_data} no data`);
+      queryClient.invalidateQueries({ queryKey: ["dims-weights-proposals"] });
+      queryClient.invalidateQueries({ queryKey: ["dims-weights-stats"] });
+    },
+    onError: (e: any) =>
+      toast.error(e?.message ?? "Search failed — is the function deployed & migration applied?"),
+  });
+
   const openEdit = (p: Proposal) => {
     setEditVals({
       length: p.proposed_length_cm?.toString() ?? "",
@@ -255,18 +272,22 @@ const DimsWeights = () => {
         <StatCard label="Applied" value={stats?.applied} />
       </div>
 
-      {/* Worker status notice */}
-      <Card className="border-amber-500/40 bg-amber-500/5">
+      {/* Worker control */}
+      <Card>
         <CardContent className="flex items-start gap-3 py-4 text-sm">
-          <Info className="h-4 w-4 mt-0.5 text-amber-500 flex-shrink-0" />
-          <div>
-            <span className="font-medium">Search worker not yet running.</span> The lookup agent
-            starts once the Brave Search and Anthropic API keys are added. Until then this screen
-            shows the candidate pool and is ready to review proposals as soon as they arrive.
+          <Info className="h-4 w-4 mt-0.5 text-primary flex-shrink-0" />
+          <div className="flex-1">
+            <span className="font-medium">Run the search worker</span> to look up the next batch of
+            candidates and fill the review queue below. Nothing is written to Mintsoft — approved
+            values stay in the catalogue until the push script runs.
             <div className="mt-2">
-              <Button size="sm" variant="outline" disabled>
-                <Search className="h-3.5 w-3.5 mr-1" /> Run search now (awaiting API keys)
+              <Button size="sm" onClick={() => runSearch.mutate()} disabled={runSearch.isPending}>
+                <Search className="h-3.5 w-3.5 mr-1" />
+                {runSearch.isPending ? "Searching…" : "Run search (next 25)"}
               </Button>
+            </div>
+            <div className="text-[11px] text-foreground/40 mt-1">
+              Requires the <code>web-search-dimensions</code> function deployed and the migration applied.
             </div>
           </div>
         </CardContent>
