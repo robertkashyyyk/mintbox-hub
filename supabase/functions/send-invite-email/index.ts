@@ -41,7 +41,7 @@ serve(async (req) => {
     const roleLabel = roleLabels[role] || role;
 
     const emailResponse = await resend.emails.send({
-      from: "PartsDoc Hub <noreply@updates.kashyyyk.co.uk>",
+      from: "PartsDoc Hub <noreply@partsdochub.com>",
       to: [email],
       subject: `You've been invited to PartsDoc Hub`,
       html: `
