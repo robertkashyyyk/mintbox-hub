@@ -1,3 +1,4 @@
+Initialising login role...
 export type Json =
   | string
   | number
@@ -10,10 +11,80 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "13.0.5"
+    PostgrestVersion: "14.5"
+  }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
   }
   public: {
     Tables: {
+      activity_log: {
+        Row: {
+          action: string
+          actor_email: string | null
+          actor_id: string | null
+          actor_type: string
+          created_at: string
+          detail: Json | null
+          entity_id: string | null
+          entity_label: string | null
+          entity_type: string | null
+          error_message: string | null
+          id: string
+          outcome: string
+        }
+        Insert: {
+          action: string
+          actor_email?: string | null
+          actor_id?: string | null
+          actor_type: string
+          created_at?: string
+          detail?: Json | null
+          entity_id?: string | null
+          entity_label?: string | null
+          entity_type?: string | null
+          error_message?: string | null
+          id?: string
+          outcome?: string
+        }
+        Update: {
+          action?: string
+          actor_email?: string | null
+          actor_id?: string | null
+          actor_type?: string
+          created_at?: string
+          detail?: Json | null
+          entity_id?: string | null
+          entity_label?: string | null
+          entity_type?: string | null
+          error_message?: string | null
+          id?: string
+          outcome?: string
+        }
+        Relationships: []
+      }
       agent_runs: {
         Row: {
           error: string | null
@@ -218,6 +289,51 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      audit_log: {
+        Row: {
+          action_type: string
+          actor_display_name: string | null
+          actor_user_id: string | null
+          created_at: string
+          entity_id: string | null
+          entity_label: string | null
+          entity_type: string
+          id: string
+          ip_address: string | null
+          new_value: Json | null
+          old_value: Json | null
+          session_id: string | null
+        }
+        Insert: {
+          action_type: string
+          actor_display_name?: string | null
+          actor_user_id?: string | null
+          created_at?: string
+          entity_id?: string | null
+          entity_label?: string | null
+          entity_type: string
+          id?: string
+          ip_address?: string | null
+          new_value?: Json | null
+          old_value?: Json | null
+          session_id?: string | null
+        }
+        Update: {
+          action_type?: string
+          actor_display_name?: string | null
+          actor_user_id?: string | null
+          created_at?: string
+          entity_id?: string | null
+          entity_label?: string | null
+          entity_type?: string
+          id?: string
+          ip_address?: string | null
+          new_value?: Json | null
+          old_value?: Json | null
+          session_id?: string | null
+        }
+        Relationships: []
       }
       backorder_age_snapshot: {
         Row: {
@@ -432,6 +548,7 @@ export type Database = {
           created_at: string
           doc_type: string
           document_date: string
+          file_hash: string | null
           file_path: string
           file_size_bytes: number | null
           file_url: string | null
@@ -453,6 +570,7 @@ export type Database = {
           created_at?: string
           doc_type: string
           document_date: string
+          file_hash?: string | null
           file_path: string
           file_size_bytes?: number | null
           file_url?: string | null
@@ -474,6 +592,7 @@ export type Database = {
           created_at?: string
           doc_type?: string
           document_date?: string
+          file_hash?: string | null
           file_path?: string
           file_size_bytes?: number | null
           file_url?: string | null
@@ -493,6 +612,71 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "carrier_documents_carrier_id_fkey"
+            columns: ["carrier_id"]
+            isOneToOne: false
+            referencedRelation: "carriers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      carrier_format_services: {
+        Row: {
+          active: boolean
+          carrier_id: string | null
+          created_at: string
+          id: string
+          is_format_category: boolean
+          max_height_mm: number | null
+          max_length_mm: number | null
+          max_weight_g: number | null
+          max_width_mm: number | null
+          mintsoft_category_id: number | null
+          name: string
+          notes: string | null
+          price_pence: number | null
+          slug: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          carrier_id?: string | null
+          created_at?: string
+          id?: string
+          is_format_category?: boolean
+          max_height_mm?: number | null
+          max_length_mm?: number | null
+          max_weight_g?: number | null
+          max_width_mm?: number | null
+          mintsoft_category_id?: number | null
+          name: string
+          notes?: string | null
+          price_pence?: number | null
+          slug: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          carrier_id?: string | null
+          created_at?: string
+          id?: string
+          is_format_category?: boolean
+          max_height_mm?: number | null
+          max_length_mm?: number | null
+          max_weight_g?: number | null
+          max_width_mm?: number | null
+          mintsoft_category_id?: number | null
+          name?: string
+          notes?: string | null
+          price_pence?: number | null
+          slug?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "carrier_format_services_carrier_id_fkey"
             columns: ["carrier_id"]
             isOneToOne: false
             referencedRelation: "carriers"
@@ -1036,6 +1220,131 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      ebay_accounts: {
+        Row: {
+          active: boolean
+          code: string
+          created_at: string
+          id: string
+          name: string
+          sort_order: number
+        }
+        Insert: {
+          active?: boolean
+          code: string
+          created_at?: string
+          id?: string
+          name: string
+          sort_order?: number
+        }
+        Update: {
+          active?: boolean
+          code?: string
+          created_at?: string
+          id?: string
+          name?: string
+          sort_order?: number
+        }
+        Relationships: []
+      }
+      ebay_odr_snapshots: {
+        Row: {
+          account_id: string
+          ccwsr_count: number | null
+          ccwsr_pct: number | null
+          cos_count: number | null
+          cos_pct: number | null
+          created_at: string
+          created_by: string | null
+          id: string
+          ldr_count: number | null
+          ldr_pct: number | null
+          notes: string | null
+          updated_at: string
+          week_number: number
+          week_start: string | null
+          year: number
+        }
+        Insert: {
+          account_id: string
+          ccwsr_count?: number | null
+          ccwsr_pct?: number | null
+          cos_count?: number | null
+          cos_pct?: number | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          ldr_count?: number | null
+          ldr_pct?: number | null
+          notes?: string | null
+          updated_at?: string
+          week_number: number
+          week_start?: string | null
+          year: number
+        }
+        Update: {
+          account_id?: string
+          ccwsr_count?: number | null
+          ccwsr_pct?: number | null
+          cos_count?: number | null
+          cos_pct?: number | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          ldr_count?: number | null
+          ldr_pct?: number | null
+          notes?: string | null
+          updated_at?: string
+          week_number?: number
+          week_start?: string | null
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ebay_odr_snapshots_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "ebay_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ebay_response_times: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          date: string
+          id: string
+          notes: string | null
+          open_14d: number | null
+          open_30d: number | null
+          open_7d: number | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          date: string
+          id?: string
+          notes?: string | null
+          open_14d?: number | null
+          open_30d?: number | null
+          open_7d?: number | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          date?: string
+          id?: string
+          notes?: string | null
+          open_14d?: number | null
+          open_30d?: number | null
+          open_7d?: number | null
+          updated_at?: string
+        }
+        Relationships: []
       }
       ebay_search_cache: {
         Row: {
@@ -1614,36 +1923,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      import_rules: {
-        Row: {
-          created_at: string
-          description: string
-          enabled: boolean
-          id: string
-          pattern: string
-          rule_type: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          description: string
-          enabled?: boolean
-          id?: string
-          pattern: string
-          rule_type?: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          description?: string
-          enabled?: boolean
-          id?: string
-          pattern?: string
-          rule_type?: string
-          updated_at?: string
-        }
-        Relationships: []
       }
       ingest_logs: {
         Row: {
@@ -2737,6 +3016,7 @@ export type Database = {
       }
       products_cache: {
         Row: {
+          active: boolean | null
           back_order_qty: number | null
           barcode: string | null
           barcode_type_id: string | null
@@ -2745,9 +3025,12 @@ export type Database = {
           cost_price: number | null
           cost_price_source: string | null
           cost_price_updated_at: string | null
+          counted_at: string | null
           created_at: string | null
           current_stock: number | null
           depth: number | null
+          dim_search_checked_at: string | null
+          dim_search_status: string | null
           discontinued: boolean | null
           discovered_at: string | null
           discovery_source: string | null
@@ -2756,20 +3039,24 @@ export type Database = {
           height: number | null
           id: string
           key_features: string[] | null
+          last_enriched: string | null
           last_mintsoft_resolve_attempt_at: string | null
           last_stock_sync: string | null
           length: number | null
           low_stock_alert_level: number | null
+          lsa: number | null
           marketing_description: string | null
           marketing_title: string | null
           mintsoft_back_orders: number | null
           mintsoft_categories: string[] | null
+          mintsoft_id: number | null
           mintsoft_product_id: number | null
           mintsoft_resolve_attempts: number
           mintsoft_resolve_ignored: boolean
           mintsoft_resolved_at: string | null
           name: string
           on_order: number | null
+          on_order_qty: number | null
           ph_brand: string | null
           ph_brand_best_item_id: string | null
           ph_brand_best_price: number | null
@@ -2785,17 +3072,20 @@ export type Database = {
           ph_plain_best_seller: string | null
           ph_search_term: string | null
           ph_status: string | null
+          prefix: string | null
           public_visible: boolean
           quarantined: boolean
           rrp: number | null
           sku: string
           spec_sheet_url: string | null
+          supplier_id: string | null
           suppliers: string | null
           trade_price: number | null
           updated_at: string | null
           weight: number | null
         }
         Insert: {
+          active?: boolean | null
           back_order_qty?: number | null
           barcode?: string | null
           barcode_type_id?: string | null
@@ -2804,9 +3094,12 @@ export type Database = {
           cost_price?: number | null
           cost_price_source?: string | null
           cost_price_updated_at?: string | null
+          counted_at?: string | null
           created_at?: string | null
           current_stock?: number | null
           depth?: number | null
+          dim_search_checked_at?: string | null
+          dim_search_status?: string | null
           discontinued?: boolean | null
           discovered_at?: string | null
           discovery_source?: string | null
@@ -2815,20 +3108,24 @@ export type Database = {
           height?: number | null
           id?: string
           key_features?: string[] | null
+          last_enriched?: string | null
           last_mintsoft_resolve_attempt_at?: string | null
           last_stock_sync?: string | null
           length?: number | null
           low_stock_alert_level?: number | null
+          lsa?: number | null
           marketing_description?: string | null
           marketing_title?: string | null
           mintsoft_back_orders?: number | null
           mintsoft_categories?: string[] | null
+          mintsoft_id?: number | null
           mintsoft_product_id?: number | null
           mintsoft_resolve_attempts?: number
           mintsoft_resolve_ignored?: boolean
           mintsoft_resolved_at?: string | null
           name: string
           on_order?: number | null
+          on_order_qty?: number | null
           ph_brand?: string | null
           ph_brand_best_item_id?: string | null
           ph_brand_best_price?: number | null
@@ -2844,17 +3141,20 @@ export type Database = {
           ph_plain_best_seller?: string | null
           ph_search_term?: string | null
           ph_status?: string | null
+          prefix?: string | null
           public_visible?: boolean
           quarantined?: boolean
           rrp?: number | null
           sku: string
           spec_sheet_url?: string | null
+          supplier_id?: string | null
           suppliers?: string | null
           trade_price?: number | null
           updated_at?: string | null
           weight?: number | null
         }
         Update: {
+          active?: boolean | null
           back_order_qty?: number | null
           barcode?: string | null
           barcode_type_id?: string | null
@@ -2863,9 +3163,12 @@ export type Database = {
           cost_price?: number | null
           cost_price_source?: string | null
           cost_price_updated_at?: string | null
+          counted_at?: string | null
           created_at?: string | null
           current_stock?: number | null
           depth?: number | null
+          dim_search_checked_at?: string | null
+          dim_search_status?: string | null
           discontinued?: boolean | null
           discovered_at?: string | null
           discovery_source?: string | null
@@ -2874,20 +3177,24 @@ export type Database = {
           height?: number | null
           id?: string
           key_features?: string[] | null
+          last_enriched?: string | null
           last_mintsoft_resolve_attempt_at?: string | null
           last_stock_sync?: string | null
           length?: number | null
           low_stock_alert_level?: number | null
+          lsa?: number | null
           marketing_description?: string | null
           marketing_title?: string | null
           mintsoft_back_orders?: number | null
           mintsoft_categories?: string[] | null
+          mintsoft_id?: number | null
           mintsoft_product_id?: number | null
           mintsoft_resolve_attempts?: number
           mintsoft_resolve_ignored?: boolean
           mintsoft_resolved_at?: string | null
           name?: string
           on_order?: number | null
+          on_order_qty?: number | null
           ph_brand?: string | null
           ph_brand_best_item_id?: string | null
           ph_brand_best_price?: number | null
@@ -2903,11 +3210,13 @@ export type Database = {
           ph_plain_best_seller?: string | null
           ph_search_term?: string | null
           ph_status?: string | null
+          prefix?: string | null
           public_visible?: boolean
           quarantined?: boolean
           rrp?: number | null
           sku?: string
           spec_sheet_url?: string | null
+          supplier_id?: string | null
           suppliers?: string | null
           trade_price?: number | null
           updated_at?: string | null
@@ -3470,6 +3779,48 @@ export type Database = {
           },
         ]
       }
+      stock_count_events: {
+        Row: {
+          brand_id: string | null
+          counted_by: string | null
+          counted_by_email: string | null
+          counted_qty: number
+          created_at: string
+          id: string
+          mintsoft_product_id: number | null
+          sku: string
+          sync_error: string | null
+          sync_status: string
+          synced_at: string | null
+        }
+        Insert: {
+          brand_id?: string | null
+          counted_by?: string | null
+          counted_by_email?: string | null
+          counted_qty: number
+          created_at?: string
+          id?: string
+          mintsoft_product_id?: number | null
+          sku: string
+          sync_error?: string | null
+          sync_status?: string
+          synced_at?: string | null
+        }
+        Update: {
+          brand_id?: string | null
+          counted_by?: string | null
+          counted_by_email?: string | null
+          counted_qty?: number
+          created_at?: string
+          id?: string
+          mintsoft_product_id?: number | null
+          sku?: string
+          sync_error?: string | null
+          sync_status?: string
+          synced_at?: string | null
+        }
+        Relationships: []
+      }
       stock_valuation_weekly_snapshots: {
         Row: {
           avg_value_per_sku: number
@@ -3673,6 +4024,285 @@ export type Database = {
             referencedColumns: ["key"]
           },
         ]
+      }
+      task_activity_log: {
+        Row: {
+          action: string
+          actor_user_id: string | null
+          created_at: string
+          detail: Json | null
+          id: string
+          task_id: string
+        }
+        Insert: {
+          action: string
+          actor_user_id?: string | null
+          created_at?: string
+          detail?: Json | null
+          id?: string
+          task_id: string
+        }
+        Update: {
+          action?: string
+          actor_user_id?: string | null
+          created_at?: string
+          detail?: Json | null
+          id?: string
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_activity_log_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_activity_log_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks_with_sort_score"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      task_comments: {
+        Row: {
+          author_user_id: string | null
+          body: string
+          created_at: string
+          id: string
+          is_system_note: boolean
+          task_id: string
+        }
+        Insert: {
+          author_user_id?: string | null
+          body: string
+          created_at?: string
+          id?: string
+          is_system_note?: boolean
+          task_id: string
+        }
+        Update: {
+          author_user_id?: string | null
+          body?: string
+          created_at?: string
+          id?: string
+          is_system_note?: boolean
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_comments_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_comments_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks_with_sort_score"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tasks: {
+        Row: {
+          assigned_to: string | null
+          completed_at: string | null
+          created_at: string
+          created_by: string
+          description: string | null
+          due_date: string | null
+          id: string
+          last_status_change_at: string
+          linked_entity_id: string | null
+          linked_entity_label: string | null
+          linked_entity_type: string | null
+          priority_level: number
+          reminder_at: string | null
+          source_module: string | null
+          source_rule: string | null
+          status: Database["public"]["Enums"]["task_status"]
+          tags: string[]
+          task_type: Database["public"]["Enums"]["task_type"]
+          title: string
+          updated_at: string
+          urgency_score: number
+          user_urgency_flag: boolean
+        }
+        Insert: {
+          assigned_to?: string | null
+          completed_at?: string | null
+          created_at?: string
+          created_by: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          last_status_change_at?: string
+          linked_entity_id?: string | null
+          linked_entity_label?: string | null
+          linked_entity_type?: string | null
+          priority_level?: number
+          reminder_at?: string | null
+          source_module?: string | null
+          source_rule?: string | null
+          status?: Database["public"]["Enums"]["task_status"]
+          tags?: string[]
+          task_type?: Database["public"]["Enums"]["task_type"]
+          title: string
+          updated_at?: string
+          urgency_score?: number
+          user_urgency_flag?: boolean
+        }
+        Update: {
+          assigned_to?: string | null
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          last_status_change_at?: string
+          linked_entity_id?: string | null
+          linked_entity_label?: string | null
+          linked_entity_type?: string | null
+          priority_level?: number
+          reminder_at?: string | null
+          source_module?: string | null
+          source_rule?: string | null
+          status?: Database["public"]["Enums"]["task_status"]
+          tags?: string[]
+          task_type?: Database["public"]["Enums"]["task_type"]
+          title?: string
+          updated_at?: string
+          urgency_score?: number
+          user_urgency_flag?: boolean
+        }
+        Relationships: []
+      }
+      threeds_ingest_state: {
+        Row: {
+          backfill_done: boolean
+          backfill_next_page: number
+          channel: string | null
+          last_new_rows: number | null
+          last_run_at: string | null
+          last_seen_max_date: string | null
+          marketplace: string | null
+          reported_total: number | null
+          seller_id: number
+          store_name: string | null
+        }
+        Insert: {
+          backfill_done?: boolean
+          backfill_next_page?: number
+          channel?: string | null
+          last_new_rows?: number | null
+          last_run_at?: string | null
+          last_seen_max_date?: string | null
+          marketplace?: string | null
+          reported_total?: number | null
+          seller_id: number
+          store_name?: string | null
+        }
+        Update: {
+          backfill_done?: boolean
+          backfill_next_page?: number
+          channel?: string | null
+          last_new_rows?: number | null
+          last_run_at?: string | null
+          last_seen_max_date?: string | null
+          marketplace?: string | null
+          reported_total?: number | null
+          seller_id?: number
+          store_name?: string | null
+        }
+        Relationships: []
+      }
+      threeds_order_transactions: {
+        Row: {
+          base_sku: string | null
+          cancel_status: string | null
+          channel: string | null
+          currency: string | null
+          external_item_id: string | null
+          final_value_fee: number | null
+          ingested_at: string
+          item_name: string | null
+          item_url: string | null
+          marketplace: string | null
+          order_date: string | null
+          order_external_id: string | null
+          order_id: string | null
+          price: number | null
+          q_code: string | null
+          quantity: number | null
+          raw: Json | null
+          seller_id: number | null
+          sku: string | null
+          status: string | null
+          store_name: string | null
+          store_url: string | null
+          transaction_id: string
+          unit_price: number | null
+        }
+        Insert: {
+          base_sku?: string | null
+          cancel_status?: string | null
+          channel?: string | null
+          currency?: string | null
+          external_item_id?: string | null
+          final_value_fee?: number | null
+          ingested_at?: string
+          item_name?: string | null
+          item_url?: string | null
+          marketplace?: string | null
+          order_date?: string | null
+          order_external_id?: string | null
+          order_id?: string | null
+          price?: number | null
+          q_code?: string | null
+          quantity?: number | null
+          raw?: Json | null
+          seller_id?: number | null
+          sku?: string | null
+          status?: string | null
+          store_name?: string | null
+          store_url?: string | null
+          transaction_id: string
+          unit_price?: number | null
+        }
+        Update: {
+          base_sku?: string | null
+          cancel_status?: string | null
+          channel?: string | null
+          currency?: string | null
+          external_item_id?: string | null
+          final_value_fee?: number | null
+          ingested_at?: string
+          item_name?: string | null
+          item_url?: string | null
+          marketplace?: string | null
+          order_date?: string | null
+          order_external_id?: string | null
+          order_id?: string | null
+          price?: number | null
+          q_code?: string | null
+          quantity?: number | null
+          raw?: Json | null
+          seller_id?: number | null
+          sku?: string | null
+          status?: string | null
+          store_name?: string | null
+          store_url?: string | null
+          transaction_id?: string
+          unit_price?: number | null
+        }
+        Relationships: []
       }
       threeds_reprice_pushes: {
         Row: {
@@ -3900,6 +4530,174 @@ export type Database = {
         }
         Relationships: []
       }
+      web_search_proposals: {
+        Row: {
+          applied_at: string | null
+          confidence: string | null
+          created_at: string
+          id: string
+          is_packaged: boolean | null
+          match_key: string | null
+          mintsoft_id: number | null
+          padded: boolean
+          proposed_depth_cm: number | null
+          proposed_height_cm: number | null
+          proposed_length_cm: number | null
+          proposed_weight_g: number | null
+          pushed_to_mintsoft_at: string | null
+          raw_snippets: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          run_id: string | null
+          sku: string
+          source_count: number
+          source_url: string | null
+          sources: Json | null
+          status: string
+          tool: string
+          updated_at: string
+        }
+        Insert: {
+          applied_at?: string | null
+          confidence?: string | null
+          created_at?: string
+          id?: string
+          is_packaged?: boolean | null
+          match_key?: string | null
+          mintsoft_id?: number | null
+          padded?: boolean
+          proposed_depth_cm?: number | null
+          proposed_height_cm?: number | null
+          proposed_length_cm?: number | null
+          proposed_weight_g?: number | null
+          pushed_to_mintsoft_at?: string | null
+          raw_snippets?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          run_id?: string | null
+          sku: string
+          source_count?: number
+          source_url?: string | null
+          sources?: Json | null
+          status?: string
+          tool?: string
+          updated_at?: string
+        }
+        Update: {
+          applied_at?: string | null
+          confidence?: string | null
+          created_at?: string
+          id?: string
+          is_packaged?: boolean | null
+          match_key?: string | null
+          mintsoft_id?: number | null
+          padded?: boolean
+          proposed_depth_cm?: number | null
+          proposed_height_cm?: number | null
+          proposed_length_cm?: number | null
+          proposed_weight_g?: number | null
+          pushed_to_mintsoft_at?: string | null
+          raw_snippets?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          run_id?: string | null
+          sku?: string
+          source_count?: number
+          source_url?: string | null
+          sources?: Json | null
+          status?: string
+          tool?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      web_search_runs: {
+        Row: {
+          criteria: Json | null
+          error_message: string | null
+          errors: number
+          finished_at: string | null
+          found: number
+          id: string
+          no_data: number
+          processed: number
+          queued: number
+          started_at: string
+          status: string
+          tool: string
+        }
+        Insert: {
+          criteria?: Json | null
+          error_message?: string | null
+          errors?: number
+          finished_at?: string | null
+          found?: number
+          id?: string
+          no_data?: number
+          processed?: number
+          queued?: number
+          started_at?: string
+          status?: string
+          tool?: string
+        }
+        Update: {
+          criteria?: Json | null
+          error_message?: string | null
+          errors?: number
+          finished_at?: string | null
+          found?: number
+          id?: string
+          no_data?: number
+          processed?: number
+          queued?: number
+          started_at?: string
+          status?: string
+          tool?: string
+        }
+        Relationships: []
+      }
+      web_search_settings: {
+        Row: {
+          auto_approve: boolean
+          auto_approve_min_sources: number
+          auto_approve_require_packaged: boolean
+          batch_size: number
+          criteria: Json
+          enabled: boolean
+          padding_girth_cm: number
+          padding_length_cm: number
+          recheck_after_days: number
+          tool: string
+          updated_at: string
+        }
+        Insert: {
+          auto_approve?: boolean
+          auto_approve_min_sources?: number
+          auto_approve_require_packaged?: boolean
+          batch_size?: number
+          criteria?: Json
+          enabled?: boolean
+          padding_girth_cm?: number
+          padding_length_cm?: number
+          recheck_after_days?: number
+          tool: string
+          updated_at?: string
+        }
+        Update: {
+          auto_approve?: boolean
+          auto_approve_min_sources?: number
+          auto_approve_require_packaged?: boolean
+          batch_size?: number
+          criteria?: Json
+          enabled?: boolean
+          padding_girth_cm?: number
+          padding_length_cm?: number
+          recheck_after_days?: number
+          tool?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       brands_missing_base_multiplier: {
@@ -3965,6 +4763,71 @@ export type Database = {
             columns: ["brand_id"]
             isOneToOne: false
             referencedRelation: "brands_missing_base_multiplier"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ebay_odr_with_tdr: {
+        Row: {
+          account_id: string | null
+          ccwsr_count: number | null
+          ccwsr_pct: number | null
+          cos_count: number | null
+          cos_pct: number | null
+          created_at: string | null
+          created_by: string | null
+          id: string | null
+          ldr_count: number | null
+          ldr_pct: number | null
+          notes: string | null
+          tdr_pct: number | null
+          updated_at: string | null
+          week_number: number | null
+          week_start: string | null
+          year: number | null
+        }
+        Insert: {
+          account_id?: string | null
+          ccwsr_count?: number | null
+          ccwsr_pct?: number | null
+          cos_count?: number | null
+          cos_pct?: number | null
+          created_at?: string | null
+          created_by?: string | null
+          id?: string | null
+          ldr_count?: number | null
+          ldr_pct?: number | null
+          notes?: string | null
+          tdr_pct?: never
+          updated_at?: string | null
+          week_number?: number | null
+          week_start?: string | null
+          year?: number | null
+        }
+        Update: {
+          account_id?: string | null
+          ccwsr_count?: number | null
+          ccwsr_pct?: number | null
+          cos_count?: number | null
+          cos_pct?: number | null
+          created_at?: string | null
+          created_by?: string | null
+          id?: string | null
+          ldr_count?: number | null
+          ldr_pct?: number | null
+          notes?: string | null
+          tdr_pct?: never
+          updated_at?: string | null
+          week_number?: number | null
+          week_start?: string | null
+          year?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ebay_odr_snapshots_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "ebay_accounts"
             referencedColumns: ["id"]
           },
         ]
@@ -4507,6 +5370,31 @@ export type Database = {
           },
         ]
       }
+      sku_health_summary_cache: {
+        Row: {
+          brand_id: string | null
+          health_category: string | null
+          quarantined: boolean | null
+          sku_count: number | null
+          total_on_hand: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "products_cache_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "products_cache_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands_missing_base_multiplier"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sku_master_v: {
         Row: {
           allow_marketplace_sale: boolean | null
@@ -4616,6 +5504,7 @@ export type Database = {
           brand_id: string | null
           health_category: string | null
           on_hand_qty: number | null
+          quarantined: boolean | null
           sku: string | null
           weeks_of_cover: number | null
         }
@@ -4716,6 +5605,59 @@ export type Database = {
           },
         ]
       }
+      tasks_with_sort_score: {
+        Row: {
+          assigned_to: string | null
+          assignee_email: string | null
+          completed_at: string | null
+          created_at: string | null
+          created_by: string | null
+          creator_email: string | null
+          description: string | null
+          due_date: string | null
+          id: string | null
+          last_status_change_at: string | null
+          linked_entity_id: string | null
+          linked_entity_label: string | null
+          linked_entity_type: string | null
+          priority_level: number | null
+          reminder_at: string | null
+          sort_score: number | null
+          source_module: string | null
+          source_rule: string | null
+          status: Database["public"]["Enums"]["task_status"] | null
+          tags: string[] | null
+          task_type: Database["public"]["Enums"]["task_type"] | null
+          title: string | null
+          updated_at: string | null
+          urgency_score: number | null
+          user_urgency_flag: boolean | null
+        }
+        Relationships: []
+      }
+      threeds_listings: {
+        Row: {
+          base_sku: string | null
+          channel: string | null
+          currency: string | null
+          external_item_id: string | null
+          fvf_90d: number | null
+          item_name: string | null
+          item_url: string | null
+          last_order_date: string | null
+          last_unit_price: number | null
+          marketplace: string | null
+          orders_90d: number | null
+          pack_size: number | null
+          q_code: string | null
+          real_fee_rate: number | null
+          revenue_90d: number | null
+          sku: string | null
+          store_name: string | null
+          units_90d: number | null
+        }
+        Relationships: []
+      }
       vw_orphan_skus: {
         Row: {
           brand_id: string | null
@@ -4779,6 +5721,7 @@ export type Database = {
           resolved_count: number
         }[]
       }
+      audit_actor_display_name: { Args: never; Returns: string }
       backfill_profit_weekly_snapshots: { Args: never; Returns: number }
       bulk_update_lsa_from_sftp: {
         Args: { _payload: Json }
@@ -4812,6 +5755,24 @@ export type Database = {
         Args: { c: Database["public"]["Enums"]["app_capability"] }
         Returns: number
       }
+      capture_stock_count: {
+        Args: { p_qty: number; p_sku: string }
+        Returns: string
+      }
+      compute_urgency_score: {
+        Args: {
+          p_due_date: string
+          p_last_status_change_at: string
+          p_now: string
+          p_priority_level: number
+          p_status: Database["public"]["Enums"]["task_status"]
+          p_task_type: Database["public"]["Enums"]["task_type"]
+          p_user_urgency_flag: boolean
+        }
+        Returns: number
+      }
+      create_ebay_odr_task: { Args: never; Returns: undefined }
+      create_ebay_response_time_task: { Args: never; Returns: undefined }
       derive_marketplace_order_id: {
         Args: { _channel: string; _order_number: string }
         Returns: string
@@ -5006,6 +5967,25 @@ export type Database = {
           status: string
         }[]
       }
+      get_never_counted_brand_counts: {
+        Args: never
+        Returns: {
+          brand_id: string
+          brand_name: string
+          qualifying_count: number
+        }[]
+      }
+      get_never_counted_skus: {
+        Args: { p_brand_id: string; p_limit?: number }
+        Returns: {
+          brand_id: string
+          brand_name: string
+          id: string
+          mintsoft_product_id: number
+          name: string
+          sku: string
+        }[]
+      }
       get_ops_daily_trend: {
         Args: { from_date: string; to_date: string }
         Returns: {
@@ -5084,6 +6064,15 @@ export type Database = {
           profit_total: number
         }[]
       }
+      get_remeasure_brand_counts: {
+        Args: never
+        Returns: {
+          brand_id: string
+          brand_name: string
+          open_count: number
+          total_cost: number
+        }[]
+      }
       get_status_snapshots_hourly_today: {
         Args: never
         Returns: {
@@ -5152,19 +6141,60 @@ export type Database = {
       get_threeds_reprice_candidates: {
         Args: { p_channel: string; p_days?: number }
         Returns: {
+          base_sku: string
+          base_unit_cost: number
           brand_name: string
           cost_total: number
           courier_total: number
           current_price: number
           current_stock: number
           fees_total: number
+          pack_cost_unit: number
+          pack_size: number
           por_pct: number
           product_name: string
           profit: number
+          real_fee_rate: number
           revenue: number
           sku: string
           units_sold: number
         }[]
+      }
+      get_today_tasks: {
+        Args: { p_user_id: string }
+        Returns: {
+          assigned_to: string | null
+          assignee_email: string | null
+          completed_at: string | null
+          created_at: string | null
+          created_by: string | null
+          creator_email: string | null
+          description: string | null
+          due_date: string | null
+          id: string | null
+          last_status_change_at: string | null
+          linked_entity_id: string | null
+          linked_entity_label: string | null
+          linked_entity_type: string | null
+          priority_level: number | null
+          reminder_at: string | null
+          sort_score: number | null
+          source_module: string | null
+          source_rule: string | null
+          status: Database["public"]["Enums"]["task_status"] | null
+          tags: string[] | null
+          task_type: Database["public"]["Enums"]["task_type"] | null
+          title: string | null
+          updated_at: string | null
+          urgency_score: number | null
+          user_urgency_flag: boolean | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "tasks_with_sort_score"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       get_top_missing_cost_skus: {
         Args: { p_limit?: number }
@@ -5243,6 +6273,11 @@ export type Database = {
           would_create: number
           would_resolve: number
         }[]
+      }
+      recalculate_all_open_urgency: { Args: never; Returns: number }
+      recalculate_urgency_score: {
+        Args: { p_task_id: string }
+        Returns: undefined
       }
       refresh_lsa_brand_summary: { Args: never; Returns: undefined }
       refresh_sku_health_internal: { Args: never; Returns: undefined }
@@ -5385,6 +6420,8 @@ export type Database = {
         | "no_feed"
       severity_type: "info" | "warning" | "critical"
       sku_type: "BASE" | "PROCUREMENT_PACK" | "MULTIPLIER" | "BUNDLE" | "ALT"
+      task_status: "todo" | "in_progress" | "blocked" | "done" | "cancelled"
+      task_type: "user_created" | "system_generated"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -5510,6 +6547,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
       alert_type: ["LowStock", "RemoteStock", "BackOrders", "Inventory"],
@@ -5551,6 +6591,10 @@ export const Constants = {
       ],
       severity_type: ["info", "warning", "critical"],
       sku_type: ["BASE", "PROCUREMENT_PACK", "MULTIPLIER", "BUNDLE", "ALT"],
+      task_status: ["todo", "in_progress", "blocked", "done", "cancelled"],
+      task_type: ["user_created", "system_generated"],
     },
   },
 } as const
+A new version of Supabase CLI is available: v2.104.0 (currently installed v2.101.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
