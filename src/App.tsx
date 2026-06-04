@@ -120,6 +120,7 @@ import BackOrders from "./pages/dashboards/BackOrders";
 import GamesIndex from "./pages/games/GamesIndex";
 import MissingCostsGame from "./pages/games/MissingCostsGame";
 import StockCountGame from "./pages/games/StockCountGame";
+import RemeasureGame from "./pages/games/RemeasureGame";
 
 // Progress Log
 import ProgressLog from "./pages/ProgressLog";
@@ -291,6 +292,7 @@ const App = () => (
             <Route path="/games" element={<GamesIndex />} />
             <Route path="/games/mcg" element={<MissingCostsGame />} />
             <Route path="/games/scg" element={<StockCountGame />} />
+            <Route path="/games/rmg" element={<RemeasureGame />} />
 
             {/* Progress Log */}
             <Route path="/progress-log" element={<ProgressLog />} />

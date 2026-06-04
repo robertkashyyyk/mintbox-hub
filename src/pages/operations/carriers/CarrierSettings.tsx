@@ -10,29 +10,48 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Truck, Tag, Users, Plus, Pencil, Trash2 } from "lucide-react";
+import { Truck, Tag, Users, Plus, Pencil, Trash2, Ruler } from "lucide-react";
 import { toast } from "sonner";
 
 type Carrier = { id: string; name: string; slug: string; active: boolean };
 type ReasonCode = { id: string; carrier_id: string | null; code: string; label: string; description: string | null; active: boolean };
 type Packer = { id: string; name: string; email: string | null; active: boolean; notes: string | null };
+type FormatService = {
+  id: string;
+  carrier_id: string | null;
+  name: string;
+  slug: string;
+  mintsoft_category_id: number | null;
+  max_length_mm: number | null;
+  max_width_mm: number | null;
+  max_height_mm: number | null;
+  max_weight_g: number | null;
+  price_pence: number | null;
+  is_format_category: boolean;
+  sort_order: number;
+  active: boolean;
+  notes: string | null;
+};
 
 const CarrierSettings = () => {
   const [carriers, setCarriers] = useState<Carrier[]>([]);
   const [reasons, setReasons] = useState<ReasonCode[]>([]);
   const [packers, setPackers] = useState<Packer[]>([]);
+  const [formats, setFormats] = useState<FormatService[]>([]);
   const [loading, setLoading] = useState(true);
 
   const load = async () => {
     setLoading(true);
-    const [c, r, p] = await Promise.all([
+    const [c, r, p, f] = await Promise.all([
       supabase.from("carriers").select("*").order("name"),
       supabase.from("carrier_reason_codes" as any).select("*").order("code"),
       supabase.from("carrier_packers" as any).select("*").order("name"),
+      supabase.from("carrier_format_services" as any).select("*").order("sort_order"),
     ]);
     if (c.data) setCarriers(c.data as Carrier[]);
     if (r.data) setReasons(r.data as unknown as ReasonCode[]);
     if (p.data) setPackers(p.data as unknown as Packer[]);
+    if (f.data) setFormats(f.data as unknown as FormatService[]);
     setLoading(false);
   };
 
@@ -47,13 +66,17 @@ const CarrierSettings = () => {
         </p>
       </div>
 
-      <Tabs defaultValue="carriers" className="space-y-4">
+      <Tabs defaultValue="formats" className="space-y-4">
         <TabsList>
+          <TabsTrigger value="formats"><Ruler className="h-4 w-4 mr-2" />Format Services</TabsTrigger>
           <TabsTrigger value="carriers"><Truck className="h-4 w-4 mr-2" />Carriers</TabsTrigger>
           <TabsTrigger value="reasons"><Tag className="h-4 w-4 mr-2" />Reason codes</TabsTrigger>
           <TabsTrigger value="packers"><Users className="h-4 w-4 mr-2" />Packers</TabsTrigger>
         </TabsList>
 
+        <TabsContent value="formats">
+          <FormatServicesTab formats={formats} carriers={carriers} onChange={load} loading={loading} />
+        </TabsContent>
         <TabsContent value="carriers">
           <CarriersTab carriers={carriers} onChange={load} loading={loading} />
         </TabsContent>
@@ -293,6 +316,170 @@ const PackersTab = ({ packers, onChange, loading }: { packers: Packer[]; onChang
                 <TableCell className="text-right">
                   <Button size="sm" variant="ghost" onClick={() => startEdit(p)}><Pencil className="h-4 w-4" /></Button>
                   <Button size="sm" variant="ghost" onClick={() => remove(p)}><Trash2 className="h-4 w-4" /></Button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+  );
+};
+
+// ---------------- Format Services ----------------
+const EMPTY_FORMAT: Omit<FormatService, "id"> = {
+  carrier_id: null, name: "", slug: "", mintsoft_category_id: null,
+  max_length_mm: null, max_width_mm: null, max_height_mm: null, max_weight_g: null,
+  price_pence: null, is_format_category: true, sort_order: 0, active: true, notes: null,
+};
+
+const FormatServicesTab = ({ formats, carriers, onChange, loading }: { formats: FormatService[]; carriers: Carrier[]; onChange: () => void; loading: boolean }) => {
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<FormatService | null>(null);
+  const [form, setForm] = useState<Omit<FormatService, "id">>(EMPTY_FORMAT);
+
+  const f = (k: keyof typeof form, v: any) => setForm(prev => ({ ...prev, [k]: v }));
+
+  const startNew = () => { setEditing(null); setForm(EMPTY_FORMAT); setOpen(true); };
+  const startEdit = (s: FormatService) => {
+    setEditing(s);
+    const { id: _, ...rest } = s;
+    setForm(rest);
+    setOpen(true);
+  };
+
+  const save = async () => {
+    if (!form.name.trim()) { toast.error("Name is required"); return; }
+    const slug = form.slug.trim() || form.name.toLowerCase().replace(/\s+/g, "-").replace(/[^\w-]/g, "");
+    const payload = { ...form, slug, carrier_id: form.carrier_id || null };
+    const res = editing
+      ? await (supabase as any).from("carrier_format_services").update(payload).eq("id", editing.id)
+      : await (supabase as any).from("carrier_format_services").insert(payload);
+    if (res.error) { toast.error(res.error.message); return; }
+    toast.success(editing ? "Service updated" : "Service added");
+    setOpen(false); onChange();
+  };
+
+  const remove = async (s: FormatService) => {
+    if (!confirm(`Delete format service "${s.name}"?`)) return;
+    const { error } = await (supabase as any).from("carrier_format_services").delete().eq("id", s.id);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Deleted"); onChange();
+  };
+
+  const dim = (v: number | null) => v != null ? `${v}` : "—";
+  const price = (v: number | null) => v != null ? `£${(v / 100).toFixed(2)}` : "—";
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between">
+        <div>
+          <CardTitle>Format Services</CardTitle>
+          <CardDescription>
+            Postal format categories (Large Letter, Parcel, DHL, etc.) with their dimension and weight limits.
+            Used to classify items after remeasurement and to identify which Mintsoft category to swap.
+          </CardDescription>
+        </div>
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogTrigger asChild>
+            <Button onClick={startNew} variant="outline"><Plus className="h-4 w-4 mr-2" />Add service</Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-lg">
+            <DialogHeader><DialogTitle>{editing ? "Edit format service" : "Add format service"}</DialogTitle></DialogHeader>
+            <div className="space-y-4 py-2">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Name *</Label>
+                  <Input value={form.name} onChange={e => f("name", e.target.value)} placeholder="Large Letter" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Carrier (optional)</Label>
+                  <Select value={form.carrier_id ?? "none"} onValueChange={v => f("carrier_id", v === "none" ? null : v)}>
+                    <SelectTrigger><SelectValue placeholder="All carriers" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">All carriers</SelectItem>
+                      {carriers.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Mintsoft Category ID</Label>
+                <Input type="number" value={form.mintsoft_category_id ?? ""} onChange={e => f("mintsoft_category_id", e.target.value ? Number(e.target.value) : null)} placeholder="e.g. 122 for Large Letter" />
+                <p className="text-xs text-muted-foreground">The ID from Mintsoft's ProductInCategories array. Leave blank if unknown.</p>
+              </div>
+              <div>
+                <Label className="mb-2 block">Max dimensions (mm)</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="space-y-1"><Label className="text-xs text-muted-foreground">Length</Label><Input type="number" value={form.max_length_mm ?? ""} onChange={e => f("max_length_mm", e.target.value ? Number(e.target.value) : null)} placeholder="353" /></div>
+                  <div className="space-y-1"><Label className="text-xs text-muted-foreground">Width</Label><Input type="number" value={form.max_width_mm ?? ""} onChange={e => f("max_width_mm", e.target.value ? Number(e.target.value) : null)} placeholder="250" /></div>
+                  <div className="space-y-1"><Label className="text-xs text-muted-foreground">Height</Label><Input type="number" value={form.max_height_mm ?? ""} onChange={e => f("max_height_mm", e.target.value ? Number(e.target.value) : null)} placeholder="25" /></div>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Max weight (g)</Label>
+                  <Input type="number" value={form.max_weight_g ?? ""} onChange={e => f("max_weight_g", e.target.value ? Number(e.target.value) : null)} placeholder="750" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Price (pence)</Label>
+                  <Input type="number" value={form.price_pence ?? ""} onChange={e => f("price_pence", e.target.value ? Number(e.target.value) : null)} placeholder="135" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Sort order</Label>
+                  <Input type="number" value={form.sort_order} onChange={e => f("sort_order", Number(e.target.value))} />
+                </div>
+                <div className="flex items-center justify-between pt-6">
+                  <Label>Active</Label><Switch checked={form.active} onCheckedChange={v => f("active", v)} />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Notes</Label>
+                <Textarea value={form.notes ?? ""} onChange={e => f("notes", e.target.value || null)} rows={2} placeholder="Optional notes about this service" />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
+              <Button onClick={save}>Save</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </CardHeader>
+      <CardContent>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Name</TableHead>
+              <TableHead>Carrier</TableHead>
+              <TableHead className="text-right">Max L×W×H (mm)</TableHead>
+              <TableHead className="text-right">Max Weight</TableHead>
+              <TableHead className="text-right">Price</TableHead>
+              <TableHead>Mintsoft ID</TableHead>
+              <TableHead>Active</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {loading && <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground">Loading…</TableCell></TableRow>}
+            {!loading && formats.length === 0 && <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground">No format services yet.</TableCell></TableRow>}
+            {formats.map(s => (
+              <TableRow key={s.id}>
+                <TableCell className="font-medium">{s.name}</TableCell>
+                <TableCell className="text-muted-foreground text-sm">{carriers.find(c => c.id === s.carrier_id)?.name ?? "All"}</TableCell>
+                <TableCell className="text-right font-mono text-sm text-muted-foreground">
+                  {s.max_length_mm || s.max_width_mm || s.max_height_mm
+                    ? `${dim(s.max_length_mm)}×${dim(s.max_width_mm)}×${dim(s.max_height_mm)}`
+                    : "—"}
+                </TableCell>
+                <TableCell className="text-right text-sm">{s.max_weight_g != null ? `${s.max_weight_g}g` : "—"}</TableCell>
+                <TableCell className="text-right text-sm">{price(s.price_pence)}</TableCell>
+                <TableCell className="text-sm text-muted-foreground">{s.mintsoft_category_id ?? "—"}</TableCell>
+                <TableCell>{s.active ? "Yes" : "No"}</TableCell>
+                <TableCell className="text-right">
+                  <Button size="sm" variant="ghost" onClick={() => startEdit(s)}><Pencil className="h-4 w-4" /></Button>
+                  <Button size="sm" variant="ghost" onClick={() => remove(s)}><Trash2 className="h-4 w-4" /></Button>
                 </TableCell>
               </TableRow>
             ))}

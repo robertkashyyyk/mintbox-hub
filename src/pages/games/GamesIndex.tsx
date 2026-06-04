@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { Card } from "@/components/ui/card";
-import { Gamepad2, PoundSterling, Boxes } from "lucide-react";
+import { Gamepad2, PoundSterling, Boxes, Ruler } from "lucide-react";
 
 export default function GamesIndex() {
   return (
@@ -40,6 +40,21 @@ export default function GamesIndex() {
                 <h2 className="text-lg font-semibold text-foreground">Stock Count Game</h2>
                 <p className="text-sm text-muted-foreground mt-1">
                   Count SKUs that have never been counted. Pick a brand, choose a set, and key in the numbers as you go.
+                </p>
+              </div>
+            </div>
+          </Card>
+        </Link>
+        <Link to="/games/rmg">
+          <Card className="p-5 hover:border-pd-accent transition-colors cursor-pointer">
+            <div className="flex items-start gap-4">
+              <div className="rounded-md bg-pd-accent/10 p-3">
+                <Ruler className="h-6 w-6 text-pd-accent" />
+              </div>
+              <div className="flex-1">
+                <h2 className="text-lg font-semibold text-foreground">Remeasure Game</h2>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Work through carrier penalty remeasures one SKU at a time. Pick a brand, choose a batch, record dimensions as you go.
                 </p>
               </div>
             </div>

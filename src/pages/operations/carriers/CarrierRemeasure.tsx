@@ -38,7 +38,10 @@ import {
   CheckCircle2,
   AlertCircle,
   Ruler,
+  Gamepad2,
+  Printer,
 } from "lucide-react";
+import { Link } from "react-router-dom";
 
 type Task = {
   id: string;
@@ -224,9 +227,15 @@ const CarrierRemeasure = () => {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button onClick={() => setCreating(true)} variant="default">
+          <Link to="/games/rmg">
+            <Button variant="default">
+              <Gamepad2 className="h-4 w-4 mr-2" />
+              Remeasure game
+            </Button>
+          </Link>
+          <Button onClick={() => setCreating(true)} variant="outline">
             <Ruler className="h-4 w-4 mr-2" />
-            New remeasure task
+            New task
           </Button>
           <Button onClick={resolveUnresolved} disabled={resolving} variant="secondary">
             {resolving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Search className="h-4 w-4 mr-2" />}
