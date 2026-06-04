@@ -39,7 +39,7 @@ async function fetchAllProductsMissingCost() {
     const { data, error } = await supabase
       .from("products_cache")
       .select("id, sku, name, suppliers, current_stock, brand_id, mintsoft_id")
-      .is("cost_price", null)
+      .or("cost_price.is.null,cost_price.lte.0")
       .eq("discontinued", false)
       .eq("quarantined", false)
       .not("mintsoft_id", "is", null)
