@@ -102,7 +102,7 @@ export default function MissingCostsGame() {
       const { data, error } = await supabase
         .from("products_cache")
         .select("brand_id, brands!inner(id,name)")
-        .is("cost_price", null)
+        .or("cost_price.is.null,cost_price.lte.0")
         .eq("discontinued", false)
         .eq("quarantined", false)
         .not("brand_id", "is", null)
@@ -154,7 +154,7 @@ export default function MissingCostsGame() {
         const { data, error } = await supabase
           .from("products_cache")
           .select("id, sku, name, brand_id, mintsoft_product_id, brands(name)")
-          .is("cost_price", null)
+          .or("cost_price.is.null,cost_price.lte.0")
           .eq("discontinued", false)
           .eq("quarantined", false)
           .eq("brand_id", selectedBrandId!)

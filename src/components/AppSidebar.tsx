@@ -7,7 +7,7 @@ import {
   Users, Key, CreditCard, LogOut, UserCircle, Gauge,
   ChevronDown, ChevronRight, LayoutDashboard, Settings,
   Images, Clock, Plug, Truck, AlertTriangle, Sliders, Beaker, BarChart3, ArrowUpDown,
-  PoundSterling, Link2Off, HelpCircle, ClipboardList, CheckSquare
+  PoundSterling, Link2Off, HelpCircle, ClipboardList, CheckSquare, Gamepad2
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -274,6 +274,14 @@ export function AppSidebar() {
                   <NavLink to="/tasks">
                     <CheckSquare className="h-4 w-4" />
                     <span>Tasks</span>
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={currentPath.startsWith("/games")} tooltip="Games">
+                  <NavLink to="/games">
+                    <Gamepad2 className="h-4 w-4" />
+                    <span>Games</span>
                   </NavLink>
                 </SidebarMenuButton>
               </SidebarMenuItem>
