@@ -20,9 +20,14 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
-import { AlertTriangle, CheckCircle2, Plus, Save, ShoppingBag, MessageSquare, BarChart3, Loader2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Plus, Save, ShoppingBag, MessageSquare, BarChart3, Loader2, LineChart as LineChartIcon, TrendingUp } from "lucide-react";
 import ModuleHeader from "@/components/ModuleHeader";
 import { PageLoader } from "@/components/ui/PageLoader";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  ResponsiveContainer, ComposedChart, LineChart, Line, XAxis, YAxis, CartesianGrid,
+  Tooltip as RTooltip, Legend, ReferenceLine,
+} from "recharts";
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -163,10 +168,12 @@ export default function EbayPerformance() {
         <TabsList>
           <TabsTrigger value="odr"><ShoppingBag className="h-4 w-4 mr-2" />ODR</TabsTrigger>
           <TabsTrigger value="response"><MessageSquare className="h-4 w-4 mr-2" />Response Times</TabsTrigger>
+          <TabsTrigger value="graphs"><LineChartIcon className="h-4 w-4 mr-2" />Graphs</TabsTrigger>
           <TabsTrigger value="history"><BarChart3 className="h-4 w-4 mr-2" />History</TabsTrigger>
         </TabsList>
         <TabsContent value="odr" className="mt-6"><OdrTab /></TabsContent>
         <TabsContent value="response" className="mt-6"><ResponseTimesTab /></TabsContent>
+        <TabsContent value="graphs" className="mt-6"><GraphsTab /></TabsContent>
         <TabsContent value="history" className="mt-6"><HistoryTab /></TabsContent>
       </Tabs>
     </div>
@@ -769,6 +776,239 @@ function HistoryTab() {
           </div>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+// ═════════════════════════════════════════════════════════════════
+// Graphs Tab — trends + linear-regression projections
+// ═════════════════════════════════════════════════════════════════
+
+const ACCOUNT_COLORS: Record<string, string> = {
+  ASC: "#3b82f6", // blue
+  CPI: "#10b981", // emerald
+  "123": "#f59e0b", // amber
+  TSS: "#ef4444", // red
+  UNI: "#a855f7", // purple
+};
+const FALLBACK_COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#a855f7", "#06b6d4", "#ec4899"];
+
+// Ordinary least-squares slope/intercept over [{x,y}], ignoring nulls.
+function linReg(points: { x: number; y: number | null }[]) {
+  const pts = points.filter(p => p.y != null) as { x: number; y: number }[];
+  const n = pts.length;
+  if (n < 2) return null;
+  const sx = pts.reduce((a, p) => a + p.x, 0);
+  const sy = pts.reduce((a, p) => a + p.y, 0);
+  const sxx = pts.reduce((a, p) => a + p.x * p.x, 0);
+  const sxy = pts.reduce((a, p) => a + p.x * p.y, 0);
+  const denom = n * sxx - sx * sx;
+  if (denom === 0) return null;
+  const slope = (n * sxy - sx * sy) / denom;
+  const intercept = (sy - slope * sx) / n;
+  return { slope, intercept };
+}
+
+function GraphsTab() {
+  const [metric, setMetric] = useState<"tdr" | "ldr">("tdr");
+
+  const { data: accounts = [] } = useQuery({
+    queryKey: ["ebay-accounts"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).from("ebay_accounts").select("*").eq("active", true).order("sort_order");
+      if (error) throw error;
+      return data as EbayAccount[];
+    },
+  });
+
+  const { data: odr = [], isLoading: odrLoading } = useQuery({
+    queryKey: ["ebay-odr-graph"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("ebay_odr_with_tdr")
+        .select("*, ebay_accounts(code)")
+        .order("year", { ascending: true })
+        .order("week_number", { ascending: true })
+        .limit(500);
+      if (error) throw error;
+      return data as (OdrRow & { ebay_accounts: { code: string } })[];
+    },
+  });
+
+  const { data: rt = [], isLoading: rtLoading } = useQuery({
+    queryKey: ["ebay-rt-graph"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("ebay_response_times")
+        .select("*")
+        .order("date", { ascending: true })
+        .limit(365);
+      if (error) throw error;
+      return data as ResponseTime[];
+    },
+  });
+
+  // ── Build ODR chart data: one row per week, a column per account + projection ──
+  const PROJECT_WEEKS = 4;
+  const odrChart = useMemo(() => {
+    const codes = accounts.map(a => a.code);
+    // ordered unique weeks
+    const weekKeys: { key: string; year: number; week: number }[] = [];
+    const seen = new Set<string>();
+    for (const r of odr) {
+      const key = `${r.year}-W${String(r.week_number).padStart(2, "0")}`;
+      if (!seen.has(key)) { seen.add(key); weekKeys.push({ key, year: r.year, week: r.week_number }); }
+    }
+    const valueOf = (r: OdrRow) => metric === "tdr"
+      ? (r.tdr_pct ?? (r.cos_pct ?? 0) + (r.ccwsr_pct ?? 0))
+      : (r.ldr_pct ?? null);
+
+    const base = weekKeys.map((wk, i) => {
+      const row: any = { idx: i, label: wk.key.replace(/^\d+-/, "") };
+      for (const code of codes) {
+        const match = odr.find(r => r.year === wk.year && r.week_number === wk.week && r.ebay_accounts?.code === code);
+        row[code] = match ? Number(valueOf(match)?.toFixed?.(4) ?? valueOf(match)) : null;
+      }
+      return row;
+    });
+
+    // Per-account linear projection appended as future weeks
+    const projections: Record<string, { slope: number; intercept: number } | null> = {};
+    for (const code of codes) {
+      projections[code] = linReg(base.map(r => ({ x: r.idx, y: r[code] ?? null })));
+    }
+    const lastWeek = weekKeys[weekKeys.length - 1];
+    const future = Array.from({ length: PROJECT_WEEKS }, (_, k) => {
+      const i = base.length + k;
+      const wnum = (lastWeek?.week ?? 0) + k + 1;
+      const row: any = { idx: i, label: `W${String(wnum).padStart(2, "0")}*`, projected: true };
+      for (const code of codes) {
+        const p = projections[code];
+        row[`${code}_proj`] = p ? Math.max(0, Number((p.slope * i + p.intercept).toFixed(4))) : null;
+      }
+      return row;
+    });
+
+    // Bridge: last real point also seeds the projection line so it connects
+    if (base.length > 0) {
+      const lastIdx = base.length - 1;
+      for (const code of codes) {
+        const p = projections[code];
+        (base[lastIdx] as any)[`${code}_proj`] = p ? Math.max(0, Number((p.slope * lastIdx + p.intercept).toFixed(4))) : base[lastIdx][code];
+      }
+    }
+    return [...base, ...future];
+  }, [odr, accounts, metric]);
+
+  // ── Response times chart with projection ──
+  const rtChart = useMemo(() => {
+    const base = rt.map((r, i) => ({
+      idx: i,
+      label: r.date.slice(5), // MM-DD
+      "7-day": r.open_7d,
+      "14-day": r.open_14d,
+      "30-day": r.open_30d,
+    }));
+    const proj = linReg(base.map(r => ({ x: r.idx, y: r["7-day"] ?? null })));
+    if (proj && base.length > 0) {
+      const lastIdx = base.length - 1;
+      (base[lastIdx] as any)["7-day proj"] = Math.max(0, Math.round(proj.slope * lastIdx + proj.intercept));
+      const future = Array.from({ length: 7 }, (_, k) => {
+        const i = base.length + k;
+        return { idx: i, label: `+${k + 1}d`, "7-day proj": Math.max(0, Math.round(proj.slope * i + proj.intercept)), projected: true } as any;
+      });
+      return [...base, ...future];
+    }
+    return base;
+  }, [rt]);
+
+  const threshold = metric === "tdr" ? 0.5 : 3;
+  const colorFor = (code: string, i: number) => ACCOUNT_COLORS[code] ?? FALLBACK_COLORS[i % FALLBACK_COLORS.length];
+
+  if (odrLoading || rtLoading) return <PageLoader rows={6} columns={[80, 80, 80, 80]} label="Loading graphs" />;
+
+  return (
+    <div className="space-y-6">
+      {/* ODR trend */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <TrendingUp className="h-5 w-5 text-pd-accent" />
+                {metric === "tdr" ? "Total Defect Rate" : "Late Despatch Rate"} by account
+              </CardTitle>
+              <CardDescription>
+                Solid = actual, dashed = {PROJECT_WEEKS}-week linear projection. Red line = eBay limit ({threshold}%).
+              </CardDescription>
+            </div>
+            <Select value={metric} onValueChange={v => setMetric(v as "tdr" | "ldr")}>
+              <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="tdr">TDR (limit 0.5%)</SelectItem>
+                <SelectItem value="ldr">LDR (limit 3%)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {odrChart.length === 0 ? (
+            <p className="text-center text-muted-foreground py-12">No ODR data yet.</p>
+          ) : (
+            <ResponsiveContainer width="100%" height={380}>
+              <ComposedChart data={odrChart} margin={{ top: 10, right: 16, bottom: 0, left: -8 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis dataKey="label" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
+                <YAxis tick={{ fontSize: 11 }} unit="%" />
+                <RTooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }} />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+                <ReferenceLine y={threshold} stroke="hsl(var(--destructive))" strokeDasharray="4 4" label={{ value: `Limit ${threshold}%`, fontSize: 10, fill: "hsl(var(--destructive))", position: "insideTopRight" }} />
+                {accounts.map((a, i) => (
+                  <Line key={a.code} type="monotone" dataKey={a.code} stroke={colorFor(a.code, i)} strokeWidth={2} dot={{ r: 2 }} connectNulls />
+                ))}
+                {accounts.map((a, i) => (
+                  <Line key={`${a.code}_proj`} type="monotone" dataKey={`${a.code}_proj`} stroke={colorFor(a.code, i)} strokeWidth={1.5} strokeDasharray="5 4" dot={false} connectNulls legendType="none" />
+                ))}
+              </ComposedChart>
+            </ResponsiveContainer>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Response times trend */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <MessageSquare className="h-5 w-5 text-pd-accent" />
+            Response times trend
+          </CardTitle>
+          <CardDescription>Open message backlog (7/14/30-day windows). Dashed = 7-day projection.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {rtChart.length === 0 ? (
+            <p className="text-center text-muted-foreground py-12">No response time data yet.</p>
+          ) : (
+            <ResponsiveContainer width="100%" height={320}>
+              <LineChart data={rtChart} margin={{ top: 10, right: 16, bottom: 0, left: -12 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis dataKey="label" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
+                <YAxis tick={{ fontSize: 11 }} />
+                <RTooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }} />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+                <ReferenceLine y={12} stroke="hsl(var(--warning))" strokeDasharray="4 4" label={{ value: "Watch (12)", fontSize: 10, fill: "hsl(var(--warning))", position: "insideTopRight" }} />
+                <Line type="monotone" dataKey="7-day" stroke="#ef4444" strokeWidth={2} dot={{ r: 2 }} connectNulls />
+                <Line type="monotone" dataKey="14-day" stroke="#f59e0b" strokeWidth={2} dot={{ r: 2 }} connectNulls />
+                <Line type="monotone" dataKey="30-day" stroke="#3b82f6" strokeWidth={2} dot={{ r: 2 }} connectNulls />
+                <Line type="monotone" dataKey="7-day proj" stroke="#ef4444" strokeWidth={1.5} strokeDasharray="5 4" dot={false} connectNulls legendType="none" />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+        </CardContent>
+      </Card>
+
+      <p className="text-xs text-muted-foreground">
+        Projections are a simple least-squares trend of the historical points — directional guidance, not a forecast. A rising dashed line toward a red limit is an early warning.
+      </p>
     </div>
   );
 }
