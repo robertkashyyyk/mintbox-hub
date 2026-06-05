@@ -77,8 +77,31 @@ const VERDICT_META: Record<FitVerdict, { label: string; cls: string }> = {
   unknown:     { label: "Needs dims", cls: "bg-muted text-muted-foreground border-border" },
 };
 
+// Generic: does the item fit within a given format's limits? "fits" / "too_big" / "unknown".
+function fitsFormat(c: { length_cm: number | null; depth_cm: number | null; height_cm: number | null; weight_g: number | null }, fmt: FormatService | undefined): "fits" | "too_big" | "unknown" {
+  if (!fmt) return "unknown";
+  const dims = [c.length_cm, c.depth_cm, c.height_cm];
+  if (dims.some(d => d == null || d <= 0)) return "unknown";
+  const itemMm = (dims as number[]).map(d => d * 10).sort((a, b) => b - a);
+  const limMm = [fmt.max_length_mm, fmt.max_width_mm, fmt.max_height_mm].map(v => v ?? Infinity).sort((a, b) => b - a);
+  const fitsDims = itemMm.every((d, i) => d <= limMm[i]);
+  const fitsWeight = fmt.max_weight_g == null || c.weight_g == null || c.weight_g <= fmt.max_weight_g;
+  return (fitsDims && fitsWeight) ? "fits" : "too_big";
+}
+
+interface DowngradeCandidate {
+  sku: string; product_name: string | null; brand_name: string | null;
+  orders: number; single_item_orders: number;
+  avg_price: number; avg_courier: number;
+  length_cm: number | null; depth_cm: number | null; height_cm: number | null; weight_g: number | null;
+  review_verdict: string | null;
+}
+
+type Mode = "margin" | "downgrade";
+
 export default function CourierMargin() {
   const qc = useQueryClient();
+  const [mode, setMode] = useState<Mode>("margin");
   const [courier, setCourier] = useState("dhl");
   const [days, setDays] = useState(90);
   const [minOrders, setMinOrders] = useState(3);
@@ -86,23 +109,27 @@ export default function CourierMargin() {
   const [pctThreshold, setPctThreshold] = useState(40);   // courier ≥ % of price
   const [marginFloor, setMarginFloor] = useState(2);      // net margin < £
   const [verdictFilter, setVerdictFilter] = useState<"all" | FitVerdict | "unconfirmed">("all");
+  const [dgSort, setDgSort] = useState<"total" | "per_order">("total");
 
   const to = new Date();
   const from = new Date(to.getTime() - days * 86400000);
   const fmt = (d: Date) => d.toISOString().slice(0, 10);
 
-  const { data: parcel } = useQuery({
-    queryKey: ["parcel-format"],
+  const { data: formats = [] } = useQuery({
+    queryKey: ["format-services"],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
-        .from("carrier_format_services").select("*").eq("slug", "parcel").maybeSingle();
+      const { data, error } = await (supabase as any).from("carrier_format_services").select("*");
       if (error) throw error;
-      return data as FormatService | null;
+      return data as (FormatService & { price_pence: number | null })[];
     },
   });
+  const parcel = formats.find(f => f.slug === "parcel");
+  const largeLetter = formats.find(f => f.slug === "large-letter");
+  const llPrice = largeLetter?.price_pence != null ? largeLetter.price_pence / 100 : null;
 
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["courier-margin", courier, days, minOrders, singleOnly],
+    enabled: mode === "margin",
     queryFn: async () => {
       const { data, error } = await (supabase as any).rpc("get_courier_margin_candidates", {
         from_date: fmt(from), to_date: fmt(to),
@@ -112,6 +139,35 @@ export default function CourierMargin() {
       return data as Candidate[];
     },
   });
+
+  const { data: dgRows = [], isLoading: dgLoading } = useQuery({
+    queryKey: ["downgrade", days, minOrders, singleOnly],
+    enabled: mode === "downgrade",
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc("get_downgrade_candidates", {
+        from_date: fmt(from), to_date: fmt(to), min_orders: minOrders, single_item_only: singleOnly,
+      });
+      if (error) throw error;
+      return data as DowngradeCandidate[];
+    },
+  });
+
+  // Downgrade rows that fit Large Letter and paid more than the LL rate.
+  const downgrades = useMemo(() => {
+    if (llPrice == null) return [];
+    return dgRows
+      .map(r => {
+        const fit = fitsFormat(r, largeLetter);
+        const perOrder = Math.max(0, r.avg_courier - llPrice);
+        return { ...r, _fit: fit, perOrder, total: perOrder * r.orders };
+      })
+      .filter(r => r._fit === "fits" && r.perOrder > 0.05)
+      .sort((a, b) => dgSort === "total" ? b.total - a.total : b.perOrder - a.perOrder);
+  }, [dgRows, largeLetter, llPrice, dgSort]);
+
+  const dgNeedsDims = useMemo(
+    () => dgRows.filter(r => fitsFormat(r, largeLetter) === "unknown" && r.avg_courier > (llPrice ?? 1.65)).length,
+    [dgRows, largeLetter, llPrice]);
 
   const reviewMutation = useMutation({
     mutationFn: async ({ sku, verdict, note }: { sku: string; verdict: string; note?: string }) => {
@@ -151,10 +207,37 @@ export default function CourierMargin() {
     <div className="space-y-6">
       <ModuleHeader
         title="Courier Margin"
-        description="SKUs where the courier fee is eating the profit. Confirm if the item truly needs the courier or should be re-routed / re-priced."
+        description="Where the courier fee is eating the profit, and where a cheaper format would do."
         icon={Truck}
       />
 
+      {/* Mode toggle */}
+      <div className="inline-flex rounded-lg border border-border p-1 bg-muted/30">
+        <button
+          onClick={() => setMode("margin")}
+          className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${mode === "margin" ? "bg-pd-accent text-white" : "text-muted-foreground hover:text-foreground"}`}
+        >
+          Margin killers
+        </button>
+        <button
+          onClick={() => setMode("downgrade")}
+          className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${mode === "downgrade" ? "bg-pd-accent text-white" : "text-muted-foreground hover:text-foreground"}`}
+        >
+          Downgrade savings
+        </button>
+      </div>
+
+      {mode === "downgrade" ? (
+        <DowngradeView
+          rows={downgrades} needsDims={dgNeedsDims} loading={dgLoading}
+          llPrice={llPrice} largeLetter={largeLetter}
+          days={days} setDays={setDays} minOrders={minOrders} setMinOrders={setMinOrders}
+          singleOnly={singleOnly} setSingleOnly={setSingleOnly}
+          sort={dgSort} setSort={setDgSort}
+          onReview={(sku, verdict) => reviewMutation.mutate({ sku, verdict })}
+        />
+      ) : (
+      <>
       {/* Filters */}
       <Card>
         <CardContent className="pt-6 flex flex-wrap items-end gap-4">
@@ -317,7 +400,149 @@ export default function CourierMargin() {
         {" "}— edit in <Link to="/operations/carriers/settings" className="text-pd-accent hover:underline">Carrier Settings → Format Services</Link>.
         Confirm actions: <PoundSterling className="h-3 w-3 inline" /> raise price · <ArrowDownUp className="h-3 w-3 inline" /> fix courier · <Check className="h-3 w-3 inline" /> ignore.
       </p>
+      </>
+      )}
     </div>
+  );
+}
+
+// ── Downgrade savings view (Parcel → Large Letter) ────────────────
+function DowngradeView({ rows, needsDims, loading, llPrice, largeLetter, days, setDays, minOrders, setMinOrders, singleOnly, setSingleOnly, sort, setSort, onReview }: {
+  rows: (DowngradeCandidate & { _fit: string; perOrder: number; total: number })[];
+  needsDims: number; loading: boolean; llPrice: number | null; largeLetter: FormatService | undefined;
+  days: number; setDays: (n: number) => void; minOrders: number; setMinOrders: (n: number) => void;
+  singleOnly: boolean; setSingleOnly: (b: boolean) => void;
+  sort: "total" | "per_order"; setSort: (s: "total" | "per_order") => void;
+  onReview: (sku: string, verdict: string) => void;
+}) {
+  const totalSaving = rows.reduce((a, r) => a + r.total, 0);
+  return (
+    <>
+      <Card>
+        <CardContent className="pt-6 flex flex-wrap items-end gap-4">
+          <div className="space-y-1.5">
+            <Label className="text-xs">Window</Label>
+            <Select value={String(days)} onValueChange={v => setDays(Number(v))}>
+              <SelectTrigger className="w-32 h-9"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="30">Last 30 days</SelectItem>
+                <SelectItem value="60">Last 60 days</SelectItem>
+                <SelectItem value="90">Last 90 days</SelectItem>
+                <SelectItem value="180">Last 180 days</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Min orders</Label>
+            <Input type="number" min={1} value={minOrders} onChange={e => setMinOrders(Number(e.target.value) || 1)} className="w-20 h-9" />
+          </div>
+          <div className="flex items-center gap-2 pb-2">
+            <Switch checked={singleOnly} onCheckedChange={setSingleOnly} id="dg-single" />
+            <Label htmlFor="dg-single" className="text-xs cursor-pointer">Single-item orders only</Label>
+          </div>
+          <div className="space-y-1.5 ml-auto">
+            <Label className="text-xs">Sort by</Label>
+            <Select value={sort} onValueChange={v => setSort(v as any)}>
+              <SelectTrigger className="w-44 h-9"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="total">Total £ saving</SelectItem>
+                <SelectItem value="per_order">Per-order saving</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
+
+      {llPrice == null && (
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 flex items-start gap-3">
+          <AlertTriangle className="h-5 w-5 text-amber-400 flex-shrink-0 mt-0.5" />
+          <div className="text-sm text-amber-400">
+            Set the Large Letter price in <Link to="/operations/carriers/settings" className="underline">Carrier Settings → Format Services</Link> to calculate savings.
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+        <Stat label="SKUs that could downgrade" value={rows.length} className="text-amber-400" />
+        <StatMoney label="Total saving (window)" value={totalSaving} className="text-emerald-400" />
+        <Stat label="Need dims to assess" value={needsDims} className="text-muted-foreground" />
+      </div>
+
+      <div className="rounded-lg border border-pd-accent/20 bg-pd-accent/5 p-3 text-xs text-muted-foreground flex items-start gap-2">
+        <Ruler className="h-4 w-4 text-pd-accent flex-shrink-0 mt-0.5" />
+        <span>
+          These SKUs ship on a parcel service but fit within Large Letter limits
+          {largeLetter ? ` (${largeLetter.max_length_mm}×${largeLetter.max_width_mm}×${largeLetter.max_height_mm}mm, ≤${largeLetter.max_weight_g}g)` : ""}.
+          Saving = actual courier paid − Large Letter rate (£{llPrice?.toFixed(2) ?? "—"}). Switching the courier mapping captures it.
+        </span>
+      </div>
+
+      <Card>
+        <CardContent className="p-0">
+          {loading ? <PageLoader rows={10} columns={[120, 200, 70, 70, 70, 90, 90, 140]} label="Loading downgrade savings" /> : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>SKU</TableHead>
+                    <TableHead>Product</TableHead>
+                    <TableHead className="text-right">Orders</TableHead>
+                    <TableHead className="text-right">Avg paid</TableHead>
+                    <TableHead className="text-right">LL rate</TableHead>
+                    <TableHead className="text-right">Per-order saving</TableHead>
+                    <TableHead className="text-right">Total saving</TableHead>
+                    <TableHead>Dims (L×D×H cm / g)</TableHead>
+                    <TableHead className="text-right">Confirm</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {rows.length === 0 && (
+                    <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-8">
+                      No downgrade opportunities found {llPrice == null ? "(set the Large Letter price first)" : "in this window"}.
+                    </TableCell></TableRow>
+                  )}
+                  {rows.map(r => (
+                    <TableRow key={r.sku} className={r.review_verdict ? "opacity-60" : ""}>
+                      <TableCell>
+                        <Link to={`/discovery/products?search=${encodeURIComponent(r.sku)}`} className="font-mono text-xs text-pd-accent hover:underline">{r.sku}</Link>
+                      </TableCell>
+                      <TableCell className="text-sm max-w-[220px] truncate">{r.product_name ?? "—"}</TableCell>
+                      <TableCell className="text-right text-sm">{r.orders}</TableCell>
+                      <TableCell className="text-right text-sm">£{r.avg_courier.toFixed(2)}</TableCell>
+                      <TableCell className="text-right text-sm text-muted-foreground">£{llPrice?.toFixed(2)}</TableCell>
+                      <TableCell className="text-right text-sm text-emerald-400">£{r.perOrder.toFixed(2)}</TableCell>
+                      <TableCell className="text-right font-semibold text-emerald-400">£{r.total.toFixed(2)}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{r.length_cm}×{r.depth_cm}×{r.height_cm} / {r.weight_g ?? "?"}g</TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex gap-1 justify-end">
+                          <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-amber-400" title="Confirm: switch to Large Letter"
+                            onClick={() => onReview(r.sku, "fix_courier")}>
+                            <ArrowDownUp className="h-3 w-3" />
+                          </Button>
+                          <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-muted-foreground" title="Ignore"
+                            onClick={() => onReview(r.sku, "ignore")}>
+                            <Check className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </>
+  );
+}
+
+function StatMoney({ label, value, className = "" }: { label: string; value: number; className?: string }) {
+  return (
+    <Card><CardContent className="pt-6">
+      <div className="text-xs uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className={`text-2xl font-bold mt-1 ${className}`}>£{value.toFixed(2)}</div>
+    </CardContent></Card>
   );
 }
 
