@@ -228,7 +228,7 @@ export default function RemeasureGame() {
             ${printTasks.map(t => {
               const d = dimsMap.get(t.sku) as any;
               const cats = d?.mintsoft_categories?.filter(Boolean).join(", ") || "—";
-              const dims = d ? `${d.length ?? "?"}×${d.depth ?? "?"}×${d.height ?? "?"}cm ${d.weight ?? "?"}kg` : "—";
+              const dims = d ? `${d.length ?? "?"}×${d.depth ?? "?"}×${d.height ?? "?"}cm ${d.weight ?? "?"}g` : "—";
               return `
               <tr>
                 <td class="sku">${t.sku}</td>
