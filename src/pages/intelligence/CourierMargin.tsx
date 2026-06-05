@@ -10,7 +10,7 @@
  * products_cache; Parcel limits from carrier_format_services.
  */
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -23,7 +23,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
-import { Truck, PoundSterling, AlertTriangle, Check, ArrowDownUp, Ruler } from "lucide-react";
+import { Truck, PoundSterling, AlertTriangle, Check, ArrowDownUp, Ruler, Download } from "lucide-react";
 import ModuleHeader from "@/components/ModuleHeader";
 import { PageLoader } from "@/components/ui/PageLoader";
 
@@ -110,6 +110,10 @@ export default function CourierMargin() {
   const [marginFloor, setMarginFloor] = useState(2);      // net margin < £
   const [verdictFilter, setVerdictFilter] = useState<"all" | FitVerdict | "unconfirmed">("all");
   const [dgSort, setDgSort] = useState<"total" | "per_order">("total");
+  const [search, setSearch] = useState("");
+  const [brandFilter, setBrandFilter] = useState("all");
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 50;
 
   const to = new Date();
   const from = new Date(to.getTime() - days * 86400000);
@@ -155,7 +159,13 @@ export default function CourierMargin() {
   // Downgrade rows that fit Large Letter and paid more than the LL rate.
   const downgrades = useMemo(() => {
     if (llPrice == null) return [];
+    const q = search.trim().toLowerCase();
     return dgRows
+      .filter(r => {
+        if (brandFilter !== "all" && r.brand_name !== brandFilter) return false;
+        if (q && !r.sku.toLowerCase().includes(q) && !(r.product_name ?? "").toLowerCase().includes(q)) return false;
+        return true;
+      })
       .map(r => {
         const fit = fitsFormat(r, largeLetter);
         const perOrder = Math.max(0, r.avg_courier - llPrice);
@@ -163,7 +173,7 @@ export default function CourierMargin() {
       })
       .filter(r => r._fit === "fits" && r.perOrder > 0.05)
       .sort((a, b) => dgSort === "total" ? b.total - a.total : b.perOrder - a.perOrder);
-  }, [dgRows, largeLetter, llPrice, dgSort]);
+  }, [dgRows, largeLetter, llPrice, dgSort, search, brandFilter]);
 
   const dgNeedsDims = useMemo(
     () => dgRows.filter(r => fitsFormat(r, largeLetter) === "unknown" && r.avg_courier > (llPrice ?? 1.65)).length,
@@ -181,7 +191,22 @@ export default function CourierMargin() {
     onError: (e: any) => toast.error(e.message),
   });
 
-  // Apply threshold + verdict filters client-side
+  // Brand options from the loaded dataset (margin or downgrade)
+  const brandOptions = useMemo(() => {
+    const src = mode === "downgrade" ? dgRows : rows;
+    return Array.from(new Set(src.map(r => r.brand_name).filter(Boolean) as string[])).sort();
+  }, [mode, rows, dgRows]);
+
+  const matchesSearchBrand = (r: { sku: string; product_name: string | null; brand_name: string | null }) => {
+    if (brandFilter !== "all" && r.brand_name !== brandFilter) return false;
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      if (!r.sku.toLowerCase().includes(q) && !(r.product_name ?? "").toLowerCase().includes(q)) return false;
+    }
+    return true;
+  };
+
+  // Apply threshold + verdict + search/brand filters client-side
   const filtered = useMemo(() => {
     return rows
       .map(r => ({ ...r, _fit: parcelFit(r, parcel ?? undefined) }))
@@ -189,19 +214,38 @@ export default function CourierMargin() {
         const hitsPct = r.courier_pct >= pctThreshold;
         const hitsMargin = r.avg_margin != null && r.avg_margin < marginFloor;
         if (!hitsPct && !hitsMargin) return false;
+        if (!matchesSearchBrand(r)) return false;
         if (verdictFilter === "all") return true;
         if (verdictFilter === "unconfirmed") return !r.review_verdict;
         return r._fit === verdictFilter;
       });
-  }, [rows, parcel, pctThreshold, marginFloor, verdictFilter]);
+  }, [rows, parcel, pctThreshold, marginFloor, verdictFilter, search, brandFilter]);
+
+  // Reset to page 1 whenever the result set changes
+  useEffect(() => { setPage(1); }, [mode, courier, days, minOrders, singleOnly, pctThreshold, marginFloor, verdictFilter, search, brandFilter]);
+
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const pageRows = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const stats = useMemo(() => {
     const fixable = filtered.filter(r => r._fit === "fits_parcel").length;
     const genuine = filtered.filter(r => r._fit === "needs_dhl").length;
     const unknown = filtered.filter(r => r._fit === "unknown").length;
-    const lostPerOrder = filtered.reduce((a, r) => a + Math.max(0, r.avg_courier - r.avg_price * (pctThreshold / 100)), 0);
     return { fixable, genuine, unknown, total: filtered.length };
-  }, [filtered, pctThreshold]);
+  }, [filtered]);
+
+  function exportCsv() {
+    const hdr = ["SKU","Product","Brand","Orders","AvgPrice","AvgCourier","CourierPct","Margin","Verdict"];
+    const lines = filtered.map(r => [
+      r.sku, r.product_name ?? "", r.brand_name ?? "", r.orders, r.avg_price, r.avg_courier,
+      r.courier_pct, r.avg_margin ?? "", VERDICT_META[r._fit].label,
+    ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(","));
+    const blob = new Blob([[hdr.join(","), ...lines].join("\n")], { type: "text/csv" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `courier-margin-${courier}-${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+  }
 
   return (
     <div className="space-y-6">
@@ -229,11 +273,17 @@ export default function CourierMargin() {
 
       {mode === "downgrade" ? (
         <DowngradeView
-          rows={downgrades} needsDims={dgNeedsDims} loading={dgLoading}
+          rows={downgrades.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)}
+          totalRows={downgrades.length}
+          page={page} setPage={setPage} pageCount={Math.max(1, Math.ceil(downgrades.length / PAGE_SIZE))} pageSize={PAGE_SIZE}
+          needsDims={dgNeedsDims} loading={dgLoading}
           llPrice={llPrice} largeLetter={largeLetter}
           days={days} setDays={setDays} minOrders={minOrders} setMinOrders={setMinOrders}
           singleOnly={singleOnly} setSingleOnly={setSingleOnly}
           sort={dgSort} setSort={setDgSort}
+          search={search} setSearch={setSearch}
+          brandFilter={brandFilter} setBrandFilter={setBrandFilter} brandOptions={brandOptions}
+          allRows={downgrades}
           onReview={(sku, verdict) => reviewMutation.mutate({ sku, verdict })}
         />
       ) : (
@@ -294,6 +344,25 @@ export default function CourierMargin() {
               </SelectContent>
             </Select>
           </div>
+          <div className="w-full flex flex-wrap items-end gap-4">
+            <div className="space-y-1.5 flex-1 min-w-[200px]">
+              <Label className="text-xs">Search SKU or product</Label>
+              <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="e.g. NGK-04929" className="h-9" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Brand</Label>
+              <Select value={brandFilter} onValueChange={setBrandFilter}>
+                <SelectTrigger className="w-44 h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All brands</SelectItem>
+                  {brandOptions.map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button variant="outline" className="h-9" onClick={exportCsv} disabled={filtered.length === 0}>
+              <Download className="h-4 w-4 mr-2" />Export
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
@@ -340,7 +409,7 @@ export default function CourierMargin() {
                       No SKUs match the current thresholds.
                     </TableCell></TableRow>
                   )}
-                  {filtered.map(r => {
+                  {pageRows.map(r => {
                     const meta = VERDICT_META[r._fit];
                     const dimStr = [r.length_cm, r.depth_cm, r.height_cm].every(d => d != null && d > 0)
                       ? `${r.length_cm}×${r.depth_cm}×${r.height_cm} / ${r.weight_g ?? "?"}g`
@@ -392,6 +461,18 @@ export default function CourierMargin() {
               </Table>
             </div>
           )}
+          {filtered.length > 0 && (
+            <div className="flex items-center justify-between px-4 py-3 border-t border-border text-sm text-muted-foreground">
+              <span>Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}</span>
+              {pageCount > 1 && (
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>Previous</Button>
+                  <span className="self-center text-xs">Page {page} / {pageCount}</span>
+                  <Button variant="outline" size="sm" disabled={page === pageCount} onClick={() => setPage(p => p + 1)}>Next</Button>
+                </div>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
       <p className="text-xs text-muted-foreground pb-4">
@@ -407,19 +488,49 @@ export default function CourierMargin() {
 }
 
 // ── Downgrade savings view (Parcel → Large Letter) ────────────────
-function DowngradeView({ rows, needsDims, loading, llPrice, largeLetter, days, setDays, minOrders, setMinOrders, singleOnly, setSingleOnly, sort, setSort, onReview }: {
+function DowngradeView({ rows, allRows, totalRows, page, setPage, pageCount, pageSize, needsDims, loading, llPrice, largeLetter, days, setDays, minOrders, setMinOrders, singleOnly, setSingleOnly, sort, setSort, search, setSearch, brandFilter, setBrandFilter, brandOptions, onReview }: {
   rows: (DowngradeCandidate & { _fit: string; perOrder: number; total: number })[];
+  allRows: (DowngradeCandidate & { _fit: string; perOrder: number; total: number })[];
+  totalRows: number; page: number; setPage: (f: (p: number) => number) => void; pageCount: number; pageSize: number;
   needsDims: number; loading: boolean; llPrice: number | null; largeLetter: FormatService | undefined;
   days: number; setDays: (n: number) => void; minOrders: number; setMinOrders: (n: number) => void;
   singleOnly: boolean; setSingleOnly: (b: boolean) => void;
   sort: "total" | "per_order"; setSort: (s: "total" | "per_order") => void;
+  search: string; setSearch: (s: string) => void;
+  brandFilter: string; setBrandFilter: (s: string) => void; brandOptions: string[];
   onReview: (sku: string, verdict: string) => void;
 }) {
-  const totalSaving = rows.reduce((a, r) => a + r.total, 0);
+  const totalSaving = allRows.reduce((a, r) => a + r.total, 0);
+  function exportCsv() {
+    const hdr = ["SKU","Product","Brand","Orders","AvgPaid","LLrate","PerOrderSaving","TotalSaving"];
+    const lines = allRows.map(r => [
+      r.sku, r.product_name ?? "", r.brand_name ?? "", r.orders, r.avg_courier,
+      llPrice ?? "", r.perOrder.toFixed(2), r.total.toFixed(2),
+    ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(","));
+    const blob = new Blob([[hdr.join(","), ...lines].join("\n")], { type: "text/csv" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `downgrade-savings-${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+  }
   return (
     <>
       <Card>
         <CardContent className="pt-6 flex flex-wrap items-end gap-4">
+          <div className="space-y-1.5 flex-1 min-w-[200px]">
+            <Label className="text-xs">Search SKU or product</Label>
+            <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="e.g. NGK-02710" className="h-9" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Brand</Label>
+            <Select value={brandFilter} onValueChange={setBrandFilter}>
+              <SelectTrigger className="w-40 h-9"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All brands</SelectItem>
+                {brandOptions.map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
           <div className="space-y-1.5">
             <Label className="text-xs">Window</Label>
             <Select value={String(days)} onValueChange={v => setDays(Number(v))}>
@@ -438,9 +549,12 @@ function DowngradeView({ rows, needsDims, loading, llPrice, largeLetter, days, s
           </div>
           <div className="flex items-center gap-2 pb-2">
             <Switch checked={singleOnly} onCheckedChange={setSingleOnly} id="dg-single" />
-            <Label htmlFor="dg-single" className="text-xs cursor-pointer">Single-item orders only</Label>
+            <Label htmlFor="dg-single" className="text-xs cursor-pointer">Single-item only</Label>
           </div>
-          <div className="space-y-1.5 ml-auto">
+          <Button variant="outline" className="h-9" onClick={exportCsv} disabled={allRows.length === 0}>
+            <Download className="h-4 w-4 mr-2" />Export
+          </Button>
+          <div className="space-y-1.5">
             <Label className="text-xs">Sort by</Label>
             <Select value={sort} onValueChange={v => setSort(v as any)}>
               <SelectTrigger className="w-44 h-9"><SelectValue /></SelectTrigger>
@@ -496,7 +610,7 @@ function DowngradeView({ rows, needsDims, loading, llPrice, largeLetter, days, s
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {rows.length === 0 && (
+                  {totalRows === 0 && (
                     <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-8">
                       No downgrade opportunities found {llPrice == null ? "(set the Large Letter price first)" : "in this window"}.
                     </TableCell></TableRow>
@@ -529,6 +643,18 @@ function DowngradeView({ rows, needsDims, loading, llPrice, largeLetter, days, s
                   ))}
                 </TableBody>
               </Table>
+            </div>
+          )}
+          {totalRows > 0 && (
+            <div className="flex items-center justify-between px-4 py-3 border-t border-border text-sm text-muted-foreground">
+              <span>Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, totalRows)} of {totalRows}</span>
+              {pageCount > 1 && (
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>Previous</Button>
+                  <span className="self-center text-xs">Page {page} / {pageCount}</span>
+                  <Button variant="outline" size="sm" disabled={page === pageCount} onClick={() => setPage(p => p + 1)}>Next</Button>
+                </div>
+              )}
             </div>
           )}
         </CardContent>
