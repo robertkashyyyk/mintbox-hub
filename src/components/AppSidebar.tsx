@@ -96,6 +96,7 @@ export function AppSidebar() {
         { title: "Stock Valuation", url: "/intelligence/stock-valuation", icon: PoundSterling },
         { title: "Missing Costs", url: "/intelligence/missing-costs", icon: AlertCircle },
         { title: "Dirt SKUs", url: "/intelligence/dirt-skus", icon: AlertTriangle },
+        { title: "Courier Margin", url: "/intelligence/courier-margin", icon: Truck },
       ],
     },
     {
