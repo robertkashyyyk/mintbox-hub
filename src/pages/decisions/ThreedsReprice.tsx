@@ -14,6 +14,7 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Upload, Loader2, AlertTriangle, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
 import ModuleHeader from "@/components/ModuleHeader";
@@ -138,7 +139,7 @@ export default function ThreedsReprice() {
     [activeStore?.mintsoft_channel, feeRules],
   );
 
-  const { data: candidates, isLoading: candLoading, refetch } = useQuery({
+  const { data: candidates, isLoading: candLoading, isFetching: candFetching, refetch } = useQuery({
     queryKey: ["threeds_candidates", activeStore?.mintsoft_channel, days],
     enabled: !!activeStore,
     queryFn: async () => {
@@ -378,11 +379,26 @@ export default function ThreedsReprice() {
       </Card>
 
       {activeStore && (
+      <Tabs defaultValue="repriceable" className="w-full">
+        <TabsList>
+          <TabsTrigger value="repriceable" className="gap-2">
+            Repriceable
+            {candFetching ? <Loader2 className="h-3 w-3 animate-spin" /> : <Badge variant="secondary" className="text-[10px]">{repriceable.length}</Badge>}
+          </TabsTrigger>
+          <TabsTrigger value="flagged" className="gap-2">
+            Flagged
+            {flagged.length > 0 && <Badge variant="secondary" className="text-[10px]">{flagged.length}</Badge>}
+          </TabsTrigger>
+          <TabsTrigger value="pushes">Recent pushes</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="repriceable">
         <Card>
           <CardHeader className="pb-3 flex flex-row items-center justify-between">
             <div>
-              <CardTitle className="text-base">
+              <CardTitle className="text-base flex items-center gap-2">
                 {repriceable.length} repriceable · {selectedRows.length} selected
+                {candFetching && <span className="inline-flex items-center gap-1 text-xs font-normal text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> loading…</span>}
               </CardTitle>
               <p className="text-xs text-muted-foreground mt-1">
                 New price targets the <strong>{TIER_OPTIONS.find((t) => t.value === tier)?.label}</strong> band
@@ -393,7 +409,7 @@ export default function ThreedsReprice() {
             </div>
             <Button
               onClick={() => pushMutation.mutate()}
-              disabled={pushMutation.isPending || selectedRows.length === 0}
+              disabled={pushMutation.isPending || candFetching || selectedRows.length === 0}
             >
               {pushMutation.isPending ? (
                 <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Pushing…</>
@@ -402,7 +418,7 @@ export default function ThreedsReprice() {
               )}
             </Button>
           </CardHeader>
-          <CardContent className="overflow-x-auto">
+          <CardContent className={`overflow-x-auto transition-opacity ${candFetching ? "pointer-events-none opacity-50" : ""}`}>
             {candLoading ? (
               <Skeleton className="h-64 w-full" />
             ) : repriceable.length === 0 ? (
@@ -498,9 +514,9 @@ export default function ThreedsReprice() {
             )}
           </CardContent>
         </Card>
-      )}
+        </TabsContent>
 
-      {activeStore && flagged.length > 0 && (
+        <TabsContent value="flagged">
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
@@ -514,6 +530,14 @@ export default function ThreedsReprice() {
             </p>
           </CardHeader>
           <CardContent className="overflow-x-auto">
+            {candLoading ? (
+              <Skeleton className="h-48 w-full" />
+            ) : flagged.length === 0 ? (
+              <div className="py-12 text-center text-sm text-muted-foreground">
+                No flagged SKUs — every candidate has a usable cost. 🎉
+              </div>
+            ) : (
+            <>
             <Table>
               <TableHeader>
                 <TableRow>
@@ -543,11 +567,13 @@ export default function ThreedsReprice() {
               </TableBody>
             </Table>
             <Pager page={flagPage} pageCount={flagPageCount} onChange={setFlagPage} />
+            </>
+            )}
           </CardContent>
         </Card>
-      )}
+        </TabsContent>
 
-      {activeStore && (
+        <TabsContent value="pushes">
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-base">Recent pushes</CardTitle>
@@ -593,6 +619,8 @@ export default function ThreedsReprice() {
             )}
           </CardContent>
         </Card>
+        </TabsContent>
+      </Tabs>
       )}
     </div>
   );
