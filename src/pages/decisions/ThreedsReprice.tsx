@@ -53,6 +53,14 @@ interface Candidate {
   current_price: number | null; // NET (ex-VAT) latest sold price
   current_stock: number | null;
 }
+interface PendingRow {
+  sku: string;
+  price: number;
+  status: string; // pending | applied | expired
+  queued_at: string;
+  applied_at: string | null;
+  verified_price: number | null;
+}
 interface PushLog {
   id: string;
   pushed_at: string;
@@ -156,6 +164,23 @@ export default function ThreedsReprice() {
       return (data ?? []) as Candidate[];
     },
   });
+
+  const { data: pendingQueue } = useQuery({
+    queryKey: ["threeds_pending", storeId],
+    enabled: !!storeId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("threeds_reprice_pending" as any)
+        .select("sku, price, status, queued_at, applied_at, verified_price")
+        .eq("store_id", storeId!)
+        .order("status", { ascending: true })
+        .order("queued_at", { ascending: false })
+        .limit(500);
+      if (error) throw error;
+      return (data ?? []) as unknown as PendingRow[];
+    },
+  });
+  const pendingCount = (pendingQueue ?? []).filter((p) => p.status === "pending").length;
 
   const { data: pushes } = useQuery({
     queryKey: ["threeds_pushes", storeId],
@@ -286,6 +311,7 @@ export default function ThreedsReprice() {
       });
       setSelected({});
       qc.invalidateQueries({ queryKey: ["threeds_pushes", storeId] });
+      qc.invalidateQueries({ queryKey: ["threeds_pending", storeId] });
     },
     onError: (e: Error) => {
       toast({ title: "Push failed", description: e.message, variant: "destructive" });
@@ -414,6 +440,10 @@ export default function ThreedsReprice() {
           <TabsTrigger value="flagged" className="gap-2">
             Flagged
             {flagged.length > 0 && <Badge variant="secondary" className="text-[10px]">{flagged.length}</Badge>}
+          </TabsTrigger>
+          <TabsTrigger value="pending" className="gap-2">
+            Pending queue
+            {pendingCount > 0 && <Badge variant="secondary" className="text-[10px]">{pendingCount}</Badge>}
           </TabsTrigger>
           <TabsTrigger value="pushes">Recent pushes</TabsTrigger>
         </TabsList>
@@ -614,6 +644,56 @@ export default function ThreedsReprice() {
             </Table>
             <Pager page={flagPage} pageCount={flagPageCount} onChange={setFlagPage} />
             </>
+            )}
+          </CardContent>
+        </Card>
+        </TabsContent>
+
+        <TabsContent value="pending">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Pending queue (current SFTP file)</CardTitle>
+            <p className="text-xs text-muted-foreground mt-1">
+              Prices waiting for 3D to import. Pushes accumulate here (latest price per SKU wins);
+              the nightly reconcile (23:30 UTC) confirms which went live and clears them.
+            </p>
+          </CardHeader>
+          <CardContent className="overflow-x-auto">
+            {!pendingQueue || pendingQueue.length === 0 ? (
+              <div className="py-12 text-center text-sm text-muted-foreground">Queue is empty — nothing waiting to import.</div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>SKU</TableHead>
+                    <TableHead className="text-right">Price £<br /><span className="text-[10px] font-normal text-muted-foreground">inc VAT</span></TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Queued</TableHead>
+                    <TableHead>Confirmed</TableHead>
+                    <TableHead className="text-right">3D price</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {pendingQueue.map((p, i) => (
+                    <TableRow key={`${p.sku}-${i}`} className={p.status !== "pending" ? "opacity-60" : ""}>
+                      <TableCell className="font-mono text-xs">{p.sku}</TableCell>
+                      <TableCell className="text-right">{gbp(p.price)}</TableCell>
+                      <TableCell>
+                        {p.status === "applied" ? (
+                          <Badge>applied</Badge>
+                        ) : p.status === "expired" ? (
+                          <Badge variant="secondary">expired</Badge>
+                        ) : (
+                          <Badge variant="outline" className="border-pd-accent/60 text-pd-accent">pending</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-xs">{format(new Date(p.queued_at), "dd MMM HH:mm")}</TableCell>
+                      <TableCell className="text-xs">{p.applied_at ? format(new Date(p.applied_at), "dd MMM HH:mm") : "—"}</TableCell>
+                      <TableCell className="text-right">{gbp(p.verified_price)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             )}
           </CardContent>
         </Card>
