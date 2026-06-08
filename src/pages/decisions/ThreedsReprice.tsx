@@ -282,7 +282,7 @@ export default function ThreedsReprice() {
     onSuccess: (data) => {
       toast({
         title: "Pushed to 3D",
-        description: `${data.row_count} rows uploaded to ${data.sftp_path}`,
+        description: `Added ${data.added} — file now holds ${data.row_count} pending price${data.row_count === 1 ? "" : "s"} (${data.sftp_path}). Cleared nightly once confirmed live.`,
       });
       setSelected({});
       qc.invalidateQueries({ queryKey: ["threeds_pushes", storeId] });

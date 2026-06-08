@@ -91,17 +91,52 @@ Deno.serve(async (req) => {
     return json({ error: "Store is disabled" }, 400);
   }
 
-  // Build CSV
+  // CUMULATIVE: upsert this batch into the pending queue (latest price per SKU
+  // wins), then rebuild the SFTP file from the FULL pending set so intra-day
+  // pushes accumulate instead of clobbering each other.
+  const nowIso = new Date().toISOString();
+  const upsertRows = rows.map((r) => ({
+    store_id: storeId,
+    sku: r.sku.trim(),
+    price: Number(r.new_price.toFixed(2)),
+    status: "pending",
+    queued_at: nowIso,
+    queued_by: userId,
+    last_pushed_at: nowIso,
+    applied_at: null,
+    verified_price: null,
+  }));
+  const { error: upsertErr } = await admin
+    .from("threeds_reprice_pending")
+    .upsert(upsertRows, { onConflict: "store_id,sku" });
+  if (upsertErr) {
+    return json({ error: `Failed to queue prices: ${upsertErr.message}` }, 500);
+  }
+
+  // Load the full pending set for this store (everything not yet confirmed live).
+  const { data: pending, error: pendErr } = await admin
+    .from("threeds_reprice_pending")
+    .select("sku, price")
+    .eq("store_id", storeId)
+    .eq("status", "pending")
+    .order("sku", { ascending: true });
+  if (pendErr || !pending) {
+    return json({ error: `Failed to load pending prices: ${pendErr?.message}` }, 500);
+  }
+
+  // Build CSV from the full pending set.
   const escape = (s: string) =>
     /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   const csvLines = [
     "SKU,Price",
-    ...rows.map(
-      (r) => `${escape(r.sku.trim())},${r.new_price.toFixed(2)}`,
+    ...pending.map(
+      (r) => `${escape(String(r.sku).trim())},${Number(r.price).toFixed(2)}`,
     ),
   ];
   const csv = csvLines.join("\n") + "\n";
   const csvPreview = csv.length > 4000 ? csv.slice(0, 4000) + "\n…" : csv;
+  const newCount = rows.length;
+  const totalPending = pending.length;
 
   // Insert pending push log
   const { data: pushLog, error: logErr } = await admin
@@ -109,7 +144,7 @@ Deno.serve(async (req) => {
     .insert({
       store_id: storeId,
       pushed_by: userId,
-      row_count: rows.length,
+      row_count: totalPending, // rows actually written to the file (full pending set)
       csv_preview: csvPreview,
       sftp_path: store.sftp_filename,
       status: "pending",
@@ -169,7 +204,8 @@ Deno.serve(async (req) => {
     return json({
       ok: true,
       push_id: pushLog.id,
-      row_count: rows.length,
+      added: newCount,            // SKUs added/updated in this push
+      row_count: totalPending,    // total prices now in the file (cumulative)
       sftp_path: targetPath,
       store_name: store.store_name,
     });
