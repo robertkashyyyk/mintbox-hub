@@ -83,3 +83,6 @@ verify_jwt = false
 
 [functions.ingest-3ds-orders]
 verify_jwt = false
+
+[functions.threeds-reprice-reconcile]
+verify_jwt = false
