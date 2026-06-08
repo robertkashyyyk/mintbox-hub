@@ -22,6 +22,7 @@ import { format } from "date-fns";
 import {
   type Tier, type FeeRule, type CostFlag,
   TIER_OPTIONS, TIER_TARGET_POR_PCT, SUSPECT_COST_MULTIPLE, BIG_MOVE_MULTIPLE,
+  POR_BAND_OPTIONS, classifyPorBand,
   effectiveFeesFor, backSolveGrossPrice, classifyCost, toGross, feeInputsForBackSolve,
 } from "@/lib/reprice";
 
@@ -105,7 +106,7 @@ export default function ThreedsReprice() {
   const [storeId, setStoreId] = useState<string | null>(null);
   const [days, setDays] = useState(90);
   const [search, setSearch] = useState("");
-  const [lossOnly, setLossOnly] = useState(false);
+  const [currentBand, setCurrentBand] = useState<string>("all"); // filter by CURRENT por band
   const [tier, setTier] = useState<Tier>("breakeven");
   const [selected, setSelected] = useState<Record<string, { checked: boolean; price?: string }>>({});
   const [page, setPage] = useState(1);
@@ -227,9 +228,9 @@ export default function ThreedsReprice() {
 
   const repriceable = useMemo(() => {
     let rows = enriched.filter((r) => r.flag === null);
-    if (lossOnly) rows = rows.filter((r) => (r.profit ?? 0) < 0);
+    if (currentBand !== "all") rows = rows.filter((r) => classifyPorBand(r.por_pct) === currentBand);
     return rows.filter(matchesSearch);
-  }, [enriched, lossOnly, search]);
+  }, [enriched, currentBand, search]);
 
   const flagged = useMemo(
     () => enriched.filter((r) => r.flag !== null).filter(matchesSearch),
@@ -241,7 +242,7 @@ export default function ThreedsReprice() {
   const bigMoveCount = useMemo(() => repriceable.filter((r) => r.bigMove).length, [repriceable]);
 
   // Reset pagination + selection when the working set changes.
-  useEffect(() => { setPage(1); }, [search, lossOnly, tier, storeId, days]);
+  useEffect(() => { setPage(1); }, [search, currentBand, tier, storeId, days]);
   useEffect(() => { setFlagPage(1); }, [search, storeId, days]);
   useEffect(() => { setSelected({}); }, [storeId, days]);
 
@@ -367,6 +368,20 @@ export default function ThreedsReprice() {
             </Select>
           </div>
           <div className="flex flex-col gap-1">
+            <label className="text-xs text-muted-foreground">Current band</label>
+            <Select value={currentBand} onValueChange={setCurrentBand}>
+              <SelectTrigger className="w-[150px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All bands</SelectItem>
+                {POR_BAND_OPTIONS.map((b) => (
+                  <SelectItem key={b.value} value={b.value}>{b.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-1">
             <label className="text-xs text-muted-foreground">Move prices to</label>
             <Select value={tier} onValueChange={(v) => setTier(v as Tier)}>
               <SelectTrigger className="w-[160px]">
@@ -382,10 +397,6 @@ export default function ThreedsReprice() {
           <div className="flex flex-col gap-1 flex-1 min-w-[200px]">
             <label className="text-xs text-muted-foreground">Search SKU / brand / name</label>
             <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="e.g. NGK-05747" />
-          </div>
-          <div className="flex items-center gap-2 pb-2">
-            <Checkbox id="lossOnly" checked={lossOnly} onCheckedChange={(v) => setLossOnly(!!v)} />
-            <label htmlFor="lossOnly" className="text-sm">Loss-makers only</label>
           </div>
           <Button variant="outline" size="sm" onClick={() => refetch()} disabled={!activeStore}>
             Refresh
@@ -416,6 +427,10 @@ export default function ThreedsReprice() {
                 {candFetching && <span className="inline-flex items-center gap-1 text-xs font-normal text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> loading…</span>}
               </CardTitle>
               <p className="text-xs text-muted-foreground mt-1">
+                {currentBand !== "all" && (
+                  <>Showing <strong>{POR_BAND_OPTIONS.find((b) => b.value === currentBand)?.label}</strong> items → repricing up to{" "}
+                  <strong>{TIER_OPTIONS.find((t) => t.value === tier)?.label}</strong>. </>
+                )}
                 New price targets the <strong>{TIER_OPTIONS.find((t) => t.value === tier)?.label}</strong> band
                 ({pct(TIER_TARGET_POR_PCT[tier])} POR) and is shown <strong>inc VAT</strong> ({Math.round(fees.vat * 100)}%).
                 Uses each listing's <strong>real variable eBay fee</strong> (from 3DS) + {gbp(fees.fixedFee)} fixed,

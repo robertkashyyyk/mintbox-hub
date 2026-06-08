@@ -27,6 +27,34 @@ export const BANDS = {
 /** Tiers the user can choose to "Move to". Ordered worst → best. */
 export type Tier = "breakeven" | "poor" | "average" | "good" | "great" | "amazing";
 
+/** A row's CURRENT profitability band (includes "loss", which isn't a move-to tier). */
+export type PorBand = "loss" | "breakeven" | "poor" | "average" | "good" | "great" | "amazing";
+
+export const POR_BAND_OPTIONS: { value: PorBand; label: string }[] = [
+  { value: "loss", label: "Loss" },
+  { value: "breakeven", label: "Breakeven" },
+  { value: "poor", label: "Poor" },
+  { value: "average", label: "Average" },
+  { value: "good", label: "Good" },
+  { value: "great", label: "Great" },
+  { value: "amazing", label: "Amazing" },
+];
+
+/**
+ * Classify a POR% (e.g. 12.5 for 12.5%) into its profitability band, using the
+ * same thresholds as the dashboard. Returns null when POR is unknown.
+ */
+export function classifyPorBand(porPct: number | null | undefined): PorBand | null {
+  if (porPct == null || !isFinite(porPct)) return null;
+  if (porPct <= BANDS.loss_max) return "loss";
+  if (porPct <= BANDS.breakeven_max) return "breakeven";
+  if (porPct <= BANDS.poor_max) return "poor";
+  if (porPct <= BANDS.average_max) return "average";
+  if (porPct <= BANDS.good_max) return "good";
+  if (porPct <= BANDS.great_max) return "great";
+  return "amazing";
+}
+
 export const TIER_OPTIONS: { value: Tier; label: string }[] = [
   { value: "breakeven", label: "Breakeven" },
   { value: "poor", label: "Poor" },
