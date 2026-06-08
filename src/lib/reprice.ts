@@ -72,24 +72,25 @@ export interface EffectiveFees {
 export const DEFAULT_FEES: EffectiveFees = { vat: 0.2, feePct: 0.12, fixedFee: 0.36 };
 
 /**
- * Sane bounds for a MEASURED eBay fee rate (final_value_fee / gross price, from
- * the 3DS orders feed). Outside this band the measurement is noise (e.g. a single
- * refunded/odd line) and we fall back to the modeled channel fee.
+ * Sane bounds for the measured VARIABLE eBay fee rate (referral + promoted),
+ * decomposed by the RPC as (Σfvf − Ntxns·fixed) / Σ(item + postage). Outside this
+ * band the measurement is noise and we fall back to the modeled channel fee.
  */
 export const REAL_FEE_MIN = 0.05;
-export const REAL_FEE_MAX = 0.4;
+export const REAL_FEE_MAX = 0.25;
 
 /**
- * Resolve the fee inputs for the back-solve. Prefers the measured real fee rate
- * (fvf/gross — which ALREADY includes the £0.36 fixed fee + promoted-listing
- * fees, so fixedFeeUnit becomes 0) over the modeled channel default.
+ * Resolve the fee inputs for the back-solve. Prefers the measured VARIABLE rate
+ * (the RPC has already stripped the fixed fee out), and adds the fixed fee back
+ * separately so it does NOT scale with price. Falls back to the modeled channel
+ * default when there's no reliable 3DS measurement.
  */
 export function feeInputsForBackSolve(
   realFeeRate: number | null | undefined,
   fallback: EffectiveFees,
 ): { feePct: number; fixedFeeUnit: number; usedReal: boolean } {
   if (realFeeRate != null && realFeeRate >= REAL_FEE_MIN && realFeeRate <= REAL_FEE_MAX) {
-    return { feePct: realFeeRate, fixedFeeUnit: 0, usedReal: true };
+    return { feePct: realFeeRate, fixedFeeUnit: fallback.fixedFee, usedReal: true };
   }
   return { feePct: fallback.feePct, fixedFeeUnit: fallback.fixedFee, usedReal: false };
 }
@@ -115,17 +116,23 @@ export function effectiveFeesFor(channel: string, rules: FeeRule[] | null | unde
 }
 
 /**
- * Back-solve the GROSS (inc-VAT) unit price that puts a line at a target POR.
+ * Back-solve the GROSS (inc-VAT) ITEM price that puts a listing at a target POR,
+ * accounting for buyer-paid postage (income that offsets courier and is part of
+ * the GMV the fee + POR are measured on).
  *
- *   Profit(P) = P/v − r·P − F − C            (v = 1+vat, r = feePct on gross)
- *   POR       = Profit(P) / P                 (denominator = gross price)
- *   ⇒ P = (C + F) / (1/v − r − t)             (t = target POR fraction)
+ * Let P = item price (what we set), S = postage (fixed, buyer pays it),
+ * G = P + S = GMV inc VAT, v = 1+vat, r = variable fee rate on GMV,
+ * F = fixed fee/unit, K = courier/unit, C = cost/unit, t = target POR.
  *
- * where C = landed cost / unit, F = fixed costs / unit (courier + fixed fee).
+ *   Profit(G) = G/v − r·G − F − K − C
+ *   POR       = Profit(G) / G = t
+ *   ⇒ G = (F + K + C) / (1/v − r − t)
+ *   ⇒ P = G − S
+ *
  * Returns null if the target is infeasible (denominator ≤ 0) or inputs are bad.
  *
- * Worked check (spec §"suggestPrice bug"): C+courier 9.00, feePct 0.12,
- * fixedFee 0, vat 0.20, t 0 → P = 9 / (0.8333 − 0.12) = £12.62 break-even gross.
+ * Worked check (NGK-05123): C 2.17, K 1.65, F 0.36, r 0.137, S 1.11, vat 0.20,
+ * t 0.10 → G = 4.18 / (0.8333 − 0.137 − 0.10) = £7.01 → P = 7.01 − 1.11 = £5.90.
  */
 export function backSolveGrossPrice(args: {
   costUnit: number;
@@ -134,14 +141,16 @@ export function backSolveGrossPrice(args: {
   feePct: number;
   vat: number;
   targetPorFrac: number;
+  postageUnit?: number;
 }): number | null {
-  const { costUnit, courierUnit, fixedFeeUnit, feePct, vat, targetPorFrac } = args;
+  const { costUnit, courierUnit, fixedFeeUnit, feePct, vat, targetPorFrac, postageUnit = 0 } = args;
   const v = 1 + vat;
   const denom = 1 / v - feePct - targetPorFrac;
   if (denom <= 0) return null;
   const numerator = costUnit + courierUnit + fixedFeeUnit;
   if (!(numerator > 0)) return null;
-  const p = numerator / denom;
+  const gmv = numerator / denom;
+  const p = gmv - postageUnit; // item price = GMV − postage the buyer pays
   if (!isFinite(p) || p <= 0) return null;
   return Math.round(p * 100) / 100;
 }

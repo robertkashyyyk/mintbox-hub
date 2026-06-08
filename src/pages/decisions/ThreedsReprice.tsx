@@ -43,9 +43,10 @@ interface Candidate {
   base_unit_cost: number | null; // products_cache cost of the BASE (single) SKU
   pack_cost_unit: number | null; // base_unit_cost × pack_size (Robert's rule)
   cost_total: number | null;
-  real_fee_rate: number | null; // measured fvf/gross from 3DS orders (~22%), or null
+  real_fee_rate: number | null; // measured VARIABLE eBay rate (~13%) from 3DS, or null
   fees_total: number | null;
   courier_total: number | null;
+  postage_unit: number | null; // avg buyer-paid postage per item (income)
   profit: number | null;
   por_pct: number | null;
   current_price: number | null; // NET (ex-VAT) latest sold price
@@ -196,6 +197,7 @@ export default function ThreedsReprice() {
               feePct,
               vat: fees.vat,
               targetPorFrac,
+              postageUnit: c.postage_unit ?? 0,
             })
           : null;
       const bigMove =
@@ -408,8 +410,8 @@ export default function ThreedsReprice() {
               <p className="text-xs text-muted-foreground mt-1">
                 New price targets the <strong>{TIER_OPTIONS.find((t) => t.value === tier)?.label}</strong> band
                 ({pct(TIER_TARGET_POR_PCT[tier])} POR) and is shown <strong>inc VAT</strong> ({Math.round(fees.vat * 100)}%).
-                Uses each listing's <strong>real eBay fee</strong> (from 3DS orders) where known, else the modeled
-                {" "}{Math.round(fees.feePct * 100)}% + {gbp(fees.fixedFee)} fixed. Pack SKUs (-Q0N) cost = single-unit cost × pack size.
+                Uses each listing's <strong>real variable eBay fee</strong> (from 3DS) + {gbp(fees.fixedFee)} fixed,
+                counts <strong>buyer-paid postage as income</strong>, and pack SKUs (-Q0N) cost = single-unit cost × pack size.
                 {bigMoveCount > 0 && (
                   <> · <span className="text-warning font-medium">{bigMoveCount} big move{bigMoveCount === 1 ? "" : "s"}</span> (&gt;{BIG_MOVE_MULTIPLE}× current) flagged for review.</>
                 )}
