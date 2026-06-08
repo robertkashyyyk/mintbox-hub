@@ -66,7 +66,9 @@ interface EnrichedRow extends Candidate {
   costUnit: number;
   grossLastSold: number | null; // current_price grossed up (what eBay shows)
   flag: CostFlag;
-  suggestedGross: number | null; // back-solved to the chosen tier
+  suggestedGross: number | null; // price we propose (floored at current — never a drop)
+  targetGross: number | null; // raw back-solved price for the tier (may be below current)
+  atTarget: boolean; // current price already meets/exceeds the chosen tier
   feePctUsed: number; // fee rate the back-solve used (real or modeled)
   usedRealFee: boolean; // true when the measured 3DS fee rate was used
   bigMove: boolean; // suggested price is a large multiple of current → review
@@ -188,7 +190,7 @@ export default function ThreedsReprice() {
       const flag = classifyCost({ costTotal: c.cost_total, unitsSold: units, grossPrice: grossLastSold });
       // Prefer the measured real eBay fee rate (~22%) over the modeled default.
       const { feePct, fixedFeeUnit, usedReal } = feeInputsForBackSolve(c.real_fee_rate, fees);
-      const suggestedGross =
+      const targetGross =
         flag === null
           ? backSolveGrossPrice({
               costUnit,
@@ -200,10 +202,16 @@ export default function ThreedsReprice() {
               postageUnit: c.postage_unit ?? 0,
             })
           : null;
+      // Profit tool: only ever propose a RAISE. If the item already meets the
+      // chosen tier (target ≤ current), don't suggest a drop — hold at current.
+      const atTarget =
+        targetGross != null && grossLastSold != null && targetGross <= grossLastSold;
+      const suggestedGross =
+        targetGross == null ? null : grossLastSold != null ? Math.max(targetGross, grossLastSold) : targetGross;
       const bigMove =
         suggestedGross != null && grossLastSold != null && grossLastSold > 0 &&
         suggestedGross / grossLastSold > BIG_MOVE_MULTIPLE;
-      return { ...c, costUnit, grossLastSold, flag, suggestedGross, feePctUsed: feePct, usedRealFee: usedReal, bigMove };
+      return { ...c, costUnit, grossLastSold, flag, suggestedGross, targetGross, atTarget, feePctUsed: feePct, usedRealFee: usedReal, bigMove };
     });
   }, [candidates, tier, fees]);
 
@@ -514,12 +522,17 @@ export default function ThreedsReprice() {
                                 }
                                 placeholder={defaultPrice}
                               />
-                              {r.bigMove && r.grossLastSold && r.suggestedGross && (
+                              {r.atTarget ? (
+                                <Badge variant="secondary" className="border-pd-accent/50 bg-pd-accent/10 text-pd-accent text-[10px] whitespace-nowrap"
+                                  title={`Already ≥ ${TIER_OPTIONS.find((t) => t.value === tier)?.label} (tier target ${gbp(r.targetGross)}). Held at current — no raise needed.`}>
+                                  ✓ on target
+                                </Badge>
+                              ) : r.bigMove && r.grossLastSold && r.suggestedGross ? (
                                 <Badge variant="secondary" className="border-warning/70 bg-warning/20 text-warning text-[10px] whitespace-nowrap">
                                   <AlertTriangle className="h-3 w-3 mr-1" />
                                   {(r.suggestedGross / r.grossLastSold).toFixed(1)}× — review
                                 </Badge>
-                              )}
+                              ) : null}
                             </div>
                           </TableCell>
                         </TableRow>
