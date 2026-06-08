@@ -21,7 +21,7 @@ import ModuleHeader from "@/components/ModuleHeader";
 import { format } from "date-fns";
 import {
   type Tier, type FeeRule, type CostFlag,
-  TIER_OPTIONS, TIER_TARGET_POR_PCT, SUSPECT_COST_MULTIPLE,
+  TIER_OPTIONS, TIER_TARGET_POR_PCT, SUSPECT_COST_MULTIPLE, BIG_MOVE_MULTIPLE,
   effectiveFeesFor, backSolveGrossPrice, classifyCost, toGross, feeInputsForBackSolve,
 } from "@/lib/reprice";
 
@@ -68,6 +68,7 @@ interface EnrichedRow extends Candidate {
   suggestedGross: number | null; // back-solved to the chosen tier
   feePctUsed: number; // fee rate the back-solve used (real or modeled)
   usedRealFee: boolean; // true when the measured 3DS fee rate was used
+  bigMove: boolean; // suggested price is a large multiple of current → review
 }
 
 const PAGE_SIZE = 50;
@@ -197,7 +198,10 @@ export default function ThreedsReprice() {
               targetPorFrac,
             })
           : null;
-      return { ...c, costUnit, grossLastSold, flag, suggestedGross, feePctUsed: feePct, usedRealFee: usedReal };
+      const bigMove =
+        suggestedGross != null && grossLastSold != null && grossLastSold > 0 &&
+        suggestedGross / grossLastSold > BIG_MOVE_MULTIPLE;
+      return { ...c, costUnit, grossLastSold, flag, suggestedGross, feePctUsed: feePct, usedRealFee: usedReal, bigMove };
     });
   }, [candidates, tier, fees]);
 
@@ -224,6 +228,7 @@ export default function ThreedsReprice() {
 
   const missingCount = useMemo(() => enriched.filter((r) => r.flag === "missing_cost").length, [enriched]);
   const suspectCount = useMemo(() => enriched.filter((r) => r.flag === "suspect_cost").length, [enriched]);
+  const bigMoveCount = useMemo(() => repriceable.filter((r) => r.bigMove).length, [repriceable]);
 
   // Reset pagination + selection when the working set changes.
   useEffect(() => { setPage(1); }, [search, lossOnly, tier, storeId, days]);
@@ -405,6 +410,9 @@ export default function ThreedsReprice() {
                 ({pct(TIER_TARGET_POR_PCT[tier])} POR) and is shown <strong>inc VAT</strong> ({Math.round(fees.vat * 100)}%).
                 Uses each listing's <strong>real eBay fee</strong> (from 3DS orders) where known, else the modeled
                 {" "}{Math.round(fees.feePct * 100)}% + {gbp(fees.fixedFee)} fixed. Pack SKUs (-Q0N) cost = single-unit cost × pack size.
+                {bigMoveCount > 0 && (
+                  <> · <span className="text-warning font-medium">{bigMoveCount} big move{bigMoveCount === 1 ? "" : "s"}</span> (&gt;{BIG_MOVE_MULTIPLE}× current) flagged for review.</>
+                )}
               </p>
             </div>
             <Button
@@ -489,20 +497,28 @@ export default function ThreedsReprice() {
                           <TableCell className="text-right">{r.current_stock ?? "—"}</TableCell>
                           <TableCell className="text-right">{gbp(r.grossLastSold)}</TableCell>
                           <TableCell className="text-right">
-                            <Input
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              className="h-8 w-24 text-right ml-auto"
-                              value={effectivePrice(r)}
-                              onChange={(e) =>
-                                setSelected((p) => ({
-                                  ...p,
-                                  [r.sku]: { checked: p[r.sku]?.checked ?? false, price: e.target.value },
-                                }))
-                              }
-                              placeholder={defaultPrice}
-                            />
+                            <div className="flex flex-col items-end gap-1">
+                              <Input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                className={`h-8 w-24 text-right ml-auto ${r.bigMove ? "border-warning" : ""}`}
+                                value={effectivePrice(r)}
+                                onChange={(e) =>
+                                  setSelected((p) => ({
+                                    ...p,
+                                    [r.sku]: { checked: p[r.sku]?.checked ?? false, price: e.target.value },
+                                  }))
+                                }
+                                placeholder={defaultPrice}
+                              />
+                              {r.bigMove && r.grossLastSold && r.suggestedGross && (
+                                <Badge variant="secondary" className="border-warning/70 bg-warning/20 text-warning text-[10px] whitespace-nowrap">
+                                  <AlertTriangle className="h-3 w-3 mr-1" />
+                                  {(r.suggestedGross / r.grossLastSold).toFixed(1)}× — review
+                                </Badge>
+                              )}
+                            </div>
                           </TableCell>
                         </TableRow>
                       );

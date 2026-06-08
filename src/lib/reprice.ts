@@ -146,6 +146,13 @@ export function backSolveGrossPrice(args: {
   return Math.round(p * 100) / 100;
 }
 
+/**
+ * A suggested price above this multiple of the current price is a "big move" —
+ * surfaced for human review so structurally-thin items (where break-even sits
+ * far above the current price) aren't pushed blindly.
+ */
+export const BIG_MOVE_MULTIPLE = 1.5;
+
 export type CostFlag = null | "missing_cost" | "suspect_cost";
 
 /** Cost above this multiple of the gross sale price is treated as a data error. */
