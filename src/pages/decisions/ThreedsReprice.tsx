@@ -181,6 +181,12 @@ export default function ThreedsReprice() {
     },
   });
   const pendingCount = (pendingQueue ?? []).filter((p) => p.status === "pending").length;
+  // Map of SKU → queued price for rows already sitting in the pending file.
+  const queuedMap = useMemo(() => {
+    const m = new Map<string, number>();
+    (pendingQueue ?? []).filter((p) => p.status === "pending").forEach((p) => m.set(p.sku, p.price));
+    return m;
+  }, [pendingQueue]);
 
   const { data: pushes } = useQuery({
     queryKey: ["threeds_pushes", storeId],
@@ -323,13 +329,15 @@ export default function ThreedsReprice() {
     setSelected((prev) => {
       const next = { ...prev };
       for (const r of pageRows) {
+        if (queuedMap.has(r.sku)) continue; // skip rows already in the pending queue
         if (checked) next[r.sku] = { checked: true, price: prev[r.sku]?.price };
         else delete next[r.sku];
       }
       return next;
     });
   };
-  const allChecked = pageRows.length > 0 && pageRows.every((r) => selected[r.sku]?.checked);
+  const selectablePageRows = pageRows.filter((r) => !queuedMap.has(r.sku));
+  const allChecked = selectablePageRows.length > 0 && selectablePageRows.every((r) => selected[r.sku]?.checked);
 
   const flagBadge = (f: CostFlag) =>
     f === "missing_cost" ? (
@@ -454,6 +462,7 @@ export default function ThreedsReprice() {
             <div>
               <CardTitle className="text-base flex items-center gap-2">
                 {repriceable.length} repriceable · {selectedRows.length} selected
+                {pendingCount > 0 && <span className="text-xs font-normal text-pd-accent">· {pendingCount} queued</span>}
                 {candFetching && <span className="inline-flex items-center gap-1 text-xs font-normal text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> loading…</span>}
               </CardTitle>
               <p className="text-xs text-muted-foreground mt-1">
@@ -567,7 +576,12 @@ export default function ThreedsReprice() {
                                 }
                                 placeholder={defaultPrice}
                               />
-                              {r.atTarget ? (
+                              {queuedMap.has(r.sku) ? (
+                                <Badge variant="secondary" className="border-pd-accent/60 bg-pd-accent/15 text-pd-accent text-[10px] whitespace-nowrap"
+                                  title={`Already queued at ${gbp(queuedMap.get(r.sku))} — waiting for 3D to import. See the Pending queue tab.`}>
+                                  ✓ queued {gbp(queuedMap.get(r.sku))}
+                                </Badge>
+                              ) : r.atTarget ? (
                                 <Badge variant="secondary" className="border-pd-accent/50 bg-pd-accent/10 text-pd-accent text-[10px] whitespace-nowrap"
                                   title={`Already ≥ ${TIER_OPTIONS.find((t) => t.value === tier)?.label} (tier target ${gbp(r.targetGross)}). Held at current — no raise needed.`}>
                                   ✓ on target
