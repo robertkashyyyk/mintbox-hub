@@ -259,7 +259,7 @@ const MissingCosts = () => {
     setSaving((s) => ({ ...s, [row.id]: true }));
     try {
       const { data, error } = await supabase.functions.invoke("update-product-cost", {
-        body: { items: [{ mintsoft_id: row.mintsoft_id, sku: row.sku, cost_price: val }] },
+        body: { items: [{ mintsoft_product_id: row.mintsoft_id, sku: row.sku, cost_price: val }] },
       });
       if (error) throw error;
       const result = data?.results?.[0];
@@ -296,7 +296,7 @@ const MissingCosts = () => {
     let failCount = 0;
     for (const ch of chunks) {
       const payload = ch.map(({ row, val }) => ({
-        mintsoft_id: row.mintsoft_id!,
+        mintsoft_product_id: row.mintsoft_id!,
         sku: row.sku,
         cost_price: val,
       }));
