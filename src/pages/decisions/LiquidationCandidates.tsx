@@ -23,9 +23,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
-import { Flame, Loader2, PoundSterling, Boxes, AlertTriangle, RotateCcw, CheckCircle2, Plus, Trash2, Send, Download, ArrowUpDown, EyeOff, Eye, Wand2 } from "lucide-react";
+import { Flame, Loader2, PoundSterling, Boxes, AlertTriangle, RotateCcw, CheckCircle2, Plus, Trash2, Send, Download, ArrowUpDown, EyeOff, Eye, Wand2, List as ListIcon, LayoutGrid, LineChart as LineChartIcon } from "lucide-react";
 import ModuleHeader from "@/components/ModuleHeader";
 import { PageLoader } from "@/components/ui/PageLoader";
+import { ResponsiveContainer, ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip, Legend } from "recharts";
 
 interface Candidate {
   sku: string; product_name: string | null; brand_name: string | null;
@@ -109,6 +110,7 @@ export default function LiquidationCandidates() {
   const [minCapital, setMinCapital] = useState(25);
   const [brandFilter, setBrandFilter] = useState("all");
   const [showExcluded, setShowExcluded] = useState(false);
+  const [view, setView] = useState<"list" | "brands" | "graphs">("list");
   const [launch, setLaunch] = useState<Candidate | null>(null);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -288,6 +290,20 @@ export default function LiquidationCandidates() {
         </Card>
       )}
 
+      {/* View toggle */}
+      <div className="inline-flex rounded-lg border border-border p-1 bg-muted/30">
+        {([["list", "List", ListIcon], ["brands", "Brands", LayoutGrid], ["graphs", "Graphs", LineChartIcon]] as const).map(([v, label, Icon]) => (
+          <button key={v} onClick={() => setView(v)}
+            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors inline-flex items-center gap-1.5 ${view === v ? "bg-pd-accent text-white" : "text-muted-foreground hover:text-foreground"}`}>
+            <Icon className="h-4 w-4" />{label}
+          </button>
+        ))}
+      </div>
+
+      {view === "brands" && <BrandsTab maxVelocity={maxVelocity} minCapital={minCapital} setMaxVelocity={setMaxVelocity} setMinCapital={setMinCapital} />}
+      {view === "graphs" && <GraphsTab />}
+
+      {view === "list" && (<>
       {/* Sticky toolbar */}
       <div className="sticky top-0 z-20 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 -mx-2 px-2 py-2 space-y-3 border-b border-border/40">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -383,6 +399,7 @@ export default function LiquidationCandidates() {
           )}
         </CardContent>
       </Card>
+      </>)}
 
       <LaunchDialog candidate={launch} stores={stores} onClose={() => setLaunch(null)} onLaunched={() => { setLaunch(null); invalidate(); }} />
       <BulkDialog open={bulkOpen} candidates={selectedCandidates} onClose={() => setBulkOpen(false)} onDone={() => { setBulkOpen(false); setSelected(new Set()); invalidate(); }} />
@@ -554,6 +571,136 @@ function LaunchDialog({ candidate, stores, onClose, onLaunched }: { candidate: C
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// ── Brands tab ─────────────────────────────────────────────────────
+interface BrandRow { brand_name: string; total_candidates: number; capital_tied: number; dead_count: number; capital_under_clearance: number }
+type BrandSort = "capital_tied" | "total_candidates" | "dead_count" | "capital_under_clearance" | "brand_name";
+
+function BrandsTab({ maxVelocity, minCapital, setMaxVelocity, setMinCapital }: { maxVelocity: number; minCapital: number; setMaxVelocity: (n: number) => void; setMinCapital: (n: number) => void }) {
+  const [sort, setSort] = useState<BrandSort>("capital_tied");
+  const [dir, setDir] = useState<"asc" | "desc">("desc");
+
+  const { data: brands = [], isLoading } = useQuery({
+    queryKey: ["liquidation-by-brand", maxVelocity, minCapital],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc("get_liquidation_by_brand", { max_velocity: maxVelocity, min_capital: minCapital });
+      if (error) throw error;
+      return data as BrandRow[];
+    },
+  });
+
+  const sorted = useMemo(() => {
+    const m = dir === "asc" ? 1 : -1;
+    return [...brands].sort((a, b) => sort === "brand_name" ? m * a.brand_name.localeCompare(b.brand_name) : m * (Number(a[sort]) - Number(b[sort])));
+  }, [brands, sort, dir]);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-end gap-4">
+        <div className="space-y-1.5"><Label className="text-xs">Max velocity /wk</Label><Input type="number" step="0.1" value={maxVelocity} onChange={e => setMaxVelocity(Number(e.target.value))} className="w-28 h-9" /></div>
+        <div className="space-y-1.5"><Label className="text-xs">Min capital £</Label><Input type="number" value={minCapital} onChange={e => setMinCapital(Number(e.target.value) || 0)} className="w-24 h-9" /></div>
+        <div className="space-y-1.5 ml-auto">
+          <Label className="text-xs">Sort by</Label>
+          <Select value={sort} onValueChange={v => setSort(v as BrandSort)}>
+            <SelectTrigger className="w-48 h-9"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="capital_tied">Capital tied up</SelectItem>
+              <SelectItem value="total_candidates">Total candidates</SelectItem>
+              <SelectItem value="capital_under_clearance">Under active clearance</SelectItem>
+              <SelectItem value="dead_count">Dead (never sold)</SelectItem>
+              <SelectItem value="brand_name">Brand name</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <Button variant="outline" size="sm" className="h-9" onClick={() => setDir(d => d === "asc" ? "desc" : "asc")}>
+          <ArrowUpDown className="h-4 w-4 mr-1" />{dir === "asc" ? "Asc" : "Desc"}
+        </Button>
+      </div>
+
+      {isLoading ? <PageLoader rows={6} columns={[160, 80, 100, 100, 80]} label="Loading brands" /> : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {sorted.map(b => (
+            <Card key={b.brand_name} className="hover:border-pd-accent/40 transition-colors">
+              <CardContent className="pt-5">
+                <div className="font-semibold text-base mb-3 truncate">{b.brand_name}</div>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div><div className="text-xs text-muted-foreground">Candidates</div><div className="text-lg font-bold">{b.total_candidates.toLocaleString()}</div></div>
+                  <div><div className="text-xs text-muted-foreground">Capital tied</div><div className="text-lg font-bold text-orange-400">£{Number(b.capital_tied).toLocaleString(undefined, { maximumFractionDigits: 0 })}</div></div>
+                  <div><div className="text-xs text-muted-foreground">Under clearance</div><div className="text-base font-semibold text-emerald-400">£{Number(b.capital_under_clearance).toLocaleString(undefined, { maximumFractionDigits: 0 })}</div></div>
+                  <div><div className="text-xs text-muted-foreground">Dead (never sold)</div><div className="text-base font-semibold text-destructive">{b.dead_count.toLocaleString()}</div></div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+          {sorted.length === 0 && <p className="text-sm text-muted-foreground col-span-full text-center py-8">No brands at these thresholds.</p>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Graphs tab ─────────────────────────────────────────────────────
+function GraphsTab() {
+  const { data: snaps = [], isLoading } = useQuery({
+    queryKey: ["liquidation-snapshots"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).from("liquidation_snapshots").select("*").order("snapshot_date", { ascending: true });
+      if (error) throw error;
+      return (data ?? []).map((s: any) => ({
+        date: s.snapshot_date,
+        "Capital tied": Number(s.total_capital),
+        "Under clearance": Number(s.capital_under_clearance),
+        Candidates: Number(s.total_candidates),
+        Dead: Number(s.dead_count),
+      }));
+    },
+  });
+
+  if (isLoading) return <PageLoader rows={4} columns={[100, 100, 100]} label="Loading trend" />;
+
+  return (
+    <div className="space-y-4">
+      {snaps.length < 2 && (
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 flex items-start gap-2 text-sm text-amber-400">
+          <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+          The trend builds from a weekly snapshot (Sunday evenings). With {snaps.length} so far, the line fills in over the coming weeks — the goal is watching the pile shrink.
+        </div>
+      )}
+      <Card>
+        <CardHeader><CardTitle className="text-base">Capital tied up over time</CardTitle><CardDescription>Weekly snapshot — total dead-stock capital and the slice under active clearance.</CardDescription></CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={300}>
+            <ComposedChart data={snaps} margin={{ top: 10, right: 16, bottom: 0, left: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+              <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+              <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `£${(v / 1000).toFixed(0)}k`} />
+              <RTooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }} formatter={(v: any) => `£${Number(v).toLocaleString()}`} />
+              <Legend wrapperStyle={{ fontSize: 11 }} />
+              <Area type="monotone" dataKey="Capital tied" stroke="#f59e0b" fill="#f59e0b" fillOpacity={0.15} strokeWidth={2} />
+              <Line type="monotone" dataKey="Under clearance" stroke="#10b981" strokeWidth={2} dot={{ r: 2 }} />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader><CardTitle className="text-base">Candidate count over time</CardTitle><CardDescription>How many SKUs qualify as dead/slow stock each week.</CardDescription></CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={240}>
+            <ComposedChart data={snaps} margin={{ top: 10, right: 16, bottom: 0, left: -10 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+              <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+              <YAxis tick={{ fontSize: 11 }} />
+              <RTooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }} />
+              <Legend wrapperStyle={{ fontSize: 11 }} />
+              <Line type="monotone" dataKey="Candidates" stroke="#3b82f6" strokeWidth={2} dot={{ r: 2 }} />
+              <Line type="monotone" dataKey="Dead" stroke="#ef4444" strokeWidth={2} dot={{ r: 2 }} />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 
