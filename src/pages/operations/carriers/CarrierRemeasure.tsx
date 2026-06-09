@@ -109,6 +109,8 @@ const CarrierRemeasure = () => {
   const [drawerSku, setDrawerSku] = useState<string | null>(null);
   const [skuMeta, setSkuMeta] = useState<any | null>(null);
   const [skuMetaLoading, setSkuMetaLoading] = useState(false);
+  const [skuBrand, setSkuBrand] = useState<Record<string, string>>({});
+  const [brandFilter, setBrandFilter] = useState<string>("all");
   const [skuPage, setSkuPage] = useState(1);
   const [taskPage, setTaskPage] = useState(1);
   const [newSku, setNewSku] = useState("");
@@ -144,6 +146,21 @@ const CarrierRemeasure = () => {
   useEffect(() => {
     void load();
   }, []);
+
+  // Build a sku → brand-name map for the loaded tasks (for the brand filter)
+  useEffect(() => {
+    const skus = Array.from(new Set(tasks.map(t => t.sku)));
+    if (skus.length === 0) { setSkuBrand({}); return; }
+    supabase
+      .from("products_cache")
+      .select("sku, brands(name)")
+      .in("sku", skus)
+      .then(({ data }) => {
+        const map: Record<string, string> = {};
+        (data ?? []).forEach((p: any) => { if (p.brands?.name) map[p.sku] = p.brands.name; });
+        setSkuBrand(map);
+      });
+  }, [tasks]);
 
   // Fetch product context (dims, weight, categories) when the SKU drawer opens
   useEffect(() => {
@@ -210,6 +227,7 @@ const CarrierRemeasure = () => {
     if (statusFilter === "open") list = list.filter((t) => !["completed", "packaging_issue"].includes(t.status));
     else if (statusFilter === "packaging_issues") list = list.filter((t) => t.status === "packaging_issue");
     else if (statusFilter !== "all") list = list.filter((t) => t.status === statusFilter);
+    if (brandFilter !== "all") list = list.filter((t) => skuBrand[t.sku] === brandFilter);
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter(
@@ -220,7 +238,11 @@ const CarrierRemeasure = () => {
       );
     }
     return list;
-  }, [tasks, statusFilter, search]);
+  }, [tasks, statusFilter, search, brandFilter, skuBrand]);
+
+  const brandOptions = useMemo(
+    () => Array.from(new Set(Object.values(skuBrand))).sort(),
+    [skuBrand]);
 
   // Group by SKU for the worklist
   const skuGroups = useMemo(() => {
@@ -300,6 +322,15 @@ const CarrierRemeasure = () => {
           <div className="flex-1 min-w-[200px]">
             <Input placeholder="Search SKU, tracking or assignee" value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
+          <Select value={brandFilter} onValueChange={setBrandFilter}>
+            <SelectTrigger className="w-[160px]"><SelectValue placeholder="All brands" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All brands</SelectItem>
+              {brandOptions.map((b) => (
+                <SelectItem key={b} value={b}>{b}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -367,7 +398,7 @@ const CarrierRemeasure = () => {
                           {g.openCount}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-right font-mono">£{g.totalCost.toFixed(2)}</TableCell>
+                      <TableCell className="text-right font-mono text-muted-foreground">{g.totalCost > 0 ? `£${g.totalCost.toFixed(2)}` : "—"}</TableCell>
                       <TableCell className="text-sm">{first.carrier_penalties?.reason_code ?? "—"}</TableCell>
                       <TableCell className="text-xs text-muted-foreground">
                         {first.carrier_penalties?.declared_format ?? "?"} → {first.carrier_penalties?.actual_format ?? "?"}
