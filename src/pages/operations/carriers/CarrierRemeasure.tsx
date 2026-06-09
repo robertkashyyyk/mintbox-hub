@@ -29,6 +29,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
 import { toast } from "sonner";
 import {
   ClipboardList,
@@ -40,6 +47,10 @@ import {
   Ruler,
   Gamepad2,
   Printer,
+  Package,
+  Truck,
+  Hash,
+  ExternalLink,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 
@@ -59,8 +70,10 @@ type Task = {
     tracking_number: string | null;
     penalty_amount: number;
     reason_code: string | null;
+    reason_text: string | null;
     declared_format: string | null;
     actual_format: string | null;
+    penalty_date: string | null;
   } | null;
 };
 
@@ -93,6 +106,9 @@ const CarrierRemeasure = () => {
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<Task | null>(null);
   const [creating, setCreating] = useState(false);
+  const [drawerSku, setDrawerSku] = useState<string | null>(null);
+  const [skuMeta, setSkuMeta] = useState<any | null>(null);
+  const [skuMetaLoading, setSkuMetaLoading] = useState(false);
   const [skuPage, setSkuPage] = useState(1);
   const [taskPage, setTaskPage] = useState(1);
   const [newSku, setNewSku] = useState("");
@@ -129,11 +145,29 @@ const CarrierRemeasure = () => {
     void load();
   }, []);
 
+  // Fetch product context (dims, weight, categories) when the SKU drawer opens
+  useEffect(() => {
+    if (!drawerSku) { setSkuMeta(null); return; }
+    setSkuMetaLoading(true);
+    supabase
+      .from("products_cache")
+      .select("id, sku, name, mintsoft_id, weight, height, length, depth, mintsoft_categories, current_stock, low_stock_alert_level")
+      .eq("sku", drawerSku)
+      .maybeSingle()
+      .then(({ data }) => { setSkuMeta(data); setSkuMetaLoading(false); });
+  }, [drawerSku]);
+
+  // All tasks for the drawer SKU (from already-loaded data), newest first
+  const drawerTasks = useMemo(
+    () => tasks.filter(t => t.sku === drawerSku)
+      .sort((a, b) => (b.carrier_penalties?.penalty_date ?? b.created_at).localeCompare(a.carrier_penalties?.penalty_date ?? a.created_at)),
+    [tasks, drawerSku]);
+
   async function load() {
     setLoading(true);
     const { data, error } = await supabase
       .from("carrier_remeasure_tasks")
-      .select("id, penalty_id, sku, mintsoft_order_id, status, assigned_to, old_dimensions, new_dimensions, notes, created_at, completed_at, carrier_penalties(tracking_number, penalty_amount, reason_code, declared_format, actual_format)")
+      .select("id, penalty_id, sku, mintsoft_order_id, status, assigned_to, old_dimensions, new_dimensions, notes, created_at, completed_at, carrier_penalties(tracking_number, penalty_amount, reason_code, reason_text, declared_format, actual_format, penalty_date)")
       .order("created_at", { ascending: false })
       .limit(500);
     if (error) toast.error(error.message);
@@ -319,7 +353,15 @@ const CarrierRemeasure = () => {
                   const first = g.items[0];
                   return (
                     <TableRow key={g.sku}>
-                      <TableCell className="font-mono text-xs">{g.sku}</TableCell>
+                      <TableCell>
+                        <button
+                          onClick={() => setDrawerSku(g.sku)}
+                          className="font-mono text-xs text-pd-accent hover:underline"
+                          title="View penalty history for this SKU"
+                        >
+                          {g.sku}
+                        </button>
+                      </TableCell>
                       <TableCell className="text-right">
                         <Badge className="bg-amber-500/15 text-amber-300 border border-amber-500/30" variant="outline">
                           {g.openCount}
@@ -331,7 +373,7 @@ const CarrierRemeasure = () => {
                         {first.carrier_penalties?.declared_format ?? "?"} → {first.carrier_penalties?.actual_format ?? "?"}
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button variant="ghost" size="sm" onClick={() => setEditing(first)}>
+                        <Button variant="ghost" size="sm" onClick={() => setDrawerSku(g.sku)}>
                           <Ruler className="h-4 w-4 mr-1" /> Open
                         </Button>
                       </TableCell>
@@ -388,7 +430,11 @@ const CarrierRemeasure = () => {
                 )}
                 {filteredPage.map((t) => (
                   <TableRow key={t.id}>
-                    <TableCell className="font-mono text-xs">{t.sku}</TableCell>
+                    <TableCell>
+                      <button onClick={() => setDrawerSku(t.sku)} className="font-mono text-xs text-pd-accent hover:underline" title="View penalty history">
+                        {t.sku}
+                      </button>
+                    </TableCell>
                     <TableCell className="font-mono text-xs">{t.mintsoft_order_id ?? "—"}</TableCell>
                     <TableCell className="font-mono text-xs">{t.carrier_penalties?.tracking_number ?? "—"}</TableCell>
                     <TableCell>
@@ -430,6 +476,100 @@ const CarrierRemeasure = () => {
           void load();
         }}
       />
+
+      {/* SKU detail drawer — why is this SKU here? */}
+      <Sheet open={!!drawerSku} onOpenChange={(o) => !o && setDrawerSku(null)}>
+        <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle className="font-mono">{drawerSku}</SheetTitle>
+            <SheetDescription>
+              {skuMeta?.name ?? "Penalty history & remeasure context"}
+            </SheetDescription>
+          </SheetHeader>
+
+          {/* Product context */}
+          <div className="mt-4 rounded-lg border border-border bg-muted/20 p-3 space-y-2">
+            <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              <Package className="h-3.5 w-3.5" /> Product
+            </div>
+            {skuMetaLoading ? (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" />Loading…</div>
+            ) : skuMeta ? (
+              <div className="space-y-1.5 text-sm">
+                <div className="flex justify-between"><span className="text-muted-foreground text-xs">Mintsoft ID</span><span className="font-mono text-xs">{skuMeta.mintsoft_id ?? "—"}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground text-xs">Current stock</span><span>{skuMeta.current_stock ?? "—"}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground text-xs">Dims (L×D×H)</span><span className="text-xs">{[skuMeta.length, skuMeta.depth, skuMeta.height].every((d: any) => d) ? `${skuMeta.length}×${skuMeta.depth}×${skuMeta.height}cm` : "—"}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground text-xs">Weight</span><span className="text-xs">{skuMeta.weight ? (Number(skuMeta.weight) >= 1000 ? `${(skuMeta.weight/1000).toFixed(2)}kg` : `${skuMeta.weight}g`) : "—"}</span></div>
+                {skuMeta.mintsoft_categories?.length ? (
+                  <div className="flex flex-wrap gap-1 pt-1">
+                    {skuMeta.mintsoft_categories.filter(Boolean).map((c: string) => (
+                      <span key={c} className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted/60 border border-border text-muted-foreground">{c}</span>
+                    ))}
+                  </div>
+                ) : null}
+                {skuMeta.id && (
+                  <Link to={`/discovery/products/${skuMeta.id}`} className="flex items-center gap-1 text-xs text-pd-accent hover:underline pt-1 w-fit">
+                    <ExternalLink className="h-3 w-3" /> View full product
+                  </Link>
+                )}
+              </div>
+            ) : <p className="text-xs text-muted-foreground">Not found in products cache.</p>}
+          </div>
+
+          {/* Penalty history */}
+          <div className="mt-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Penalty hits ({drawerTasks.length})
+              </span>
+              <span className="text-xs font-mono">
+                £{drawerTasks.reduce((a, t) => a + Number(t.carrier_penalties?.penalty_amount || 0), 0).toFixed(2)} total
+              </span>
+            </div>
+            <div className="space-y-2">
+              {drawerTasks.length === 0 && <p className="text-xs text-muted-foreground">No penalty records.</p>}
+              {drawerTasks.map(t => (
+                <div key={t.id} className="rounded-lg border border-border/60 p-3 text-sm space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Badge className={`text-xs ${STATUS_VARIANTS[t.status] ?? "bg-muted"}`} variant="outline">
+                      {STATUS_OPTIONS.find(s => s.value === t.status)?.label ?? t.status}
+                    </Badge>
+                    <span className="font-mono text-sm font-semibold">£{Number(t.carrier_penalties?.penalty_amount ?? 0).toFixed(2)}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <Hash className="h-3 w-3 text-muted-foreground" />
+                    <span className="text-muted-foreground">Order</span>
+                    <span className="font-mono">{t.mintsoft_order_id ?? "—"}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <Truck className="h-3 w-3 text-muted-foreground" />
+                    <span className="text-muted-foreground">Tracking</span>
+                    <span className="font-mono break-all">{t.carrier_penalties?.tracking_number ?? "—"}</span>
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {t.carrier_penalties?.reason_code ? <span className="font-medium text-foreground">{t.carrier_penalties.reason_code}</span> : null}
+                    {t.carrier_penalties?.reason_text ? ` — ${t.carrier_penalties.reason_text}` : ""}
+                  </div>
+                  <div className="text-xs">
+                    <span className="text-muted-foreground">Declared → Actual: </span>
+                    <span className="font-mono">{t.carrier_penalties?.declared_format ?? "?"}</span>
+                    <span className="text-muted-foreground"> → </span>
+                    <span className="font-mono text-destructive">{t.carrier_penalties?.actual_format ?? "?"}</span>
+                  </div>
+                  <div className="flex items-center justify-between pt-1">
+                    <span className="text-[10px] text-muted-foreground">
+                      {(t.carrier_penalties?.penalty_date ?? t.created_at)?.slice(0, 10)}
+                    </span>
+                    <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => { setEditing(t); setDrawerSku(null); }}>
+                      <Ruler className="h-3 w-3 mr-1" /> Remeasure
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
 
       {/* Create new task */}
       <Dialog open={creating} onOpenChange={setCreating}>
