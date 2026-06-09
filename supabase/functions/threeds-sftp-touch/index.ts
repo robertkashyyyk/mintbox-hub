@@ -18,10 +18,15 @@ Deno.serve(async (req) => {
   if (!ok && bearer) { try { ok = JSON.parse(atob(bearer.split(".")[1] ?? ""))?.role === "service_role"; } catch { /* ignore */ } }
   if (!ok) return json({ error: "Unauthorized" }, 401);
 
-  let body: { stores?: string[] } = {};
+  let body: { stores?: string[]; force?: boolean } = {};
   try { body = await req.json(); } catch { /* defaults */ }
   const names = Array.isArray(body.stores) ? body.stores : [];
+  const force = body.force === true;
   if (names.length === 0) return json({ error: "stores[] required (store_name values)" }, 400);
+
+  // Header + one harmless sample row so 3D's column mapping has data to map.
+  // SKU is non-existent (ignored on import); the first real push overwrites this.
+  const STUB = "SKU,Price\nSAMPLE-MAPPING-SKU,9.99\n";
 
   const admin = createClient(url, serviceKey);
   const { data: stores } = await admin.from("threeds_stores").select("store_name, sftp_filename").in("store_name", names);
@@ -42,10 +47,10 @@ Deno.serve(async (req) => {
       try {
         const dir = path.lastIndexOf("/") > 0 ? path.slice(0, path.lastIndexOf("/")) : "";
         if (dir && !(await sftp.exists(dir))) await sftp.mkdir(dir, true);
-        // Don't clobber a file that already has real prices in it.
+        // Don't clobber a real file unless forced (the header-only stubs are safe to replace).
         const exists = await sftp.exists(path);
-        if (exists) { results.push({ store: s.store_name, path, ok: true, error: "already exists — left as-is" }); continue; }
-        await sftp.put(Buffer.from("SKU,Price\n", "utf-8"), path);
+        if (exists && !force) { results.push({ store: s.store_name, path, ok: true, error: "already exists — pass force:true to overwrite" }); continue; }
+        await sftp.put(Buffer.from(STUB, "utf-8"), path);
         results.push({ store: s.store_name, path, ok: true });
       } catch (e) {
         results.push({ store: s.store_name, path, ok: false, error: e instanceof Error ? e.message : String(e) });
