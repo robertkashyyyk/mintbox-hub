@@ -4,7 +4,8 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { Settings as SettingsIcon, Bell, Palette, Monitor, Download, Loader2 } from "lucide-react";
+import { Settings as SettingsIcon, Bell, Palette, Monitor, Download, Loader2, Zap } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { AutoLsaScheduleCard } from "@/components/settings/AutoLsaScheduleCard";
@@ -42,10 +43,17 @@ const Settings = () => {
         <p className="text-foreground/60">Manage your application preferences</p>
       </div>
 
-      <div className="grid gap-6">
-        <AutoRepriceReportCard />
+      <Tabs defaultValue="automation" className="w-full">
+        <TabsList>
+          <TabsTrigger value="automation" className="gap-2"><Zap className="h-4 w-4" /> Automation</TabsTrigger>
+          <TabsTrigger value="notifications" className="gap-2"><Bell className="h-4 w-4" /> Notifications</TabsTrigger>
+          <TabsTrigger value="appearance" className="gap-2"><Palette className="h-4 w-4" /> Appearance</TabsTrigger>
+        </TabsList>
 
-        <AutoLsaScheduleCard />
+        <TabsContent value="automation" className="grid gap-6 mt-4">
+          <AutoRepriceReportCard />
+
+          <AutoLsaScheduleCard />
 
         <Card>
           <CardHeader>
@@ -69,6 +77,9 @@ const Settings = () => {
             )}
           </CardContent>
         </Card>
+        </TabsContent>
+
+        <TabsContent value="notifications" className="grid gap-6 mt-4">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -92,7 +103,9 @@ const Settings = () => {
             </div>
           </CardContent>
         </Card>
+        </TabsContent>
 
+        <TabsContent value="appearance" className="grid gap-6 mt-4">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -151,7 +164,8 @@ const Settings = () => {
             </div>
           </CardContent>
         </Card>
-      </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
