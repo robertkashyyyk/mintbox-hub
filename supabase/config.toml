@@ -92,3 +92,6 @@ verify_jwt = false
 
 [functions.threeds-reprice-auto-snapshot]
 verify_jwt = false
+
+[functions.threeds-sftp-touch]
+verify_jwt = false
