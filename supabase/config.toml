@@ -86,3 +86,9 @@ verify_jwt = false
 
 [functions.threeds-reprice-reconcile]
 verify_jwt = false
+
+[functions.debug-threeds-sftp]
+verify_jwt = false
+
+[functions.threeds-reprice-auto-snapshot]
+verify_jwt = false

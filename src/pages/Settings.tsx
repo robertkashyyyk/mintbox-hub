@@ -8,6 +8,7 @@ import { Settings as SettingsIcon, Bell, Palette, Monitor, Download, Loader2 } f
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { AutoLsaScheduleCard } from "@/components/settings/AutoLsaScheduleCard";
+import { AutoRepriceReportCard } from "@/components/settings/AutoRepriceReportCard";
 
 const Settings = () => {
   const { toast } = useToast();
@@ -42,6 +43,8 @@ const Settings = () => {
       </div>
 
       <div className="grid gap-6">
+        <AutoRepriceReportCard />
+
         <AutoLsaScheduleCard />
 
         <Card>

@@ -18,6 +18,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Upload, Loader2, AlertTriangle, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
 import ModuleHeader from "@/components/ModuleHeader";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import ThreedsAutoReport from "./ThreedsAutoReport";
 import { format } from "date-fns";
 import {
   type Tier, type FeeRule, type CostFlag,
@@ -111,6 +113,7 @@ export default function ThreedsReprice() {
   const { toast } = useToast();
   const qc = useQueryClient();
 
+  const [mode, setMode] = useState<"manual" | "auto">("manual");
   const [storeId, setStoreId] = useState<string | null>(null);
   const [days, setDays] = useState(90);
   const [search, setSearch] = useState("");
@@ -367,6 +370,15 @@ export default function ThreedsReprice() {
         />
       </div>
 
+      <ToggleGroup type="single" value={mode} onValueChange={(v) => v && setMode(v as "manual" | "auto")} className="justify-start">
+        <ToggleGroupItem value="manual" className="data-[state=on]:bg-pd-accent data-[state=on]:text-white px-4">Semi-Manual</ToggleGroupItem>
+        <ToggleGroupItem value="auto" className="data-[state=on]:bg-pd-accent data-[state=on]:text-white px-4">Auto-Report</ToggleGroupItem>
+      </ToggleGroup>
+
+      {mode === "auto" && <ThreedsAutoReport />}
+
+      {mode === "manual" && (
+      <>
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Store & window</CardTitle>
@@ -761,6 +773,8 @@ export default function ThreedsReprice() {
         </Card>
         </TabsContent>
       </Tabs>
+      )}
+      </>
       )}
     </div>
   );
