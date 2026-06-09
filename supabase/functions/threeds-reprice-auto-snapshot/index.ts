@@ -75,11 +75,16 @@ Deno.serve(async (req) => {
 
   const rows: any[] = [];
   const perStore: Record<string, number> = {};
+  const errors: Record<string, string> = {};
   for (const s of stores ?? []) {
-    const { data: cands, error } = await admin.rpc("get_threeds_reprice_candidates", {
-      p_channel: s.mintsoft_channel, p_days: lookback,
-    });
-    if (error) { perStore[s.store_name] = -1; continue; }
+    // Retry a couple of times — the heavy RPC can hit a transient timeout.
+    let cands: any = null; let error: any = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const r = await admin.rpc("get_threeds_reprice_candidates", { p_channel: s.mintsoft_channel, p_days: lookback });
+      cands = r.data; error = r.error;
+      if (!error) break;
+    }
+    if (error) { perStore[s.store_name] = -1; errors[s.store_name] = error.message ?? String(error); continue; }
     const inBand = (cands ?? []).filter((c: any) => classifyBand(c.por_pct) === band);
     perStore[s.store_name] = inBand.length;
     for (const c of inBand) {
@@ -118,5 +123,5 @@ Deno.serve(async (req) => {
     }
   }
 
-  return json({ ok: true, date: londonDate, total: rows.length, perStore, taskCreated, force });
+  return json({ ok: true, date: londonDate, total: rows.length, perStore, errors, taskCreated, force });
 });
