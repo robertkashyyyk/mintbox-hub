@@ -67,15 +67,29 @@ export default function LiquidationCandidates() {
   const [minCapital, setMinCapital] = useState(25);
   const [brandFilter, setBrandFilter] = useState("all");
   const [launch, setLaunch] = useState<Candidate | null>(null);
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 50;
 
+  const TOP_N = 500;
   const { data: candidates = [], isLoading } = useQuery({
     queryKey: ["liquidation-candidates", maxVelocity, minCapital],
     queryFn: async () => {
       const { data, error } = await (supabase as any).rpc("get_liquidation_candidates", {
-        max_velocity: maxVelocity, min_capital: minCapital, limit_n: 200,
+        max_velocity: maxVelocity, min_capital: minCapital, limit_n: TOP_N,
       });
       if (error) throw error;
       return data as Candidate[];
+    },
+  });
+
+  const { data: totals } = useQuery({
+    queryKey: ["liquidation-count", maxVelocity, minCapital],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc("get_liquidation_candidate_count", {
+        max_velocity: maxVelocity, min_capital: minCapital,
+      });
+      if (error) throw error;
+      return (data?.[0] ?? { total: 0, total_capital: 0 }) as { total: number; total_capital: number };
     },
   });
 
@@ -141,7 +155,14 @@ export default function LiquidationCandidates() {
   const filtered = useMemo(
     () => candidates.filter(c => brandFilter === "all" || c.brand_name === brandFilter),
     [candidates, brandFilter]);
-  const totalCapital = filtered.reduce((a, c) => a + Number(c.capital_tied), 0);
+
+  useEffect(() => { setPage(1); }, [maxVelocity, minCapital, brandFilter]);
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const pageRows = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  const trueTotal = totals?.total ?? 0;
+  const trueCapital = Number(totals?.total_capital ?? 0);
+  const capped = brandFilter === "all" && trueTotal > candidates.length;
 
   return (
     <div className="space-y-6">
@@ -205,34 +226,41 @@ export default function LiquidationCandidates() {
         </Card>
       )}
 
-      {/* Filters */}
-      <Card>
-        <CardContent className="pt-6 flex flex-wrap items-end gap-4">
-          <div className="space-y-1.5">
-            <Label className="text-xs">Brand</Label>
-            <Select value={brandFilter} onValueChange={setBrandFilter}>
-              <SelectTrigger className="w-44 h-9"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All brands</SelectItem>
-                {brandOptions.map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">Max velocity (units/wk)</Label>
-            <Input type="number" step="0.1" value={maxVelocity} onChange={e => setMaxVelocity(Number(e.target.value))} className="w-32 h-9" />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">Min capital tied (£)</Label>
-            <Input type="number" value={minCapital} onChange={e => setMinCapital(Number(e.target.value) || 0)} className="w-28 h-9" />
-          </div>
-        </CardContent>
-      </Card>
-
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-        <Stat label="Candidates" value={String(filtered.length)} icon={Boxes} />
-        <Stat label="Capital tied up" value={`£${totalCapital.toLocaleString(undefined, { maximumFractionDigits: 0 })}`} className="text-orange-400" icon={PoundSterling} />
-        <Stat label="Dead (no sales 90d)" value={String(filtered.filter(c => !c.units_sold_90d).length)} className="text-destructive" icon={AlertTriangle} />
+      {/* Sticky toolbar: stats + filters stay visible while scrolling */}
+      <div className="sticky top-0 z-20 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 -mx-2 px-2 py-2 space-y-3 border-b border-border/40">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <Stat label="Total candidates" value={trueTotal.toLocaleString()} icon={Boxes} />
+          <Stat label="Capital tied up (all)" value={`£${trueCapital.toLocaleString(undefined, { maximumFractionDigits: 0 })}`} className="text-orange-400" icon={PoundSterling} />
+          <Stat label="Dead (no sales 90d)" value={String(filtered.filter(c => !c.units_sold_90d).length)} className="text-destructive" icon={AlertTriangle} />
+          <Stat label={brandFilter === "all" ? "Shown (top by capital)" : `Shown — ${brandFilter}`} value={String(filtered.length)} icon={Flame} />
+        </div>
+        <Card>
+          <CardContent className="pt-4 pb-4 flex flex-wrap items-end gap-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Brand</Label>
+              <Select value={brandFilter} onValueChange={setBrandFilter}>
+                <SelectTrigger className="w-44 h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All brands</SelectItem>
+                  {brandOptions.map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Max velocity (units/wk)</Label>
+              <Input type="number" step="0.1" value={maxVelocity} onChange={e => setMaxVelocity(Number(e.target.value))} className="w-32 h-9" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Min capital tied (£)</Label>
+              <Input type="number" value={minCapital} onChange={e => setMinCapital(Number(e.target.value) || 0)} className="w-28 h-9" />
+            </div>
+            {capped && (
+              <p className="text-xs text-muted-foreground pb-2 ml-auto">
+                Showing the top {candidates.length.toLocaleString()} by capital of {trueTotal.toLocaleString()} — raise "min capital" to narrow.
+              </p>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       <Card>
@@ -240,7 +268,7 @@ export default function LiquidationCandidates() {
           {isLoading ? <PageLoader rows={10} columns={[120, 200, 80, 70, 70, 90, 100, 90]} label="Loading candidates" /> : (
             <div className="overflow-x-auto">
               <Table>
-                <TableHeader>
+                <TableHeader className="sticky top-[136px] z-10 bg-background">
                   <TableRow>
                     <TableHead>SKU</TableHead>
                     <TableHead>Product</TableHead>
@@ -257,7 +285,7 @@ export default function LiquidationCandidates() {
                   {filtered.length === 0 && (
                     <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-8">No candidates at these thresholds.</TableCell></TableRow>
                   )}
-                  {filtered.map(c => (
+                  {pageRows.map(c => (
                     <TableRow key={c.sku}>
                       <TableCell><Link to={`/discovery/products?search=${encodeURIComponent(c.sku)}`} className="font-mono text-xs text-pd-accent hover:underline">{c.sku}</Link></TableCell>
                       <TableCell className="text-sm max-w-[200px] truncate">{c.product_name ?? "—"}</TableCell>
@@ -280,12 +308,24 @@ export default function LiquidationCandidates() {
               </Table>
             </div>
           )}
+          {filtered.length > 0 && (
+            <div className="flex items-center justify-between px-4 py-3 border-t border-border text-sm text-muted-foreground">
+              <span>Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}</span>
+              {pageCount > 1 && (
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>Previous</Button>
+                  <span className="self-center text-xs">Page {page} / {pageCount}</span>
+                  <Button variant="outline" size="sm" disabled={page === pageCount} onClick={() => setPage(p => p + 1)}>Next</Button>
+                </div>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
 
       <p className="text-xs text-muted-foreground pb-4">
         Discount applies proportionally across every store + pack-size listing. Sale prices push via the 3D/SFTP path; Revert restores the snapshotted originals.
-        Repricer ring-fence (so it won't undo a sale) lands in Phase 3.
+        Active campaigns are ring-fenced from the repricer.
       </p>
 
       <LaunchDialog
