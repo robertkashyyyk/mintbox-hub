@@ -119,21 +119,37 @@ export default function LiquidationCandidates() {
   const TOP_N = 500;
 
   const { data: candidates = [], isLoading } = useQuery({
-    queryKey: ["liquidation-candidates", maxVelocity, minCapital, showExcluded],
+    queryKey: ["liquidation-candidates", maxVelocity, minCapital, showExcluded, brandFilter],
     queryFn: async () => {
       const { data, error } = await (supabase as any).rpc("get_liquidation_candidates", {
-        max_velocity: maxVelocity, min_capital: minCapital, limit_n: TOP_N, include_excluded: showExcluded,
+        max_velocity: maxVelocity, min_capital: minCapital, limit_n: TOP_N,
+        include_excluded: showExcluded, p_brand: brandFilter === "all" ? null : brandFilter,
       });
       if (error) throw error;
       return data as Candidate[];
     },
   });
-  const { data: totals } = useQuery({
-    queryKey: ["liquidation-count", maxVelocity, minCapital],
+
+  // Brand options come from a broad (brand-agnostic) candidate fetch so the
+  // dropdown doesn't collapse once a brand is selected.
+  const { data: brandList = [] } = useQuery({
+    queryKey: ["liquidation-brands", maxVelocity, minCapital],
     queryFn: async () => {
-      const { data, error } = await (supabase as any).rpc("get_liquidation_candidate_count", { max_velocity: maxVelocity, min_capital: minCapital });
+      const { data, error } = await (supabase as any).rpc("get_liquidation_candidates", {
+        max_velocity: maxVelocity, min_capital: minCapital, limit_n: 2000, include_excluded: true, p_brand: null,
+      });
       if (error) throw error;
-      return (data?.[0] ?? { total: 0, total_capital: 0 }) as { total: number; total_capital: number };
+      return Array.from(new Set(((data ?? []) as Candidate[]).map(c => c.brand_name).filter(Boolean) as string[])).sort();
+    },
+  });
+  const { data: totals } = useQuery({
+    queryKey: ["liquidation-count", maxVelocity, minCapital, brandFilter],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc("get_liquidation_candidate_count", {
+        max_velocity: maxVelocity, min_capital: minCapital, p_brand: brandFilter === "all" ? null : brandFilter,
+      });
+      if (error) throw error;
+      return (data?.[0] ?? { total: 0, total_capital: 0, dead_count: 0 }) as { total: number; total_capital: number; dead_count: number };
     },
   });
   const { data: clearance } = useQuery({
@@ -196,7 +212,7 @@ export default function LiquidationCandidates() {
     onError: (e: any) => toast.error(e.message),
   });
 
-  const brandOptions = useMemo(() => Array.from(new Set(candidates.map(c => c.brand_name).filter(Boolean) as string[])).sort(), [candidates]);
+  const brandOptions = brandList;
   const filtered = useMemo(() => {
     let r = candidates.filter(c => brandFilter === "all" || c.brand_name === brandFilter);
     const dir = sortDir === "asc" ? 1 : -1;
@@ -214,7 +230,7 @@ export default function LiquidationCandidates() {
   const pageRows = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   const trueTotal = totals?.total ?? 0;
   const trueCapital = Number(totals?.total_capital ?? 0);
-  const capped = brandFilter === "all" && trueTotal > candidates.length;
+  const capped = trueTotal > candidates.length;
   const selectedCandidates = filtered.filter(c => selected.has(c.sku));
 
   const toggleSort = (k: SortKey) => { if (sortKey === k) setSortDir(d => d === "asc" ? "desc" : "asc"); else { setSortKey(k); setSortDir("desc"); } };
@@ -278,7 +294,7 @@ export default function LiquidationCandidates() {
           <Stat label="Total candidates" value={trueTotal.toLocaleString()} icon={Boxes} />
           <Stat label="Capital tied up (all)" value={`£${trueCapital.toLocaleString(undefined, { maximumFractionDigits: 0 })}`} className="text-orange-400" icon={PoundSterling} />
           <Stat label="Under active clearance" value={`£${Number(clearance?.capital_under_clearance ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`} className="text-emerald-400" icon={Flame} />
-          <Stat label="Dead (never sold)" value={String(filtered.filter(c => !c.last_sold).length)} className="text-destructive" icon={AlertTriangle} />
+          <Stat label="Dead (never sold)" value={(totals?.dead_count ?? 0).toLocaleString()} className="text-destructive" icon={AlertTriangle} />
         </div>
         <Card>
           <CardContent className="pt-4 pb-4 flex flex-wrap items-end gap-4">
