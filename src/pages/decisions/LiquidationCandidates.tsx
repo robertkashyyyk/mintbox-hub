@@ -308,8 +308,8 @@ export default function LiquidationCandidates() {
       <Card>
         <CardContent className="p-0">
           {isLoading ? <PageLoader rows={12} columns={[30, 110, 180, 70, 60, 60, 70, 90, 80, 110]} label="Loading candidates" /> : (
-            <div className="overflow-auto max-h-[calc(100vh-240px)]">
-              <Table>
+            <div>
+              <Table containerClassName="max-h-[calc(100vh-240px)]">
                 <TableHeader className="sticky top-0 z-10 bg-background shadow-[0_1px_0_0_hsl(var(--border))]">
                   <TableRow>
                     <TableHead className="w-8"><Checkbox checked={allPageSelected} onCheckedChange={(v) => setSelected(prev => { const n = new Set(prev); pageRows.forEach(c => v ? n.add(c.sku) : n.delete(c.sku)); return n; })} /></TableHead>

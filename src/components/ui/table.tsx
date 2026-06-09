@@ -2,23 +2,27 @@ import * as React from "react";
 
 import { cn } from "@/lib/utils";
 
-const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableElement>>(
-  ({ className, ...props }, ref) => (
-    <div className="relative w-full overflow-auto">
-      {/*
-        Global table styling:
-        - text-sm (14px) for readability in warehouse settings
-        - tabular-nums so figures align cleanly in columns
-        - zebra rows applied via TableBody to lift dense data
-      */}
-      <table
-        ref={ref}
-        className={cn("w-full caption-bottom text-sm tabular-nums", className)}
-        {...props}
-      />
-    </div>
-  ),
-);
+const Table = React.forwardRef<
+  HTMLTableElement,
+  React.HTMLAttributes<HTMLTableElement> & { containerClassName?: string }
+>(({ className, containerClassName, ...props }, ref) => (
+  // containerClassName lets callers make THIS wrapper the scroll container
+  // (e.g. add a max-h) so `sticky top-0` table headers actually pin — the
+  // wrapper, not the page, is the sticky scroll context.
+  <div className={cn("relative w-full overflow-auto", containerClassName)}>
+    {/*
+      Global table styling:
+      - text-sm (14px) for readability in warehouse settings
+      - tabular-nums so figures align cleanly in columns
+      - zebra rows applied via TableBody to lift dense data
+    */}
+    <table
+      ref={ref}
+      className={cn("w-full caption-bottom text-sm tabular-nums", className)}
+      {...props}
+    />
+  </div>
+));
 Table.displayName = "Table";
 
 const TableHeader = React.forwardRef<HTMLTableSectionElement, React.HTMLAttributes<HTMLTableSectionElement>>(
