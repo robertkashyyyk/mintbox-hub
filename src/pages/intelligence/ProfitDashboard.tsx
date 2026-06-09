@@ -175,6 +175,19 @@ const ProfitDashboard = () => {
     return Array.from(set).sort();
   }, [lines]);
 
+  // Recognition view: every sale counts toward revenue/orders/profit, including
+  // deliberate loss-makers (clearance) and dirt — nothing is excluded here.
+  const recognition = useMemo(() => {
+    const rows = (lines ?? []) as any[];
+    let lossLines = 0, lossTotal = 0, lossRevenue = 0;
+    const lossOrders = new Set<number>();
+    for (const r of rows) {
+      const p = Number(r.profit ?? 0);
+      if (p < 0) { lossLines++; lossTotal += p; lossRevenue += Number(r.order_value ?? 0); if (r.mintsoft_order_id != null) lossOrders.add(r.mintsoft_order_id); }
+    }
+    return { lossLines, lossTotal, lossRevenue, lossOrders: lossOrders.size };
+  }, [lines]);
+
   const filteredLines = useMemo(() => {
     let rows = (lines ?? []) as any[];
     if (channelFilter !== "all") rows = rows.filter(r => (r.channel ?? "") === channelFilter);
@@ -305,6 +318,43 @@ const ProfitDashboard = () => {
       <p className="text-xs text-foreground/50 -mt-2">
         Counts exclude cancelled, refunded and returned orders — only active &amp; despatched orders feed profit calculations. Mintsoft's raw weekly count will be higher.
       </p>
+
+      {/* All sales recognised — including deliberate loss-makers (clearance) */}
+      <Card className="border-pd-accent/20 bg-pd-accent/5">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            <span className="text-pd-accent">£</span> All sales recognised — including losses
+          </CardTitle>
+          <CardDescription>
+            The figures above already include every despatched sale — loss-making and clearance orders are counted, not excluded.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+            <div>
+              <div className="text-xs text-muted-foreground">Gross sales (inc VAT)</div>
+              <div className="text-lg font-bold">{fmtGBP(kpis?.revenue != null ? Number(kpis.revenue) * 1.2 : undefined)}</div>
+            </div>
+            <div>
+              <div className="text-xs text-muted-foreground">Net profit (all-in)</div>
+              <div className={`text-lg font-bold ${kpis?.profit != null && Number(kpis.profit) < 0 ? "text-destructive" : "text-success"}`}>{fmtGBP(kpis?.profit)}</div>
+            </div>
+            <div>
+              <div className="text-xs text-muted-foreground">Loss-making lines</div>
+              <div className="text-lg font-bold text-destructive">{fmtNum(recognition.lossLines)}</div>
+              <div className="text-xs text-muted-foreground">{recognition.lossOrders} order(s)</div>
+            </div>
+            <div>
+              <div className="text-xs text-muted-foreground">Loss absorbed</div>
+              <div className="text-lg font-bold text-destructive">{fmtGBP(recognition.lossTotal)}</div>
+              <div className="text-xs text-muted-foreground">on {fmtGBP(recognition.lossRevenue)} revenue</div>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground mt-3">
+            "Loss absorbed" is the combined negative profit on loss-making lines this week — your true cost of clearing stock / selling below cost. Revenue and orders from these are fully counted above.
+          </p>
+        </CardContent>
+      </Card>
 
       {/* Health flags */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
