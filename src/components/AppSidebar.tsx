@@ -7,7 +7,7 @@ import {
   Users, Key, CreditCard, LogOut, UserCircle, Gauge,
   ChevronDown, ChevronRight, LayoutDashboard, Settings,
   Images, Clock, Plug, Truck, AlertTriangle, Sliders, Beaker, BarChart3, ArrowUpDown,
-  PoundSterling, Link2Off, HelpCircle, ClipboardList, CheckSquare, Gamepad2, Globe
+  PoundSterling, Link2Off, HelpCircle, ClipboardList, CheckSquare, Gamepad2, Globe, Flame
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -124,6 +124,7 @@ export function AppSidebar() {
         { title: "Purchase Orders", url: "/execution/purchase-orders", icon: ShoppingCart },
         { title: "LSA Calibration", url: "/decisions/lsa-calibration", icon: Gauge },
         { title: "3D Reprice", url: "/decisions/threeds-reprice", icon: Plug },
+        { title: "Liquidation", url: "/decisions/liquidation", icon: Flame },
       ],
     },
     {
