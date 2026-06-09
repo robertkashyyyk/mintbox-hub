@@ -356,6 +356,10 @@ function LaunchDialog({ candidate, stores, onClose, onLaunched }: { candidate: C
       }));
       await (supabase as any).from("price_campaign_listings").insert(childRows);
 
+      // Clear any stale repricer-queued prices for this SKU before pushing the sale,
+      // so an old queued reprice can't go out and undo the clearance.
+      await (supabase as any).rpc("clear_pending_for_base_sku", { p_base_sku: candidate.sku });
+
       const res = await pushPerStore(allListings.map(l => ({ store_id: l.store_id, listing_sku: l.listing_sku, price: sale(l.current) })));
       await (supabase as any).from("price_campaigns").update({ pushed_at: new Date().toISOString() }).eq("id", camp.id);
 

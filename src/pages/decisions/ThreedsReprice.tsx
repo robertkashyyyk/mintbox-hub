@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Upload, Loader2, AlertTriangle, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowLeft, Upload, Loader2, AlertTriangle, RefreshCw, ChevronLeft, ChevronRight, Flame } from "lucide-react";
 import ModuleHeader from "@/components/ModuleHeader";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import ThreedsAutoReport from "./ThreedsAutoReport";
@@ -159,19 +159,23 @@ export default function ThreedsReprice() {
     queryKey: ["threeds_candidates", activeStore?.mintsoft_channel, days],
     enabled: !!activeStore,
     queryFn: async () => {
+      // Ring-fence is enforced inside the RPC (excludes active-campaign SKUs).
       const { data, error } = await supabase.rpc("get_threeds_reprice_candidates", {
         p_channel: activeStore!.mintsoft_channel,
         p_days: days,
       });
       if (error) throw error;
-      // Ring-fence: drop any SKU under an active price campaign (liquidation/test)
-      // so the repricer never undoes a deliberate sale price.
-      const { data: campaigns } = await (supabase as any)
-        .from("price_campaigns").select("sku").eq("status", "active");
-      const fenced = new Set((campaigns ?? []).map((c: any) => c.sku));
-      return ((data ?? []) as Candidate[]).filter(
-        (c: any) => !fenced.has(c.base_sku) && !fenced.has(c.sku),
-      );
+      return (data ?? []) as Candidate[];
+    },
+  });
+
+  // Awareness: how many SKUs are currently ring-fenced under an active campaign.
+  const { data: fencedCount = 0 } = useQuery({
+    queryKey: ["active-campaign-count"],
+    queryFn: async () => {
+      const { count } = await (supabase as any)
+        .from("price_campaigns").select("id", { count: "exact", head: true }).eq("status", "active");
+      return count ?? 0;
     },
   });
 
@@ -376,6 +380,14 @@ export default function ThreedsReprice() {
           icon={RefreshCw}
         />
       </div>
+
+      {fencedCount > 0 && (
+        <div className="rounded-lg border border-orange-500/30 bg-orange-500/10 px-3 py-2 text-xs text-orange-400 flex items-center gap-2">
+          <Flame className="h-3.5 w-3.5 flex-shrink-0" />
+          {fencedCount} SKU{fencedCount === 1 ? "" : "s"} ring-fenced under an active price campaign — excluded from repricing.{" "}
+          <a href="/decisions/liquidation" className="underline">View campaigns</a>
+        </div>
+      )}
 
       <ToggleGroup type="single" value={mode} onValueChange={(v) => v && setMode(v as "manual" | "auto")} className="justify-start">
         <ToggleGroupItem value="manual" className="data-[state=on]:bg-pd-accent data-[state=on]:text-white px-4">Semi-Manual</ToggleGroupItem>
