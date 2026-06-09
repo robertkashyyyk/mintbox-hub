@@ -1,13 +1,14 @@
 /**
- * Liquidation Candidates — Phase 1 of Price Campaigns.
+ * Liquidation Candidates — Price Campaigns Phase 2.
  *
- * Surfaces slow/dead stock (low velocity + capital tied up) and lets a human
- * launch a "campaign" on a SKU: snapshots the original price + baseline metrics
- * so the repricer can later ring-fence it, we can measure if the sale is
- * working, and revert to the original price.
+ * Surfaces slow/dead stock and lets a human launch a clearance campaign:
+ *   - snapshots per-listing original prices (revert target)
+ *   - applies a discount % across every store/pack-size listing the SKU is in
+ *   - pushes the sale prices to the channel via the proven 3D/SFTP path
+ *   - revert pushes the originals back
  *
- * Phase 1 is RECORD-ONLY — launching a campaign creates the record but does not
- * yet push a price to the channel (that's Phase 2 via the SFTP path).
+ * Dead SKUs (no sales history → no known price/store) get manual store+price
+ * entry in the launch dialog so they can still be pushed.
  */
 
 import { useMemo, useState, useEffect } from "react";
@@ -24,7 +25,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
-import { Flame, Loader2, PoundSterling, Boxes, AlertTriangle, RotateCcw, CheckCircle2 } from "lucide-react";
+import { Flame, Loader2, PoundSterling, Boxes, AlertTriangle, RotateCcw, CheckCircle2, Plus, Trash2, Send } from "lucide-react";
 import ModuleHeader from "@/components/ModuleHeader";
 import { PageLoader } from "@/components/ui/PageLoader";
 
@@ -36,9 +37,28 @@ interface Candidate {
 }
 interface Campaign {
   id: string; sku: string; type: string; status: string;
-  original_price: number | null; campaign_price: number | null;
+  original_price: number | null; campaign_price: number | null; discount_pct: number | null;
   baseline_velocity: number | null; baseline_stock: number | null;
-  start_date: string; notes: string | null;
+  start_date: string; pushed_at: string | null; notes: string | null;
+}
+interface KnownListing { listing_sku: string; store_id: string; store_name: string; mintsoft_channel: string; current_price: number; last_sold: string }
+interface Store { id: string; store_name: string }
+
+// Group listing rows by store and push each store's batch via the SFTP path.
+async function pushPerStore(rows: { store_id: string; listing_sku: string; price: number }[]) {
+  const byStore = new Map<string, { sku: string; new_price: number }[]>();
+  for (const r of rows) {
+    if (!r.store_id) continue;
+    if (!byStore.has(r.store_id)) byStore.set(r.store_id, []);
+    byStore.get(r.store_id)!.push({ sku: r.listing_sku, new_price: r.price });
+  }
+  let pushed = 0, failed = 0;
+  for (const [store_id, storeRows] of byStore) {
+    const { error } = await supabase.functions.invoke("threeds-reprice-push", { body: { store_id, rows: storeRows } });
+    if (error) { failed += storeRows.length; }
+    else pushed += storeRows.length;
+  }
+  return { pushed, failed };
 }
 
 export default function LiquidationCandidates() {
@@ -69,15 +89,46 @@ export default function LiquidationCandidates() {
     },
   });
 
+  const { data: stores = [] } = useQuery({
+    queryKey: ["threeds-stores"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).from("threeds_stores").select("id, store_name").eq("enabled", true).order("store_name");
+      if (error) throw error;
+      return data as Store[];
+    },
+  });
+
+  // Revert: push each listing's original price back, then mark reverted.
+  const revertMutation = useMutation({
+    mutationFn: async (campaign: Campaign) => {
+      const { data: listings } = await (supabase as any)
+        .from("price_campaign_listings").select("listing_sku, store_id, original_price").eq("campaign_id", campaign.id);
+      const rows = (listings ?? []).filter((l: any) => l.store_id && l.original_price != null)
+        .map((l: any) => ({ store_id: l.store_id, listing_sku: l.listing_sku, price: Number(l.original_price) }));
+      let res = { pushed: 0, failed: 0 };
+      if (rows.length) res = await pushPerStore(rows);
+      await (supabase as any).from("price_campaigns")
+        .update({ status: "reverted", outcome: "reverted", reverted_at: new Date().toISOString(), end_date: new Date().toISOString().slice(0, 10) })
+        .eq("id", campaign.id);
+      await (supabase as any).from("price_campaign_listings").update({ reverted_at: new Date().toISOString() }).eq("campaign_id", campaign.id);
+      return res;
+    },
+    onSuccess: (res) => {
+      toast.success(`Reverted — ${res.pushed} listing price(s) pushed back${res.failed ? `, ${res.failed} failed` : ""}`);
+      qc.invalidateQueries({ queryKey: ["price-campaigns-active"] });
+      qc.invalidateQueries({ queryKey: ["liquidation-candidates"] });
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
   const endMutation = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: "ended" | "reverted" }) => {
+    mutationFn: async (id: string) => {
       const { error } = await (supabase as any).from("price_campaigns")
-        .update({ status, outcome: status === "reverted" ? "reverted" : null, end_date: new Date().toISOString().slice(0, 10) })
-        .eq("id", id);
+        .update({ status: "ended", end_date: new Date().toISOString().slice(0, 10) }).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Campaign closed");
+      toast.success("Campaign ended (price left as-is)");
       qc.invalidateQueries({ queryKey: ["price-campaigns-active"] });
       qc.invalidateQueries({ queryKey: ["liquidation-candidates"] });
     },
@@ -87,18 +138,16 @@ export default function LiquidationCandidates() {
   const brandOptions = useMemo(
     () => Array.from(new Set(candidates.map(c => c.brand_name).filter(Boolean) as string[])).sort(),
     [candidates]);
-
   const filtered = useMemo(
     () => candidates.filter(c => brandFilter === "all" || c.brand_name === brandFilter),
     [candidates, brandFilter]);
-
   const totalCapital = filtered.reduce((a, c) => a + Number(c.capital_tied), 0);
 
   return (
     <div className="space-y-6">
       <ModuleHeader
         title="Liquidation Candidates"
-        description="Slow and dead stock tying up capital. Launch a clearance campaign to ring-fence a SKU from the repricer and track whether the sale shifts it."
+        description="Slow and dead stock tying up capital. Launch a clearance to ring-fence a SKU from the repricer, push a discounted price, and track whether it shifts."
         icon={Flame}
       />
 
@@ -109,7 +158,7 @@ export default function LiquidationCandidates() {
             <CardTitle className="text-base flex items-center gap-2">
               <Flame className="h-4 w-4 text-orange-500" /> Active campaigns ({campaigns.length})
             </CardTitle>
-            <CardDescription>These SKUs are ring-fenced — the repricer will leave them alone (Phase 3).</CardDescription>
+            <CardDescription>Ring-fenced — excluded from the repricer. Revert pushes the original prices back.</CardDescription>
           </CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
@@ -117,11 +166,11 @@ export default function LiquidationCandidates() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>SKU</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead className="text-right">Original</TableHead>
-                    <TableHead className="text-right">Sale price</TableHead>
+                    <TableHead className="text-right">Discount</TableHead>
+                    <TableHead className="text-right">Orig → Sale (base)</TableHead>
                     <TableHead className="text-right">Baseline velocity</TableHead>
                     <TableHead>Started</TableHead>
+                    <TableHead>Pushed</TableHead>
                     <TableHead className="text-right">Action</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -129,20 +178,21 @@ export default function LiquidationCandidates() {
                   {campaigns.map(c => (
                     <TableRow key={c.id}>
                       <TableCell className="font-mono text-xs">{c.sku}</TableCell>
-                      <TableCell><Badge variant="outline" className="text-xs capitalize">{c.type}</Badge></TableCell>
-                      <TableCell className="text-right text-sm">{c.original_price != null ? `£${Number(c.original_price).toFixed(2)}` : "—"}</TableCell>
-                      <TableCell className="text-right text-sm font-semibold text-orange-400">{c.campaign_price != null ? `£${Number(c.campaign_price).toFixed(2)}` : "—"}</TableCell>
+                      <TableCell className="text-right text-sm">{c.discount_pct != null ? `${c.discount_pct}%` : "—"}</TableCell>
+                      <TableCell className="text-right text-sm">
+                        {c.original_price != null ? `£${Number(c.original_price).toFixed(2)}` : "—"}
+                        <span className="text-orange-400"> → {c.campaign_price != null ? `£${Number(c.campaign_price).toFixed(2)}` : "—"}</span>
+                      </TableCell>
                       <TableCell className="text-right text-sm text-muted-foreground">{c.baseline_velocity != null ? `${Number(c.baseline_velocity).toFixed(2)}/wk` : "—"}</TableCell>
                       <TableCell className="text-xs text-muted-foreground">{c.start_date}</TableCell>
+                      <TableCell className="text-xs">{c.pushed_at ? <Badge variant="outline" className="bg-emerald-500/15 text-emerald-400 text-xs">Pushed</Badge> : <Badge variant="outline" className="text-xs">Record only</Badge>}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex gap-1 justify-end">
-                          <Button size="sm" variant="ghost" className="h-7 text-xs" title="End — keep the price as-is"
-                            onClick={() => endMutation.mutate({ id: c.id, status: "ended" })}>
+                          <Button size="sm" variant="ghost" className="h-7 text-xs" title="End — keep the sale price live" onClick={() => endMutation.mutate(c.id)}>
                             <CheckCircle2 className="h-3 w-3 mr-1" />End
                           </Button>
-                          <Button size="sm" variant="ghost" className="h-7 text-xs text-amber-400" title="Revert to original price (Phase 2 will push it)"
-                            onClick={() => endMutation.mutate({ id: c.id, status: "reverted" })}>
-                            <RotateCcw className="h-3 w-3 mr-1" />Revert
+                          <Button size="sm" variant="ghost" className="h-7 text-xs text-amber-400" title="Revert — push original prices back" onClick={() => revertMutation.mutate(c)} disabled={revertMutation.isPending}>
+                            {revertMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <><RotateCcw className="h-3 w-3 mr-1" />Revert</>}
                           </Button>
                         </div>
                       </TableCell>
@@ -179,14 +229,12 @@ export default function LiquidationCandidates() {
         </CardContent>
       </Card>
 
-      {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
         <Stat label="Candidates" value={String(filtered.length)} icon={Boxes} />
         <Stat label="Capital tied up" value={`£${totalCapital.toLocaleString(undefined, { maximumFractionDigits: 0 })}`} className="text-orange-400" icon={PoundSterling} />
         <Stat label="Dead (no sales 90d)" value={String(filtered.filter(c => !c.units_sold_90d).length)} className="text-destructive" icon={AlertTriangle} />
       </div>
 
-      {/* Candidates table */}
       <Card>
         <CardContent className="p-0">
           {isLoading ? <PageLoader rows={10} columns={[120, 200, 80, 70, 70, 90, 100, 90]} label="Loading candidates" /> : (
@@ -236,12 +284,12 @@ export default function LiquidationCandidates() {
       </Card>
 
       <p className="text-xs text-muted-foreground pb-4">
-        Phase 1 — record-only: launching a sale snapshots the price + baseline but does not yet push to the channel.
-        Pushing &amp; revert via the 3D/SFTP path comes in Phase 2; repricer ring-fence in Phase 3.
+        Discount applies proportionally across every store + pack-size listing. Sale prices push via the 3D/SFTP path; Revert restores the snapshotted originals.
+        Repricer ring-fence (so it won't undo a sale) lands in Phase 3.
       </p>
 
       <LaunchDialog
-        candidate={launch}
+        candidate={launch} stores={stores}
         onClose={() => setLaunch(null)}
         onLaunched={() => {
           setLaunch(null);
@@ -253,67 +301,136 @@ export default function LiquidationCandidates() {
   );
 }
 
-function LaunchDialog({ candidate, onClose, onLaunched }: { candidate: Candidate | null; onClose: () => void; onLaunched: () => void }) {
-  const [salePrice, setSalePrice] = useState("");
-  const [originalPrice, setOriginalPrice] = useState("");
+function LaunchDialog({ candidate, stores, onClose, onLaunched }: { candidate: Candidate | null; stores: Store[]; onClose: () => void; onLaunched: () => void }) {
+  const [discount, setDiscount] = useState("");
   const [notes, setNotes] = useState("");
+  const [manual, setManual] = useState<{ store_id: string; listing_sku: string; current_price: string }[]>([]);
   const [saving, setSaving] = useState(false);
 
-  // reset on open
+  const { data: known = [], isLoading: knownLoading } = useQuery({
+    queryKey: ["campaign-listings", candidate?.sku],
+    enabled: !!candidate,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc("get_campaign_listings_for_sku", { p_base_sku: candidate!.sku });
+      if (error) throw error;
+      return data as KnownListing[];
+    },
+  });
+
   useEffect(() => {
-    if (candidate) { setSalePrice(""); setOriginalPrice(""); setNotes(""); }
+    if (candidate) { setDiscount(""); setNotes(""); setManual([]); }
   }, [candidate]);
+
+  const pct = Number(discount) || 0;
+  const sale = (cur: number) => Math.max(0, Number((cur * (1 - pct / 100)).toFixed(2)));
+
+  // Combined listings to push
+  const allListings = useMemo(() => {
+    const k = known.map(l => ({ store_id: l.store_id, listing_sku: l.listing_sku, store_name: l.store_name, current: l.current_price }));
+    const m = manual.filter(x => x.store_id && x.listing_sku && x.current_price)
+      .map(x => ({ store_id: x.store_id, listing_sku: x.listing_sku, store_name: stores.find(s => s.id === x.store_id)?.store_name ?? "?", current: Number(x.current_price) }));
+    return [...k, ...m];
+  }, [known, manual, stores]);
 
   async function launch() {
     if (!candidate) return;
-    if (!salePrice.trim()) { toast.error("Enter a sale price"); return; }
+    if (pct <= 0) { toast.error("Enter a discount %"); return; }
+    if (allListings.length === 0) { toast.error("No listings to discount — add one manually for a dead SKU"); return; }
     setSaving(true);
-    const { data: { user } } = await supabase.auth.getUser();
-    const { error } = await (supabase as any).from("price_campaigns").insert({
-      sku: candidate.sku,
-      type: "liquidation",
-      status: "active",
-      campaign_price: Number(salePrice),
-      original_price: originalPrice.trim() ? Number(originalPrice) : null,
-      baseline_velocity: candidate.velocity_per_week,
-      baseline_stock: candidate.current_stock,
-      baseline_cost: candidate.cost_price,
-      notes: notes.trim() || null,
-      created_by: user?.id ?? null,
-    });
-    setSaving(false);
-    if (error) {
-      toast.error(error.code === "23505" ? "This SKU already has an active campaign." : error.message);
-      return;
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      // representative base = the cheapest listing (likely the single)
+      const base = [...allListings].sort((a, b) => a.current - b.current)[0];
+      const { data: camp, error: cErr } = await (supabase as any).from("price_campaigns").insert({
+        sku: candidate.sku, type: "liquidation", status: "active",
+        discount_pct: pct,
+        original_price: base.current, campaign_price: sale(base.current),
+        baseline_velocity: candidate.velocity_per_week, baseline_stock: candidate.current_stock, baseline_cost: candidate.cost_price,
+        notes: notes.trim() || null, created_by: user?.id ?? null,
+      }).select("id").single();
+      if (cErr) throw new Error(cErr.code === "23505" ? "This SKU already has an active campaign." : cErr.message);
+
+      const childRows = allListings.map(l => ({
+        campaign_id: camp.id, listing_sku: l.listing_sku, store_id: l.store_id, store_name: l.store_name,
+        original_price: l.current, sale_price: sale(l.current),
+      }));
+      await (supabase as any).from("price_campaign_listings").insert(childRows);
+
+      const res = await pushPerStore(allListings.map(l => ({ store_id: l.store_id, listing_sku: l.listing_sku, price: sale(l.current) })));
+      await (supabase as any).from("price_campaigns").update({ pushed_at: new Date().toISOString() }).eq("id", camp.id);
+
+      toast.success(`${candidate.sku} — ${pct}% off, ${res.pushed} listing(s) pushed${res.failed ? `, ${res.failed} failed` : ""}`);
+      onLaunched();
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setSaving(false);
     }
-    toast.success(`${candidate.sku} — clearance campaign started`);
-    onLaunched();
   }
 
   return (
     <Dialog open={!!candidate} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent>
+      <DialogContent className="max-w-xl">
         <DialogHeader>
           <DialogTitle className="font-mono">{candidate?.sku}</DialogTitle>
-          <DialogDescription>Start a clearance campaign. Ring-fences the SKU from the repricer (Phase 3) and snapshots the baseline.</DialogDescription>
+          <DialogDescription>Clearance — discount % applies to every store + pack-size listing, then pushes via SFTP.</DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">
-          <div className="rounded-lg bg-muted/30 border border-border/50 p-3 text-xs space-y-1">
-            <div className="flex justify-between"><span className="text-muted-foreground">Stock / cost</span><span>{candidate?.current_stock} @ £{Number(candidate?.cost_price ?? 0).toFixed(2)}</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">Velocity (baseline)</span><span>{Number(candidate?.velocity_per_week ?? 0).toFixed(2)}/wk</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">Capital tied</span><span className="text-orange-400 font-semibold">£{Number(candidate?.capital_tied ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span></div>
+          <div className="rounded-lg bg-muted/30 border border-border/50 p-3 text-xs grid grid-cols-3 gap-2">
+            <div><span className="text-muted-foreground">Stock</span><div className="font-semibold">{candidate?.current_stock} @ £{Number(candidate?.cost_price ?? 0).toFixed(2)}</div></div>
+            <div><span className="text-muted-foreground">Velocity</span><div className="font-semibold">{Number(candidate?.velocity_per_week ?? 0).toFixed(2)}/wk</div></div>
+            <div><span className="text-muted-foreground">Capital tied</span><div className="font-semibold text-orange-400">£{Number(candidate?.capital_tied ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</div></div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+
+          <div className="flex items-end gap-3">
             <div className="space-y-1.5">
-              <Label>Sale price (£) *</Label>
-              <Input type="number" step="0.01" value={salePrice} onChange={e => setSalePrice(e.target.value)} placeholder="e.g. 4.99" />
+              <Label>Discount %</Label>
+              <Input type="number" min={1} max={95} value={discount} onChange={e => setDiscount(e.target.value)} placeholder="e.g. 30" className="w-28" />
             </div>
-            <div className="space-y-1.5">
-              <Label>Original price (£)</Label>
-              <Input type="number" step="0.01" value={originalPrice} onChange={e => setOriginalPrice(e.target.value)} placeholder="for revert" />
-            </div>
+            <p className="text-xs text-muted-foreground pb-2">Applied off each listing's current price (scales across pack sizes).</p>
           </div>
-          <p className="text-xs text-muted-foreground">Original price is the snapshot we'd revert to. Phase 2 will pull the live channel price automatically; for now enter it if you want a revert target.</p>
+
+          {/* Listings preview */}
+          <div className="space-y-1.5">
+            <Label className="text-xs">Listings ({allListings.length})</Label>
+            {knownLoading ? (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground py-2"><Loader2 className="h-3 w-3 animate-spin" />Finding listings…</div>
+            ) : (
+              <div className="rounded-lg border border-border/60 divide-y divide-border/40 max-h-48 overflow-y-auto">
+                {allListings.length === 0 && (
+                  <div className="p-3 text-xs text-amber-400 flex items-center gap-2">
+                    <AlertTriangle className="h-3.5 w-3.5" /> No sales history — add the store + current price manually below to push.
+                  </div>
+                )}
+                {allListings.map((l, i) => (
+                  <div key={i} className="flex items-center justify-between px-3 py-1.5 text-xs">
+                    <span className="font-mono">{l.listing_sku}</span>
+                    <span className="text-muted-foreground">{l.store_name}</span>
+                    <span>£{l.current.toFixed(2)} <span className="text-orange-400 font-semibold">→ £{sale(l.current).toFixed(2)}</span></span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Manual add (for dead SKUs) */}
+          <div className="space-y-2">
+            {manual.map((m, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <Select value={m.store_id} onValueChange={v => setManual(arr => arr.map((x, j) => j === i ? { ...x, store_id: v } : x))}>
+                  <SelectTrigger className="h-8 w-36 text-xs"><SelectValue placeholder="Store" /></SelectTrigger>
+                  <SelectContent>{stores.map(s => <SelectItem key={s.id} value={s.id}>{s.store_name}</SelectItem>)}</SelectContent>
+                </Select>
+                <Input className="h-8 text-xs flex-1" placeholder="Listing SKU" value={m.listing_sku} onChange={e => setManual(arr => arr.map((x, j) => j === i ? { ...x, listing_sku: e.target.value } : x))} />
+                <Input className="h-8 text-xs w-24" type="number" step="0.01" placeholder="Current £" value={m.current_price} onChange={e => setManual(arr => arr.map((x, j) => j === i ? { ...x, current_price: e.target.value } : x))} />
+                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setManual(arr => arr.filter((_, j) => j !== i))}><Trash2 className="h-3 w-3" /></Button>
+              </div>
+            ))}
+            <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setManual(arr => [...arr, { store_id: "", listing_sku: candidate?.sku ?? "", current_price: "" }])}>
+              <Plus className="h-3 w-3 mr-1" />Add listing manually
+            </Button>
+          </div>
+
           <div className="space-y-1.5">
             <Label>Notes</Label>
             <Textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} placeholder="Why are we clearing this?" />
@@ -321,9 +438,9 @@ function LaunchDialog({ candidate, onClose, onLaunched }: { candidate: Candidate
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={launch} disabled={saving}>
-            {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Flame className="h-4 w-4 mr-2" />}
-            Start clearance
+          <Button onClick={launch} disabled={saving || pct <= 0 || allListings.length === 0}>
+            {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}
+            Start &amp; push ({allListings.length})
           </Button>
         </DialogFooter>
       </DialogContent>

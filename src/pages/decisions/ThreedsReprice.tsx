@@ -164,7 +164,14 @@ export default function ThreedsReprice() {
         p_days: days,
       });
       if (error) throw error;
-      return (data ?? []) as Candidate[];
+      // Ring-fence: drop any SKU under an active price campaign (liquidation/test)
+      // so the repricer never undoes a deliberate sale price.
+      const { data: campaigns } = await (supabase as any)
+        .from("price_campaigns").select("sku").eq("status", "active");
+      const fenced = new Set((campaigns ?? []).map((c: any) => c.sku));
+      return ((data ?? []) as Candidate[]).filter(
+        (c: any) => !fenced.has(c.base_sku) && !fenced.has(c.sku),
+      );
     },
   });
 
