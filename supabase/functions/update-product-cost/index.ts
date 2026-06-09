@@ -160,7 +160,8 @@ Deno.serve(async (req) => {
         }
       }
 
-      // 3) Mirror to products_cache
+      // 3) Mirror to products_cache. Filter by sku (indexed) — mintsoft_product_id
+      //    is NOT indexed, so a 225k-row seq scan hits the statement timeout.
       const { error: upErr } = await admin
         .from("products_cache")
         .update({
@@ -168,7 +169,7 @@ Deno.serve(async (req) => {
           cost_price_updated_at: new Date().toISOString(),
           cost_price_source: "manual_ui",
         })
-        .eq("mintsoft_product_id", item.mintsoft_product_id);
+        .eq("sku", item.sku);
 
       if (upErr) {
         results.push({ sku: item.sku, ok: false, error: `DB mirror failed: ${upErr.message}` });
