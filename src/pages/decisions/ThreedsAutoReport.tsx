@@ -248,6 +248,17 @@ export default function ThreedsAutoReport() {
   const selectablePageRows = pageRows.filter((r) => !queuedMap.has(rowKey(r)));
   const allChecked = selectablePageRows.length > 0 && selectablePageRows.every((r) => selected[rowKey(r)]?.checked);
 
+  // Select-all across every page in the current filtered view (not just this page).
+  const selectableFiltered = useMemo(() => filtered.filter((r) => !queuedMap.has(rowKey(r))), [filtered, queuedMap]);
+  const allFilteredChecked = selectableFiltered.length > 0 && selectableFiltered.every((r) => selected[rowKey(r)]?.checked);
+  const selectAllFiltered = () =>
+    setSelected((prev) => {
+      const next = { ...prev };
+      for (const r of selectableFiltered) next[rowKey(r)] = { checked: true, price: prev[rowKey(r)]?.price };
+      return next;
+    });
+  const clearSelection = () => setSelected({});
+
   const toggleSort = (k: SortKey) => {
     if (sortKey === k) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     else { setSortKey(k); setSortDir(k === "sku" || k === "brand_name" || k === "store_name" ? "asc" : "desc"); }
@@ -337,6 +348,17 @@ export default function ThreedsAutoReport() {
             <div className="py-12 text-center text-sm text-muted-foreground">No rows match the current filters.</div>
           ) : (
             <>
+              {(allChecked || allFilteredChecked) && filtered.length > pageRows.length && (
+                <div className="flex items-center justify-center gap-2 py-2 text-xs bg-pd-accent/10 border-b text-pd-accent">
+                  {allFilteredChecked ? (
+                    <>All <strong>{selectableFiltered.length}</strong> items in this view are selected.
+                      <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={clearSelection}>Clear selection</Button></>
+                  ) : (
+                    <>All <strong>{selectablePageRows.length}</strong> on this page selected.
+                      <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={selectAllFiltered}>Select all {selectableFiltered.length} items in this view</Button></>
+                  )}
+                </div>
+              )}
               <div className="overflow-auto max-h-[calc(100vh-340px)]">
                 <Table>
                   <TableHeader className="sticky top-0 z-10 bg-card">
