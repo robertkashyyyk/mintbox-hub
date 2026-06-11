@@ -9,10 +9,13 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import {
   Upload, Loader2, AlertTriangle, ChevronLeft, ChevronRight, CalendarClock,
-  ArrowUp, ArrowDown, ArrowUpDown, TrendingUp,
+  ArrowUp, ArrowDown, ArrowUpDown, TrendingUp, EyeOff, Pencil, RotateCcw,
 } from "lucide-react";
 import { format } from "date-fns";
 import {
@@ -27,7 +30,7 @@ interface AutoCfg {
 interface SnapRow {
   store_id: string; store_name: string | null; mintsoft_channel: string | null;
   sku: string; base_sku: string | null; pack_size: number | null; product_name: string | null; brand_name: string | null;
-  units_sold: number; revenue: number | null; pack_cost_unit: number | null; cost_total: number | null;
+  units_sold: number; revenue: number | null; base_unit_cost: number | null; pack_cost_unit: number | null; cost_total: number | null;
   real_fee_rate: number | null; courier_total: number | null; postage_unit: number | null;
   profit: number | null; por_pct: number | null; current_price: number | null; current_stock: number | null;
 }
@@ -50,6 +53,9 @@ export default function ThreedsAutoReport() {
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [selected, setSelected] = useState<Record<string, { checked: boolean; price?: string }>>({});
   const [page, setPage] = useState(1);
+  const [fixCostRow, setFixCostRow] = useState<{ store_id: string; sku: string; base_sku: string | null; base_unit_cost: number | null } | null>(null);
+  const [fixCostValue, setFixCostValue] = useState("");
+  const [fixedSession, setFixedSession] = useState<Set<string>>(new Set()); // rows fixed this session — hide locally
 
   const { data: cfg } = useQuery({
     queryKey: ["reprice_auto_cfg"],
@@ -104,6 +110,28 @@ export default function ThreedsAutoReport() {
     return m;
   }, [pending]);
 
+  const { data: ignored } = useQuery({
+    queryKey: ["reprice_auto_ignored"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("threeds_reprice_ignored" as any)
+        .select("id, store_id, sku, base_sku, reason, cost_at_flag, snooze_days, flagged_at")
+        .order("flagged_at", { ascending: false }).limit(2000);
+      if (error) throw error;
+      return (data ?? []) as unknown as { id: string; store_id: string; sku: string; base_sku: string | null; reason: string | null; cost_at_flag: number | null; snooze_days: number; flagged_at: string }[];
+    },
+  });
+  const ignoreSet = useMemo(() => new Set((ignored ?? []).map((i) => `${i.store_id}::${i.sku}`)), [ignored]);
+
+  const { data: storesList } = useQuery({
+    queryKey: ["threeds_stores_names"],
+    queryFn: async () => {
+      const { data } = await supabase.from("threeds_stores").select("id, store_name");
+      return (data ?? []) as { id: string; store_name: string }[];
+    },
+  });
+  const storeName = (id: string) => storesList?.find((s) => s.id === id)?.store_name ?? "—";
+
   type Enriched = SnapRow & {
     costUnit: number; grossLastSold: number | null; flag: CostFlag;
     suggestedGross: number | null; targetGross: number | null; atTarget: boolean;
@@ -138,7 +166,10 @@ export default function ThreedsAutoReport() {
     });
   }, [snap, feeRules, tier]);
 
-  const repriceableAll = useMemo(() => enriched.filter((r) => r.flag === null), [enriched]);
+  const repriceableAll = useMemo(
+    () => enriched.filter((r) => r.flag === null && !ignoreSet.has(rowKey(r)) && !fixedSession.has(rowKey(r))),
+    [enriched, ignoreSet, fixedSession],
+  );
   const flaggedCount = useMemo(() => enriched.filter((r) => r.flag !== null).length, [enriched]);
 
   // Per-brand counts (over all repriceable, before the brand filter, so every brand shows).
@@ -234,6 +265,48 @@ export default function ThreedsAutoReport() {
     onError: (e: Error) => toast({ title: "Push failed", description: e.message, variant: "destructive" }),
   });
 
+  // Flag a row as ignore/error (cost-aware snooze).
+  const flagIgnore = useMutation({
+    mutationFn: async (r: Enriched) => {
+      const { data: u } = await supabase.auth.getUser();
+      const { error } = await supabase.from("threeds_reprice_ignored" as any).upsert({
+        store_id: r.store_id, sku: r.sku, base_sku: r.base_sku, reason: "bad cost / review",
+        cost_at_flag: r.base_unit_cost, snooze_days: 14, flagged_by: u?.user?.id ?? null, flagged_at: new Date().toISOString(),
+      }, { onConflict: "store_id,sku" });
+      if (error) throw error;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["reprice_auto_ignored"] }); toast({ title: "Flagged", description: "Hidden from the list — see the Ignored tab. Returns if the cost isn't corrected." }); },
+    onError: (e: Error) => toast({ title: "Flag failed", description: e.message, variant: "destructive" }),
+  });
+
+  const unflag = useMutation({
+    mutationFn: async (id: string) => { const { error } = await supabase.from("threeds_reprice_ignored" as any).delete().eq("id", id); if (error) throw error; },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["reprice_auto_ignored"] }); toast({ title: "Un-flagged", description: "Back in the repriceable list." }); },
+    onError: (e: Error) => toast({ title: "Un-flag failed", description: e.message, variant: "destructive" }),
+  });
+
+  // Fix the base-SKU cost: push to Mintsoft + mirror (reuses update-product-cost).
+  const fixCost = useMutation({
+    mutationFn: async ({ row, cost }: { row: { store_id: string; sku: string; base_sku: string | null }; cost: number }) => {
+      const baseSku = row.base_sku ?? row.sku;
+      const { data: pc, error: pcErr } = await supabase.from("products_cache").select("mintsoft_id").eq("sku", baseSku).maybeSingle();
+      if (pcErr) throw pcErr;
+      const msId = (pc as any)?.mintsoft_id;
+      if (!msId) throw new Error(`No Mintsoft ID for ${baseSku}`);
+      const { data, error } = await supabase.functions.invoke("update-product-cost", { body: { items: [{ mintsoft_product_id: msId, sku: baseSku, cost_price: cost }] } });
+      if (error) throw error;
+      const res = (data as any)?.results?.[0];
+      if (!res?.ok) throw new Error(res?.error ?? "update failed");
+      return row;
+    },
+    onSuccess: (row) => {
+      setFixedSession((s) => new Set(s).add(`${row.store_id}::${row.sku}`)); // hide locally; refreshes next snapshot
+      setFixCostRow(null); setFixCostValue("");
+      toast({ title: "Cost updated", description: "Pushed to Mintsoft. Row hidden for now — it refreshes with the corrected cost on the next snapshot." });
+    },
+    onError: (e: Error) => toast({ title: "Cost update failed", description: e.message, variant: "destructive" }),
+  });
+
   const toggleAll = (checked: boolean) => {
     setSelected((prev) => {
       const next = { ...prev };
@@ -276,8 +349,17 @@ export default function ThreedsAutoReport() {
     );
   };
 
+  const ignoredList = ignored ?? [];
+
   return (
     <div className="space-y-4">
+    <Tabs defaultValue="repriceable" className="w-full">
+      <TabsList>
+        <TabsTrigger value="repriceable" className="gap-2">Repriceable <Badge variant="secondary" className="text-[10px]">{repriceableAll.length}</Badge></TabsTrigger>
+        <TabsTrigger value="ignored" className="gap-2">Ignored / errors {ignoredList.length > 0 && <Badge variant="secondary" className="text-[10px]">{ignoredList.length}</Badge>}</TabsTrigger>
+      </TabsList>
+
+      <TabsContent value="repriceable" className="space-y-4 mt-4">
       {/* Sticky summary + brand + impact cards */}
       <div className="sticky top-0 z-20 bg-background pt-1 pb-2 space-y-3">
         <div className="grid gap-3 md:grid-cols-3">
@@ -375,6 +457,7 @@ export default function ThreedsAutoReport() {
                       <SortHead k="feePctUsed" label="Fee" align="right" />
                       <SortHead k="grossLastSold" label="Last Sold" align="right" />
                       <SortHead k="suggestedGross" label="New £" align="right" />
+                      <TableHead className="text-center w-[70px]">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -409,6 +492,18 @@ export default function ThreedsAutoReport() {
                               ) : null}
                             </div>
                           </TableCell>
+                          <TableCell className="text-center">
+                            <div className="flex items-center justify-center gap-1">
+                              <Button variant="ghost" size="icon" className="h-7 w-7" title="Fix cost (push to Mintsoft)"
+                                onClick={() => { setFixCostRow({ store_id: r.store_id, sku: r.sku, base_sku: r.base_sku, base_unit_cost: r.base_unit_cost }); setFixCostValue(r.base_unit_cost != null ? String(r.base_unit_cost) : ""); }}>
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button variant="ghost" size="icon" className="h-7 w-7 text-warning" title="Ignore / flag as error (hides until cost corrected)"
+                                disabled={flagIgnore.isPending} onClick={() => flagIgnore.mutate(r)}>
+                                <EyeOff className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </TableCell>
                         </TableRow>
                       );
                     })}
@@ -426,6 +521,72 @@ export default function ThreedsAutoReport() {
           )}
         </CardContent>
       </Card>
+      </TabsContent>
+
+      <TabsContent value="ignored" className="mt-4">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2"><EyeOff className="h-4 w-4 text-warning" /> Ignored / errors</CardTitle>
+            <p className="text-xs text-muted-foreground mt-1">
+              Flagged rows are hidden from the repriceable list. Each returns automatically when its cost is corrected, or after its snooze window if still wrong. Un-flag to bring one back now.
+            </p>
+          </CardHeader>
+          <CardContent className="overflow-x-auto">
+            {ignoredList.length === 0 ? (
+              <div className="py-10 text-center text-sm text-muted-foreground">Nothing flagged.</div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>SKU</TableHead><TableHead>Account</TableHead><TableHead>Reason</TableHead>
+                    <TableHead className="text-right">Cost when flagged</TableHead><TableHead>Flagged</TableHead><TableHead>Returns by</TableHead><TableHead></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {ignoredList.map((ig) => {
+                    const returns = new Date(new Date(ig.flagged_at).getTime() + (ig.snooze_days ?? 14) * 86_400_000);
+                    return (
+                      <TableRow key={ig.id}>
+                        <TableCell className="font-mono text-xs">{ig.sku}</TableCell>
+                        <TableCell className="text-xs">{storeName(ig.store_id)}</TableCell>
+                        <TableCell className="text-xs">{ig.reason ?? "—"}</TableCell>
+                        <TableCell className="text-right">{gbp(ig.cost_at_flag)}</TableCell>
+                        <TableCell className="text-xs">{format(new Date(ig.flagged_at), "dd MMM HH:mm")}</TableCell>
+                        <TableCell className="text-xs">{format(returns, "dd MMM")} <span className="text-muted-foreground">(if uncorrected)</span></TableCell>
+                        <TableCell className="text-right">
+                          <Button variant="ghost" size="sm" className="h-7 text-xs" disabled={unflag.isPending} onClick={() => unflag.mutate(ig.id)}>
+                            <RotateCcw className="h-3.5 w-3.5 mr-1" /> Un-flag
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+      </TabsContent>
+      </Tabs>
+
+      {/* Fix-cost dialog */}
+      <Dialog open={fixCostRow !== null} onOpenChange={(o) => { if (!o) { setFixCostRow(null); setFixCostValue(""); } }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader><DialogTitle>Fix cost — {fixCostRow?.base_sku ?? fixCostRow?.sku}</DialogTitle></DialogHeader>
+          <div className="space-y-2">
+            <Label className="text-xs">New cost price (ex-VAT, per single unit) — pushed to Mintsoft</Label>
+            <Input type="number" step="0.01" min="0" value={fixCostValue} onChange={(e) => setFixCostValue(e.target.value)} placeholder="0.00" autoFocus />
+            <p className="text-[11px] text-muted-foreground">Updates the base SKU's cost in Mintsoft + the catalogue. The row hides until the next snapshot picks up the corrected cost.</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setFixCostRow(null); setFixCostValue(""); }}>Cancel</Button>
+            <Button disabled={fixCost.isPending || !(parseFloat(fixCostValue) > 0)}
+              onClick={() => fixCostRow && fixCost.mutate({ row: fixCostRow, cost: parseFloat(fixCostValue) })}>
+              {fixCost.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Saving…</> : "Push to Mintsoft"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

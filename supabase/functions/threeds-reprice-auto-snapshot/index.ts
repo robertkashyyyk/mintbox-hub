@@ -98,11 +98,34 @@ Deno.serve(async (req) => {
     }
   }
 
-  // Replace today's snapshot.
-  await admin.from("threeds_reprice_auto_snapshots").delete().eq("snapshot_date", londonDate);
-  if (rows.length > 0) {
-    await admin.from("threeds_reprice_auto_snapshots").insert(rows);
+  // IGNORE / ERROR flags: cost-aware snooze. A flagged row stays hidden while its
+  // cost is unchanged AND within snooze_days; it returns (flag deleted) when the
+  // cost is corrected, the snooze expires, or it's no longer a candidate.
+  const candByKey = new Map<string, any>();
+  for (const r of rows) candByKey.set(`${r.store_id}::${r.sku}`, r);
+  const { data: ignores } = await admin
+    .from("threeds_reprice_ignored").select("id, store_id, sku, cost_at_flag, snooze_days, flagged_at");
+  const keepHidden = new Set<string>();
+  const toDelete: string[] = [];
+  for (const ig of ignores ?? []) {
+    const key = `${ig.store_id}::${ig.sku}`;
+    const cand = candByKey.get(key);
+    const ageDays = (now.getTime() - new Date(ig.flagged_at).getTime()) / 86_400_000;
+    if (!cand) { toDelete.push(ig.id); continue; }                      // no longer a candidate → resolved
+    const corrected = Number(cand.base_unit_cost) !== Number(ig.cost_at_flag);
+    const expired = ageDays > (ig.snooze_days ?? 14);
+    if (corrected || expired) { toDelete.push(ig.id); continue; }        // cost fixed or snooze up → return
+    keepHidden.add(key);                                                 // still wrong & snoozed → stay hidden
   }
+  if (toDelete.length > 0) await admin.from("threeds_reprice_ignored").delete().in("id", toDelete);
+  const visibleRows = rows.filter((r) => !keepHidden.has(`${r.store_id}::${r.sku}`));
+
+  // Replace today's snapshot (excluding still-active ignores).
+  await admin.from("threeds_reprice_auto_snapshots").delete().eq("snapshot_date", londonDate);
+  if (visibleRows.length > 0) {
+    await admin.from("threeds_reprice_auto_snapshots").insert(visibleRows);
+  }
+  rows.length = 0; rows.push(...visibleRows); // so the task/return counts reflect visible only
 
   // Notify: drop a task (assigned to a super_user). Best-effort.
   let taskCreated = false;
