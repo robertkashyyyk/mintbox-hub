@@ -48,7 +48,7 @@ export default function ThreedsAutoReport() {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const [brandFilter, setBrandFilter] = useState<string | null>(null);
-  const [reviewFilter, setReviewFilter] = useState<"all" | "review" | "normal">("all");
+  const [statusFilter, setStatusFilter] = useState<"outstanding" | "review" | "all">("outstanding");
   const [sortKey, setSortKey] = useState<SortKey>("profit");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [selected, setSelected] = useState<Record<string, { checked: boolean; price?: string }>>({});
@@ -178,15 +178,24 @@ export default function ThreedsAutoReport() {
   );
   const flaggedCount = useMemo(() => enriched.filter((r) => r.flag !== null).length, [enriched]);
 
-  // Per-brand counts (over all repriceable, before the brand filter, so every brand shows).
+  // Status scope (drives the whole view): Outstanding = not yet repriced; Review =
+  // outstanding + big-move; All = everything incl. already-repriced.
+  const scoped = useMemo(() => {
+    let rows = repriceableAll;
+    if (statusFilter !== "all") rows = rows.filter((r) => !queuedMap.has(rowKey(r)));
+    if (statusFilter === "review") rows = rows.filter((r) => r.bigMove);
+    return rows;
+  }, [repriceableAll, statusFilter, queuedMap]);
+
+  // Per-brand counts over the current scope (before the brand filter, so every brand shows).
   const brandCounts = useMemo(() => {
     const m = new Map<string, number>();
-    for (const r of repriceableAll) {
+    for (const r of scoped) {
       const b = r.brand_name ?? "—";
       m.set(b, (m.get(b) ?? 0) + 1);
     }
     return Array.from(m.entries()).sort((a, b) => b[1] - a[1]);
-  }, [repriceableAll]);
+  }, [scoped]);
 
   const matchesSearch = (r: Enriched) => {
     if (!search.trim()) return true;
@@ -196,10 +205,8 @@ export default function ThreedsAutoReport() {
   };
 
   const filtered = useMemo(() => {
-    let rows = repriceableAll;
+    let rows = scoped;
     if (brandFilter) rows = rows.filter((r) => (r.brand_name ?? "—") === brandFilter);
-    if (reviewFilter === "review") rows = rows.filter((r) => r.bigMove);
-    else if (reviewFilter === "normal") rows = rows.filter((r) => !r.bigMove);
     rows = rows.filter(matchesSearch);
     const dir = sortDir === "asc" ? 1 : -1;
     const get = (r: Enriched): string | number => {
@@ -211,9 +218,10 @@ export default function ThreedsAutoReport() {
       if (typeof av === "string" || typeof bv === "string") return String(av).localeCompare(String(bv)) * dir;
       return ((av as number) - (bv as number)) * dir;
     });
-  }, [repriceableAll, brandFilter, reviewFilter, search, sortKey, sortDir]);
+  }, [scoped, brandFilter, search, sortKey, sortDir]);
 
-  const reviewCount = useMemo(() => repriceableAll.filter((r) => r.bigMove).length, [repriceableAll]);
+  const outstandingCount = useMemo(() => repriceableAll.filter((r) => !queuedMap.has(rowKey(r))).length, [repriceableAll, queuedMap]);
+  const reviewCount = useMemo(() => repriceableAll.filter((r) => r.bigMove && !queuedMap.has(rowKey(r))).length, [repriceableAll, queuedMap]);
   const repricedCount = useMemo(() => repriceableAll.filter((r) => queuedMap.has(rowKey(r))).length, [repriceableAll, queuedMap]);
 
   // Impact over the CURRENT view (filtered).
@@ -228,7 +236,7 @@ export default function ThreedsAutoReport() {
     };
   }, [filtered]);
 
-  useEffect(() => { setPage(1); }, [search, brandFilter, reviewFilter, sortKey, sortDir]);
+  useEffect(() => { setPage(1); }, [search, brandFilter, statusFilter, sortKey, sortDir]);
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageRows = useMemo(() => filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE), [filtered, page]);
 
@@ -362,7 +370,7 @@ export default function ThreedsAutoReport() {
     <div className="space-y-4">
     <Tabs defaultValue="repriceable" className="w-full">
       <TabsList>
-        <TabsTrigger value="repriceable" className="gap-2">Repriceable <Badge variant="secondary" className="text-[10px]">{repriceableAll.length}</Badge></TabsTrigger>
+        <TabsTrigger value="repriceable" className="gap-2">Repriceable <Badge variant="secondary" className="text-[10px]">{outstandingCount}</Badge></TabsTrigger>
         <TabsTrigger value="ignored" className="gap-2">Ignored / errors {ignoredList.length > 0 && <Badge variant="secondary" className="text-[10px]">{ignoredList.length}</Badge>}</TabsTrigger>
       </TabsList>
 
@@ -379,7 +387,7 @@ export default function ThreedsAutoReport() {
               </CardTitle>
             </CardHeader>
             <CardContent className="text-sm space-y-1">
-              <div>{snap?.date ? <>Snapshot <strong>{format(new Date(snap.date), "dd MMM")}</strong> · </> : null}<strong>{repriceableAll.length - repricedCount}</strong> to review{repricedCount > 0 ? <> · <span className="text-pd-accent">{repricedCount} already repriced</span></> : null} · {filtered.length} in view</div>
+              <div>{snap?.date ? <>Snapshot <strong>{format(new Date(snap.date), "dd MMM")}</strong> · </> : null}<strong>{outstandingCount}</strong> outstanding{repricedCount > 0 ? <> · <span className="text-pd-accent">{repricedCount} already repriced</span></> : null} · {filtered.length} in view</div>
               <div className="text-xs text-muted-foreground">{selectedCount} selected{selectedByStore.size > 0 ? ` (${selectedByStore.size} accounts)` : ""} · {reviewCount} review · {flaggedCount} excluded (missing cost)</div>
             </CardContent>
           </Card>
@@ -413,10 +421,10 @@ export default function ThreedsAutoReport() {
 
         {/* Controls */}
         <div className="flex items-center gap-2 flex-wrap">
-          <ToggleGroup type="single" value={reviewFilter} onValueChange={(v) => v && setReviewFilter(v as any)}>
-            <ToggleGroupItem value="all" className="data-[state=on]:bg-pd-accent data-[state=on]:text-white text-xs px-3">All</ToggleGroupItem>
+          <ToggleGroup type="single" value={statusFilter} onValueChange={(v) => v && setStatusFilter(v as any)}>
+            <ToggleGroupItem value="outstanding" className="data-[state=on]:bg-pd-accent data-[state=on]:text-white text-xs px-3">Outstanding</ToggleGroupItem>
             <ToggleGroupItem value="review" className="data-[state=on]:bg-warning data-[state=on]:text-white text-xs px-3">Review</ToggleGroupItem>
-            <ToggleGroupItem value="normal" className="data-[state=on]:bg-pd-accent data-[state=on]:text-white text-xs px-3">Normal</ToggleGroupItem>
+            <ToggleGroupItem value="all" className="data-[state=on]:bg-pd-accent data-[state=on]:text-white text-xs px-3">All</ToggleGroupItem>
           </ToggleGroup>
           <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search SKU / brand / account" className="w-[240px]" />
           <div className="flex-1" />

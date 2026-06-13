@@ -118,6 +118,7 @@ export default function ThreedsReprice() {
   const [days, setDays] = useState(90);
   const [search, setSearch] = useState("");
   const [currentBand, setCurrentBand] = useState<string>("all"); // filter by CURRENT por band
+  const [statusFilter, setStatusFilter] = useState<"outstanding" | "review" | "all">("outstanding");
   const [tier, setTier] = useState<Tier>("breakeven");
   const [selected, setSelected] = useState<Record<string, { checked: boolean; price?: string }>>({});
   const [page, setPage] = useState(1);
@@ -280,8 +281,11 @@ export default function ThreedsReprice() {
   const repriceable = useMemo(() => {
     let rows = enriched.filter((r) => r.flag === null);
     if (currentBand !== "all") rows = rows.filter((r) => classifyPorBand(r.por_pct) === currentBand);
+    // Outstanding = not yet repriced; Review = outstanding + big-move; All = everything.
+    if (statusFilter !== "all") rows = rows.filter((r) => !queuedMap.has(r.sku));
+    if (statusFilter === "review") rows = rows.filter((r) => r.bigMove);
     return rows.filter(matchesSearch);
-  }, [enriched, currentBand, search]);
+  }, [enriched, currentBand, statusFilter, queuedMap, search]);
 
   const flagged = useMemo(
     () => enriched.filter((r) => r.flag !== null).filter(matchesSearch),
@@ -293,7 +297,7 @@ export default function ThreedsReprice() {
   const bigMoveCount = useMemo(() => repriceable.filter((r) => r.bigMove).length, [repriceable]);
 
   // Reset pagination + selection when the working set changes.
-  useEffect(() => { setPage(1); }, [search, currentBand, tier, storeId, days]);
+  useEffect(() => { setPage(1); }, [search, currentBand, statusFilter, tier, storeId, days]);
   useEffect(() => { setFlagPage(1); }, [search, storeId, days]);
   useEffect(() => { setSelected({}); }, [storeId, days]);
 
@@ -437,6 +441,14 @@ export default function ThreedsReprice() {
                 <SelectItem value="180">180 days</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-muted-foreground">Show</label>
+            <ToggleGroup type="single" value={statusFilter} onValueChange={(v) => v && setStatusFilter(v as "outstanding" | "review" | "all")} className="justify-start">
+              <ToggleGroupItem value="outstanding" className="data-[state=on]:bg-pd-accent data-[state=on]:text-white text-xs px-3 h-9">Outstanding</ToggleGroupItem>
+              <ToggleGroupItem value="review" className="data-[state=on]:bg-warning data-[state=on]:text-white text-xs px-3 h-9">Review</ToggleGroupItem>
+              <ToggleGroupItem value="all" className="data-[state=on]:bg-pd-accent data-[state=on]:text-white text-xs px-3 h-9">All</ToggleGroupItem>
+            </ToggleGroup>
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-xs text-muted-foreground">Current band</label>
