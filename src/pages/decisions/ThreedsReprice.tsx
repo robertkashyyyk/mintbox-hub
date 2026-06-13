@@ -196,9 +196,15 @@ export default function ThreedsReprice() {
   });
   const pendingCount = (pendingQueue ?? []).filter((p) => p.status === "pending").length;
   // Map of SKU → queued price for rows already sitting in the pending file.
+  // Pending (in the file) OR applied (gone live) within 14 days → "already repriced".
   const queuedMap = useMemo(() => {
-    const m = new Map<string, number>();
-    (pendingQueue ?? []).filter((p) => p.status === "pending").forEach((p) => m.set(p.sku, p.price));
+    const m = new Map<string, { price: number; status: string }>();
+    const since = Date.now() - 14 * 86_400_000;
+    (pendingQueue ?? []).forEach((p) => {
+      if (p.status === "pending" || (p.status === "applied" && p.applied_at && new Date(p.applied_at).getTime() >= since)) {
+        m.set(p.sku, { price: p.price, status: p.status });
+      }
+    });
     return m;
   }, [pendingQueue]);
 
@@ -609,8 +615,8 @@ export default function ThreedsReprice() {
                               />
                               {queuedMap.has(r.sku) ? (
                                 <Badge variant="secondary" className="border-pd-accent/60 bg-pd-accent/15 text-pd-accent text-[10px] whitespace-nowrap"
-                                  title={`Already queued at ${gbp(queuedMap.get(r.sku))} — waiting for 3D to import. See the Pending queue tab.`}>
-                                  ✓ queued {gbp(queuedMap.get(r.sku))}
+                                  title={queuedMap.get(r.sku)?.status === "applied" ? `Already repriced to ${gbp(queuedMap.get(r.sku)?.price)} and live — give the sales data time to catch up.` : `Queued at ${gbp(queuedMap.get(r.sku)?.price)} — waiting for 3D to import.`}>
+                                  {queuedMap.get(r.sku)?.status === "applied" ? "✓ repriced" : "✓ queued"} {gbp(queuedMap.get(r.sku)?.price)}
                                 </Badge>
                               ) : r.atTarget ? (
                                 <Badge variant="secondary" className="border-pd-accent/50 bg-pd-accent/10 text-pd-accent text-[10px] whitespace-nowrap"

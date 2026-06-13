@@ -98,15 +98,21 @@ export default function ThreedsAutoReport() {
   const { data: pending } = useQuery({
     queryKey: ["reprice_auto_pending"],
     queryFn: async () => {
+      // Pending (in the file) OR applied (gone live) within the last 14 days — both
+      // mean "already repriced, don't re-push" until the data catches up.
+      const since = new Date(Date.now() - 14 * 86_400_000).toISOString();
       const { data, error } = await supabase
-        .from("threeds_reprice_pending" as any).select("store_id, sku, price").eq("status", "pending").limit(5000);
+        .from("threeds_reprice_pending" as any)
+        .select("store_id, sku, price, status, applied_at")
+        .or(`status.eq.pending,and(status.eq.applied,applied_at.gte.${since})`)
+        .limit(8000);
       if (error) throw error;
-      return (data ?? []) as unknown as { store_id: string; sku: string; price: number }[];
+      return (data ?? []) as unknown as { store_id: string; sku: string; price: number; status: string; applied_at: string | null }[];
     },
   });
   const queuedMap = useMemo(() => {
-    const m = new Map<string, number>();
-    (pending ?? []).forEach((p) => m.set(`${p.store_id}::${p.sku}`, p.price));
+    const m = new Map<string, { price: number; status: string }>();
+    (pending ?? []).forEach((p) => m.set(`${p.store_id}::${p.sku}`, { price: p.price, status: p.status }));
     return m;
   }, [pending]);
 
@@ -208,6 +214,7 @@ export default function ThreedsAutoReport() {
   }, [repriceableAll, brandFilter, reviewFilter, search, sortKey, sortDir]);
 
   const reviewCount = useMemo(() => repriceableAll.filter((r) => r.bigMove).length, [repriceableAll]);
+  const repricedCount = useMemo(() => repriceableAll.filter((r) => queuedMap.has(rowKey(r))).length, [repriceableAll, queuedMap]);
 
   // Impact over the CURRENT view (filtered).
   const impact = useMemo(() => {
@@ -372,7 +379,7 @@ export default function ThreedsAutoReport() {
               </CardTitle>
             </CardHeader>
             <CardContent className="text-sm space-y-1">
-              <div>{snap?.date ? <>Snapshot <strong>{format(new Date(snap.date), "dd MMM")}</strong> · </> : null}<strong>{repriceableAll.length}</strong> repriceable · {filtered.length} in view</div>
+              <div>{snap?.date ? <>Snapshot <strong>{format(new Date(snap.date), "dd MMM")}</strong> · </> : null}<strong>{repriceableAll.length - repricedCount}</strong> to review{repricedCount > 0 ? <> · <span className="text-pd-accent">{repricedCount} already repriced</span></> : null} · {filtered.length} in view</div>
               <div className="text-xs text-muted-foreground">{selectedCount} selected{selectedByStore.size > 0 ? ` (${selectedByStore.size} accounts)` : ""} · {reviewCount} review · {flaggedCount} excluded (missing cost)</div>
             </CardContent>
           </Card>
@@ -484,7 +491,9 @@ export default function ThreedsAutoReport() {
                               <Input type="number" step="0.01" min="0" className={`h-8 w-24 text-right ml-auto ${r.bigMove ? "border-warning" : ""}`} value={effectivePrice(r)} disabled={queued}
                                 onChange={(e) => setSelected((p) => ({ ...p, [k]: { checked: p[k]?.checked ?? false, price: e.target.value } }))} placeholder={r.suggestedGross?.toFixed(2) ?? ""} />
                               {queued ? (
-                                <Badge variant="secondary" className="border-pd-accent/60 bg-pd-accent/15 text-pd-accent text-[10px] whitespace-nowrap">✓ queued {gbp(queuedMap.get(k))}</Badge>
+                                <Badge variant="secondary" className="border-pd-accent/60 bg-pd-accent/15 text-pd-accent text-[10px] whitespace-nowrap">
+                                  {queuedMap.get(k)?.status === "applied" ? "✓ repriced" : "✓ queued"} {gbp(queuedMap.get(k)?.price)}
+                                </Badge>
                               ) : r.atTarget ? (
                                 <Badge variant="secondary" className="border-pd-accent/50 bg-pd-accent/10 text-pd-accent text-[10px] whitespace-nowrap">✓ on target</Badge>
                               ) : r.bigMove && r.grossLastSold && r.suggestedGross ? (
