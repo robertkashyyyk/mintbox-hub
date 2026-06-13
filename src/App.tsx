@@ -84,6 +84,7 @@ import Seasonality from "./pages/intelligence/Seasonality";
 import ProfitDashboard from "./pages/intelligence/ProfitDashboard";
 import ProfitGraphs from "./pages/intelligence/ProfitGraphs";
 import MissingCosts from "./pages/intelligence/MissingCosts";
+import StandingReports from "./pages/intelligence/StandingReports";
 import DirtSkus from "./pages/intelligence/DirtSkus";
 import CourierMargin from "./pages/intelligence/CourierMargin";
 
@@ -228,6 +229,7 @@ const App = () => (
             <Route path="/intelligence/profit" element={<ProfitDashboard />} />
             <Route path="/intelligence/profit/graphs" element={<ProfitGraphs />} />
             <Route path="/intelligence/missing-costs" element={<MissingCosts />} />
+            <Route path="/intelligence/standing-reports" element={<StandingReports />} />
             <Route path="/intelligence/dirt-skus" element={<DirtSkus />} />
             <Route path="/intelligence/courier-margin" element={<CourierMargin />} />
 

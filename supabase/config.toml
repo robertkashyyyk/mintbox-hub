@@ -95,3 +95,6 @@ verify_jwt = false
 
 [functions.threeds-sftp-touch]
 verify_jwt = false
+
+[functions.reprice-payoff]
+verify_jwt = false

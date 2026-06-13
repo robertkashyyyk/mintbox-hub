@@ -7,7 +7,7 @@ import {
   Users, Key, CreditCard, LogOut, UserCircle, Gauge,
   ChevronDown, ChevronRight, LayoutDashboard, Settings,
   Images, Clock, Plug, Truck, AlertTriangle, Sliders, Beaker, BarChart3, ArrowUpDown,
-  PoundSterling, Link2Off, HelpCircle, ClipboardList, CheckSquare, Gamepad2, Globe, Flame
+  PoundSterling, Link2Off, HelpCircle, ClipboardList, CheckSquare, Gamepad2, Globe, Flame, FileBarChart2
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -91,10 +91,10 @@ export function AppSidebar() {
       icon: TrendingUp,
       items: [
         { title: "Profit Intelligence", url: "/intelligence/profit", icon: DollarSign },
+        { title: "Standing Reports", url: "/intelligence/standing-reports", icon: FileBarChart2 },
         { title: "Velocity & Coverage", url: "/intelligence/velocity", icon: TrendingUp },
         { title: "Stock Health", url: "/intelligence/stock-health", icon: Activity },
         { title: "Stock Valuation", url: "/intelligence/stock-valuation", icon: PoundSterling },
-        { title: "Missing Costs", url: "/intelligence/missing-costs", icon: AlertCircle },
         { title: "Dirt SKUs", url: "/intelligence/dirt-skus", icon: AlertTriangle },
         { title: "Courier Margin", url: "/intelligence/courier-margin", icon: Truck },
       ],
