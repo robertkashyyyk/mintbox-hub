@@ -181,10 +181,9 @@ export default function ThreedsAutoReport() {
   // Status scope (drives the whole view): Outstanding = not yet repriced; Review =
   // outstanding + big-move; All = everything incl. already-repriced.
   const scoped = useMemo(() => {
-    let rows = repriceableAll;
-    if (statusFilter !== "all") rows = rows.filter((r) => !queuedMap.has(rowKey(r)));
-    if (statusFilter === "review") rows = rows.filter((r) => r.bigMove);
-    return rows;
+    if (statusFilter === "all") return repriceableAll;
+    const notRepriced = repriceableAll.filter((r) => !queuedMap.has(rowKey(r)));
+    return notRepriced.filter((r) => (statusFilter === "review" ? r.bigMove : !r.bigMove));
   }, [repriceableAll, statusFilter, queuedMap]);
 
   // Per-brand counts over the current scope (before the brand filter, so every brand shows).
@@ -220,7 +219,7 @@ export default function ThreedsAutoReport() {
     });
   }, [scoped, brandFilter, search, sortKey, sortDir]);
 
-  const outstandingCount = useMemo(() => repriceableAll.filter((r) => !queuedMap.has(rowKey(r))).length, [repriceableAll, queuedMap]);
+  const outstandingCount = useMemo(() => repriceableAll.filter((r) => !queuedMap.has(rowKey(r)) && !r.bigMove).length, [repriceableAll, queuedMap]);
   const reviewCount = useMemo(() => repriceableAll.filter((r) => r.bigMove && !queuedMap.has(rowKey(r))).length, [repriceableAll, queuedMap]);
   const repricedCount = useMemo(() => repriceableAll.filter((r) => queuedMap.has(rowKey(r))).length, [repriceableAll, queuedMap]);
 

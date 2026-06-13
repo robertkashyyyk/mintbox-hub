@@ -281,9 +281,11 @@ export default function ThreedsReprice() {
   const repriceable = useMemo(() => {
     let rows = enriched.filter((r) => r.flag === null);
     if (currentBand !== "all") rows = rows.filter((r) => classifyPorBand(r.por_pct) === currentBand);
-    // Outstanding = not yet repriced; Review = outstanding + big-move; All = everything.
-    if (statusFilter !== "all") rows = rows.filter((r) => !queuedMap.has(r.sku));
-    if (statusFilter === "review") rows = rows.filter((r) => r.bigMove);
+    // Outstanding = not-repriced + NOT big-move; Review = not-repriced + big-move; All = everything.
+    if (statusFilter !== "all") {
+      rows = rows.filter((r) => !queuedMap.has(r.sku));
+      rows = rows.filter((r) => (statusFilter === "review" ? r.bigMove : !r.bigMove));
+    }
     return rows.filter(matchesSearch);
   }, [enriched, currentBand, statusFilter, queuedMap, search]);
 
