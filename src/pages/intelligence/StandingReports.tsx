@@ -8,6 +8,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import ModuleHeader from "@/components/ModuleHeader";
 import { FileBarChart2, TrendingUp, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 
 const gbp = (n: number | null | undefined) =>
   n == null ? "—" : new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(n);
@@ -27,6 +28,17 @@ function RepricingPayoff() {
       const { data, error } = await supabase.functions.invoke("reprice-payoff", { body: {} });
       if (error) throw error;
       return data as Payoff;
+    },
+  });
+
+  const { data: trend } = useQuery({
+    queryKey: ["reprice-payoff-trend"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("reprice_payoff_daily" as any)
+        .select("snapshot_date, value, actual_profit, cf_profit").order("snapshot_date", { ascending: true }).limit(180);
+      if (error) return [] as any[];
+      return (data ?? []) as unknown as { snapshot_date: string; value: number; actual_profit: number; cf_profit: number }[];
     },
   });
 
@@ -65,6 +77,32 @@ function RepricingPayoff() {
             <div className="text-xs text-muted-foreground">usual {Math.round(t.cf_units)} units would've run at old prices</div></CardContent>
         </Card>
       </div>
+
+      {/* Trend */}
+      <Card>
+        <CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2"><TrendingUp className="h-4 w-4 text-pd-accent" /> Value created over time</CardTitle></CardHeader>
+        <CardContent>
+          {!trend || trend.length === 0 ? (
+            <div className="py-10 text-center text-xs text-muted-foreground">Trend builds from tonight's first daily snapshot. (Each night logs the day's figure so you can watch it settle.)</div>
+          ) : (
+            <ResponsiveContainer width="100%" height={220}>
+              <AreaChart data={trend} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="vg" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="hsl(var(--pd-accent))" stopOpacity={0.4} />
+                    <stop offset="100%" stopColor="hsl(var(--pd-accent))" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                <XAxis dataKey="snapshot_date" tickFormatter={(d) => new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short" })} fontSize={11} />
+                <YAxis tickFormatter={(v) => `£${v}`} fontSize={11} width={48} />
+                <Tooltip formatter={(v: number) => gbp(v)} labelFormatter={(d) => new Date(d).toLocaleDateString("en-GB", { dateStyle: "medium" })} />
+                <Area type="monotone" dataKey="value" name="Value created" stroke="hsl(var(--pd-accent))" fill="url(#vg)" strokeWidth={2} />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
+        </CardContent>
+      </Card>
 
       {/* By account (congruent with the headline) */}
       <Card>

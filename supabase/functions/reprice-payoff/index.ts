@@ -34,6 +34,8 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   const url = Deno.env.get("SUPABASE_URL")!; const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   if (!(req.headers.get("Authorization") ?? "").startsWith("Bearer ")) return json({ error: "Unauthorized" }, 401);
+  let body: { persist?: boolean } = {};
+  try { body = await req.json(); } catch { /* defaults */ }
   const admin = createClient(url, serviceKey);
   const nowMs = Date.now();
 
@@ -114,9 +116,18 @@ Deno.serve(async (req) => {
     value: Math.round((a.actual_profit - a.cf_profit) * 100) / 100,
   });
 
+  const t = round(total);
+  if (body.persist) {
+    const londonDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/London" }).format(new Date());
+    await admin.from("reprice_payoff_daily").upsert({
+      snapshot_date: londonDate, generated_at: new Date().toISOString(), repriced_skus: skus.length,
+      actual_units: t.actual_units, actual_profit: t.actual_profit, cf_units: t.cf_units, cf_profit: t.cf_profit, value: t.value,
+    }, { onConflict: "snapshot_date" });
+  }
+
   return json({
     ok: true, generated_at: new Date().toISOString(), repriced_skus: skus.length, earliest_reprice: earliest,
-    total: round(total),
+    total: t,
     by_account: Object.entries(byAcct).map(([account, a]) => ({ account, ...round(a) })).sort((x, y) => y.value - x.value),
     assumptions: { courier_per_unit: COURIER, vat: VAT - 1, baseline_days: BASELINE_DAYS, go_live: "21:00 UTC after the queue day", note: "counterfactual = usual pre-reprice sales rate × period × old per-unit profit" },
   });
