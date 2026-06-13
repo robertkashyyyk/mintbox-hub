@@ -12,12 +12,12 @@ import { Button } from "@/components/ui/button";
 const gbp = (n: number | null | undefined) =>
   n == null ? "—" : new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(n);
 
-interface Bucket { sales: number; units: number; profit_now: number; profit_old: number; uplift: number; }
+interface Acc { actual_units: number; actual_profit: number; cf_units: number; cf_profit: number; value: number; }
 interface Payoff {
   ok: boolean; empty?: boolean; generated_at: string; repriced_skus: number; earliest_reprice: string;
-  total: Bucket; at_new: Bucket; pre_live: Bucket;
-  by_account: { account: string; sales: number; units: number; profit_now: number; profit_old: number; uplift: number }[];
-  assumptions: { courier_per_unit: number; vat: number; old_price: string };
+  total: Acc;
+  by_account: ({ account: string } & Acc)[];
+  assumptions: { courier_per_unit: number; vat: number; baseline_days: number; go_live: string; note: string };
 }
 
 function RepricingPayoff() {
@@ -32,14 +32,9 @@ function RepricingPayoff() {
 
   if (isLoading) return <Skeleton className="h-72 w-full" />;
   if (isError || !data?.ok) return <div className="py-10 text-center text-sm text-muted-foreground">Couldn't load the payoff report.</div>;
-  if (data.empty) return <div className="py-10 text-center text-sm text-muted-foreground">No repriced items in the queue yet.</div>;
+  if (data.empty) return <div className="py-10 text-center text-sm text-muted-foreground">No repriced items yet.</div>;
 
-  const rows: { label: string; b: Bucket; strong?: boolean }[] = [
-    { label: "Sold at the new price", b: data.at_new, strong: true },
-    { label: "Sold before prices went live", b: data.pre_live },
-    { label: "Total", b: data.total },
-  ];
-
+  const t = data.total;
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -55,76 +50,63 @@ function RepricingPayoff() {
       {/* Headline cards */}
       <div className="grid gap-3 md:grid-cols-3">
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Recovered so far</CardTitle></CardHeader>
-          <CardContent><div className="text-2xl font-bold text-pd-accent">{gbp(data.total.uplift)}</div>
-            <div className="text-xs text-muted-foreground">vs if you'd never repriced</div></CardContent>
+          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Value created</CardTitle></CardHeader>
+          <CardContent><div className="text-2xl font-bold text-pd-accent">{gbp(t.value)}</div>
+            <div className="text-xs text-muted-foreground">profit now vs no repricer (same period)</div></CardContent>
         </Card>
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Repriced-item sales</CardTitle></CardHeader>
-          <CardContent><div className="text-2xl font-bold">{data.total.sales}<span className="text-base font-normal text-muted-foreground"> sales · {data.total.units} units</span></div>
-            <div className="text-xs text-muted-foreground">{data.at_new.units} sold at the new price</div></CardContent>
+          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Since prices went live</CardTitle></CardHeader>
+          <CardContent><div className={`text-2xl font-bold ${t.actual_profit < 0 ? "text-destructive" : ""}`}>{gbp(t.actual_profit)}</div>
+            <div className="text-xs text-muted-foreground">on {t.actual_units} units actually sold</div></CardContent>
         </Card>
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Profit now vs unchanged</CardTitle></CardHeader>
-          <CardContent><div className="text-2xl font-bold">{gbp(data.total.profit_now)} <span className="text-base font-normal text-muted-foreground">vs {gbp(data.total.profit_old)}</span></div>
-            <div className="text-xs text-muted-foreground">across all repriced-item sales</div></CardContent>
+          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Loss avoided</CardTitle></CardHeader>
+          <CardContent><div className="text-2xl font-bold text-destructive">{gbp(t.cf_profit)}</div>
+            <div className="text-xs text-muted-foreground">usual {Math.round(t.cf_units)} units would've run at old prices</div></CardContent>
         </Card>
       </div>
 
-      {/* Breakdown */}
+      {/* By account (congruent with the headline) */}
       <Card>
-        <CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2"><TrendingUp className="h-4 w-4 text-pd-accent" /> Breakdown</CardTitle></CardHeader>
+        <CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2"><TrendingUp className="h-4 w-4 text-pd-accent" /> By account</CardTitle></CardHeader>
         <CardContent className="overflow-x-auto">
           <Table>
             <TableHeader><TableRow>
-              <TableHead></TableHead><TableHead className="text-right">Sales</TableHead><TableHead className="text-right">Units</TableHead>
-              <TableHead className="text-right">If unchanged</TableHead><TableHead className="text-right">Now</TableHead><TableHead className="text-right">Uplift</TableHead>
-            </TableRow></TableHeader>
-            <TableBody>
-              {rows.map((r) => (
-                <TableRow key={r.label} className={r.strong ? "bg-pd-accent/5" : r.label === "Total" ? "font-semibold border-t-2" : ""}>
-                  <TableCell>{r.label}</TableCell>
-                  <TableCell className="text-right">{r.b.sales}</TableCell>
-                  <TableCell className="text-right">{r.b.units}</TableCell>
-                  <TableCell className={`text-right ${r.b.profit_old < 0 ? "text-destructive" : ""}`}>{gbp(r.b.profit_old)}</TableCell>
-                  <TableCell className={`text-right ${r.b.profit_now < 0 ? "text-destructive" : ""}`}>{gbp(r.b.profit_now)}</TableCell>
-                  <TableCell className="text-right font-medium text-pd-accent">{gbp(r.b.uplift)}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-
-      {/* By account */}
-      <Card>
-        <CardHeader className="pb-2"><CardTitle className="text-base">By account</CardTitle></CardHeader>
-        <CardContent className="overflow-x-auto">
-          <Table>
-            <TableHeader><TableRow>
-              <TableHead>Account</TableHead><TableHead className="text-right">Sales</TableHead><TableHead className="text-right">Units</TableHead>
-              <TableHead className="text-right">If unchanged</TableHead><TableHead className="text-right">Now</TableHead><TableHead className="text-right">Uplift</TableHead>
+              <TableHead>Account</TableHead>
+              <TableHead className="text-right">Sold (u)</TableHead><TableHead className="text-right">Profit now</TableHead>
+              <TableHead className="text-right">Usual (u)</TableHead><TableHead className="text-right">Would've made</TableHead>
+              <TableHead className="text-right">Value</TableHead>
             </TableRow></TableHeader>
             <TableBody>
               {data.by_account.map((a) => (
                 <TableRow key={a.account}>
                   <TableCell>{a.account}</TableCell>
-                  <TableCell className="text-right">{a.sales}</TableCell>
-                  <TableCell className="text-right">{a.units}</TableCell>
-                  <TableCell className={`text-right ${a.profit_old < 0 ? "text-destructive" : ""}`}>{gbp(a.profit_old)}</TableCell>
-                  <TableCell className={`text-right ${a.profit_now < 0 ? "text-destructive" : ""}`}>{gbp(a.profit_now)}</TableCell>
-                  <TableCell className="text-right font-medium text-pd-accent">{gbp(a.uplift)}</TableCell>
+                  <TableCell className="text-right">{a.actual_units}</TableCell>
+                  <TableCell className={`text-right ${a.actual_profit < 0 ? "text-destructive" : ""}`}>{gbp(a.actual_profit)}</TableCell>
+                  <TableCell className="text-right text-muted-foreground">{Math.round(a.cf_units)}</TableCell>
+                  <TableCell className={`text-right ${a.cf_profit < 0 ? "text-destructive" : ""}`}>{gbp(a.cf_profit)}</TableCell>
+                  <TableCell className="text-right font-medium text-pd-accent">{gbp(a.value)}</TableCell>
                 </TableRow>
               ))}
+              <TableRow className="font-semibold border-t-2">
+                <TableCell>Total</TableCell>
+                <TableCell className="text-right">{t.actual_units}</TableCell>
+                <TableCell className={`text-right ${t.actual_profit < 0 ? "text-destructive" : ""}`}>{gbp(t.actual_profit)}</TableCell>
+                <TableCell className="text-right">{Math.round(t.cf_units)}</TableCell>
+                <TableCell className={`text-right ${t.cf_profit < 0 ? "text-destructive" : ""}`}>{gbp(t.cf_profit)}</TableCell>
+                <TableCell className="text-right text-pd-accent">{gbp(t.value)}</TableCell>
+              </TableRow>
             </TableBody>
           </Table>
         </CardContent>
       </Card>
 
       <p className="text-[11px] text-muted-foreground">
-        Realised £ only (actual sales of repriced items vs the same sales at their old price). Real eBay fee + buyer postage per sale;
-        courier estimated at {gbp(data.assumptions.courier_per_unit)}/unit; "old price" = each SKU's median sale price before its reprice.
-        v1 reads the live queue — a durable reprice-events log will make this exact long-term.
+        <strong>Value created</strong> = profit on the sales we actually made since each item's price went live, minus what those products
+        would have done at their old prices over the same period — using each item's <em>usual</em> pre-reprice sales rate (so an item that
+        sold at a loss and now sells less still counts the avoided loss). Real eBay fee + buyer postage per sale; courier est. {gbp(data.assumptions.courier_per_unit)}/unit.
+        ⚠️ Early days: a few days of actual sales vs a {data.assumptions.baseline_days}-day rate is noisy and tends to <em>overstate</em> — it
+        firms up over a week or two. Direction is reliable; the precise £ isn't yet.
       </p>
     </div>
   );
