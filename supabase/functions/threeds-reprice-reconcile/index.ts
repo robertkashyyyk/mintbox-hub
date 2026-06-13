@@ -1,19 +1,15 @@
 // threeds-reprice-reconcile
-// Nightly "did the prices take?" check for the 3D repricer.
+// Clears the 3D repricer pending queue once a price has gone LIVE, so items don't
+// sit "queued" forever and the SFTP file stops re-importing them.
 //
-// 1. Page the 3D Sellers catalogue (/v1/products) → sku → current price.
-// 2. For every row in threeds_reprice_pending (status='pending'):
-//      - price matches (within tolerance) → mark 'applied' (it took; drop from file)
-//      - no match but older than staleDays → mark 'expired' (assume it took; drop)
-//      - otherwise leave pending (retry — stays in the file next import)
-// 3. Rewrite each affected store's SFTP file from the REMAINING pending set, so
-//    confirmed/expired rows leave the file and 3D stops re-importing them.
-//
-// CAVEAT: /v1/products is 3D's MASTER price (one value per product, sometimes a
-// non-GBP currency), so it may not equal the per-marketplace UK eBay price the
-// SFTP import sets. This runs in "observe + best-effort confirm" mode: it only
-// clears rows on a confident price match, otherwise the staleDays valve prevents
-// the file from growing forever. Pass {dryRun:true} to inspect without writing.
+// A pending price is confirmed live by EITHER:
+//   (a) SALES-CONFIRMED — the SKU sold at (≈) the new price after it was queued.
+//       Rock-solid proof the listing is at the new price. → status 'applied'.
+//   (b) IMPORT-CYCLE — it's been queued longer than importCycleHours (default 30),
+//       so 3D's daily import has definitely run and applied it. → status 'applied'.
+// Otherwise it stays pending. Confirmed rows are dropped from each store's SFTP
+// file. (The old 3D /v1/products master-price check never matched the per-market
+// eBay price, so it's gone — sales are the reliable signal.)
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import Client from "npm:ssh2-sftp-client@10.0.3";
@@ -23,124 +19,93 @@ const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
-
-const BASE_URL = (Deno.env.get("THREE_DS_BASE_URL") ?? "https://api.3dsellers.com").replace(/\/$/, "");
-const API_KEY = Deno.env.get("THREEDS_API_KEY") ?? Deno.env.get("THREE_DS_API_KEY");
-const TIME_BUDGET_MS = 110_000;
-
-function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
-}
-
-async function tds(path: string) {
-  const res = await fetch(`${BASE_URL}${path}`, {
-    headers: { Accept: "application/json", Authorization: `Bearer ${API_KEY}` },
-  });
-  const text = await res.text();
-  let parsed: any = null;
-  try { parsed = text ? JSON.parse(text) : null; } catch { /* ignore */ }
-  return { ok: res.ok, status: res.status, json: parsed };
-}
+const json = (b: unknown, s = 200) =>
+  new Response(JSON.stringify(b), { status: s, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
-  if (!API_KEY) return json({ error: "THREEDS_API_KEY not configured" }, 500);
-
   const url = Deno.env.get("SUPABASE_URL")!;
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-
-  // Auth: service_role bearer (cron) — mirror ingest-3ds-orders.
   const authHeader = req.headers.get("Authorization") ?? "";
   const bearer = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
-  let authorised = bearer === serviceKey;
-  if (!authorised && bearer) {
-    try {
-      const payload = JSON.parse(atob(bearer.split(".")[1] ?? ""));
-      authorised = payload?.role === "service_role";
-    } catch { /* ignore */ }
-  }
-  if (!authorised) return json({ error: "Unauthorized" }, 401);
+  let ok = bearer === serviceKey;
+  if (!ok && bearer) { try { ok = JSON.parse(atob(bearer.split(".")[1] ?? ""))?.role === "service_role"; } catch { /* ignore */ } }
+  if (!ok) return json({ error: "Unauthorized" }, 401);
 
-  let body: { tolerance?: number; staleDays?: number; dryRun?: boolean } = {};
+  let body: { tolerance?: number; importCycleHours?: number; dryRun?: boolean } = {};
   try { body = await req.json(); } catch { /* defaults */ }
-  const tolerance = typeof body.tolerance === "number" ? body.tolerance : 0.05;
-  const staleDays = typeof body.staleDays === "number" ? body.staleDays : 7;
+  const tol = typeof body.tolerance === "number" ? body.tolerance : 0.05;
+  const importCycleHours = typeof body.importCycleHours === "number" ? body.importCycleHours : 30;
+  const goLiveHours = typeof body.goLiveHours === "number" ? body.goLiveHours : 18; // by now the evening import has applied it
   const dryRun = body.dryRun === true;
 
   const admin = createClient(url, serviceKey);
 
-  // 1. Catalogue price map (sku → {price, ccy}).
-  const priceMap = new Map<string, { price: number; ccy: string | null }>();
-  const start = Date.now();
-  let page = 1;
-  const limit = 200;
-  let total = Infinity;
-  let pagesRead = 0;
-  while ((page - 1) * limit < total && Date.now() - start < TIME_BUDGET_MS) {
-    const res = await tds(`/v1/products?page=${page}&limit=${limit}`);
-    if (!res.ok) return json({ error: `3D products fetch failed: ${res.status}` }, 502);
-    const data: any[] = res.json?.data ?? [];
-    total = res.json?.metadata?.total ?? data.length;
-    for (const p of data) {
-      if (p?.sku != null) priceMap.set(String(p.sku), { price: Number(p?.price?.price), ccy: p?.price?.currency ?? null });
-    }
-    pagesRead++;
-    if (data.length < limit) break;
-    page++;
-  }
+  const { data: stores } = await admin.from("threeds_stores").select("id, store_name, sftp_filename, ebay_store_slug, enabled");
+  const slug: Record<string, string> = {};
+  for (const s of stores ?? []) if (s.ebay_store_slug) slug[s.id] = s.ebay_store_slug;
 
-  // 2. Pending rows.
   const { data: pending, error: pendErr } = await admin
-    .from("threeds_reprice_pending")
-    .select("id, store_id, sku, price, queued_at")
-    .eq("status", "pending");
+    .from("threeds_reprice_pending").select("id, store_id, sku, price, queued_at").eq("status", "pending");
   if (pendErr) return json({ error: `load pending failed: ${pendErr.message}` }, 500);
+  if (!pending || pending.length === 0) return json({ ok: true, pending: 0 });
+
+  // Sales for the pending SKUs since the earliest queued time (to confirm "went live").
+  const skus = Array.from(new Set(pending.map((p) => p.sku)));
+  const earliest = pending.reduce((m, p) => (p.queued_at < m ? p.queued_at : m), pending[0].queued_at);
+  const orders: any[] = [];
+  for (let i = 0; i < skus.length; i += 80) {
+    let from = 0;
+    while (true) {
+      const { data } = await admin.from("threeds_order_transactions")
+        .select("sku, store_url, unit_price, order_date")
+        .in("sku", skus.slice(i, i + 80)).gte("order_date", earliest).range(from, from + 999);
+      const b = data ?? []; orders.push(...b);
+      if (b.length < 1000) break; from += 1000;
+    }
+  }
 
   const nowMs = Date.now();
   const nowIso = new Date().toISOString();
-  const applied: { id: string; verified: number }[] = [];
-  const expired: { id: string; verified: number | null }[] = [];
-  const observed: any[] = [];
+  const applied: { id: string; verified: number | null; reason: string }[] = [];
   const affectedStores = new Set<string>();
 
-  for (const row of pending ?? []) {
-    const obs = priceMap.get(String(row.sku));
-    const ageDays = (nowMs - new Date(row.queued_at).getTime()) / 86_400_000;
-    const match = obs && isFinite(obs.price) && Math.abs(obs.price - Number(row.price)) <= tolerance;
-    if (match) {
-      applied.push({ id: row.id, verified: obs!.price });
-      affectedStores.add(row.store_id);
-    } else if (ageDays > staleDays) {
-      expired.push({ id: row.id, verified: obs?.price ?? null });
-      affectedStores.add(row.store_id);
+  const notLive: { sku: string; sold: number; expected: number }[] = [];
+  for (const row of pending) {
+    const sl = slug[row.store_id];
+    const ageH = (nowMs - new Date(row.queued_at).getTime()) / 3_600_000;
+    // Most recent sale for this store+sku AFTER it was queued (the current state).
+    let latestPrice: number | null = null; let latestDate = "";
+    if (sl) {
+      for (const o of orders) {
+        if (o.sku !== row.sku || !(o.store_url ?? "").includes(sl) || o.order_date <= row.queued_at) continue;
+        if (o.order_date > latestDate) { latestDate = o.order_date; latestPrice = Number(o.unit_price); }
+      }
     }
-    observed.push({ sku: row.sku, expected: Number(row.price), observed: obs?.price ?? null, ccy: obs?.ccy ?? null });
+    const latestAfterGoLive = latestDate && (new Date(latestDate).getTime() - new Date(row.queued_at).getTime()) / 3_600_000 > goLiveHours;
+    if (latestPrice != null && Math.abs(latestPrice - Number(row.price)) <= tol) {
+      // (a) latest sale is at the new price → confirmed live.
+      applied.push({ id: row.id, verified: latestPrice, reason: "sold_at_new" }); affectedStores.add(row.store_id);
+    } else if (latestPrice != null && latestAfterGoLive) {
+      // Latest sale is at the OLD price AND after the price should have gone live → didn't take. Keep + flag.
+      notLive.push({ sku: row.sku, sold: latestPrice, expected: Number(row.price) });
+    } else if (ageH > importCycleHours) {
+      // (b) no decisive recent sale + been through a daily import → assume live.
+      applied.push({ id: row.id, verified: null, reason: "import_cycle" }); affectedStores.add(row.store_id);
+    }
   }
 
   if (dryRun) {
-    return json({
-      ok: true, dryRun: true, pagesRead, catalogue: priceMap.size,
-      pending: pending?.length ?? 0, wouldApply: applied.length, wouldExpire: expired.length,
-      sample: observed.slice(0, 25),
-    });
+    return json({ ok: true, dryRun: true, pending: pending.length, wouldApply: applied.length,
+      bySale: applied.filter((a) => a.reason === "sold_at_new").length, byTime: applied.filter((a) => a.reason === "import_cycle").length,
+      not_live_kept: notLive.length, not_live: notLive.slice(0, 20) });
   }
 
-  // 3a. Flip statuses (per-row to capture verified_price).
   for (const a of applied) {
-    await admin.from("threeds_reprice_pending")
-      .update({ status: "applied", applied_at: nowIso, verified_price: a.verified })
-      .eq("id", a.id);
-  }
-  for (const e of expired) {
-    await admin.from("threeds_reprice_pending")
-      .update({ status: "expired", applied_at: nowIso, verified_price: e.verified })
-      .eq("id", e.id);
+    await admin.from("threeds_reprice_pending").update({ status: "applied", applied_at: nowIso, verified_price: a.verified }).eq("id", a.id);
   }
 
-  // 3b. Rewrite the SFTP file for affected stores from remaining pending.
+  // Rewrite affected stores' SFTP files from remaining pending.
   let filesRewritten = 0;
   const host = Deno.env.get("THREEDS_SFTP_HOST");
   const port = parseInt(Deno.env.get("THREEDS_SFTP_PORT") ?? "22", 10);
@@ -149,28 +114,25 @@ Deno.serve(async (req) => {
   if (affectedStores.size > 0 && host && username && password) {
     const escape = (s: string) => (/[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s);
     for (const storeId of affectedStores) {
-      const { data: store } = await admin
-        .from("threeds_stores").select("sftp_filename, enabled").eq("id", storeId).maybeSingle();
+      const store = (stores ?? []).find((s) => s.id === storeId);
       if (!store?.sftp_filename || !store.enabled) continue;
-      const { data: still } = await admin
-        .from("threeds_reprice_pending").select("sku, price")
-        .eq("store_id", storeId).eq("status", "pending").order("sku");
+      const { data: still } = await admin.from("threeds_reprice_pending")
+        .select("sku, price").eq("store_id", storeId).eq("status", "pending").order("sku");
       const csv = ["SKU,Price", ...(still ?? []).map((r) => `${escape(String(r.sku).trim())},${Number(r.price).toFixed(2)}`)].join("\n") + "\n";
       const sftp = new Client();
       try {
         await sftp.connect({ host, port, username, password, readyTimeout: 20000 });
         await sftp.put(Buffer.from(csv, "utf-8"), store.sftp_filename);
-        await sftp.end();
-        filesRewritten++;
-      } catch (_e) {
-        try { await sftp.end(); } catch { /* ignore */ }
-      }
+        await sftp.end(); filesRewritten++;
+      } catch (_e) { try { await sftp.end(); } catch { /* ignore */ } }
     }
   }
 
   return json({
-    ok: true, pagesRead, catalogue: priceMap.size,
-    pending: pending?.length ?? 0, applied: applied.length, expired: expired.length,
+    ok: true, pending: pending.length, applied: applied.length,
+    sold_at_new: applied.filter((a) => a.reason === "sold_at_new").length,
+    import_cycle: applied.filter((a) => a.reason === "import_cycle").length,
+    not_live_kept: notLive.length, not_live: notLive.slice(0, 20),
     filesRewritten,
   });
 });
