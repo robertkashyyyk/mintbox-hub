@@ -9,8 +9,8 @@ interface MintsoftProduct {
   ID: number;
   SKU: string;
   Name: string;
-  EANBarcode?: string;
-  UPCBarcode?: string;
+  EAN?: string;
+  UPC?: string;
   CostPrice?: number;
   Weight?: number;
   Height?: number;
@@ -117,10 +117,17 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Mintsoft exposes EAN (13-digit) and UPC (12-digit) as separate fields.
+    const { data: barcodeTypes } = await supabase.from("barcode_types").select("id, type_name, digit_count");
+    const rawBarcode = (found.EAN || found.UPC || "").replace(/\D/g, "");
+    const exactType = barcodeTypes?.find((t: any) => t.digit_count === rawBarcode.length);
+    const otherType = barcodeTypes?.find((t: any) => t.type_name === "Other");
+
     const row = {
       sku: found.SKU,
       name: found.Name || found.SKU,
-      barcode: found.EANBarcode || found.UPCBarcode || null,
+      barcode: rawBarcode || null,
+      barcode_type_id: rawBarcode ? (exactType?.id ?? otherType?.id ?? null) : null,
       mintsoft_product_id: found.ID,
       cost_price: found.CostPrice || null,
       weight: found.Weight || null,

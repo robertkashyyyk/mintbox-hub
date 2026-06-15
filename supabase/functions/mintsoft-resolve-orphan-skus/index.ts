@@ -19,8 +19,8 @@ interface MintsoftProduct {
   ID: number;
   SKU: string;
   Name?: string;
-  EANBarcode?: string;
-  UPCBarcode?: string;
+  EAN?: string;
+  UPC?: string;
   CostPrice?: number;
 }
 
@@ -115,6 +115,16 @@ Deno.serve(async (req) => {
     const wallStart = Date.now();
     let timedOut = false;
 
+    // Mintsoft exposes EAN (13-digit) and UPC (12-digit) as separate fields.
+    const { data: barcodeTypes } = await supabase.from("barcode_types").select("id, type_name, digit_count");
+    const classifyBarcode = (raw?: string | null): { barcode?: string; barcode_type_id?: string | null } => {
+      const digits = (raw ?? "").replace(/\D/g, "");
+      if (!digits) return {}; // leave existing value untouched
+      const exact = barcodeTypes?.find((t: any) => t.digit_count === digits.length);
+      const other = barcodeTypes?.find((t: any) => t.type_name === "Other");
+      return { barcode: digits, barcode_type_id: (exact?.id ?? other?.id) ?? null };
+    };
+
     for (const c of candidates) {
       if (Date.now() - wallStart > SOFT_WALL_MS) { timedOut = true; break; }
       checked++;
@@ -152,7 +162,7 @@ Deno.serve(async (req) => {
             mintsoft_product_id: exact.ID,
             mintsoft_resolved_at: new Date().toISOString(),
             last_mintsoft_resolve_attempt_at: new Date().toISOString(),
-            barcode: exact.EANBarcode || exact.UPCBarcode || undefined,
+            ...classifyBarcode(exact.EAN || exact.UPC),
           }).eq("id", c.id);
           resolved++;
           resolvedSkus.push(c.sku);

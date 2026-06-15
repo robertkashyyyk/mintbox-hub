@@ -22,8 +22,8 @@ interface MintsoftProductDetails {
   Height?: number;
   Length?: number;
   Depth?: number;
-  EANBarcode?: string;
-  UPCBarcode?: string;
+  EAN?: string;
+  UPC?: string;
   LowStockAlertLevel?: number;
   HandlingTime?: number;
   Discontinued?: boolean;
@@ -198,8 +198,8 @@ Deno.serve(async (req) => {
           console.warn(`Could not fetch inventory for ${product.sku}:`, invError);
         }
 
-        // Determine barcode
-        let barcode = productDetails.EANBarcode || productDetails.UPCBarcode || null;
+        // Determine barcode (Mintsoft has separate EAN/UPC fields)
+        let barcode = productDetails.EAN || productDetails.UPC || null;
         let barcodeTypeId: string | null = null;
 
         if (barcode) {
