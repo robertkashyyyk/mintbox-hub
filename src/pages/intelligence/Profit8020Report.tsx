@@ -71,7 +71,18 @@ function reorderQty(r: Row): number | null {
   return q > 0 ? q : null;
 }
 
-type SortKey = "profit_per_week" | "capital_efficiency" | "trapped_capital" | "weeks_in_top_tier" | "stock_cover_days" | "capital";
+type SortKey = "profit_per_week" | "capital_efficiency" | "trapped_capital" | "weeks_in_top_tier" | "stock_cover_days" | "capital" | "on_hand";
+
+// Per-view "what / how to read / do" explainer.
+function ViewIntro({ what, read, action }: { what: string; read: string; action: string }) {
+  return (
+    <div className="rounded-md border border-border/60 bg-muted/30 p-3 text-xs leading-relaxed space-y-1 mb-3">
+      <p><span className="font-semibold text-foreground">What it is — </span>{what}</p>
+      <p><span className="font-semibold text-foreground">How to read it — </span>{read}</p>
+      <p><span className="font-semibold text-pd-accent">What to do — </span>{action}</p>
+    </div>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Main report
@@ -84,9 +95,19 @@ export default function Profit8020Report() {
   const { data, isLoading, isError } = useQuery({
     queryKey: ["profit-8020", weeks],
     queryFn: async () => {
-      const { data, error } = await (supabase.rpc as any)("get_8020_leaderboard", { p_weeks: weeks });
-      if (error) throw error;
-      return (data ?? []) as Row[];
+      // Page past the PostgREST 1000-row cap so the Pareto, totals and shadow tail
+      // see the full costed catalogue, not just the top 1000 by profit.
+      const pageSize = 1000;
+      const all: Row[] = [];
+      for (let from = 0; ; from += pageSize) {
+        const { data, error } = await (supabase.rpc as any)("get_8020_leaderboard", { p_weeks: weeks })
+          .range(from, from + pageSize - 1);
+        if (error) throw error;
+        const chunk = (data ?? []) as Row[];
+        all.push(...chunk);
+        if (chunk.length < pageSize) break;
+      }
+      return all;
     },
   });
 
@@ -200,6 +221,12 @@ function MiniCard({ label, value, hint, accent, warn }: { label: string; value: 
 function ThesisView({ pareto }: { pareto: { pts: { x: number; cumPct: number }[]; total: number; count: number; n80: number; pct80: number } }) {
   const diag = [{ x: 0, even: 0 }, { x: 100, even: 100 }];
   return (
+    <>
+      <ViewIntro
+        what="Proof that a small handful of products earns most of our profit (the 80:20 rule)."
+        read="Products are ranked best-first along the bottom; the line shows the running share of total profit. It shoots up fast then flattens — the sharper the elbow, the more concentrated our profit is. The headline says how few SKUs make 80%."
+        action="Treat the SKUs to the left of the dashed line as the crown jewels. The rest of this report is about protecting them and freeing cash from everything else. This view is the one to show in board / strategy chats."
+      />
     <Card>
       <CardHeader className="pb-2">
         <CardTitle className="text-base">
@@ -222,12 +249,9 @@ function ThesisView({ pareto }: { pareto: { pts: { x: number; cumPct: number }[]
             <Line data={pareto.pts} dataKey="cumPct" stroke="hsl(var(--pd-accent))" dot={false} strokeWidth={2.5} name="cumulative" isAnimationActive={false} />
           </LineChart>
         </ResponsiveContainer>
-        <p className="text-[11px] text-muted-foreground mt-2">
-          The steeper the early climb, the more concentrated the profit. The faint diagonal is "if every SKU earned the same".
-          The vital few left of the guide-line are the ones to protect.
-        </p>
       </CardContent>
     </Card>
+    </>
   );
 }
 
@@ -288,6 +312,12 @@ function ProtectList({ rows, weeks }: { rows: Row[]; weeks: number }) {
   };
 
   return (
+    <>
+      <ViewIntro
+        what="The working list — every costed earner, with the two ways a winner can hurt us: about to run out, or over-stocked."
+        read="Red left-edge rows are earners with under 7 days of cover (about to sell out). Stock = units on hand; Coverage = days of stock left at current sales; £/£ locked = profit per £ of capital (higher = harder-working money); Top tier = how many of the last weeks it sat in the top 20% (persistence). Click any column to sort; click a row to expand capital detail."
+        action="Reorder the red rows now — the + button raises a reorder task with a suggested quantity. Sort by '£/£ locked' to see where money works hardest, or by 'Trapped capital' (in a row's detail) to find over-investment."
+      />
     <Card>
       <CardContent className="p-0">
         <Table containerClassName="max-h-[calc(100vh-360px)]">
@@ -298,7 +328,8 @@ function ProtectList({ rows, weeks }: { rows: Row[]; weeks: number }) {
               <TableHead className="text-right">u/wk</TableHead>
               <SortHead k="profit_per_week" className="text-right">Profit/wk</SortHead>
               <TableHead>Tier</TableHead>
-              <SortHead k="stock_cover_days" className="text-right">Stock</SortHead>
+              <SortHead k="on_hand" className="text-right">Stock</SortHead>
+              <SortHead k="stock_cover_days" className="text-right">Coverage</SortHead>
               <TableHead className="text-center">Listing</TableHead>
               <SortHead k="capital_efficiency" className="text-right">£/£ locked</SortHead>
               <SortHead k="weeks_in_top_tier" className="text-center">Top tier</SortHead>
@@ -326,6 +357,7 @@ function ProtectList({ rows, weeks }: { rows: Row[]; weeks: number }) {
                     <TableCell className="text-right text-sm">{num(r.units / weeks, 1)}</TableCell>
                     <TableCell className="text-right font-medium">{gbp2(r.profit_per_week)}</TableCell>
                     <TableCell><Badge variant="secondary" className={band.cls}>{band.label}</Badge></TableCell>
+                    <TableCell className="text-right text-sm tabular-nums">{num(r.on_hand)}</TableCell>
                     <TableCell className={`text-right text-sm ${rag.cls}`}>{rag.label}</TableCell>
                     <TableCell className="text-center">
                       <TooltipProvider><UITooltip><TooltipTrigger asChild>
@@ -343,12 +375,11 @@ function ProtectList({ rows, weeks }: { rows: Row[]; weeks: number }) {
                   {isOpen && (
                     <TableRow className="bg-muted/30">
                       <TableCell></TableCell>
-                      <TableCell colSpan={9} className="py-2">
+                      <TableCell colSpan={10} className="py-2">
                         <div className="flex flex-wrap gap-x-8 gap-y-1 text-xs">
                           <Detail label="Capital tied up" value={gbp(r.capital)} />
                           <Detail label="Targeted capital" value={gbp(r.targeted_capital)} />
                           <Detail label="Trapped capital" value={gbp(r.trapped_capital)} warn={!!r.trapped_capital && r.overstock} />
-                          <Detail label="On hand" value={`${num(r.on_hand)} u`} />
                           <Detail label="Avg velocity" value={`${num(r.avg_weekly_units, 1)} u/wk`} />
                           <Detail label="Landed cost" value={gbp2(r.cost_each)} />
                           <Detail label="POR" value={r.por_pct == null ? "—" : `${r.por_pct.toFixed(1)}%`} />
@@ -367,6 +398,7 @@ function ProtectList({ rows, weeks }: { rows: Row[]; weeks: number }) {
         {sorted.length === 0 && <div className="py-10 text-center text-sm text-muted-foreground">No SKUs match.</div>}
       </CardContent>
     </Card>
+    </>
   );
 }
 
@@ -393,6 +425,12 @@ function TriageView({ rows }: { rows: Row[] }) {
   const maxX = axis === "cover" ? 60 : Math.max(1, ...pts.map((p) => p.x));
 
   return (
+    <>
+      <ViewIntro
+        what="The same earners plotted so trouble jumps out visually."
+        read="Each dot is a product: height = profit per week, bubble size = capital tied up. In 'Stock cover' mode the shaded red strip on the left is the protect-now zone (earners about to run out). Switch to 'Capital' to find winners we're over-invested in — they sit far to the right."
+        action="In cover mode, work the top-left first (high profit, low cover) — biggest earners closest to selling out. In capital mode, look top-right for winners holding too much cash you could redeploy."
+      />
     <Card>
       <CardHeader className="pb-2 flex-row items-center justify-between space-y-0">
         <CardTitle className="text-base">
@@ -431,13 +469,9 @@ function TriageView({ rows }: { rows: Row[] }) {
             </Scatter>
           </ScatterChart>
         </ResponsiveContainer>
-        <p className="text-[11px] text-muted-foreground mt-2">
-          {axis === "cover"
-            ? "Top-left red zone = earners about to run out. Bubble size = capital tied up."
-            : "Top-right = winners we're over-invested in (high profit, lots of capital locked). Red = flagged overstock."}
-        </p>
       </CardContent>
     </Card>
+    </>
   );
 }
 
@@ -452,6 +486,12 @@ function ShadowList({ rows }: { rows: Row[] }) {
   const lockedUp = shadow.reduce((s, r) => s + (r.capital || 0), 0);
 
   return (
+    <>
+      <ViewIntro
+        what="The opposite of the winners — loss-making and breakeven lines, ranked by how much cash is tied up in them."
+        read="These products make little or no profit but still sit on the shelf holding capital. Sorted with the most cash locked-up at the top. 'Cover' shows how long that dead stock would take to sell at current (slow) rates."
+        action="Run these down or delist to free the cash for the winners — push the top ones into the Liquidation flow. This is where trapped working capital hides."
+      />
     <Card>
       <CardHeader className="pb-2">
         <CardTitle className="text-base flex items-center gap-2">
@@ -493,5 +533,6 @@ function ShadowList({ rows }: { rows: Row[] }) {
         {shadow.length === 0 && <div className="py-10 text-center text-sm text-muted-foreground">No loss/breakeven tail in this window. 🎉</div>}
       </CardContent>
     </Card>
+    </>
   );
 }
