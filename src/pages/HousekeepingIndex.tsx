@@ -78,7 +78,7 @@ const HousekeepingIndex = () => {
       icon: Tag,
       severity: "info" as const,
       count: counts?.missingBarcodes,
-      path: "/discovery/products?filter=no-barcode",
+      path: "/housekeeping/missing-barcodes",
     },
     {
       title: "Carrier Remeasure",

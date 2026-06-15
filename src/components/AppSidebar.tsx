@@ -95,7 +95,6 @@ export function AppSidebar() {
         { title: "Velocity & Coverage", url: "/intelligence/velocity", icon: TrendingUp },
         { title: "Stock Health", url: "/intelligence/stock-health", icon: Activity },
         { title: "Stock Valuation", url: "/intelligence/stock-valuation", icon: PoundSterling },
-        { title: "Dirt SKUs", url: "/intelligence/dirt-skus", icon: AlertTriangle },
         { title: "Courier Margin", url: "/intelligence/courier-margin", icon: Truck },
       ],
     },
@@ -106,9 +105,7 @@ export function AppSidebar() {
       items: [
         { title: "Missing Costs", url: "/intelligence/missing-costs", icon: AlertCircle },
         { title: "Dirt SKUs", url: "/intelligence/dirt-skus", icon: AlertTriangle },
-        { title: "Images", url: "/discovery/images", icon: Images },
-        { title: "Discovery Queue", url: "/discovery/discovery-queue", icon: Search },
-        { title: "Missing Barcodes", url: "/discovery/products?filter=no-barcode", icon: Tag },
+        { title: "Missing Barcodes", url: "/housekeeping/missing-barcodes", icon: Tag },
         { title: "Carrier Remeasure", url: "/operations/carriers/remeasure", icon: Truck },
         { title: "Orphan SKUs", url: "/housekeeping/orphan-skus", icon: Link2Off },
         { title: "LSA Unmatched SKUs", url: "/housekeeping/lsa-unmatched", icon: HelpCircle },

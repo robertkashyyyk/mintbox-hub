@@ -16,7 +16,6 @@ const IntelligenceIndex = () => {
     { title: "Pricing Signals", description: "Market pricing trends and competitor intelligence", icon: DollarSign, onClick: () => navigate("/intelligence/pricing") },
     { title: "Seasonality", description: "Seasonal demand patterns and forecasts", icon: Calendar, onClick: () => navigate("/intelligence/seasonality") },
     { title: "Missing Costs", description: "Active SKUs without a cost price set.", icon: AlertCircle, onClick: () => navigate("/intelligence/missing-costs") },
-    { title: "Dirt SKUs", description: "Recently sold SKUs that don't match a brand prefix.", icon: AlertTriangle, onClick: () => navigate("/intelligence/dirt-skus") },
   ];
 
   return (

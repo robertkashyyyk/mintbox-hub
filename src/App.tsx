@@ -92,6 +92,7 @@ import CourierMargin from "./pages/intelligence/CourierMargin";
 import HousekeepingIndex from "./pages/HousekeepingIndex";
 import LsaUnmatchedSkus from "./pages/LsaUnmatchedSkus";
 import OrphanSkus from "./pages/housekeeping/OrphanSkus";
+import MissingBarcodes from "./pages/housekeeping/MissingBarcodes";
 
 // Admin extras
 import ProfitRules from "./pages/admin/ProfitRules";
@@ -237,6 +238,7 @@ const App = () => (
             <Route path="/housekeeping" element={<HousekeepingIndex />} />
             <Route path="/housekeeping/lsa-unmatched" element={<LsaUnmatchedSkus />} />
             <Route path="/housekeeping/orphan-skus" element={<OrphanSkus />} />
+            <Route path="/housekeeping/missing-barcodes" element={<MissingBarcodes />} />
 
             {/* Decisions Sub-Routes */}
             <Route path="/decisions/buying" element={<BuyRecommendations />} />
