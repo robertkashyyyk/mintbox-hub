@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,7 +9,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import ModuleHeader from "@/components/ModuleHeader";
 import { FileBarChart2, TrendingUp, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
+import { ResponsiveContainer, AreaChart, Area, BarChart, Bar, Cell, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 
 const gbp = (n: number | null | undefined) =>
   n == null ? "—" : new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(n);
@@ -41,6 +42,12 @@ function RepricingPayoff() {
       return (data ?? []) as unknown as { snapshot_date: string; value: number; actual_profit: number; cf_profit: number }[];
     },
   });
+
+  // Per-day value = day-over-day change in the cumulative value.
+  const dailyTrend = useMemo(() => {
+    const tr = trend ?? [];
+    return tr.map((p, i) => ({ snapshot_date: p.snapshot_date, daily: Math.round((i === 0 ? p.value : p.value - tr[i - 1].value) * 100) / 100 }));
+  }, [trend]);
 
   if (isLoading) return <Skeleton className="h-72 w-full" />;
   if (isError || !data?.ok) return <div className="py-10 text-center text-sm text-muted-foreground">Couldn't load the payoff report.</div>;
@@ -99,6 +106,28 @@ function RepricingPayoff() {
                 <Tooltip formatter={(v: number) => gbp(v)} labelFormatter={(d) => new Date(d).toLocaleDateString("en-GB", { dateStyle: "medium" })} />
                 <Area type="monotone" dataKey="value" name="Value created" stroke="hsl(var(--pd-accent))" fill="url(#vg)" strokeWidth={2} />
               </AreaChart>
+            </ResponsiveContainer>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Per-day value created */}
+      <Card>
+        <CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2"><TrendingUp className="h-4 w-4 text-pd-accent" /> Value created per day</CardTitle></CardHeader>
+        <CardContent>
+          {dailyTrend.length === 0 ? (
+            <div className="py-10 text-center text-xs text-muted-foreground">Daily bars appear once there are two or more days of history.</div>
+          ) : (
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={dailyTrend} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                <XAxis dataKey="snapshot_date" tickFormatter={(d) => new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short" })} fontSize={11} />
+                <YAxis tickFormatter={(v) => `£${v}`} fontSize={11} width={48} />
+                <Tooltip formatter={(v: number) => gbp(v)} labelFormatter={(d) => new Date(d).toLocaleDateString("en-GB", { dateStyle: "medium" })} />
+                <Bar dataKey="daily" name="That day">
+                  {dailyTrend.map((d, i) => <Cell key={i} fill={d.daily < 0 ? "hsl(var(--destructive))" : "hsl(var(--pd-accent))"} />)}
+                </Bar>
+              </BarChart>
             </ResponsiveContainer>
           )}
         </CardContent>
