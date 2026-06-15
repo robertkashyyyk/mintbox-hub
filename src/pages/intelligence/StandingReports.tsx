@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import ModuleHeader from "@/components/ModuleHeader";
+import Profit8020Report from "@/pages/intelligence/Profit8020Report";
 import { FileBarChart2, TrendingUp, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ResponsiveContainer, AreaChart, Area, BarChart, Bar, Cell, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
@@ -191,11 +192,11 @@ export default function StandingReports() {
       <Tabs defaultValue="payoff" className="w-full">
         <TabsList>
           <TabsTrigger value="payoff">Repricing Payoff</TabsTrigger>
-          <TabsTrigger value="b">Report B</TabsTrigger>
+          <TabsTrigger value="b">80:20 Profit</TabsTrigger>
           <TabsTrigger value="c">Report C</TabsTrigger>
         </TabsList>
         <TabsContent value="payoff" className="mt-4"><RepricingPayoff /></TabsContent>
-        <TabsContent value="b" className="mt-4"><Placeholder name="Report B" /></TabsContent>
+        <TabsContent value="b" className="mt-4"><Profit8020Report /></TabsContent>
         <TabsContent value="c" className="mt-4"><Placeholder name="Report C" /></TabsContent>
       </Tabs>
     </div>
