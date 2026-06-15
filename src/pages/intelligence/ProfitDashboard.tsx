@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PageLoader } from "@/components/ui/PageLoader";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -505,9 +506,7 @@ const ProfitDashboard = () => {
           </div>
 
           {linesLoading ? (
-            <div className="space-y-2">
-              {[...Array(6)].map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
-            </div>
+            <PageLoader rows={8} columns={[100, 130, 90, 60, 70, 70, 70, 70, 80, 60, 80]} label="Loading order lines" />
           ) : totalRows === 0 ? (
             <div className="text-sm text-foreground/60 py-6 text-center">
               No order lines match the current filters.

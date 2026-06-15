@@ -10,6 +10,7 @@ import ModuleHeader from "@/components/ModuleHeader";
 import { FileBarChart2, TrendingUp, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ResponsiveContainer, AreaChart, Area, BarChart, Bar, Cell, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
+import { PageLoader } from "@/components/ui/PageLoader";
 
 const gbp = (n: number | null | undefined) =>
   n == null ? "—" : new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(n);
@@ -49,7 +50,7 @@ function RepricingPayoff() {
     return tr.map((p, i) => ({ snapshot_date: p.snapshot_date, daily: Math.round((i === 0 ? p.value : p.value - tr[i - 1].value) * 100) / 100 }));
   }, [trend]);
 
-  if (isLoading) return <Skeleton className="h-72 w-full" />;
+  if (isLoading) return <PageLoader rows={6} columns={[160, 90, 90, 90, 90, 80]} label="Loading payoff" />;
   if (isError || !data?.ok) return <div className="py-10 text-center text-sm text-muted-foreground">Couldn't load the payoff report.</div>;
   if (data.empty) return <div className="py-10 text-center text-sm text-muted-foreground">No repriced items yet.</div>;
 

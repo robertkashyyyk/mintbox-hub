@@ -1,5 +1,6 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { PageLoader } from "@/components/ui/PageLoader";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ArrowUpDown, ChevronLeft, ChevronRight, TrendingUp } from "lucide-react";
@@ -63,6 +64,9 @@ const VelocityCoverage = () => {
             brands={brands}
           />
 
+          {isLoading ? (
+            <PageLoader rows={10} columns={[160, 120, 90, 90, 90, 90]} label="Loading velocity" />
+          ) : (
           <div className="rounded-md border [&>div]:max-h-[70vh] [&>div]:overflow-auto">
             <Table>
               <TableHeader className="sticky top-0 z-20 bg-card shadow-[0_1px_0_0_hsl(var(--border))]">
@@ -76,13 +80,7 @@ const VelocityCoverage = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {isLoading ? (
-                  <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                      Loading velocity data...
-                    </TableCell>
-                  </TableRow>
-                ) : items.length === 0 ? (
+                {items.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                       No velocity data found
@@ -126,6 +124,7 @@ const VelocityCoverage = () => {
               </TableBody>
             </Table>
           </div>
+          )}
 
           {totalPages > 1 && (
             <div className="flex items-center justify-between">
