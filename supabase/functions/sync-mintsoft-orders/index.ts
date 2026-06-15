@@ -9,6 +9,14 @@ const START_TIME = Date.now();
 const RUN_STARTED_AT = new Date().toISOString();
 const MAX_RUNTIME_MS = 50_000; // 50s safety margin (edge functions timeout at 60s)
 function isTimeRunningOut() { return Date.now() - START_TIME > MAX_RUNTIME_MS; }
+// Phase budgets so NEW-order ingestion (the slow per-order item fetch + insert that
+// feeds Profit Intelligence) is never starved by the header sweep or the existing-
+// status update pass. Header fetch stops at 20s; existing-status updates stop at 32s;
+// that leaves ~18s every run for new orders, so created_today always makes progress.
+const HEADER_BUDGET_MS = 20_000;
+function isHeaderTimeRunningOut() { return Date.now() - START_TIME > HEADER_BUDGET_MS; }
+const EXISTING_BUDGET_MS = 32_000;
+function isExistingTimeRunningOut() { return Date.now() - START_TIME > EXISTING_BUDGET_MS; }
 
 async function logRun(
   supabase: ReturnType<typeof createClient>,
@@ -117,12 +125,23 @@ function isDirtySku(sku: string): boolean {
   return !/^[A-Za-z]{2,4}[-\/]/.test(sku);
 }
 
+// Bounded fetch — a single slow Mintsoft response must never hang the whole run
+// past the edge 60s limit (that was blowing the budget before any new order saved).
+async function fetchWithTimeout(url: string, opts: RequestInit, ms = 8000): Promise<Response> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  try { return await fetch(url, { ...opts, signal: ctrl.signal }); }
+  finally { clearTimeout(timer); }
+}
+
 async function fetchOrderItems(baseUrl: string, apiKey: string, orderId: number): Promise<MintsoftOrderItem[]> {
-  const resp = await fetch(`${baseUrl}/api/Order/${orderId}/Items`, {
-    headers: { "ms-apikey": apiKey, "Content-Type": "application/json" },
-  });
-  if (!resp.ok) return [];
-  return await resp.json();
+  try {
+    const resp = await fetchWithTimeout(`${baseUrl}/api/Order/${orderId}/Items`, {
+      headers: { "ms-apikey": apiKey, "Content-Type": "application/json" },
+    }, 8000);
+    if (!resp.ok) return [];
+    return await resp.json();
+  } catch { return []; }
 }
 
 Deno.serve(async (req) => {
@@ -227,7 +246,10 @@ Deno.serve(async (req) => {
     const allStatusIds = activeStatusIds.length > 0 ? activeStatusIds : dispatchedStatusIds;
     // Live-tail terminal sweep — always date-floored to last 10 days
     const liveTailTerminalFloor = new Date(); liveTailTerminalFloor.setUTCDate(liveTailTerminalFloor.getUTCDate() - 10);
-    const liveTailTerminalIds = ignoreDateFilter ? terminalStatusIds : [];
+    // Terminal/despatch is handled by reconcile-order-ghosts + poll-despatched-today,
+    // so the live-tail no longer sweeps terminal statuses — keeping it lean means the
+    // header phase finishes fast and NEW orders actually get inserted each run.
+    const liveTailTerminalIds: number[] = [];
 
     // ── PRIORITY ORDERING ───────────────────────────────────────────────────
     // Hot statuses (where today's activity lives) go first — guarantees recent
@@ -255,7 +277,10 @@ Deno.serve(async (req) => {
     // status BEFORE hot/cold so today's despatches always land in order_status_history
     // even when the rest of the run gets truncated. Newest-first + ~500 rows
     // comfortably covers a UK day. Capped tightly so it can't starve hot.
-    const terminalSeedIds = ignoreDateFilter ? terminalStatusIds : [];
+    // Dropped the up-front terminal seed — despatch tracking is already covered by
+    // poll-despatched-today + reconcile-order-ghosts. Removing it frees the early
+    // budget so HOT statuses (where NEW orders live) are swept and inserted first.
+    const terminalSeedIds: number[] = [];
     // Final order: terminal SEED first (small, fast, guaranteed), then HOT
     // (today's NEW/AWAITINGPICKING — small + critical), then rotated COLD,
     // then a deeper terminal sweep LAST (can be truncated safely because
@@ -275,13 +300,16 @@ Deno.serve(async (req) => {
         const isTerminalSeed = terminalSeedSet.has(statusId) && sIdx < terminalSeedIds.length;
         const isTerminal = !isTerminalSeed && liveTailTerminalIds.includes(statusId);
         const isCold = rotatedCold.includes(statusId) && !isTerminal && !hotStatusIds.includes(statusId);
-        if (isTimeRunningOut()) { timedOut = true; break; }
+        if (isHeaderTimeRunningOut()) { timedOut = true; break; }
         let pageNo = 1;
         let statusFullyDone = true;
         while (true) {
-          const resp = await fetch(buildOrderListUrl(settings.base_url, statusId, pageNo), {
-            headers: { "ms-apikey": mintsoftApiKey, "Content-Type": "application/json" },
-          });
+          let resp: Response;
+          try {
+            resp = await fetchWithTimeout(buildOrderListUrl(settings.base_url, statusId, pageNo), {
+              headers: { "ms-apikey": mintsoftApiKey, "Content-Type": "application/json" },
+            }, 8000);
+          } catch { break; }
           if (!resp.ok) break;
           const orders: MintsoftOrder[] = await resp.json();
           if (orders.length === 0) break;
@@ -302,7 +330,7 @@ Deno.serve(async (req) => {
           const pageCap = isTerminalSeed ? 5 : (isTerminal ? 10 : 50);
           if (stopPaging || orders.length < 100 || pageNo >= pageCap) break;
           pageNo++;
-          if (isTimeRunningOut()) { timedOut = true; statusFullyDone = false; break; }
+          if (isHeaderTimeRunningOut()) { timedOut = true; statusFullyDone = false; break; }
         }
         if (isCold && statusFullyDone) coldFullyProcessed++;
         if (timedOut) break;
@@ -419,13 +447,18 @@ Deno.serve(async (req) => {
         }
       }
       
+      let existingDeferred = false;
       for (let i = 0; i < updatePayloads.length; i += 500) {
+        // Reserve the back half of the budget for NEW-order ingestion. Whatever
+        // existing updates we don't finish here are picked up next run / by the
+        // despatch poll + reconcile-order-ghosts.
+        if (isExistingTimeRunningOut()) { existingDeferred = true; console.log(`Existing-update budget reached at ${i}/${updatePayloads.length}, deferring rest`); break; }
         const batch = updatePayloads.slice(i, i + 500);
         const { error } = await supabase.from("order_lines").upsert(batch, { onConflict: "mintsoft_order_id,line_index" });
         if (error) console.error("Status update error:", error);
         else linesInserted += batch.length;
       }
-      console.log(`Updated ${linesInserted} existing lines with status info`);
+      console.log(`Updated ${linesInserted} existing lines with status info${existingDeferred ? " (deferred remainder)" : ""}`);
 
       // Persist status transitions for bouncing detector
       if (statusHistoryRows.length > 0) {
