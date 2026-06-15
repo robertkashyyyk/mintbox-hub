@@ -1,5 +1,8 @@
 project_id = "vcfbegjpkvxkqpptyxni"
 
+[functions.poll-despatched-today]
+verify_jwt = false
+
 [functions.email-intake]
 verify_jwt = false
 
