@@ -251,7 +251,7 @@ const ProfitDashboard = () => {
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
         <ModuleHeader
-          title="Profit Dashboard"
+          title="Profit Intelligence"
           description="Weekly revenue, costs, channel fees, courier spend and POR — calculated from live order lines."
           icon={TrendingUp}
         />
