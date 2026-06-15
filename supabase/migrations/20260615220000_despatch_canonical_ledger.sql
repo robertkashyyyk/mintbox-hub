@@ -56,11 +56,24 @@ AS $$
     WHERE run_ok = true AND capture_date_uk >= (SELECT start_day FROM bounds) AND capture_date_uk <= to_date
     ORDER BY capture_date_uk, (slot = 'PM') DESC, captured_at DESC
   ),
+  -- Today's queue depth from LIVE order_lines status — the twice-daily snapshot can be
+  -- missing or partial for the current day (it's a flaky Mintsoft poll), so use the live
+  -- count for today (matches the Ops Dashboard) and keep the snapshot for history.
+  live AS (
+    SELECT
+      count(DISTINCT mintsoft_order_id) FILTER (WHERE order_status = 'ONBACKORDER') AS bo,
+      count(DISTINCT mintsoft_order_id) FILTER (WHERE order_status = 'AWAITINGPICKING') AS ap
+    FROM order_lines WHERE order_date >= '2026-01-01'::timestamptz
+  ),
   joined AS (
     SELECT days.dt AS day,
       COALESCE(recv.n, 0)::int AS new_count,
-      COALESCE(snap.onbackorder_count, 0)::int AS onbackorder_count,
-      COALESCE(snap.awaitingpicking_count, 0)::int AS awaitingpicking_count,
+      CASE WHEN days.dt = (now() AT TIME ZONE 'Europe/London')::date
+           THEN (SELECT bo FROM live)::int
+           ELSE COALESCE(snap.onbackorder_count, 0)::int END AS onbackorder_count,
+      CASE WHEN days.dt = (now() AT TIME ZONE 'Europe/London')::date
+           THEN (SELECT ap FROM live)::int
+           ELSE COALESCE(snap.awaitingpicking_count, 0)::int END AS awaitingpicking_count,
       COALESCE(desp.d, 0)::int AS despatched,
       (COALESCE(recv.n, 0) - COALESCE(desp.d, 0))::int AS drift
     FROM days
