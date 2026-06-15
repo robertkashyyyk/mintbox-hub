@@ -6,6 +6,7 @@ import { PageLoader } from "@/components/ui/PageLoader";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tag, ChevronLeft, ChevronRight } from "lucide-react";
 import ModuleHeader from "@/components/ModuleHeader";
@@ -34,6 +35,14 @@ async function fetchAll(): Promise<Row[]> {
 
 const PAGE_OPTIONS = [25, 50, 100, 250];
 
+// Mintsoft stores UPC (12 digits) and EAN (13 digits) separately — detect by length.
+function classify(raw: string): "UPC" | "EAN" | null {
+  const digits = (raw ?? "").replace(/\D/g, "");
+  if (digits.length === 12) return "UPC";
+  if (digits.length === 13) return "EAN";
+  return null;
+}
+
 export default function MissingBarcodes() {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
@@ -58,7 +67,8 @@ export default function MissingBarcodes() {
 
   async function saveRow(r: Row) {
     const val = (edits[r.id] ?? "").trim();
-    if (val.length < 4) { toast.error("Enter a valid barcode (4+ chars)"); return; }
+    const kind = classify(val);
+    if (!kind) { toast.error("Enter a 12-digit UPC or 13-digit EAN"); return; }
     if (!r.mintsoft_id) { toast.error(`No Mintsoft ID for ${r.sku}`); return; }
     setSaving((s) => ({ ...s, [r.id]: true }));
     try {
@@ -68,7 +78,7 @@ export default function MissingBarcodes() {
       if (error) throw error;
       const res = data?.results?.[0];
       if (!res?.ok) throw new Error(res?.error ?? "Save failed");
-      toast.success(`${r.sku}: barcode ${val} sent to Mintsoft`);
+      toast.success(`${r.sku}: ${res.type ?? kind} ${res.barcode ?? val} sent to Mintsoft`);
       setEdits((e) => { const n = { ...e }; delete n[r.id]; return n; });
       qc.setQueryData(["missing-barcodes"], (old: Row[] | undefined) => (old ?? []).filter((p) => p.id !== r.id));
     } catch (e: any) {
@@ -116,11 +126,21 @@ export default function MissingBarcodes() {
                       <TableCell className="text-xs">{brandName(r.brand_id)}</TableCell>
                       <TableCell className="text-right">{r.current_stock ?? "—"}</TableCell>
                       <TableCell>
-                        <Input value={edits[r.id] ?? ""} onChange={(e) => setEdits((ed) => ({ ...ed, [r.id]: e.target.value }))}
-                          placeholder="e.g. 5012345678900" className="h-8 w-44 font-mono text-xs" />
+                        <div className="flex items-center gap-2">
+                          <Input value={edits[r.id] ?? ""} onChange={(e) => setEdits((ed) => ({ ...ed, [r.id]: e.target.value }))}
+                            placeholder="12-digit UPC or 13-digit EAN" className="h-8 w-52 font-mono text-xs" />
+                          {(() => {
+                            const v = (edits[r.id] ?? "").trim();
+                            if (!v) return null;
+                            const k = classify(v);
+                            return k
+                              ? <Badge variant="outline" className="text-[10px]">{k}</Badge>
+                              : <Badge variant="outline" className="text-[10px] text-destructive border-destructive/40">{v.replace(/\D/g, "").length} digits</Badge>;
+                          })()}
+                        </div>
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button size="sm" className="h-8" disabled={!r.mintsoft_id || saving[r.id] || (edits[r.id] ?? "").trim().length < 4} onClick={() => saveRow(r)}>
+                        <Button size="sm" className="h-8" disabled={!r.mintsoft_id || saving[r.id] || !classify((edits[r.id] ?? "").trim())} onClick={() => saveRow(r)}>
                           {saving[r.id] ? "Saving…" : "Save"}
                         </Button>
                       </TableCell>
