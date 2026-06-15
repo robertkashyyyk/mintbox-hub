@@ -31,6 +31,25 @@ interface SnapshotRow {
   missing_cost_count: number;
 }
 
+interface BandRow {
+  iso_year: number; iso_week: number; week_start: string;
+  unknown_count: number; loss_count: number; breakeven_count: number; poor_count: number;
+  average_count: number; good_count: number; great_count: number; amazing_count: number;
+  total_lines: number;
+}
+
+// Stack order worst→best; colours match the band badges on the Profit page.
+const BANDS: { key: keyof BandRow; label: string; color: string }[] = [
+  { key: "unknown_count",   label: "Unknown",   color: "hsl(var(--warning))" },
+  { key: "loss_count",      label: "Loss",      color: "hsl(var(--band-loss))" },
+  { key: "breakeven_count", label: "Breakeven", color: "hsl(var(--band-breakeven))" },
+  { key: "poor_count",      label: "Poor",      color: "hsl(var(--band-poor))" },
+  { key: "average_count",   label: "Average",   color: "hsl(var(--band-average))" },
+  { key: "good_count",      label: "Good",      color: "hsl(var(--band-good))" },
+  { key: "great_count",     label: "Great",     color: "hsl(var(--band-great))" },
+  { key: "amazing_count",   label: "Amazing",   color: "hsl(var(--band-amazing))" },
+];
+
 const gbp = (v: number) =>
   new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP", maximumFractionDigits: 0 }).format(v || 0);
 const num = (v: number) => new Intl.NumberFormat("en-GB").format(Math.round(v || 0));
@@ -39,19 +58,26 @@ const pct = (v: number | null) => v == null ? "—" : `${(v * 100).toFixed(1)}%`
 const ProfitGraphs = () => {
   const { toast } = useToast();
   const [rows, setRows] = useState<SnapshotRow[]>([]);
+  const [bandRows, setBandRows] = useState<BandRow[]>([]);
+  const [bandMode, setBandMode] = useState<"lines" | "share">("share");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
 
   const load = async () => {
     setLoading(true);
-    const { data, error } = await (supabase as any)
-      .from("profit_weekly_snapshots")
-      .select("iso_year, iso_week, week_start, week_end, revenue, qty, order_count, line_count, courier_cost_total, channel_fees_total, cost_total, profit, por_pct, aov, good_count, dirt_count, missing_cost_count")
-      .order("iso_year", { ascending: true })
-      .order("iso_week", { ascending: true })
-      .limit(260);
+    const [{ data, error }, { data: bData, error: bErr }] = await Promise.all([
+      (supabase as any)
+        .from("profit_weekly_snapshots")
+        .select("iso_year, iso_week, week_start, week_end, revenue, qty, order_count, line_count, courier_cost_total, channel_fees_total, cost_total, profit, por_pct, aov, good_count, dirt_count, missing_cost_count")
+        .order("iso_year", { ascending: true })
+        .order("iso_week", { ascending: true })
+        .limit(260),
+      (supabase as any).rpc("get_profit_band_history"),
+    ]);
     if (error) toast({ title: "Failed to load snapshots", description: error.message, variant: "destructive" });
     else setRows((data ?? []) as SnapshotRow[]);
+    if (bErr) toast({ title: "Failed to load profit-band history", description: bErr.message, variant: "destructive" });
+    else setBandRows((bData ?? []) as BandRow[]);
     setLoading(false);
   };
 
@@ -88,6 +114,16 @@ const ProfitGraphs = () => {
     dirt: Number(r.dirt_count),
     missing: Number(r.missing_cost_count),
   })), [rows]);
+
+  const bandData = useMemo(() => bandRows.map((r) => {
+    const total = Number(r.total_lines) || BANDS.reduce((s, b) => s + Number(r[b.key] || 0), 0) || 1;
+    const out: Record<string, number | string> = { week: `${r.iso_year}-W${String(r.iso_week).padStart(2, "0")}` };
+    for (const b of BANDS) {
+      const v = Number(r[b.key] || 0);
+      out[b.key as string] = bandMode === "share" ? (v / total) * 100 : v;
+    }
+    return out;
+  }), [bandRows, bandMode]);
 
   const latest = rows.length > 0 ? rows[rows.length - 1] : undefined;
   const previous = rows.length > 1 ? rows[rows.length - 2] : null;
@@ -202,6 +238,48 @@ const ProfitGraphs = () => {
                   <Area type="monotone" dataKey="fees" stackId="1" stroke="hsl(0 75% 60%)" fill="hsl(0 75% 60%)" fillOpacity={0.55} name="Channel fees" />
                 </AreaChart>
               </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          {/* Profitability mix by week */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <CardTitle>Profitability mix by week</CardTitle>
+                  <CardDescription>
+                    Sales lines split across POR bands each week — watch loss/poor shrink and good/great/amazing grow as repricing lands.
+                  </CardDescription>
+                </div>
+                <div className="flex gap-1 flex-shrink-0">
+                  <Button size="sm" variant={bandMode === "share" ? "default" : "outline"} onClick={() => setBandMode("share")}>% share</Button>
+                  <Button size="sm" variant={bandMode === "lines" ? "default" : "outline"} onClick={() => setBandMode("lines")}>Lines</Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {bandData.length === 0 ? (
+                <div className="py-10 text-center text-sm text-muted-foreground">No band history yet.</div>
+              ) : (
+                <ResponsiveContainer width="100%" height={340}>
+                  <AreaChart data={bandData} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <XAxis dataKey="week" stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                    <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12}
+                      domain={bandMode === "share" ? [0, 100] : ([0, "auto"] as any)}
+                      tickFormatter={(v) => bandMode === "share" ? `${Math.round(v)}%` : num(v)} />
+                    <Tooltip
+                      contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}
+                      formatter={(v: number, name: string) => [bandMode === "share" ? `${Number(v).toFixed(1)}%` : num(v), name]}
+                    />
+                    <Legend />
+                    {BANDS.map((b) => (
+                      <Area key={b.key as string} type="monotone" dataKey={b.key as string} stackId="bands"
+                        stroke={b.color} fill={b.color} fillOpacity={0.6} name={b.label} isAnimationActive={false} />
+                    ))}
+                  </AreaChart>
+                </ResponsiveContainer>
+              )}
             </CardContent>
           </Card>
 
