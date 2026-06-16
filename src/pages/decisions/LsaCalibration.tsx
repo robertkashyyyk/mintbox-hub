@@ -341,16 +341,17 @@ const LsaCalibration = () => {
                     <TableHead className="text-right">POT</TableHead>
                     <TableHead className="text-right">High</TableHead>
                     <TableHead className="text-right">Excess</TableHead>
+                    <TableHead className="text-right text-muted-foreground">Dormant</TableHead>
                     <TableHead className="w-[140px]"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {brandsLoading ? (
-                    <TableRow><TableCell colSpan={9} className="p-0">
-                      <PageLoader rows={6} columns={[160, 60, 60, 60, 60, 60, 60, 60, 80]} label="Loading brands" />
+                    <TableRow><TableCell colSpan={10} className="p-0">
+                      <PageLoader rows={6} columns={[160, 60, 60, 60, 60, 60, 60, 60, 60, 80]} label="Loading brands" />
                     </TableCell></TableRow>
                   ) : filteredBrands.length === 0 ? (
-                    <TableRow><TableCell colSpan={9} className="text-center py-12 text-muted-foreground">
+                    <TableRow><TableCell colSpan={10} className="text-center py-12 text-muted-foreground">
                       No brands match your search.
                     </TableCell></TableRow>
                   ) : (
@@ -395,10 +396,13 @@ const LsaCalibration = () => {
                           <StatusCell status="low"      value={b.low} />
                           <StatusCell status="target"   value={b.target} />
                           <TableCell className="text-right tabular-nums text-muted-foreground">
-                            {b.total > 0 ? `${Math.round((b.target / b.total) * 100)}%` : "—"}
+                            {(() => { const denom = b.active_total ?? (b.total - (b.dormant ?? 0)); return denom > 0 ? `${Math.round((b.target / denom) * 100)}%` : "—"; })()}
                           </TableCell>
                           <StatusCell status="high"     value={b.high} />
                           <StatusCell status="excess"   value={b.excess} />
+                          <TableCell className="text-right tabular-nums text-muted-foreground" title="No demand in window, at the LSA floor — nothing to do (dead/liquidation candidates). Excluded from POT.">
+                            {(b.dormant ?? 0).toLocaleString()}
+                          </TableCell>
                           <TableCell className="text-right">
                             <Button
                               variant="outline"

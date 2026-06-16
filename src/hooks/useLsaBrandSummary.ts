@@ -10,6 +10,8 @@ export interface LsaBrandSummaryRow {
   target: number;
   high: number;
   excess: number;
+  dormant: number;        // no demand + at the LSA floor — informational, excluded from POT
+  active_total: number;   // total − dormant (the POT denominator)
   refreshed_at: string;
 }
 
