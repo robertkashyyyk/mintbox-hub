@@ -63,7 +63,8 @@ async function pushPerStore(rows: { store_id: string; listing_sku: string; price
   }
   let pushed = 0, failed = 0;
   for (const [store_id, storeRows] of byStore) {
-    const { error } = await supabase.functions.invoke("threeds-reprice-push", { body: { store_id, rows: storeRows } });
+    // Tag as liquidation so the Repricing Payoff report excludes clearance cuts.
+    const { error } = await supabase.functions.invoke("threeds-reprice-push", { body: { store_id, rows: storeRows, source: "liquidation" } });
     if (error) failed += storeRows.length; else pushed += storeRows.length;
   }
   return { pushed, failed };

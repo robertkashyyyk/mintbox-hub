@@ -39,13 +39,17 @@ Deno.serve(async (req) => {
 
 
   // Parse + validate
-  let body: { store_id?: string; rows?: PushRow[] };
+  let body: { store_id?: string; rows?: PushRow[]; source?: string };
   try {
     body = await req.json();
   } catch {
     return json({ error: "Invalid JSON body" }, 400);
   }
   const storeId = body.store_id;
+  // Where the price came from: "repricer" (profit) or "liquidation" (clearance).
+  // The Repricing Payoff report excludes "liquidation" so deliberate clearance
+  // cuts don't get counted as repricing value.
+  const source = body.source === "liquidation" ? "liquidation" : "repricer";
   const rows = (body.rows ?? []).filter(
     (r) =>
       r &&
@@ -100,6 +104,7 @@ Deno.serve(async (req) => {
     sku: r.sku.trim(),
     price: Number(r.new_price.toFixed(2)),
     status: "pending",
+    source,
     queued_at: nowIso,
     queued_by: userId,
     last_pushed_at: nowIso,

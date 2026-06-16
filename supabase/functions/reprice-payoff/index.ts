@@ -43,7 +43,10 @@ Deno.serve(async (req) => {
   const slug: Record<string, string> = {}, sname: Record<string, string> = {};
   for (const s of stores ?? []) { if (s.ebay_store_slug) slug[s.id] = s.ebay_store_slug; sname[s.id] = s.store_name; }
 
-  const { data: pending } = await admin.from("threeds_reprice_pending").select("store_id, sku, price, queued_at");
+  // Profit-repricer pushes only — exclude liquidation/clearance cuts so deliberate
+  // dead-stock dumping isn't counted as repricing value.
+  const { data: pending } = await admin.from("threeds_reprice_pending")
+    .select("store_id, sku, price, queued_at").neq("source", "liquidation");
   const rp = new Map<string, { store_id: string; sku: string; price: number; queued_at: string }>();
   for (const r of pending ?? []) { const k = `${r.store_id}::${r.sku}`; const c = rp.get(k); if (!c || r.queued_at > c.queued_at) rp.set(k, r as any); }
   if (rp.size === 0) return json({ ok: true, empty: true });
