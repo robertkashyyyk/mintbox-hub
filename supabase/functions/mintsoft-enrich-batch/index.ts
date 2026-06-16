@@ -182,6 +182,7 @@ Deno.serve(async (req) => {
         let currentStock = 0;
         let onOrder = 0;
         let backOrderQty = 0;
+        let inventoryOk = false;  // only overwrite stock when we actually read inventory
 
         try {
           const inventoryResponse = await fetch(inventoryUrl, {
@@ -193,15 +194,18 @@ Deno.serve(async (req) => {
 
           if (inventoryResponse.ok) {
             const inventoryData = await inventoryResponse.json();
-            if (Array.isArray(inventoryData) && inventoryData.length > 0) {
-              // current_stock must reflect ONLY our Coleraine warehouse (WarehouseId=5).
-              // on_order / back_orders are global figures (PO + customer demand) — sum across all warehouses.
+            if (Array.isArray(inventoryData)) {
+              inventoryOk = true;
+              // current_stock = our Coleraine warehouse (WarehouseId=5) StockLevel only.
+              // on_order / back_orders are global (PO + customer demand) — sum across warehouses.
+              // NB: Mintsoft Inventory fields are StockLevel / OnOrder / RequiredByBackOrder
+              // (there is NO "Available"/"OnBackOrder" field — reading those zeroed real stock).
               for (const inv of inventoryData) {
                 if (inv.WarehouseId === 5) {
-                  currentStock += inv.Available || 0;
+                  currentStock += inv.StockLevel || 0;
                 }
                 onOrder += inv.OnOrder || 0;
-                backOrderQty += inv.OnBackOrder || 0;
+                backOrderQty += inv.RequiredByBackOrder || 0;
               }
             }
           }
@@ -264,14 +268,19 @@ Deno.serve(async (req) => {
             low_stock_alert_level: productDetails.LowStockAlertLevel || 0,
             handling_time: productDetails.HandlingTime || null,
             discontinued: productDetails.Discontinued || false,
-            current_stock: currentStock,
-            on_order: onOrder,
-            back_order_qty: backOrderQty,
             brand_id: brandId,
             mintsoft_categories: mintsoftCategories,
             last_stock_sync: new Date().toISOString(),
             updated_at: new Date().toISOString(),
         };
+
+        // Only overwrite stock fields when the inventory read actually succeeded —
+        // never zero real stock because a fetch failed or returned an unexpected shape.
+        if (inventoryOk) {
+          updatePayload.current_stock = currentStock;
+          updatePayload.on_order = onOrder;
+          updatePayload.back_order_qty = backOrderQty;
+        }
 
         // Only set cost_price when not preserving a manual edit, and only if we got a value
         if (!preserveManualCost && incomingCost !== null) {
