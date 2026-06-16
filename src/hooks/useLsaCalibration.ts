@@ -46,6 +46,9 @@ export const useLsaCalibration = (brandId?: string | null) => {
 
       return all;
     },
-    staleTime: 30_000,
+    staleTime: 5 * 60_000,
+    gcTime: 10 * 60_000,
+    refetchOnWindowFocus: false,    // don't re-run the heavy RPC just because the tab regained focus
+    placeholderData: (prev: any) => prev, // keep prior data visible while a new brand loads (no empty flash)
   });
 };
