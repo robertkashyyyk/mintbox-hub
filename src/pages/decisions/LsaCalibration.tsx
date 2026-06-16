@@ -13,7 +13,7 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { ArrowLeft, Gauge, Loader2, RefreshCw, Search, Sparkles, Zap } from "lucide-react";
+import { ArrowLeft, Gauge, Info, Loader2, RefreshCw, Search, Sparkles, Zap } from "lucide-react";
 import { PageLoader } from "@/components/ui/PageLoader";
 import { useLsaCalibration, type LsaCalibrationRow } from "@/hooks/useLsaCalibration";
 import { useLsaBrandSummary } from "@/hooks/useLsaBrandSummary";
@@ -46,6 +46,17 @@ function effStatus(r: { current_lsa: number | string | null; target_lsa: number 
   return r.status;
 }
 const pct = (n: number, d: number) => (d > 0 ? `${Math.round((n / d) * 100)}%` : "—");
+
+// Distribution-bar bands, in order. Bar is scaled to the TOTAL in scope (dormant
+// included, faded) — composition. The headline POT% stays target/managed in text.
+const BAR_BANDS: { key: string; color: string }[] = [
+  { key: "critical", color: "#E24B4A" },
+  { key: "low",      color: "#EF9F27" },
+  { key: "target",   color: "#1D9E75" },
+  { key: "high",     color: "#85B7EB" },
+  { key: "excess",   color: "#7F77DD" },
+  { key: "dormant",  color: "#888780" },
+];
 
 const LsaCalibration = () => {
   const navigate = useNavigate();
@@ -468,24 +479,17 @@ const LsaCalibration = () => {
   // ============================================================
   return (
     <div className="space-y-6 p-6 max-w-full overflow-hidden">
-      <div className="flex items-center justify-between">
-        <div className="space-y-1">
-          <Button variant="ghost" size="sm" onClick={backToBrands} className="text-pd-accent">
-            <ArrowLeft className="h-4 w-4 mr-2" /> Back to brands
-          </Button>
-          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-            <Gauge className="h-6 w-6 text-pd-accent" /> {detailBrandName}
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Compare current Low Stock Alerts to target (weekly velocity × base multiplier) and push corrections back to Mintsoft.
-          </p>
-        </div>
-        <div className="flex gap-2">
+      {/* Top row: back link (left) + actions (right) */}
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <Button variant="ghost" size="sm" onClick={backToBrands} className="text-pd-accent -ml-2">
+          <ArrowLeft className="h-4 w-4 mr-2" /> Back to brands
+        </Button>
+        <div className="flex gap-2 flex-wrap">
           <Button variant="outline" onClick={resetProposed} disabled={Object.keys(proposed).length === 0}>
             Reset proposals
           </Button>
           <Button variant="outline" onClick={applyTargetToFiltered}>
-            <Sparkles className="h-4 w-4 mr-2" /> Apply Target to filtered
+            <Sparkles className="h-4 w-4 mr-2" /> Apply target to filtered
           </Button>
           <Button onClick={pushSelectedOrDirty} disabled={updateMintsoft.isPending || (selectedRows.length === 0 && dirtyRows.length === 0)}>
             {updateMintsoft.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
@@ -494,43 +498,61 @@ const LsaCalibration = () => {
         </div>
       </div>
 
-      {/* Percentage on target — headline */}
-      <Card className="border-pd-accent/40 bg-pd-accent/5">
-        <CardContent className="py-4 flex items-baseline justify-between flex-wrap gap-2">
-          <div>
-            <div className="text-4xl font-bold text-pd-accent tabular-nums">{detailPot == null ? "—" : `${detailPot}%`}</div>
-            <div className="text-sm text-muted-foreground">On target — {(counts.target || 0).toLocaleString()} of {detailActive.toLocaleString()} actively-managed SKUs</div>
-          </div>
-          <div className="text-xs text-muted-foreground text-right">
-            {(counts.dormant || 0).toLocaleString()} dormant (no demand, at floor) excluded<br />{rows.length.toLocaleString()} total in scope
-          </div>
-        </CardContent>
-      </Card>
+      {/* Hero: brand name + on-target % (same large size), dormant/scope caption right */}
+      <div className="flex items-baseline justify-between gap-4 flex-wrap">
+        <div className="flex items-baseline gap-3 flex-wrap">
+          <span className="text-[2.75rem] leading-none font-medium text-foreground inline-flex items-center gap-2">
+            {detailBrandName}
+            <TooltipProvider><Tooltip>
+              <TooltipTrigger asChild><Info className="h-4 w-4 text-muted-foreground self-center" /></TooltipTrigger>
+              <TooltipContent className="max-w-xs">Compare current Low Stock Alerts to target (weekly velocity × base multiplier) and push corrections back to Mintsoft.</TooltipContent>
+            </Tooltip></TooltipProvider>
+          </span>
+          <span className="text-[2.75rem] leading-none font-medium text-pd-accent tabular-nums">{detailPot == null ? "—" : `${detailPot}%`}</span>
+          <span className="text-sm text-muted-foreground">on target · {(counts.target || 0).toLocaleString()} of {detailActive.toLocaleString()} managed</span>
+        </div>
+        <div className="text-sm text-muted-foreground text-right">
+          {(counts.dormant || 0).toLocaleString()} dormant · {rows.length.toLocaleString()} in scope
+        </div>
+      </div>
 
-      {/* Status summary (this brand only) */}
-      <div className="grid gap-3 md:grid-cols-6">
-        {[...ALL_STATUSES, "dormant"].map((s) => {
-          const denom = s === "dormant" ? rows.length : detailActive;
-          return (
-          <Card key={s} className={statusFilter === s ? "ring-1 ring-pd-accent" : ""}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">{STATUS_META[s].label}</CardTitle>
-              <Badge variant="outline" className={STATUS_META[s].cls}>{(counts[s] || 0).toLocaleString()}</Badge>
-            </CardHeader>
-            <CardContent className="pt-0 flex items-center justify-between">
-              <span className="text-xs text-muted-foreground tabular-nums">{pct(counts[s] || 0, denom)}</span>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="px-0 h-auto text-xs text-muted-foreground"
-                onClick={() => setStatusFilter(statusFilter === s ? ALL : s)}
+      {/* Segmented distribution bar (scaled to total in scope) — click a band to filter */}
+      <div>
+        <div className="flex w-full h-3 rounded-full overflow-hidden bg-muted">
+          {BAR_BANDS.map(({ key, color }) => {
+            const c = counts[key] || 0;
+            const w = rows.length > 0 ? (c / rows.length) * 100 : 0;
+            if (w <= 0) return null;
+            const active = statusFilter === key;
+            const dim = statusFilter !== ALL && !active;
+            const baseOpacity = key === "dormant" ? 0.4 : 1;
+            return (
+              <button
+                key={key}
+                title={`${STATUS_META[key].label}: ${c.toLocaleString()} (${pct(c, rows.length)})`}
+                onClick={() => setStatusFilter(active ? ALL : key)}
+                style={{ width: `${w}%`, backgroundColor: color, opacity: dim ? baseOpacity * 0.4 : baseOpacity }}
+                className="h-full transition-opacity hover:opacity-90"
+                aria-label={`Filter by ${STATUS_META[key].label}`}
+              />
+            );
+          })}
+        </div>
+        <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs">
+          {BAR_BANDS.map(({ key, color }) => {
+            const active = statusFilter === key;
+            return (
+              <button
+                key={key}
+                onClick={() => setStatusFilter(active ? ALL : key)}
+                className={`inline-flex items-center gap-1.5 ${active ? "font-semibold text-foreground underline underline-offset-4" : "text-muted-foreground"}`}
               >
-                {statusFilter === s ? "Clear filter" : "Filter"}
-              </Button>
-            </CardContent>
-          </Card>
-          );
-        })}
+                <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: color, opacity: key === "dormant" ? 0.4 : 1 }} />
+                {STATUS_META[key].label} <span className="tabular-nums">{(counts[key] || 0).toLocaleString()}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Filters */}
@@ -558,7 +580,7 @@ const LsaCalibration = () => {
                 <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value={ALL}>All</SelectItem>
-                  {ALL_STATUSES.map((s) => <SelectItem key={s} value={s}>{STATUS_META[s].label}</SelectItem>)}
+                  {[...ALL_STATUSES, "dormant"].map((s) => <SelectItem key={s} value={s}>{STATUS_META[s].label}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
