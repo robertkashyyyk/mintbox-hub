@@ -508,20 +508,31 @@ const LsaCalibration = () => {
               <TooltipContent className="max-w-xs">Compare current Low Stock Alerts to target (weekly velocity × base multiplier) and push corrections back to Mintsoft.</TooltipContent>
             </Tooltip></TooltipProvider>
           </span>
-          <span className="text-[2.75rem] leading-none font-medium text-pd-accent tabular-nums">{detailPot == null ? "—" : `${detailPot}%`}</span>
-          <span className="text-sm text-muted-foreground">on target · {(counts.target || 0).toLocaleString()} of {detailActive.toLocaleString()} managed</span>
+          {isLoading ? (
+            <span className="text-[2.75rem] leading-none font-medium text-muted-foreground inline-flex items-center gap-2"><Loader2 className="h-7 w-7 animate-spin" /></span>
+          ) : (
+            <>
+              <span className="text-[2.75rem] leading-none font-medium text-pd-accent tabular-nums">{detailPot == null ? "—" : `${detailPot}%`}</span>
+              <span className="text-sm text-muted-foreground">on target · {(counts.target || 0).toLocaleString()} of {detailActive.toLocaleString()} managed</span>
+            </>
+          )}
         </div>
         <div className="text-sm text-muted-foreground text-right">
-          {(counts.dormant || 0).toLocaleString()} dormant · {rows.length.toLocaleString()} in scope
+          {isLoading ? "Loading…" : `${(counts.dormant || 0).toLocaleString()} dormant · ${rows.length.toLocaleString()} in scope`}
         </div>
       </div>
 
-      {/* Segmented distribution bar (scaled to total in scope) — click a band to filter */}
+      {/* Segmented distribution bar — scaled to the MANAGED set so on-target green
+          dominates (screams the POT%). Dormant is shown in the legend + caption, not
+          diluting the bar. Click a band to filter. */}
       <div>
+        {isLoading ? (
+          <div className="h-3 w-full rounded-full bg-muted animate-pulse" />
+        ) : (<>
         <div className="flex w-full h-3 rounded-full overflow-hidden bg-muted">
-          {BAR_BANDS.map(({ key, color }) => {
+          {BAR_BANDS.filter(b => b.key !== "dormant").map(({ key, color }) => {
             const c = counts[key] || 0;
-            const w = rows.length > 0 ? (c / rows.length) * 100 : 0;
+            const w = detailActive > 0 ? (c / detailActive) * 100 : 0;
             if (w <= 0) return null;
             const active = statusFilter === key;
             const dim = statusFilter !== ALL && !active;
@@ -529,7 +540,7 @@ const LsaCalibration = () => {
             return (
               <button
                 key={key}
-                title={`${STATUS_META[key].label}: ${c.toLocaleString()} (${pct(c, rows.length)})`}
+                title={`${STATUS_META[key].label}: ${c.toLocaleString()} (${pct(c, detailActive)} of managed)`}
                 onClick={() => setStatusFilter(active ? ALL : key)}
                 style={{ width: `${w}%`, backgroundColor: color, opacity: dim ? baseOpacity * 0.4 : baseOpacity }}
                 className="h-full transition-opacity hover:opacity-90"
@@ -553,6 +564,7 @@ const LsaCalibration = () => {
             );
           })}
         </div>
+        </>)}
       </div>
 
       {/* Filters */}
