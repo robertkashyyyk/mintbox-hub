@@ -92,13 +92,24 @@ Deno.serve(async (req) => {
     const staleDate = new Date();
     staleDate.setDate(staleDate.getDate() - STALE_DAYS);
 
-    const { data: products, error: productsError } = await supabase
+    // Optional { prefix } body → targeted enrichment of one brand/prefix (e.g. "NBA-"),
+    // ignoring the staleness filter so it re-enriches the whole prefix in one pass.
+    let prefix: string | null = null;
+    try { prefix = (await req.json())?.prefix ?? null; } catch { /* no body = scheduled run */ }
+
+    let query = supabase
       .from("products_cache")
       .select("id, sku, mintsoft_product_id, cost_price_source")
-      .not("mintsoft_product_id", "is", null)
-      .or(`last_stock_sync.is.null,last_stock_sync.lt.${staleDate.toISOString()}`)
-      .order("last_stock_sync", { ascending: true, nullsFirst: true })
-      .limit(BATCH_SIZE);
+      .not("mintsoft_product_id", "is", null);
+    if (prefix) {
+      query = query.ilike("sku", `${prefix}%`);
+    } else {
+      query = query.or(`last_stock_sync.is.null,last_stock_sync.lt.${staleDate.toISOString()}`);
+    }
+    // Order by staleness always (oldest/never-synced first) so repeated runs drain a
+    // prefix that's larger than one edge run can finish, without redoing fresh ones.
+    query = query.order("last_stock_sync", { ascending: true, nullsFirst: true });
+    const { data: products, error: productsError } = await query.limit(BATCH_SIZE);
 
     if (productsError) {
       throw new Error(`Failed to fetch products: ${productsError.message}`);
