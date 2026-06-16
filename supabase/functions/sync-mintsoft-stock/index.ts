@@ -200,14 +200,18 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Mintsoft /Product/StockLevels fields are TotalStockLevel (our current_stock
+    // convention) + LowStockLevel (the LSA) — NOT AvailableQuantity/BackOrderQuantity
+    // (reading those zeroed stock). Only update rows where we actually got a stock value,
+    // so a malformed/empty response can never zero real stock. back_order/on_order aren't
+    // in this endpoint — leave them to the inventory sync rather than clobber with 0.
     const updates = stockData
-      .filter((it) => existingSkus.has(it.SKU))
+      .filter((it) => existingSkus.has(it.SKU) && it.TotalStockLevel != null)
       .map((it) => ({
         sku: it.SKU,
         name: existingNames.get(it.SKU) || it.SKU,
-        current_stock: it.AvailableQuantity || 0,
-        back_order_qty: it.BackOrderQuantity || 0,
-        on_order: it.OnOrderQuantity || 0,
+        current_stock: it.TotalStockLevel,
+        low_stock_alert_level: it.LowStockLevel ?? 0,
         last_stock_sync: now,
       }));
 

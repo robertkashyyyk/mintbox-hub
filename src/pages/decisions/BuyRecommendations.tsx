@@ -87,7 +87,7 @@ const BuyRecommendations = () => {
       toast({ title: "Refresh failed", description: error.message, variant: "destructive" });
     } else {
       toast({
-        title: "Stock refreshed from Mintsoft",
+        title: "Stock & LSA refreshed from Mintsoft",
         description: `Updated ${(data as any)?.updated ?? 0} SKUs${skus ? ` for this supplier` : ""}.`,
       });
       qc.invalidateQueries({ queryKey: ["buy-recommendations"] });
@@ -445,10 +445,10 @@ const BuyRecommendations = () => {
             size="sm"
             onClick={() => refreshStock(currentSupplier?.rows.map((r) => r.sku) || [])}
             disabled={refreshing || !currentSupplier}
-            title="Pull live stock from Mintsoft for this supplier's SKUs only"
+            title="Pull live stock AND low-stock-alert (LSA) levels from Mintsoft for this supplier's SKUs, then recompute the recommendations"
           >
             {refreshing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-            Refresh stock
+            Refresh stock & LSA
           </Button>
           <Button
             disabled={creating || selectionSummary.count === 0 || !currentSupplier?.supplierId}
