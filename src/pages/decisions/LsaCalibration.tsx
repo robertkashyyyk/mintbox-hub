@@ -27,13 +27,25 @@ const ALL = "__all__";
 const ALL_STATUSES = ["critical", "low", "target", "high", "excess"] as const;
 type StatusKey = (typeof ALL_STATUSES)[number];
 
-const STATUS_META: Record<StatusKey, { label: string; cls: string }> = {
+const STATUS_META: Record<string, { label: string; cls: string }> = {
   critical: { label: "Critical", cls: "bg-destructive/15 text-destructive border-destructive/40" },
   low:      { label: "Low",      cls: "bg-warning/15 text-warning border-warning/40" },
   target:   { label: "Target",   cls: "bg-pd-accent/15 text-pd-accent border-pd-accent/40" },
   high:     { label: "High",     cls: "bg-warning/10 text-warning border-warning/30" },
   excess:   { label: "Excess",   cls: "bg-destructive/10 text-destructive border-destructive/30" },
+  dormant:  { label: "Dormant",  cls: "bg-muted text-muted-foreground border-border" },
 };
+
+// No demand in window AND at/below the LSA floor (1 = Mintsoft default) → "dormant":
+// nothing to do, so it's excluded from POT%. (The RPC still tags these 'excess'.)
+const LSA_FLOOR = 1;
+function effStatus(r: { current_lsa: number | string | null; target_lsa: number | string | null; status: string }): string {
+  const tgt = Math.round(Number(r.target_lsa) || 0);
+  const cur = Number(r.current_lsa) || 0;
+  if (tgt <= 0 && cur <= LSA_FLOOR) return "dormant";
+  return r.status;
+}
+const pct = (n: number, d: number) => (d > 0 ? `${Math.round((n / d) * 100)}%` : "—");
 
 const LsaCalibration = () => {
   const navigate = useNavigate();
@@ -70,13 +82,16 @@ const LsaCalibration = () => {
   }, [brandSummary, brandSearch]);
 
   const totals = useMemo(() => {
-    const t = { total: 0, critical: 0, low: 0, target: 0, high: 0, excess: 0 };
+    const t = { total: 0, critical: 0, low: 0, target: 0, high: 0, excess: 0, dormant: 0, active_total: 0 };
     for (const b of brandSummary) {
       t.total += b.total; t.critical += b.critical; t.low += b.low;
       t.target += b.target; t.high += b.high; t.excess += b.excess;
+      t.dormant += (b.dormant ?? 0);
+      t.active_total += (b.active_total ?? (b.total - (b.dormant ?? 0)));
     }
     return t;
   }, [brandSummary]);
+  const totalsPot = totals.active_total > 0 ? Math.round((totals.target / totals.active_total) * 100) : null;
 
   const refreshSummary = async () => {
     const { error } = await (supabase as any).rpc("refresh_lsa_brand_summary");
@@ -123,7 +138,7 @@ const LsaCalibration = () => {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return rows.filter((r) => {
-      if (statusFilter !== ALL && r.status !== statusFilter) return false;
+      if (statusFilter !== ALL && effStatus(r) !== statusFilter) return false;
       if (q && !(r.sku.toLowerCase().includes(q) || (r.product_name || "").toLowerCase().includes(q))) return false;
       return true;
     });
@@ -154,10 +169,13 @@ const LsaCalibration = () => {
   }, [filtered]);
 
   const counts = useMemo(() => {
-    const c: Record<StatusKey, number> = { critical: 0, low: 0, target: 0, high: 0, excess: 0 };
-    for (const r of rows) c[r.status as StatusKey] = (c[r.status as StatusKey] || 0) + 1;
+    const c: Record<string, number> = { critical: 0, low: 0, target: 0, high: 0, excess: 0, dormant: 0 };
+    for (const r of rows) { const s = effStatus(r); c[s] = (c[s] || 0) + 1; }
     return c;
   }, [rows]);
+  // POT excludes dormant (no-demand floor stock — nothing to do).
+  const detailActive = rows.length - (counts.dormant || 0);
+  const detailPot = detailActive > 0 ? Math.round(((counts.target || 0) / detailActive) * 100) : null;
 
   const extractPrefix = (sku: string) => {
     if (!sku) return "—";
@@ -292,17 +310,36 @@ const LsaCalibration = () => {
           </Button>
         </div>
 
+        {/* Percentage on target — headline (all brands) */}
+        <Card className="border-pd-accent/40 bg-pd-accent/5">
+          <CardContent className="py-4 flex items-baseline justify-between flex-wrap gap-2">
+            <div>
+              <div className="text-4xl font-bold text-pd-accent tabular-nums">{totalsPot == null ? "—" : `${totalsPot}%`}</div>
+              <div className="text-sm text-muted-foreground">On target — {totals.target.toLocaleString()} of {totals.active_total.toLocaleString()} actively-managed SKUs (all brands)</div>
+            </div>
+            <div className="text-xs text-muted-foreground text-right">
+              {totals.dormant.toLocaleString()} dormant (no demand, at floor) excluded<br />{totals.total.toLocaleString()} total in scope
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Totals across all brands */}
-        <div className="grid gap-3 md:grid-cols-5">
-          {ALL_STATUSES.map((s) => (
+        <div className="grid gap-3 md:grid-cols-6">
+          {[...ALL_STATUSES, "dormant"].map((s) => {
+            const denom = s === "dormant" ? totals.total : totals.active_total;
+            return (
             <Card key={s}>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">{STATUS_META[s].label}</CardTitle>
-                <Badge variant="outline" className={STATUS_META[s].cls}>{totals[s].toLocaleString()}</Badge>
+                <Badge variant="outline" className={STATUS_META[s].cls}>{(totals as any)[s].toLocaleString()}</Badge>
               </CardHeader>
-              <CardContent className="pt-0 text-xs text-muted-foreground">across all brands</CardContent>
+              <CardContent className="pt-0 text-xs text-muted-foreground flex items-center justify-between">
+                <span className="tabular-nums">{pct((totals as any)[s], denom)}</span>
+                <span>across all brands</span>
+              </CardContent>
             </Card>
-          ))}
+            );
+          })}
         </div>
 
         {/* Brand search */}
@@ -457,15 +494,31 @@ const LsaCalibration = () => {
         </div>
       </div>
 
+      {/* Percentage on target — headline */}
+      <Card className="border-pd-accent/40 bg-pd-accent/5">
+        <CardContent className="py-4 flex items-baseline justify-between flex-wrap gap-2">
+          <div>
+            <div className="text-4xl font-bold text-pd-accent tabular-nums">{detailPot == null ? "—" : `${detailPot}%`}</div>
+            <div className="text-sm text-muted-foreground">On target — {(counts.target || 0).toLocaleString()} of {detailActive.toLocaleString()} actively-managed SKUs</div>
+          </div>
+          <div className="text-xs text-muted-foreground text-right">
+            {(counts.dormant || 0).toLocaleString()} dormant (no demand, at floor) excluded<br />{rows.length.toLocaleString()} total in scope
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Status summary (this brand only) */}
-      <div className="grid gap-3 md:grid-cols-5">
-        {ALL_STATUSES.map((s) => (
+      <div className="grid gap-3 md:grid-cols-6">
+        {[...ALL_STATUSES, "dormant"].map((s) => {
+          const denom = s === "dormant" ? rows.length : detailActive;
+          return (
           <Card key={s} className={statusFilter === s ? "ring-1 ring-pd-accent" : ""}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">{STATUS_META[s].label}</CardTitle>
-              <Badge variant="outline" className={STATUS_META[s].cls}>{counts[s].toLocaleString()}</Badge>
+              <Badge variant="outline" className={STATUS_META[s].cls}>{(counts[s] || 0).toLocaleString()}</Badge>
             </CardHeader>
-            <CardContent className="pt-0">
+            <CardContent className="pt-0 flex items-center justify-between">
+              <span className="text-xs text-muted-foreground tabular-nums">{pct(counts[s] || 0, denom)}</span>
               <Button
                 variant="ghost"
                 size="sm"
@@ -476,7 +529,8 @@ const LsaCalibration = () => {
               </Button>
             </CardContent>
           </Card>
-        ))}
+          );
+        })}
       </div>
 
       {/* Filters */}
@@ -564,7 +618,7 @@ const LsaCalibration = () => {
                   </TableCell></TableRow>
                 ) : (
                   pageRows.map((r) => {
-                    const meta = STATUS_META[r.status as StatusKey];
+                    const meta = STATUS_META[effStatus(r)];
                     const p = proposedFor(r);
                     const dirty = Math.round(p) !== Math.round(r.current_lsa);
                     return (
