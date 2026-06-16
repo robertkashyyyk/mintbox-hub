@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { TrendingUp, Activity, DollarSign, Calendar, BarChart3, AlertCircle, AlertTriangle, PoundSterling, FileBarChart2 } from "lucide-react";
+import { TrendingUp, Activity, DollarSign, Calendar, BarChart3, AlertCircle, AlertTriangle, PoundSterling, FileBarChart2, LayoutDashboard } from "lucide-react";
 import ModuleHeader from "@/components/ModuleHeader";
 import intelligenceBanner from "@/assets/banners/intelligence-banner.jpg";
 
@@ -8,6 +8,7 @@ const IntelligenceIndex = () => {
   const navigate = useNavigate();
 
   const options = [
+    { title: "Scorecard", description: "RAG + trend across profit, 80/20, valuation and data quality — with Orin's narrative.", icon: LayoutDashboard, onClick: () => navigate("/intelligence/scorecard") },
     { title: "Profit Intelligence", description: "Weekly revenue, costs, channel fees and POR.", icon: DollarSign, onClick: () => navigate("/intelligence/profit") },
     { title: "Standing Reports", description: "Recurring reports — e.g. repricing payoff, tracked over time.", icon: FileBarChart2, onClick: () => navigate("/intelligence/standing-reports") },
     { title: "Velocity & Coverage", description: "Sales velocity and inventory coverage analysis", icon: TrendingUp, onClick: () => navigate("/intelligence/velocity") },

@@ -90,6 +90,7 @@ export function AppSidebar() {
       basePath: "/intelligence",
       icon: TrendingUp,
       items: [
+        { title: "Scorecard", url: "/intelligence/scorecard", icon: LayoutDashboard },
         { title: "Profit Intelligence", url: "/intelligence/profit", icon: DollarSign },
         { title: "Standing Reports", url: "/intelligence/standing-reports", icon: FileBarChart2 },
         { title: "Velocity & Coverage", url: "/intelligence/velocity", icon: TrendingUp },
