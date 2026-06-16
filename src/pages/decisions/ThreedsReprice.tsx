@@ -54,8 +54,13 @@ interface Candidate {
   por_pct: number | null;
   current_price: number | null; // NET (ex-VAT) latest sold price
   current_stock: number | null;
+  // Tagged client-side after fetch (the RPC is per-channel and SKU-only).
+  store_id?: string;
+  store_name?: string | null;
+  mintsoft_channel?: string | null;
 }
 interface PendingRow {
+  store_id: string;
   sku: string;
   price: number;
   status: string; // pending | applied | expired
@@ -86,6 +91,9 @@ interface EnrichedRow extends Candidate {
 }
 
 const PAGE_SIZE = 50;
+const ALL_STORES = "__all__";
+// Rows are keyed by store+sku so the same SKU across stores stays distinct in "All stores" mode.
+const rowKey = (r: { store_id?: string; sku: string }) => `${r.store_id ?? ""}::${r.sku}`;
 
 const gbp = (n: number | null | undefined) =>
   n == null ? "—" :
@@ -149,24 +157,36 @@ export default function ThreedsReprice() {
     },
   });
 
+  const isAll = storeId === ALL_STORES;
   const activeStore = stores?.find((s) => s.id === storeId) ?? null;
+  const enabledStores = useMemo(() => (stores ?? []).filter((s) => s.enabled), [stores]);
+  const storeNameById = (id: string) => stores?.find((s) => s.id === id)?.store_name ?? "—";
 
+  // Header-copy fees: the active store's, or a representative store's in All mode
+  // (VAT + fixed eBay fee are uniform across the UK stores; per-row fees are used for the maths).
   const fees = useMemo(
-    () => effectiveFeesFor(activeStore?.mintsoft_channel ?? "", feeRules),
-    [activeStore?.mintsoft_channel, feeRules],
+    () => effectiveFeesFor(activeStore?.mintsoft_channel ?? enabledStores[0]?.mintsoft_channel ?? "", feeRules),
+    [activeStore?.mintsoft_channel, enabledStores, feeRules],
   );
 
   const { data: candidates, isLoading: candLoading, isFetching: candFetching, refetch } = useQuery({
-    queryKey: ["threeds_candidates", activeStore?.mintsoft_channel, days],
-    enabled: !!activeStore,
+    queryKey: ["threeds_candidates", storeId, days],
+    enabled: isAll ? enabledStores.length > 0 : !!activeStore,
     queryFn: async () => {
       // Ring-fence is enforced inside the RPC (excludes active-campaign SKUs).
-      const { data, error } = await supabase.rpc("get_threeds_reprice_candidates", {
-        p_channel: activeStore!.mintsoft_channel,
-        p_days: days,
-      });
-      if (error) throw error;
-      return (data ?? []) as Candidate[];
+      const targets = isAll ? enabledStores : activeStore ? [activeStore] : [];
+      const all: Candidate[] = [];
+      for (const st of targets) {
+        const { data, error } = await supabase.rpc("get_threeds_reprice_candidates", {
+          p_channel: st.mintsoft_channel,
+          p_days: days,
+        });
+        if (error) throw error;
+        for (const c of (data ?? []) as Candidate[]) {
+          all.push({ ...c, store_id: st.id, store_name: st.store_name, mintsoft_channel: st.mintsoft_channel });
+        }
+      }
+      return all;
     },
   });
 
@@ -184,26 +204,28 @@ export default function ThreedsReprice() {
     queryKey: ["threeds_pending", storeId],
     enabled: !!storeId,
     queryFn: async () => {
-      const { data, error } = await supabase
+      let q = supabase
         .from("threeds_reprice_pending" as any)
-        .select("sku, price, status, queued_at, applied_at, verified_price")
-        .eq("store_id", storeId!)
+        .select("store_id, sku, price, status, queued_at, applied_at, verified_price")
         .order("status", { ascending: true })
         .order("queued_at", { ascending: false })
-        .limit(500);
+        .limit(2000);
+      // Single store → filter to it; All stores → every enabled store's queue.
+      q = isAll ? q.in("store_id", enabledStores.map((s) => s.id)) : q.eq("store_id", storeId!);
+      const { data, error } = await q;
       if (error) throw error;
       return (data ?? []) as unknown as PendingRow[];
     },
   });
   const pendingCount = (pendingQueue ?? []).filter((p) => p.status === "pending").length;
-  // Map of SKU → queued price for rows already sitting in the pending file.
+  // Map of store+SKU → queued price for rows already sitting in a pending file.
   // Pending (in the file) OR applied (gone live) within 14 days → "already repriced".
   const queuedMap = useMemo(() => {
     const m = new Map<string, { price: number; status: string }>();
     const since = Date.now() - 14 * 86_400_000;
     (pendingQueue ?? []).forEach((p) => {
       if (p.status === "pending" || (p.status === "applied" && p.applied_at && new Date(p.applied_at).getTime() >= since)) {
-        m.set(p.sku, { price: p.price, status: p.status });
+        m.set(rowKey(p), { price: p.price, status: p.status });
       }
     });
     return m;
@@ -213,12 +235,13 @@ export default function ThreedsReprice() {
     queryKey: ["threeds_pushes", storeId],
     enabled: !!storeId,
     queryFn: async () => {
-      const { data, error } = await supabase
+      let q = supabase
         .from("threeds_reprice_pushes")
         .select("id, pushed_at, row_count, status, sftp_path, error_message")
-        .eq("store_id", storeId!)
         .order("pushed_at", { ascending: false })
-        .limit(10);
+        .limit(isAll ? 30 : 10);
+      q = isAll ? q.in("store_id", enabledStores.map((s) => s.id)) : q.eq("store_id", storeId!);
+      const { data, error } = await q;
       if (error) throw error;
       return data as PushLog[];
     },
@@ -229,6 +252,8 @@ export default function ThreedsReprice() {
   const enriched = useMemo<EnrichedRow[]>(() => {
     const targetPorFrac = TIER_TARGET_POR_PCT[tier] / 100;
     return (candidates ?? []).map((c) => {
+      // Per-row fees: in All mode each row may belong to a different channel.
+      const rowFees = effectiveFeesFor(c.mintsoft_channel ?? "", feeRules);
       const units = c.units_sold > 0 ? c.units_sold : 0;
       // Pack-aware cost: prefer the derived pack_cost_unit (base unit cost ×
       // pack_size) from the RPC; fall back to cost_total/units for safety.
@@ -237,12 +262,12 @@ export default function ThreedsReprice() {
           ? c.pack_cost_unit
           : units > 0 ? (c.cost_total ?? 0) / units : 0;
       const courierUnit = units > 0 ? (c.courier_total ?? 0) / units : 0;
-      const grossLastSold = toGross(c.current_price, fees.vat);
+      const grossLastSold = toGross(c.current_price, rowFees.vat);
       // Flag on the pack-aware cost: cost_total from the RPC is already
       // pack_cost_unit × units (NULL when the base cost is missing).
       const flag = classifyCost({ costTotal: c.cost_total, unitsSold: units, grossPrice: grossLastSold });
       // Prefer the measured real eBay fee rate (~22%) over the modeled default.
-      const { feePct, fixedFeeUnit, usedReal } = feeInputsForBackSolve(c.real_fee_rate, fees);
+      const { feePct, fixedFeeUnit, usedReal } = feeInputsForBackSolve(c.real_fee_rate, rowFees);
       const targetGross =
         flag === null
           ? backSolveGrossPrice({
@@ -250,7 +275,7 @@ export default function ThreedsReprice() {
               courierUnit,
               fixedFeeUnit,
               feePct,
-              vat: fees.vat,
+              vat: rowFees.vat,
               targetPorFrac,
               postageUnit: c.postage_unit ?? 0,
             })
@@ -266,7 +291,7 @@ export default function ThreedsReprice() {
         suggestedGross / grossLastSold > BIG_MOVE_MULTIPLE;
       return { ...c, costUnit, grossLastSold, flag, suggestedGross, targetGross, atTarget, feePctUsed: feePct, usedRealFee: usedReal, bigMove };
     });
-  }, [candidates, tier, fees]);
+  }, [candidates, tier, feeRules]);
 
   const matchesSearch = (r: EnrichedRow) => {
     if (!search.trim()) return true;
@@ -283,7 +308,7 @@ export default function ThreedsReprice() {
     if (currentBand !== "all") rows = rows.filter((r) => classifyPorBand(r.por_pct) === currentBand);
     // Outstanding = not-repriced + NOT big-move; Review = not-repriced + big-move; All = everything.
     if (statusFilter !== "all") {
-      rows = rows.filter((r) => !queuedMap.has(r.sku));
+      rows = rows.filter((r) => !queuedMap.has(rowKey(r)));
       rows = rows.filter((r) => (statusFilter === "review" ? r.bigMove : !r.bigMove));
     }
     return rows.filter(matchesSearch);
@@ -316,30 +341,45 @@ export default function ThreedsReprice() {
 
   // Effective price for a row = user override, else the tier suggestion.
   const effectivePrice = (r: EnrichedRow): string =>
-    selected[r.sku]?.price ?? (r.suggestedGross != null ? r.suggestedGross.toFixed(2) : "");
+    selected[rowKey(r)]?.price ?? (r.suggestedGross != null ? r.suggestedGross.toFixed(2) : "");
 
   const selectedRows = useMemo(() => {
     return repriceable
-      .filter((r) => selected[r.sku]?.checked)
-      .map((r) => ({ sku: r.sku, new_price: parseFloat(effectivePrice(r)) }))
-      .filter((r) => !isNaN(r.new_price) && r.new_price > 0);
+      .filter((r) => selected[rowKey(r)]?.checked)
+      .map((r) => ({ store_id: r.store_id!, sku: r.sku, new_price: parseFloat(effectivePrice(r)) }))
+      .filter((r) => !!r.store_id && !isNaN(r.new_price) && r.new_price > 0);
   }, [repriceable, selected]);
 
   const pushMutation = useMutation({
     mutationFn: async () => {
-      if (!storeId) throw new Error("No store selected");
       if (selectedRows.length === 0) throw new Error("Tick rows and enter prices first");
-      const { data, error } = await supabase.functions.invoke("threeds-reprice-push", {
-        body: { store_id: storeId, rows: selectedRows },
-      });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-      return data;
+      // Group by store so each store's rows land in its own queue / SFTP file.
+      const byStore = new Map<string, { sku: string; new_price: number }[]>();
+      for (const r of selectedRows) {
+        if (!byStore.has(r.store_id)) byStore.set(r.store_id, []);
+        byStore.get(r.store_id)!.push({ sku: r.sku, new_price: r.new_price });
+      }
+      let added = 0;
+      const paths: string[] = [];
+      const failures: string[] = [];
+      for (const [sid, rows] of byStore) {
+        const { data, error } = await supabase.functions.invoke("threeds-reprice-push", {
+          body: { store_id: sid, rows },
+        });
+        if (error || data?.error) { failures.push(error?.message ?? data?.error ?? "unknown error"); continue; }
+        added += data.added ?? 0;
+        if (data.sftp_path) paths.push(data.sftp_path);
+      }
+      if (failures.length && added === 0) throw new Error(failures.join("; "));
+      return { added, storeCount: byStore.size, paths, failures };
     },
     onSuccess: (data) => {
       toast({
         title: "Pushed to 3D",
-        description: `Added ${data.added} — file now holds ${data.row_count} pending price${data.row_count === 1 ? "" : "s"} (${data.sftp_path}). Cleared nightly once confirmed live.`,
+        description:
+          `Added ${data.added} price${data.added === 1 ? "" : "s"} across ${data.storeCount} store${data.storeCount === 1 ? "" : "s"} ` +
+          `(${data.paths.join(", ")}). Cleared nightly once confirmed live.` +
+          (data.failures.length ? ` ⚠ ${data.failures.length} store(s) failed: ${data.failures.join("; ")}` : ""),
       });
       setSelected({});
       qc.invalidateQueries({ queryKey: ["threeds_pushes", storeId] });
@@ -355,15 +395,16 @@ export default function ThreedsReprice() {
     setSelected((prev) => {
       const next = { ...prev };
       for (const r of pageRows) {
-        if (queuedMap.has(r.sku)) continue; // skip rows already in the pending queue
-        if (checked) next[r.sku] = { checked: true, price: prev[r.sku]?.price };
-        else delete next[r.sku];
+        const k = rowKey(r);
+        if (queuedMap.has(k)) continue; // skip rows already in the pending queue
+        if (checked) next[k] = { checked: true, price: prev[k]?.price };
+        else delete next[k];
       }
       return next;
     });
   };
-  const selectablePageRows = pageRows.filter((r) => !queuedMap.has(r.sku));
-  const allChecked = selectablePageRows.length > 0 && selectablePageRows.every((r) => selected[r.sku]?.checked);
+  const selectablePageRows = pageRows.filter((r) => !queuedMap.has(rowKey(r)));
+  const allChecked = selectablePageRows.length > 0 && selectablePageRows.every((r) => selected[rowKey(r)]?.checked);
 
   const flagBadge = (f: CostFlag) =>
     f === "missing_cost" ? (
@@ -422,6 +463,9 @@ export default function ThreedsReprice() {
                 <SelectValue placeholder={storesLoading ? "Loading…" : "Pick a store"} />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value={ALL_STORES} disabled={enabledStores.length === 0}>
+                  <strong>All stores</strong> <span className="text-muted-foreground">— every enabled account</span>
+                </SelectItem>
                 {stores?.map((s) => (
                   <SelectItem key={s.id} value={s.id} disabled={!s.enabled}>
                     {s.store_name} <span className="text-muted-foreground">— {s.mintsoft_channel}</span>
@@ -483,13 +527,13 @@ export default function ThreedsReprice() {
             <label className="text-xs text-muted-foreground">Search SKU / brand / name</label>
             <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="e.g. NGK-05747" />
           </div>
-          <Button variant="outline" size="sm" onClick={() => refetch()} disabled={!activeStore}>
+          <Button variant="outline" size="sm" onClick={() => refetch()} disabled={!storeId}>
             Refresh
           </Button>
         </CardContent>
       </Card>
 
-      {activeStore && (
+      {(activeStore || isAll) && (
       <Tabs defaultValue="repriceable" className="w-full">
         <TabsList>
           <TabsTrigger value="repriceable" className="gap-2">
@@ -557,6 +601,7 @@ export default function ThreedsReprice() {
                         <Checkbox checked={allChecked} onCheckedChange={(v) => toggleAll(!!v)} />
                       </TableHead>
                       <TableHead>SKU</TableHead>
+                      {isAll && <TableHead>Account</TableHead>}
                       <TableHead>Brand</TableHead>
                       <TableHead className="text-center">Pack</TableHead>
                       <TableHead className="text-right">Units</TableHead>
@@ -572,23 +617,25 @@ export default function ThreedsReprice() {
                   </TableHeader>
                   <TableBody>
                     {pageRows.map((r) => {
-                      const sel = selected[r.sku];
+                      const k = rowKey(r);
+                      const sel = selected[k];
                       const negative = (r.profit ?? 0) < 0;
                       const defaultPrice = r.suggestedGross != null ? r.suggestedGross.toFixed(2) : "";
                       return (
-                        <TableRow key={r.sku} className={negative ? "bg-destructive/5" : ""}>
+                        <TableRow key={k} className={negative ? "bg-destructive/5" : ""}>
                           <TableCell>
                             <Checkbox
                               checked={!!sel?.checked}
                               onCheckedChange={(v) =>
                                 setSelected((p) => ({
                                   ...p,
-                                  [r.sku]: { checked: !!v, price: p[r.sku]?.price },
+                                  [k]: { checked: !!v, price: p[k]?.price },
                                 }))
                               }
                             />
                           </TableCell>
                           <TableCell className="font-mono text-xs">{r.sku}</TableCell>
+                          {isAll && <TableCell className="text-xs">{r.store_name ?? "—"}</TableCell>}
                           <TableCell>{r.brand_name ?? "—"}</TableCell>
                           <TableCell className="text-center">
                             {(r.pack_size ?? 1) > 1 ? (
@@ -622,15 +669,15 @@ export default function ThreedsReprice() {
                                 onChange={(e) =>
                                   setSelected((p) => ({
                                     ...p,
-                                    [r.sku]: { checked: p[r.sku]?.checked ?? false, price: e.target.value },
+                                    [k]: { checked: p[k]?.checked ?? false, price: e.target.value },
                                   }))
                                 }
                                 placeholder={defaultPrice}
                               />
-                              {queuedMap.has(r.sku) ? (
+                              {queuedMap.has(k) ? (
                                 <Badge variant="secondary" className="border-pd-accent/60 bg-pd-accent/15 text-pd-accent text-[10px] whitespace-nowrap"
-                                  title={queuedMap.get(r.sku)?.status === "applied" ? `Already repriced to ${gbp(queuedMap.get(r.sku)?.price)} and live — give the sales data time to catch up.` : `Queued at ${gbp(queuedMap.get(r.sku)?.price)} — waiting for 3D to import.`}>
-                                  {queuedMap.get(r.sku)?.status === "applied" ? "✓ repriced" : "✓ queued"} {gbp(queuedMap.get(r.sku)?.price)}
+                                  title={queuedMap.get(k)?.status === "applied" ? `Already repriced to ${gbp(queuedMap.get(k)?.price)} and live — give the sales data time to catch up.` : `Queued at ${gbp(queuedMap.get(k)?.price)} — waiting for 3D to import.`}>
+                                  {queuedMap.get(k)?.status === "applied" ? "✓ repriced" : "✓ queued"} {gbp(queuedMap.get(k)?.price)}
                                 </Badge>
                               ) : r.atTarget ? (
                                 <Badge variant="secondary" className="border-pd-accent/50 bg-pd-accent/10 text-pd-accent text-[10px] whitespace-nowrap"
@@ -683,6 +730,7 @@ export default function ThreedsReprice() {
               <TableHeader>
                 <TableRow>
                   <TableHead>SKU</TableHead>
+                  {isAll && <TableHead>Account</TableHead>}
                   <TableHead>Brand</TableHead>
                   <TableHead>Flag</TableHead>
                   <TableHead className="text-right">Units</TableHead>
@@ -694,8 +742,9 @@ export default function ThreedsReprice() {
               </TableHeader>
               <TableBody>
                 {flagPageRows.map((r) => (
-                  <TableRow key={r.sku}>
+                  <TableRow key={rowKey(r)}>
                     <TableCell className="font-mono text-xs">{r.sku}</TableCell>
+                    {isAll && <TableCell className="text-xs">{r.store_name ?? "—"}</TableCell>}
                     <TableCell>{r.brand_name ?? "—"}</TableCell>
                     <TableCell>{flagBadge(r.flag)}</TableCell>
                     <TableCell className="text-right">{r.units_sold}</TableCell>
@@ -731,6 +780,7 @@ export default function ThreedsReprice() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>SKU</TableHead>
+                    {isAll && <TableHead>Account</TableHead>}
                     <TableHead className="text-right">Price £<br /><span className="text-[10px] font-normal text-muted-foreground">inc VAT</span></TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Queued</TableHead>
@@ -740,8 +790,9 @@ export default function ThreedsReprice() {
                 </TableHeader>
                 <TableBody>
                   {pendingQueue.map((p, i) => (
-                    <TableRow key={`${p.sku}-${i}`} className={p.status !== "pending" ? "opacity-60" : ""}>
+                    <TableRow key={`${p.store_id}-${p.sku}-${i}`} className={p.status !== "pending" ? "opacity-60" : ""}>
                       <TableCell className="font-mono text-xs">{p.sku}</TableCell>
+                      {isAll && <TableCell className="text-xs">{storeNameById(p.store_id)}</TableCell>}
                       <TableCell className="text-right">{gbp(p.price)}</TableCell>
                       <TableCell>
                         {p.status === "applied" ? (
