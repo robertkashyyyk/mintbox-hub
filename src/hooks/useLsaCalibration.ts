@@ -46,6 +46,7 @@ export const useLsaCalibration = (brandId?: string | null) => {
 
       return all;
     },
+    enabled: !!brandId,              // only the per-brand detail view needs this; all-brands uses the MV
     staleTime: 5 * 60_000,
     gcTime: 10 * 60_000,
     refetchOnWindowFocus: false,    // don't re-run the heavy RPC just because the tab regained focus
