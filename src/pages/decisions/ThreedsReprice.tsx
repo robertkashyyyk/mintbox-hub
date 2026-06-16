@@ -169,26 +169,41 @@ export default function ThreedsReprice() {
     [activeStore?.mintsoft_channel, enabledStores, feeRules],
   );
 
-  const { data: candidates, isLoading: candLoading, isFetching: candFetching, refetch } = useQuery({
+  const { data: candData, isLoading: candLoading, isFetching: candFetching, isError: candError, refetch } = useQuery({
     queryKey: ["threeds_candidates", storeId, days],
-    enabled: isAll ? enabledStores.length > 0 : !!activeStore,
     queryFn: async () => {
       // Ring-fence is enforced inside the RPC (excludes active-campaign SKUs).
       const targets = isAll ? enabledStores : activeStore ? [activeStore] : [];
-      const all: Candidate[] = [];
-      for (const st of targets) {
-        const { data, error } = await supabase.rpc("get_threeds_reprice_candidates", {
-          p_channel: st.mintsoft_channel,
-          p_days: days,
-        });
-        if (error) throw error;
-        for (const c of (data ?? []) as Candidate[]) {
-          all.push({ ...c, store_id: st.id, store_name: st.store_name, mintsoft_channel: st.mintsoft_channel });
-        }
+      // Fetch every store in parallel and tolerate per-store failures: a single
+      // store timing out must not zero the whole combined list.
+      const settled = await Promise.allSettled(
+        targets.map(async (st) => {
+          const { data, error } = await supabase.rpc("get_threeds_reprice_candidates", {
+            p_channel: st.mintsoft_channel,
+            p_days: days,
+          });
+          if (error) throw new Error(error.message);
+          return ((data ?? []) as Candidate[]).map((c) => ({
+            ...c, store_id: st.id, store_name: st.store_name, mintsoft_channel: st.mintsoft_channel,
+          }));
+        }),
+      );
+      const rows: Candidate[] = [];
+      const failed: string[] = [];
+      settled.forEach((res, i) => {
+        if (res.status === "fulfilled") rows.push(...res.value);
+        else failed.push(targets[i].store_name);
+      });
+      // Only error the whole query if nothing came back at all.
+      if (rows.length === 0 && failed.length > 0) {
+        throw new Error(`No data — ${failed.join(", ")} timed out. Try a shorter look-back.`);
       }
-      return all;
+      return { rows, failed };
     },
+    enabled: isAll ? enabledStores.length > 0 : !!activeStore,
   });
+  const candidates = candData?.rows;
+  const failedStores = candData?.failed ?? [];
 
   // Awareness: how many SKUs are currently ring-fenced under an active campaign.
   const { data: fencedCount = 0 } = useQuery({
@@ -532,6 +547,20 @@ export default function ThreedsReprice() {
           </Button>
         </CardContent>
       </Card>
+
+      {candError && (
+        <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive flex items-center gap-2">
+          <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
+          Couldn’t load candidates — the query timed out. Try a shorter look-back (e.g. 30 days).
+        </div>
+      )}
+      {failedStores.length > 0 && (
+        <div className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning flex items-center gap-2">
+          <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
+          {failedStores.length} store{failedStores.length === 1 ? "" : "s"} timed out and {failedStores.length === 1 ? "was" : "were"} skipped:{" "}
+          <strong>{failedStores.join(", ")}</strong>. Showing the rest — a shorter look-back will include them.
+        </div>
+      )}
 
       {(activeStore || isAll) && (
       <Tabs defaultValue="repriceable" className="w-full">
