@@ -84,7 +84,9 @@ async function coleraineOnHand(sku: string, coleraineId: number, apiKey: string)
     const arr = await r.json();
     if (Array.isArray(arr) && arr.length > 0) {
       const match = arr.find((x: any) => x?.SKU === sku) ?? arr[0];
-      const n = Number(match?.AvailableQuantity);
+      // Mintsoft /Product/StockLevels exposes TotalStockLevel / Level (NOT AvailableQuantity,
+      // which doesn't exist — reading it made this guard silently always return null).
+      const n = Number(match?.TotalStockLevel ?? match?.Level);
       return Number.isFinite(n) ? n : null;
     }
     return null;
