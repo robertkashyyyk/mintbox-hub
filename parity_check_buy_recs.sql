@@ -145,10 +145,10 @@ CREATE TEMP TABLE _new ON COMMIT DROP AS
   FROM get_buy_recommendations(NULL, NULL, true);
 
 -- 4. Diff. Want: in_old_not_new = 0 and in_new_not_old = 0; old_total = new_total.
-SELECT 'old_total'      AS check, count(*) AS rows FROM _old
+SELECT 'old_total'      AS metric, count(*) AS rows FROM _old
 UNION ALL SELECT 'new_total',        count(*) FROM _new
 UNION ALL SELECT 'in_old_not_new',   count(*) FROM (SELECT * FROM _old EXCEPT SELECT * FROM _new) a
 UNION ALL SELECT 'in_new_not_old',   count(*) FROM (SELECT * FROM _new EXCEPT SELECT * FROM _old) b
-ORDER BY check;
+ORDER BY metric;
 
 ROLLBACK;   -- nothing is persisted; the live function is unchanged by this test
