@@ -23,7 +23,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
-import { Flame, Loader2, PoundSterling, Boxes, AlertTriangle, RotateCcw, CheckCircle2, Plus, Trash2, Send, Download, ArrowUpDown, EyeOff, Eye, Wand2, List as ListIcon, LayoutGrid, LineChart as LineChartIcon } from "lucide-react";
+import { Flame, Loader2, PoundSterling, Boxes, AlertTriangle, RotateCcw, CheckCircle2, Plus, Trash2, Send, Download, ArrowUpDown, EyeOff, Eye, Wand2, List as ListIcon, LayoutGrid, LineChart as LineChartIcon, Tag, Clock, TrendingDown, History } from "lucide-react";
 import ModuleHeader from "@/components/ModuleHeader";
 import { PageLoader } from "@/components/ui/PageLoader";
 import { ResponsiveContainer, ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip, Legend } from "recharts";
@@ -38,7 +38,7 @@ interface Campaign {
   id: string; sku: string; type: string; status: string;
   original_price: number | null; campaign_price: number | null; discount_pct: number | null;
   baseline_velocity: number | null; baseline_stock: number | null;
-  start_date: string; pushed_at: string | null; notes: string | null;
+  start_date: string; end_date: string | null; pushed_at: string | null; notes: string | null;
 }
 interface KnownListing { listing_sku: string; store_id: string; store_name: string; mintsoft_channel: string; current_price: number; last_sold: string }
 interface Store { id: string; store_name: string }
@@ -71,14 +71,20 @@ async function pushPerStore(rows: { store_id: string; listing_sku: string; price
 }
 
 // Shared: create a campaign + listing snapshots, clear stale pending, push.
+// `type` distinguishes a time-boxed Sale (restored at end_date via the review
+// loop) from a clear-and-forget Liquidation. saleWeeks sets the Sale's end_date.
 async function launchCampaign(opts: {
-  candidate: Candidate; listings: ListingRow[]; pct: number; notes?: string; userId: string | null;
+  candidate: Candidate; listings: ListingRow[]; pct: number;
+  type: "sale" | "liquidation"; saleWeeks?: number; notes?: string; userId: string | null;
 }): Promise<{ pushed: number; failed: number; recordOnly: boolean }> {
-  const { candidate, listings, pct, notes, userId } = opts;
+  const { candidate, listings, pct, type, saleWeeks, notes, userId } = opts;
   const sale = (cur: number) => Math.max(0, Number((cur * (1 - pct / 100)).toFixed(2)));
   const base = listings.length ? [...listings].sort((a, b) => a.current - b.current)[0] : null;
+  const endDate = type === "sale" && saleWeeks
+    ? new Date(Date.now() + saleWeeks * 7 * 86_400_000).toISOString().slice(0, 10)
+    : null;
   const { data: camp, error: cErr } = await (supabase as any).from("price_campaigns").insert({
-    sku: candidate.sku, type: "liquidation", status: "active", discount_pct: pct,
+    sku: candidate.sku, type, status: "active", discount_pct: pct, end_date: endDate,
     original_price: base?.current ?? null, campaign_price: base ? sale(base.current) : null,
     baseline_velocity: candidate.velocity_per_week, baseline_stock: candidate.current_stock, baseline_cost: candidate.cost_price,
     notes: notes?.trim() || null, created_by: userId,
@@ -112,7 +118,7 @@ export default function LiquidationCandidates() {
   const [brandFilter, setBrandFilter] = useState("all");
   const [showExcluded, setShowExcluded] = useState(false);
   const [view, setView] = useState<"list" | "brands" | "graphs">("list");
-  const [launch, setLaunch] = useState<Candidate | null>(null);
+  const [launch, setLaunch] = useState<{ candidate: Candidate; intent: "sale" | "liquidation" } | null>(null);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [sortKey, setSortKey] = useState<SortKey>("capital_tied");
@@ -185,6 +191,7 @@ export default function LiquidationCandidates() {
     qc.invalidateQueries({ queryKey: ["liquidation-candidates"] });
     qc.invalidateQueries({ queryKey: ["clearance-capital"] });
     qc.invalidateQueries({ queryKey: ["liquidation-count"] });
+    qc.invalidateQueries({ queryKey: ["sale-reviews"] });
   };
 
   const revertMutation = useMutation({
@@ -265,16 +272,20 @@ export default function LiquidationCandidates() {
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader><TableRow>
-                  <TableHead>SKU</TableHead><TableHead className="text-right">Discount</TableHead>
-                  <TableHead className="text-right">Orig → Sale</TableHead><TableHead>Started</TableHead><TableHead>State</TableHead><TableHead className="text-right">Action</TableHead>
+                  <TableHead>SKU</TableHead><TableHead>Type</TableHead><TableHead className="text-right">Discount</TableHead>
+                  <TableHead className="text-right">Orig → Sale</TableHead><TableHead>Started</TableHead><TableHead>Reviews</TableHead><TableHead>State</TableHead><TableHead className="text-right">Action</TableHead>
                 </TableRow></TableHeader>
                 <TableBody>
                   {campaigns.map(c => (
                     <TableRow key={c.id}>
                       <TableCell className="font-mono text-xs">{c.sku}</TableCell>
+                      <TableCell>{c.type === "sale"
+                        ? <Badge variant="outline" className="text-xs"><Tag className="h-3 w-3 mr-1" />Sale</Badge>
+                        : <Badge variant="outline" className="text-xs text-orange-400 border-orange-500/30"><Flame className="h-3 w-3 mr-1" />Liq</Badge>}</TableCell>
                       <TableCell className="text-right text-sm">{c.discount_pct != null ? `${c.discount_pct}%` : "—"}</TableCell>
                       <TableCell className="text-right text-sm">{c.original_price != null ? `£${Number(c.original_price).toFixed(2)}` : "—"}<span className="text-orange-400"> → {c.campaign_price != null ? `£${Number(c.campaign_price).toFixed(2)}` : "—"}</span></TableCell>
                       <TableCell className="text-xs text-muted-foreground">{c.start_date}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{c.type === "sale" ? (c.end_date ?? "—") : <span className="opacity-50">—</span>}</TableCell>
                       <TableCell className="text-xs">{c.pushed_at ? <Badge variant="outline" className="bg-emerald-500/15 text-emerald-400 text-xs">Pushed</Badge> : <Badge variant="outline" className="text-xs">Record only</Badge>}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex gap-1 justify-end">
@@ -290,6 +301,9 @@ export default function LiquidationCandidates() {
           </CardContent>
         </Card>
       )}
+
+      {/* Sale Review — time-boxed sales that have reached their end date */}
+      <SaleReviewCard stores={stores} onChanged={invalidate} />
 
       {/* View toggle */}
       <div className="inline-flex rounded-lg border border-border p-1 bg-muted/30">
@@ -374,7 +388,8 @@ export default function LiquidationCandidates() {
                       <TableCell className="text-right"><Badge variant="outline" className="text-xs">{suggestDiscount(c)}%</Badge></TableCell>
                       <TableCell className="text-right">
                         <div className="flex gap-1 justify-end">
-                          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setLaunch(c)}><Flame className="h-3 w-3 mr-1" />Sale</Button>
+                          <Button size="sm" variant="outline" className="h-7 text-xs" title="Time-boxed Sale — price restored at the end of the window" onClick={() => setLaunch({ candidate: c, intent: "sale" })}><Tag className="h-3 w-3 mr-1" />Sale</Button>
+                          <Button size="sm" variant="outline" className="h-7 text-xs text-orange-400 border-orange-500/30 hover:bg-orange-500/10" title="Liquidation — clear and forget (price not auto-restored)" onClick={() => setLaunch({ candidate: c, intent: "liquidation" })}><Flame className="h-3 w-3 mr-1" />Liq</Button>
                           <Button size="sm" variant="ghost" className="h-7 w-7 p-0" title={c.is_excluded ? "Un-snooze" : "Snooze (hide from list)"} onClick={() => excludeMutation.mutate({ sku: c.sku, remove: c.is_excluded })}>
                             {c.is_excluded ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3 text-muted-foreground" />}
                           </Button>
@@ -402,9 +417,171 @@ export default function LiquidationCandidates() {
       </Card>
       </>)}
 
-      <LaunchDialog candidate={launch} stores={stores} onClose={() => setLaunch(null)} onLaunched={() => { setLaunch(null); invalidate(); }} />
+      <LaunchDialog launch={launch} stores={stores} onClose={() => setLaunch(null)} onLaunched={() => { setLaunch(null); invalidate(); }} />
       <BulkDialog open={bulkOpen} candidates={selectedCandidates} onClose={() => setBulkOpen(false)} onDone={() => { setBulkOpen(false); setSelected(new Set()); invalidate(); }} />
     </div>
+  );
+}
+
+// ── Sale Review ────────────────────────────────────────────────────
+// Time-boxed sales that have reached their end_date (moved to status='review'
+// by process_due_sales). Shows window performance and the three decisions:
+// remove from sale (restore price), hold (extend), or reduce further.
+interface SaleReview {
+  id: string; sku: string; discount_pct: number | null;
+  original_price: number | null; campaign_price: number | null;
+  baseline_velocity: number | null; start_date: string; end_date: string | null; notes: string | null;
+  units_sold_window: number; revenue_window: number; days_live: number;
+}
+
+// Mark any open sale-review task for this campaign as done (best-effort).
+async function closeSaleTask(campaignId: string) {
+  try {
+    await (supabase as any).from("tasks").update({ status: "done" })
+      .eq("source_rule", "sale_review_due").eq("linked_entity_id", campaignId)
+      .in("status", ["todo", "in_progress", "blocked"]);
+  } catch { /* RLS may block non-owners — the task simply stays open */ }
+}
+
+async function campaignListingRows(campaignId: string, priceOf: (originalPrice: number) => number) {
+  const { data } = await (supabase as any).from("price_campaign_listings")
+    .select("listing_sku, store_id, original_price").eq("campaign_id", campaignId);
+  return (data ?? [])
+    .filter((l: any) => l.store_id && l.original_price != null)
+    .map((l: any) => ({ store_id: l.store_id, listing_sku: l.listing_sku, price: priceOf(Number(l.original_price)) }));
+}
+
+function SaleReviewCard({ stores: _stores, onChanged }: { stores: Store[]; onChanged: () => void }) {
+  const [reduceTarget, setReduceTarget] = useState<SaleReview | null>(null);
+  const [reducePct, setReducePct] = useState("");
+
+  const { data: reviews = [], isLoading } = useQuery({
+    queryKey: ["sale-reviews"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc("get_sale_reviews");
+      if (error) throw error;
+      return data as SaleReview[];
+    },
+  });
+
+  const removeMutation = useMutation({
+    mutationFn: async (r: SaleReview) => {
+      const rows = await campaignListingRows(r.id, (orig) => orig); // restore original prices
+      let res = { pushed: 0, failed: 0 };
+      if (rows.length) res = await pushPerStore(rows);
+      await (supabase as any).from("price_campaigns").update({
+        status: "ended", outcome: "worked", reverted_at: new Date().toISOString(), end_date: new Date().toISOString().slice(0, 10),
+      }).eq("id", r.id);
+      await (supabase as any).from("price_campaign_listings").update({ reverted_at: new Date().toISOString() }).eq("campaign_id", r.id);
+      await closeSaleTask(r.id);
+      return res;
+    },
+    onSuccess: (res) => { toast.success(`Removed from sale — ${res.pushed} price(s) restored${res.failed ? `, ${res.failed} failed` : ""}`); onChanged(); },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const holdMutation = useMutation({
+    mutationFn: async (r: SaleReview) => {
+      const newEnd = new Date(Date.now() + 4 * 7 * 86_400_000).toISOString().slice(0, 10);
+      const { error } = await (supabase as any).from("price_campaigns").update({ status: "active", end_date: newEnd, outcome: "too_early" }).eq("id", r.id);
+      if (error) throw error;
+      await closeSaleTask(r.id);
+      return newEnd;
+    },
+    onSuccess: (newEnd) => { toast.success(`Held on sale — reviews again on ${newEnd}`); onChanged(); },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const reduceMutation = useMutation({
+    mutationFn: async ({ r, pct }: { r: SaleReview; pct: number }) => {
+      const priceOf = (orig: number) => Math.max(0, Number((orig * (1 - pct / 100)).toFixed(2)));
+      const rows = await campaignListingRows(r.id, priceOf);
+      let res = { pushed: 0, failed: 0 };
+      if (rows.length) res = await pushPerStore(rows);
+      const newEnd = new Date(Date.now() + 4 * 7 * 86_400_000).toISOString().slice(0, 10);
+      const newCampaignPrice = r.original_price != null ? priceOf(Number(r.original_price)) : null;
+      await (supabase as any).from("price_campaigns").update({
+        status: "active", discount_pct: pct, campaign_price: newCampaignPrice, end_date: newEnd, outcome: "no_effect",
+      }).eq("id", r.id);
+      await closeSaleTask(r.id);
+      return res;
+    },
+    onSuccess: (res) => { toast.success(`Reduced further — ${res.pushed} price(s) pushed${res.failed ? `, ${res.failed} failed` : ""}`); setReduceTarget(null); setReducePct(""); onChanged(); },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  if (isLoading || reviews.length === 0) return null;
+
+  const busy = removeMutation.isPending || holdMutation.isPending || reduceMutation.isPending;
+
+  return (
+    <Card className="border-pd-accent/30">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2"><History className="h-4 w-4 text-pd-accent" /> Sale Review ({reviews.length})</CardTitle>
+        <CardDescription>Timed sales that have hit their end date. Restore the price, hold for longer, or reduce further.</CardDescription>
+      </CardHeader>
+      <CardContent className="p-0">
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader><TableRow>
+              <TableHead>SKU</TableHead>
+              <TableHead className="text-right">Orig → Sale</TableHead>
+              <TableHead className="text-right">Discount</TableHead>
+              <TableHead>Window</TableHead>
+              <TableHead className="text-right">Sold (sale)</TableHead>
+              <TableHead className="text-right">Expected</TableHead>
+              <TableHead className="text-right">Action</TableHead>
+            </TableRow></TableHeader>
+            <TableBody>
+              {reviews.map(r => {
+                const weeksLive = Math.max(r.days_live / 7, 0);
+                const expected = r.baseline_velocity != null ? Math.round(Number(r.baseline_velocity) * weeksLive) : null;
+                const beat = expected != null && r.units_sold_window > expected;
+                return (
+                  <TableRow key={r.id}>
+                    <TableCell className="font-mono text-xs">{r.sku}</TableCell>
+                    <TableCell className="text-right text-sm">{r.original_price != null ? `£${Number(r.original_price).toFixed(2)}` : "—"}<span className="text-pd-accent"> → {r.campaign_price != null ? `£${Number(r.campaign_price).toFixed(2)}` : "—"}</span></TableCell>
+                    <TableCell className="text-right text-sm">{r.discount_pct != null ? `${r.discount_pct}%` : "—"}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{r.start_date} → {r.end_date ?? "—"} <span className="opacity-70">({r.days_live}d)</span></TableCell>
+                    <TableCell className="text-right text-sm font-semibold">{r.units_sold_window}{r.revenue_window > 0 && <span className="text-muted-foreground font-normal"> · £{Number(r.revenue_window).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>}</TableCell>
+                    <TableCell className="text-right text-xs"><span className={beat ? "text-emerald-400" : "text-muted-foreground"}>{expected != null ? `~${expected}` : "—"}</span></TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex gap-1 justify-end">
+                        <Button size="sm" variant="ghost" className="h-7 text-xs text-emerald-400" disabled={busy} title="Restore the original price" onClick={() => removeMutation.mutate(r)}><RotateCcw className="h-3 w-3 mr-1" />Remove</Button>
+                        <Button size="sm" variant="ghost" className="h-7 text-xs" disabled={busy} title="Hold the sale for another 4 weeks" onClick={() => holdMutation.mutate(r)}><Clock className="h-3 w-3 mr-1" />Hold</Button>
+                        <Button size="sm" variant="ghost" className="h-7 text-xs text-orange-400" disabled={busy} title="Cut the price further" onClick={() => { setReduceTarget(r); setReducePct(String((r.discount_pct ?? 0) + 10)); }}><TrendingDown className="h-3 w-3 mr-1" />Reduce</Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
+      </CardContent>
+
+      <Dialog open={!!reduceTarget} onOpenChange={(o) => { if (!o) { setReduceTarget(null); setReducePct(""); } }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="font-mono">{reduceTarget?.sku}</DialogTitle>
+            <DialogDescription>Reduce further off the original price (£{Number(reduceTarget?.original_price ?? 0).toFixed(2)}). Re-pushes and resets a fresh 4-week window.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1.5 py-2">
+            <Label>New discount %</Label>
+            <Input type="number" min={1} max={95} value={reducePct} onChange={e => setReducePct(e.target.value)} className="w-28" />
+            {reduceTarget?.original_price != null && Number(reducePct) > 0 && (
+              <p className="text-xs text-muted-foreground">New price ≈ £{Math.max(0, Number(reduceTarget.original_price) * (1 - Number(reducePct) / 100)).toFixed(2)}</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setReduceTarget(null); setReducePct(""); }}>Cancel</Button>
+            <Button disabled={reduceMutation.isPending || !(Number(reducePct) > 0) || !reduceTarget} className="bg-orange-500 hover:bg-orange-600 text-white" onClick={() => reduceTarget && reduceMutation.mutate({ r: reduceTarget, pct: Number(reducePct) })}>
+              {reduceMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <TrendingDown className="h-4 w-4 mr-2" />}Reduce &amp; push
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </Card>
   );
 }
 
@@ -420,12 +597,17 @@ function SortableHead({ label, k, sortKey, sortDir, onSort }: { label: string; k
 
 // ── Bulk clearance ─────────────────────────────────────────────────
 function BulkDialog({ open, candidates, onClose, onDone }: { open: boolean; candidates: Candidate[]; onClose: () => void; onDone: () => void }) {
+  const [intent, setIntent] = useState<"sale" | "liquidation">("liquidation");
+  const [weeks, setWeeks] = useState("4");
   const [mode, setMode] = useState<"fixed" | "suggested">("suggested");
   const [pct, setPct] = useState("25");
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState({ done: 0, pushed: 0, recordOnly: 0, failed: 0 });
+  const isSale = intent === "sale";
 
   async function run() {
+    const saleWeeks = Number(weeks) || 0;
+    if (isSale && saleWeeks <= 0) { toast.error("Set a sale length in weeks"); return; }
     setRunning(true);
     setProgress({ done: 0, pushed: 0, recordOnly: 0, failed: 0 });
     const { data: { user } } = await supabase.auth.getUser();
@@ -435,13 +617,13 @@ function BulkDialog({ open, candidates, onClose, onDone }: { open: boolean; cand
       const usePct = mode === "suggested" ? suggestDiscount(c) : Number(pct);
       try {
         const listings = await fetchListings(c.sku);
-        const res = await launchCampaign({ candidate: c, listings, pct: usePct, userId: user?.id ?? null });
+        const res = await launchCampaign({ candidate: c, listings, pct: usePct, type: intent, saleWeeks: isSale ? saleWeeks : undefined, userId: user?.id ?? null });
         if (res.recordOnly) recordOnly++; else pushed++;
       } catch { failed++; }
       setProgress({ done: i + 1, pushed, recordOnly, failed });
     }
     setRunning(false);
-    toast.success(`Bulk clearance — ${pushed} pushed, ${recordOnly} record-only, ${failed} failed`);
+    toast.success(`Bulk ${isSale ? "sale" : "clearance"} — ${pushed} pushed, ${recordOnly} record-only, ${failed} failed`);
     onDone();
   }
 
@@ -449,10 +631,21 @@ function BulkDialog({ open, candidates, onClose, onDone }: { open: boolean; cand
     <Dialog open={open} onOpenChange={(o) => !o && !running && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Bulk clearance — {candidates.length} SKU{candidates.length === 1 ? "" : "s"}</DialogTitle>
-          <DialogDescription>Launches a campaign on each, pushes the discounted price where listings exist (record-only otherwise).</DialogDescription>
+          <DialogTitle>Bulk {isSale ? "sale" : "clearance"} — {candidates.length} SKU{candidates.length === 1 ? "" : "s"}</DialogTitle>
+          <DialogDescription>Launches a {isSale ? "time-boxed sale" : "liquidation"} on each, pushes the discounted price where listings exist (record-only otherwise).</DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">
+          <div className="flex gap-2">
+            <Button variant={intent === "sale" ? "default" : "outline"} size="sm" onClick={() => setIntent("sale")} className="flex-1"><Tag className="h-4 w-4 mr-1" />Sale (timed)</Button>
+            <Button variant={intent === "liquidation" ? "default" : "outline"} size="sm" onClick={() => setIntent("liquidation")} className="flex-1"><Flame className="h-4 w-4 mr-1" />Liquidation</Button>
+          </div>
+          {isSale && (
+            <div className="space-y-1.5">
+              <Label className="flex items-center gap-1"><Clock className="h-3 w-3" />Sale length (weeks)</Label>
+              <Input type="number" min={1} max={52} value={weeks} onChange={e => setWeeks(e.target.value)} className="w-28" />
+              <p className="text-xs text-muted-foreground">Each SKU reviews {weeks && Number(weeks) > 0 ? `on ~${new Date(Date.now() + Number(weeks) * 7 * 86_400_000).toISOString().slice(0, 10)}` : "after the window"}.</p>
+            </div>
+          )}
           <div className="flex gap-2">
             <Button variant={mode === "suggested" ? "default" : "outline"} size="sm" onClick={() => setMode("suggested")} className="flex-1"><Wand2 className="h-4 w-4 mr-1" />Suggested per SKU</Button>
             <Button variant={mode === "fixed" ? "default" : "outline"} size="sm" onClick={() => setMode("fixed")} className="flex-1">Fixed %</Button>
@@ -475,7 +668,7 @@ function BulkDialog({ open, candidates, onClose, onDone }: { open: boolean; cand
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={running}>Cancel</Button>
           <Button onClick={run} disabled={running || (mode === "fixed" && !(Number(pct) > 0))} className="bg-orange-500 hover:bg-orange-600 text-white">
-            {running ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}Clear {candidates.length} SKUs
+            {running ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}{isSale ? "Start sale on" : "Clear"} {candidates.length} SKUs
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -484,8 +677,12 @@ function BulkDialog({ open, candidates, onClose, onDone }: { open: boolean; cand
 }
 
 // ── Single launch (with manual entry for dead SKUs) ────────────────
-function LaunchDialog({ candidate, stores, onClose, onLaunched }: { candidate: Candidate | null; stores: Store[]; onClose: () => void; onLaunched: () => void }) {
+function LaunchDialog({ launch, stores, onClose, onLaunched }: { launch: { candidate: Candidate; intent: "sale" | "liquidation" } | null; stores: Store[]; onClose: () => void; onLaunched: () => void }) {
+  const candidate = launch?.candidate ?? null;
+  const intent = launch?.intent ?? "sale";
+  const isSale = intent === "sale";
   const [discount, setDiscount] = useState("");
+  const [weeks, setWeeks] = useState("4");
   const [notes, setNotes] = useState("");
   const [manual, setManual] = useState<{ store_id: string; listing_sku: string; current_price: string }[]>([]);
   const [saving, setSaving] = useState(false);
@@ -496,7 +693,7 @@ function LaunchDialog({ candidate, stores, onClose, onLaunched }: { candidate: C
     queryFn: async () => fetchListings(candidate!.sku),
   });
 
-  useEffect(() => { if (candidate) { setDiscount(String(suggestDiscount(candidate))); setNotes(""); setManual([]); } }, [candidate]);
+  useEffect(() => { if (candidate) { setDiscount(String(suggestDiscount(candidate))); setWeeks("4"); setNotes(""); setManual([]); } }, [candidate]);
 
   const pct = Number(discount) || 0;
   const sale = (cur: number) => Math.max(0, Number((cur * (1 - pct / 100)).toFixed(2)));
@@ -510,11 +707,14 @@ function LaunchDialog({ candidate, stores, onClose, onLaunched }: { candidate: C
     if (!candidate) return;
     if (pct <= 0) { toast.error("Enter a discount %"); return; }
     if (allListings.length === 0) { toast.error("No listings — add one manually for a dead SKU"); return; }
+    const saleWeeks = Number(weeks) || 0;
+    if (isSale && saleWeeks <= 0) { toast.error("Set a sale length in weeks"); return; }
     setSaving(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      const res = await launchCampaign({ candidate, listings: allListings, pct, notes, userId: user?.id ?? null });
-      toast.success(`${candidate.sku} — ${pct}% off, ${res.pushed} listing(s) pushed${res.failed ? `, ${res.failed} failed` : ""}`);
+      const res = await launchCampaign({ candidate, listings: allListings, pct, type: intent, saleWeeks: isSale ? saleWeeks : undefined, notes, userId: user?.id ?? null });
+      const label = isSale ? `Sale (${saleWeeks}w)` : "Liquidation";
+      toast.success(`${candidate.sku} — ${label}, ${pct}% off, ${res.pushed} listing(s) pushed${res.failed ? `, ${res.failed} failed` : ""}`);
       onLaunched();
     } catch (e: any) { toast.error(e.message); } finally { setSaving(false); }
   }
@@ -523,8 +723,16 @@ function LaunchDialog({ candidate, stores, onClose, onLaunched }: { candidate: C
     <Dialog open={!!candidate} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-xl">
         <DialogHeader>
-          <DialogTitle className="font-mono">{candidate?.sku}</DialogTitle>
-          <DialogDescription>Clearance — discount % across every store + pack-size listing, then pushes via SFTP.</DialogDescription>
+          <DialogTitle className="font-mono flex items-center gap-2">
+            {isSale ? <Tag className="h-4 w-4 text-pd-accent" /> : <Flame className="h-4 w-4 text-orange-500" />}
+            {candidate?.sku}
+            <Badge variant="outline" className={isSale ? "text-xs" : "text-xs text-orange-400 border-orange-500/30"}>{isSale ? "Sale" : "Liquidation"}</Badge>
+          </DialogTitle>
+          <DialogDescription>
+            {isSale
+              ? "Time-boxed price cut across every store + pack-size listing, pushed via SFTP. At the end of the window it surfaces in Sale Review to restore, hold or reduce further."
+              : "Clear-and-forget discount across every store + pack-size listing, pushed via SFTP. The price is not auto-restored."}
+          </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">
           <div className="rounded-lg bg-muted/30 border border-border/50 p-3 text-xs grid grid-cols-3 gap-2">
@@ -532,9 +740,15 @@ function LaunchDialog({ candidate, stores, onClose, onLaunched }: { candidate: C
             <div><span className="text-muted-foreground">Last sold</span><div className="font-semibold">{candidate?.last_sold ?? "never"}</div></div>
             <div><span className="text-muted-foreground">Capital tied</span><div className="font-semibold text-orange-400">£{Number(candidate?.capital_tied ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</div></div>
           </div>
-          <div className="flex items-end gap-3">
+          <div className="flex items-end gap-3 flex-wrap">
             <div className="space-y-1.5"><Label>Discount %</Label><Input type="number" min={1} max={95} value={discount} onChange={e => setDiscount(e.target.value)} className="w-28" /></div>
-            <p className="text-xs text-muted-foreground pb-2">Pre-filled with the suggested depth. Applies off each listing's current price.</p>
+            {isSale && (
+              <div className="space-y-1.5">
+                <Label className="flex items-center gap-1"><Clock className="h-3 w-3" />Sale length (weeks)</Label>
+                <Input type="number" min={1} max={52} value={weeks} onChange={e => setWeeks(e.target.value)} className="w-28" />
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground pb-2">{isSale ? `Reviews on ${weeks && Number(weeks) > 0 ? new Date(Date.now() + Number(weeks) * 7 * 86_400_000).toISOString().slice(0, 10) : "—"}.` : "Pre-filled with the suggested depth."} Applies off each listing's current price.</p>
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs">Listings ({allListings.length})</Label>
