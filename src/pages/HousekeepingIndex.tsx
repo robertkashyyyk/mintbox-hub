@@ -14,7 +14,7 @@ const HousekeepingIndex = () => {
     queryKey: ["housekeeping-counts"],
     queryFn: async () => {
       const since = new Date(Date.now() - 28 * 86400000).toISOString();
-      const [missingCosts, dirtRecent, pendingImages, discoveryQ, missingBarcodes, lsaUnmatched, orphans] = await Promise.all([
+      const [missingCosts, dirtRecent, pendingImages, discoveryQ, missingBarcodes, lsaUnmatched, orphans, dirtListings] = await Promise.all([
         supabase.from("products_cache").select("id", { count: "exact", head: true })
           .is("cost_price", null).eq("discontinued", false).eq("quarantined", false),
         supabase.from("order_line_economics").select("sku", { count: "exact", head: true })
@@ -26,6 +26,7 @@ const HousekeepingIndex = () => {
           .is("barcode", null).eq("discontinued", false).eq("quarantined", false),
         (supabase as any).from("lsa_unmatched_skus").select("sku", { count: "exact", head: true }),
         (supabase as any).from("vw_orphan_skus").select("id", { count: "exact", head: true }).eq("is_true_sku", true),
+        (supabase as any).from("threeds_sku_aliases").select("dirt_sku", { count: "exact", head: true }),
       ]);
       return {
         missingCosts: missingCosts.count ?? 0,
@@ -35,6 +36,7 @@ const HousekeepingIndex = () => {
         missingBarcodes: missingBarcodes.count ?? 0,
         lsaUnmatched: lsaUnmatched.count ?? 0,
         orphans: orphans.count ?? 0,
+        dirtListings: dirtListings.count ?? 0,
       };
     },
   });
@@ -79,6 +81,14 @@ const HousekeepingIndex = () => {
       severity: "info" as const,
       count: counts?.missingBarcodes,
       path: "/housekeeping/missing-barcodes",
+    },
+    {
+      title: "Dirt SKUs on eBay",
+      description: "Live eBay listings with an old dirt label that Mintsoft maps to a true SKU — needs updating at source.",
+      icon: AlertTriangle,
+      severity: "warning" as const,
+      count: counts?.dirtListings,
+      path: "/housekeeping/dirt-listings",
     },
     {
       title: "Carrier Remeasure",
