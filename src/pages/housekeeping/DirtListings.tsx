@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tag, ChevronLeft, ChevronRight, ExternalLink, ArrowUpDown, AlertTriangle } from "lucide-react";
+import { Tag, ChevronLeft, ChevronRight, ExternalLink, ArrowUpDown, AlertTriangle, Download } from "lucide-react";
 import ModuleHeader from "@/components/ModuleHeader";
 
 interface Row {
@@ -56,6 +56,17 @@ export default function DirtListings() {
   const pageRows = filtered.slice((page - 1) * pageSize, page * pageSize);
   const totalRevenue = useMemo(() => (rows ?? []).reduce((s, r) => s + (r.revenue_90d ?? 0), 0), [rows]);
   const toggleSort = (k: SortKey) => { if (sortKey === k) setSortDir((d) => (d === "asc" ? "desc" : "asc")); else { setSortKey(k); setSortDir("desc"); } };
+  function exportCsv() {
+    const hdr = ["eBayItemId", "CurrentDirtSKU", "TrueSKU", "Store", "Units90d", "Revenue90d", "LastSold", "TrueName", "TrueCost"];
+    const lines = filtered.map((r) => [
+      r.external_item_id ?? "", r.dirt_sku, r.true_sku, r.store_name ?? "", r.units_90d,
+      r.revenue_90d ?? "", r.last_sold ? r.last_sold.slice(0, 10) : "", r.true_name ?? "", r.true_cost ?? "",
+    ].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","));
+    const blob = new Blob([[hdr.join(","), ...lines].join("\n")], { type: "text/csv" });
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+    a.download = `dirt-listings-${new Date().toISOString().slice(0, 10)}.csv`; a.click();
+  }
+
   const Sort = ({ k, label }: { k: SortKey; label: string }) => (
     <button onClick={() => toggleSort(k)} className="inline-flex items-center gap-1 hover:text-foreground">
       {label}<ArrowUpDown className={`h-3 w-3 ${sortKey === k ? "text-pd-accent" : "text-muted-foreground/40"}`} />
@@ -76,6 +87,9 @@ export default function DirtListings() {
               <SelectTrigger className="w-[110px]"><SelectValue /></SelectTrigger>
               <SelectContent>{PAGE_OPTIONS.map((n) => <SelectItem key={n} value={String(n)}>{n}/page</SelectItem>)}</SelectContent>
             </Select>
+            <Button variant="outline" size="sm" onClick={exportCsv} disabled={isLoading || filtered.length === 0}>
+              <Download className="h-4 w-4 mr-2" />Export
+            </Button>
           </div>
         </CardHeader>
         <CardContent className="overflow-x-auto">
