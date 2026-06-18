@@ -9,7 +9,7 @@ import { PageLoader } from "@/components/ui/PageLoader";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { TrendingUp, ChevronLeft, ChevronRight, AlertTriangle, RefreshCw, ArrowUp, ArrowDown, ArrowUpDown, LineChart as LineChartIcon } from "lucide-react";
+import { TrendingUp, ChevronLeft, ChevronRight, AlertTriangle, RefreshCw, ArrowUp, ArrowDown, ArrowUpDown, LineChart as LineChartIcon, CheckCircle2, Clock } from "lucide-react";
 import ModuleHeader from "@/components/ModuleHeader";
 import { Link } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
@@ -158,6 +158,44 @@ const ProfitDashboard = () => {
       return all;
     },
   });
+
+  // Reprice recency per (sku, channel) — drives the "Repriced" column icon.
+  // NOTE: repricing only runs on eBay (the 3D Sellers pipeline), so other channels
+  // (Amazon, website) simply won't have rows here and will show "—".
+  const REPRICE_WINDOW_DAYS = 30;
+  const { data: repriceMap } = useQuery({
+    queryKey: ["reprice-recency", REPRICE_WINDOW_DAYS],
+    queryFn: async () => {
+      const cutoff = new Date(Date.now() - REPRICE_WINDOW_DAYS * 86400000).toISOString();
+      const { data, error } = await supabase
+        .from("threeds_reprice_pending")
+        .select("sku, applied_at, last_pushed_at, threeds_stores!inner(mintsoft_channel)")
+        .or(`applied_at.gte.${cutoff},last_pushed_at.gte.${cutoff}`);
+      if (error) throw error;
+      const m = new Map<string, { applied_at: string | null; last_pushed_at: string | null }>();
+      for (const r of (data ?? []) as any[]) {
+        const ch = r.threeds_stores?.mintsoft_channel;
+        if (!ch) continue;
+        // (store_id, sku) is unique and each store maps to one channel, so this key is unique.
+        m.set(`${r.sku}|${ch}`, { applied_at: r.applied_at, last_pushed_at: r.last_pushed_at });
+      }
+      return m;
+    },
+    staleTime: 5 * 60_000,
+  });
+
+  // verified (applied & confirmed live) → green; pushed (sent, awaiting verify) → amber; else null.
+  const repriceStatus = (sku: string, channel: string | null) => {
+    if (!repriceMap || !channel) return null;
+    const rec = repriceMap.get(`${sku}|${channel}`);
+    if (!rec) return null;
+    const cutoffMs = Date.now() - REPRICE_WINDOW_DAYS * 86400000;
+    const a = rec.applied_at ? new Date(rec.applied_at).getTime() : 0;
+    const p = rec.last_pushed_at ? new Date(rec.last_pushed_at).getTime() : 0;
+    if (a >= cutoffMs) return { kind: "verified" as const, at: a };
+    if (p >= cutoffMs) return { kind: "pushed" as const, at: p };
+    return null;
+  };
 
   // Filters + sorting + pagination state
   const [search, setSearch] = useState("");
@@ -506,7 +544,7 @@ const ProfitDashboard = () => {
           </div>
 
           {linesLoading ? (
-            <PageLoader rows={8} columns={[100, 130, 90, 60, 70, 70, 70, 70, 80, 60, 80]} label="Loading order lines" />
+            <PageLoader rows={8} columns={[100, 130, 90, 60, 60, 70, 70, 70, 70, 80, 60, 80]} label="Loading order lines" />
           ) : totalRows === 0 ? (
             <div className="text-sm text-foreground/60 py-6 text-center">
               No order lines match the current filters.
@@ -520,6 +558,7 @@ const ProfitDashboard = () => {
                       <SortableHead label="Order" col="mintsoft_order_id" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
                       <SortableHead label="SKU" col="sku" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
                       <SortableHead label="Channel" col="channel" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
+                      <TableHead className="text-center" title="Repriced in the last 30 days in this channel (eBay only). Green = confirmed live, amber = pushed (awaiting verify).">Repriced</TableHead>
                       <SortableHead label="Qty" col="qty" align="right" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
                       <SortableHead label="Price" col="price" align="right" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
                       <SortableHead label="Cost" col="cost_each" align="right" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
@@ -545,6 +584,23 @@ const ProfitDashboard = () => {
                         <TableCell className="font-mono text-xs text-pd-accent underline-offset-2 hover:underline">{l.mintsoft_order_id}</TableCell>
                         <TableCell className="font-medium">{l.sku}</TableCell>
                         <TableCell className="text-xs text-foreground/70">{l.channel ?? "—"}</TableCell>
+                        <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
+                          {(() => {
+                            const st = repriceStatus(l.sku, l.channel);
+                            if (!st) return <span className="text-foreground/30">—</span>;
+                            const days = Math.max(0, Math.floor((Date.now() - st.at) / 86400000));
+                            const ago = days === 0 ? "today" : `${days}d ago`;
+                            return st.kind === "verified" ? (
+                              <span title={`Repriced ${ago} — confirmed live`}>
+                                <CheckCircle2 className="h-4 w-4 inline text-emerald-600" />
+                              </span>
+                            ) : (
+                              <span title={`Price pushed ${ago} — awaiting verification`}>
+                                <Clock className="h-4 w-4 inline text-amber-500" />
+                              </span>
+                            );
+                          })()}
+                        </TableCell>
                         <TableCell className="text-right">{l.qty}</TableCell>
                         <TableCell className="text-right">{fmtGBP(l.price)}</TableCell>
                         <TableCell className="text-right">{fmtGBP(l.cost_each)}</TableCell>
