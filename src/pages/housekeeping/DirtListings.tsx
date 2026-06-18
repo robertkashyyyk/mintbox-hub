@@ -56,15 +56,25 @@ export default function DirtListings() {
   const pageRows = filtered.slice((page - 1) * pageSize, page * pageSize);
   const totalRevenue = useMemo(() => (rows ?? []).reduce((s, r) => s + (r.revenue_90d ?? 0), 0), [rows]);
   const toggleSort = (k: SortKey) => { if (sortKey === k) setSortDir((d) => (d === "asc" ? "desc" : "asc")); else { setSortKey(k); setSortDir("desc"); } };
-  function exportCsv() {
-    const hdr = ["eBayItemId", "CurrentDirtSKU", "TrueSKU", "Store", "Units90d", "Revenue90d", "LastSold", "TrueName", "TrueCost"];
-    const lines = filtered.map((r) => [
-      r.external_item_id ?? "", r.dirt_sku, r.true_sku, r.store_name ?? "", r.units_90d,
-      r.revenue_90d ?? "", r.last_sold ? r.last_sold.slice(0, 10) : "", r.true_name ?? "", r.true_cost ?? "",
-    ].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","));
-    const blob = new Blob([[hdr.join(","), ...lines].join("\n")], { type: "text/csv" });
+  function download(name: string, rows: string[][]) {
+    const blob = new Blob([rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n")], { type: "text/csv" });
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
-    a.download = `dirt-listings-${new Date().toISOString().slice(0, 10)}.csv`; a.click();
+    a.download = name; a.click();
+  }
+  // Full report (analysis).
+  function exportCsv() {
+    download(`dirt-listings-${new Date().toISOString().slice(0, 10)}.csv`, [
+      ["eBayItemId", "CurrentDirtSKU", "TrueSKU", "Store", "Units90d", "Revenue90d", "LastSold", "TrueName", "TrueCost"],
+      ...filtered.map((r) => [r.external_item_id ?? "", r.dirt_sku, r.true_sku, r.store_name ?? "", String(r.units_90d),
+        String(r.revenue_90d ?? ""), r.last_sold ? r.last_sold.slice(0, 10) : "", r.true_name ?? "", String(r.true_cost ?? "")]),
+    ]);
+  }
+  // 3D-ready: Current SKU -> True SKU (the format 3D's CSV/SFTP custom-label update expects).
+  function export3d() {
+    download(`3d-sku-update-${new Date().toISOString().slice(0, 10)}.csv`, [
+      ["Current SKU", "True SKU"],
+      ...filtered.map((r) => [r.dirt_sku, r.true_sku]),
+    ]);
   }
 
   const Sort = ({ k, label }: { k: SortKey; label: string }) => (
@@ -88,7 +98,10 @@ export default function DirtListings() {
               <SelectContent>{PAGE_OPTIONS.map((n) => <SelectItem key={n} value={String(n)}>{n}/page</SelectItem>)}</SelectContent>
             </Select>
             <Button variant="outline" size="sm" onClick={exportCsv} disabled={isLoading || filtered.length === 0}>
-              <Download className="h-4 w-4 mr-2" />Export
+              <Download className="h-4 w-4 mr-2" />Report
+            </Button>
+            <Button size="sm" onClick={export3d} disabled={isLoading || filtered.length === 0} title="Current SKU → True SKU, ready for 3D's custom-label update">
+              <Download className="h-4 w-4 mr-2" />3D update CSV
             </Button>
           </div>
         </CardHeader>
