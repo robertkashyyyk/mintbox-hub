@@ -148,7 +148,43 @@ Deno.serve(async (req) => {
     }).select('id').single()
     if (insErr) return json({ error: `ai_reports insert: ${insErr.message}` }, 500)
 
-    return json({ cadence, period_key: periodKey, model, dry_run: false, report_id: inserted?.id, narrative })
+    // Optional DELIVERY (not an operational write): email the digest to configured
+    // recipients. Recipients + which cadences to send live in app_settings so they can be
+    // changed with no redeploy. Wrapped so a mail failure never fails report generation.
+    let emailed: string[] = []
+    try {
+      const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')
+      const { data: recRow } = await read.from('app_settings').select('value').eq('key', 'orin.recipients').maybeSingle()
+      const { data: cadRow } = await read.from('app_settings').select('value').eq('key', 'orin.email_cadences').maybeSingle()
+      const recipients: string[] = Array.isArray(recRow?.value) ? (recRow!.value as string[]) : []
+      const cadences: string[] = Array.isArray(cadRow?.value) ? (cadRow!.value as string[]) : ['weekly', 'monthly']
+      if (RESEND_API_KEY && recipients.length > 0 && cadences.includes(cadence)) {
+        const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        const html =
+          `<div style="font-family:system-ui,-apple-system,sans-serif;max-width:680px;line-height:1.55;color:#111"><p>` +
+          esc(narrative)
+            .replace(/^#{1,3}\s+(.*)$/gm, '<strong>$1</strong>')
+            .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+            .replace(/\n{2,}/g, '</p><p>')
+            .replace(/\n/g, '<br>') +
+          `</p><hr style="border:none;border-top:1px solid #eee;margin:24px 0">` +
+          `<p style="font-size:12px;color:#888">Orin · PartsDocHub automated ${cadence} report · ${periodKey}</p></div>`
+        const r = await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            from: 'PartsDoc Orin <onboarding@resend.dev>',
+            to: recipients,
+            subject: `Orin ${cadence} report — ${periodKey}`,
+            html, text: narrative,
+          }),
+        })
+        if (r.ok) emailed = recipients
+        else console.error('orin email send failed', r.status, (await r.text()).slice(0, 300))
+      }
+    } catch (e: any) { console.error('orin email error', e?.message ?? String(e)) }
+
+    return json({ cadence, period_key: periodKey, model, dry_run: false, report_id: inserted?.id, emailed, narrative })
   } catch (e: any) {
     return json({ error: e?.message ?? String(e) }, 500)
   }
