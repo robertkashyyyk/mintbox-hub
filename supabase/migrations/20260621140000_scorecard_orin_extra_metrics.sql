@@ -94,16 +94,11 @@ AS $$
                                     ORDER BY snapshot_date DESC) rn
           FROM reprice_payoff_daily) z
     WHERE z.rn = 1
-    -- ── SKUs GIVEN A COST this week (the missing-cost remediation push) ──
-    UNION ALL
-    SELECT 'missing_cost','skus_costed_weekly','SKUs given a cost','count',
-           EXTRACT(ISOYEAR FROM cost_price_updated_at)::int*100+EXTRACT(WEEK FROM cost_price_updated_at)::int,
-           EXTRACT(ISOYEAR FROM cost_price_updated_at)::int||'-W'||lpad(EXTRACT(WEEK FROM cost_price_updated_at)::int::text,2,'0'),
-           count(*)::numeric
-    FROM products_cache
-    WHERE cost_price_updated_at IS NOT NULL AND cost_price IS NOT NULL
-      AND cost_price_updated_at >= '2026-01-01'::timestamptz
-    GROUP BY 5, 6
+    -- NOTE: a "SKUs costed this week" metric off products_cache.cost_price_updated_at was
+    -- dropped — it's dominated by one-off bulk cost re-syncs (a single historical week had
+    -- ~104k updates) and reads as a misleading "current week". The true missing-cost
+    -- remediation signal is the week-over-week DROP in missing_cost_skus (already a metric
+    -- above), which Orin's prompt already narrates as the weekly change once snapshots accrue.
     -- ── PROFIT-TIER MIX (live from get_profit_band_history) ──
     UNION ALL
     SELECT 'profit_mix','loss_lines','Loss / break-even lines','count',
