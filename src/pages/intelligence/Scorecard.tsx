@@ -39,9 +39,11 @@ interface AiReport {
   status: string;
 }
 
-const AREA_ORDER = ["profit", "dispatch", "eighty_twenty", "stock_valuation", "missing_cost"] as const;
+const AREA_ORDER = ["profit", "profit_mix", "reprice", "dispatch", "eighty_twenty", "stock_valuation", "missing_cost"] as const;
 const AREA_LABELS: Record<string, string> = {
   profit: "Profit & P&L",
+  profit_mix: "Profit Tiers",
+  reprice: "Repricing Payoff",
   dispatch: "Dispatch",
   eighty_twenty: "80/20 Concentration",
   stock_valuation: "Stock Valuation",
