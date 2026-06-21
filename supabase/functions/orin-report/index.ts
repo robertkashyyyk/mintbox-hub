@@ -127,6 +127,9 @@ Deno.serve(async (req) => {
     let userContent: string
     let maxTokens: number
     let inputSnapshot: any
+    // KPI tiles for the email (hub card style), built from the structured data per cadence.
+    let cards: Array<{ label: string; value: string; sub: string; accent: string }> = []
+    const gbp = (n: any) => '£' + Number(n).toLocaleString('en-GB', { maximumFractionDigits: 0 })
 
     if (cadence === 'daily') {
       const { data: dayRows, error: dErr } = await read.rpc('get_profit_day')
@@ -139,8 +142,22 @@ Deno.serve(async (req) => {
       periodKey = String(d.day)
       systemPrompt = DAILY_SYSTEM_PROMPT
       maxTokens = 450
-      const gbp = (n: any) => '£' + Number(n).toLocaleString('en-GB', { maximumFractionDigits: 0 })
       const por = d.por_pct != null ? ` (POR ${(Number(d.por_pct) * 100).toFixed(1)}%)` : ''
+      // KPI cards: yesterday's figures + how each landed vs the Primary daily target.
+      const pRow = (mk: string) => (pace as any[] ?? []).find((x) => x.metric === mk)
+      const vsP = (mk: string) => {
+        const v = pRow(mk)?.variance_vs_primary_pct
+        return v == null ? '' : `${v >= 0 ? '+' : ''}${(v * 100).toFixed(0)}% vs Primary`
+      }
+      const accP = (mk: string) => {
+        const v = pRow(mk)?.variance_vs_primary_pct
+        return v == null ? '#64748b' : (v >= 0 ? '#2A9D8F' : '#d97706')
+      }
+      cards = [
+        { label: 'Revenue', value: gbp(d.revenue), sub: vsP('revenue'), accent: accP('revenue') },
+        { label: 'Orders', value: Number(d.orders).toLocaleString('en-GB'), sub: vsP('orders'), accent: accP('orders') },
+        { label: 'Profit', value: gbp(d.profit), sub: d.por_pct != null ? `POR ${(Number(d.por_pct) * 100).toFixed(1)}%` : '', accent: '#64748b' },
+      ]
       userContent =
         `Yesterday (${d.day}): Revenue ${gbp(d.revenue)}, Orders ${d.orders}, Profit ${gbp(d.profit)}${por}.\n\n` +
         `Daily targets vs actual (Primary/Stretch/Ultimate; variance_vs_primary_pct is the fraction ` +
@@ -167,6 +184,27 @@ Deno.serve(async (req) => {
         `${JSON.stringify(pace ?? [], null, 2)}\n\n` +
         `Scorecard (JSON — already computed, do not recompute):\n` +
         JSON.stringify(scorecard, null, 2)
+      // KPI cards: target pace per metric (actual-to-date + banding tier).
+      const grainTag = paceGrain.toUpperCase()
+      const tierAcc = (t: string | null) =>
+        t === 'below_primary' ? '#d97706'
+          : (t && t !== 'on_primary' && t !== 'firmly_primary') ? '#2A9D8F'
+          : '#64748b'
+      const pr = (mk: string) => (pace as any[] ?? []).find((x) => x.metric === mk)
+      cards = ([
+        ['revenue', `Revenue · ${grainTag}`, true],
+        ['gross', 'Gross', true],
+        ['orders', `Orders · ${grainTag}`, false],
+      ] as [string, string, boolean][]).map(([mk, label, money]) => {
+        const r = pr(mk)
+        if (!r) return null
+        return {
+          label: label + (mk === 'gross' && r.partial_cost ? ' *' : ''),
+          value: money ? gbp(r.actual) : Number(r.actual).toLocaleString('en-GB'),
+          sub: r.tier_label ?? '',
+          accent: tierAcc(r.tier),
+        }
+      }).filter(Boolean) as typeof cards
     }
 
     const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
@@ -214,13 +252,16 @@ Deno.serve(async (req) => {
       const { data: recRow } = await write.from('app_settings').select('value').eq('key', 'orin.recipients').maybeSingle()
       const { data: cadRow } = await write.from('app_settings').select('value').eq('key', 'orin.email_cadences').maybeSingle()
       const { data: fromRow } = await write.from('app_settings').select('value').eq('key', 'orin.email_from').maybeSingle()
-      const recipients: string[] = Array.isArray(recRow?.value) ? (recRow!.value as string[]) : []
+      // test_to overrides recipients (for previewing without mailing the full list).
+      const testTo = body?.test_to
+      const cfgRecipients: string[] = Array.isArray(recRow?.value) ? (recRow!.value as string[]) : []
+      const recipients: string[] = testTo ? (Array.isArray(testTo) ? testTo : [testTo]) : cfgRecipients
       const cadences: string[] = Array.isArray(cadRow?.value) ? (cadRow!.value as string[]) : ['weekly', 'monthly']
       // from address: app_settings override, else the verified partsdochub.com sender.
       const fromAddr: string = (typeof fromRow?.value === 'string' && fromRow.value)
         ? (fromRow.value as string) : 'PartsDoc Orin <orin@partsdochub.com>'
-      if (RESEND_API_KEY && recipients.length > 0 && cadences.includes(cadence)) {
-        const html = renderEmailHtml(narrative, cadence, periodKey)
+      if (RESEND_API_KEY && recipients.length > 0 && (testTo || cadences.includes(cadence))) {
+        const html = renderEmailHtml(narrative, cadence, periodKey, cards)
         const r = await fetch('https://api.resend.com/emails', {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
@@ -260,10 +301,25 @@ function derivePeriodKey(cadence: string, scorecard: any[]): string {
 const BRAND = { charcoal: '#0F172A', teal: '#2A9D8F', tealDark: '#1f7a70', slate: '#94a3b8', ink: '#1a1a1a' }
 const LOGO_URL = 'https://partsdochub.com/email/partsdoc-logo-white.png'
 
-function renderEmailHtml(narrative: string, cadence: string, periodKey: string): string {
+function renderEmailHtml(
+  narrative: string, cadence: string, periodKey: string,
+  cards: Array<{ label: string; value: string; sub: string; accent: string }> = [],
+): string {
   const bodyHtml = marked.parse(narrative, { async: false }) as string
   const title = cadence === 'daily' ? 'Daily Brief' : cadence === 'weekly' ? 'Weekly Report' : 'Monthly Review'
   const sans = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif"
+  const cw = cards.length ? Math.floor(100 / cards.length) : 0
+  const cardsHtml = cards.length
+    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0"><tr>` +
+      cards.map((c) =>
+        `<td style="padding:5px;vertical-align:top;width:${cw}%">` +
+        `<div style="border:1px solid #e2e8f0;border-radius:10px;padding:13px 14px;background:#fff">` +
+        `<div style="font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;font-family:${sans}">${c.label}</div>` +
+        `<div style="font-size:22px;font-weight:700;color:#0f172a;margin-top:5px;font-family:${sans}">${c.value}</div>` +
+        (c.sub ? `<div style="font-size:12px;color:${c.accent};margin-top:4px;font-family:${sans};font-weight:600">${c.sub}</div>` : '') +
+        `</div></td>`).join('') +
+      `</tr></table>`
+    : ''
   return `<!doctype html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
@@ -289,7 +345,8 @@ function renderEmailHtml(narrative: string, cadence: string, periodKey: string):
         <span style="color:${BRAND.teal};font-weight:600">Orin</span> &middot; ${title} &middot; ${periodKey}
       </div>
     </div>
-    <div class="orin-body" style="padding:26px 28px">${bodyHtml}</div>
+    ${cardsHtml ? `<div style="padding:18px 19px 4px">${cardsHtml}</div>` : ''}
+    <div class="orin-body" style="padding:${cardsHtml ? '8px' : '26px'} 28px 26px">${bodyHtml}</div>
     <div style="padding:16px 28px;background:#f8fafc;border-top:1px solid #e2e8f0;color:${BRAND.slate};font-size:11px;font-family:${sans}">
       Automated ${cadence} report by <span style="color:${BRAND.tealDark};font-weight:600">Orin</span> &middot; figures from the PartsDocHub scorecard
     </div>
