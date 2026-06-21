@@ -16,6 +16,7 @@
 //
 // Invoke: POST { cadence: 'daily'|'weekly'|'monthly', dry_run?: bool, lookback_weeks?: int }
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0'
+import { marked } from 'https://esm.sh/marked@12'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -187,24 +188,19 @@ Deno.serve(async (req) => {
       const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')
       const { data: recRow } = await read.from('app_settings').select('value').eq('key', 'orin.recipients').maybeSingle()
       const { data: cadRow } = await read.from('app_settings').select('value').eq('key', 'orin.email_cadences').maybeSingle()
+      const { data: fromRow } = await read.from('app_settings').select('value').eq('key', 'orin.email_from').maybeSingle()
       const recipients: string[] = Array.isArray(recRow?.value) ? (recRow!.value as string[]) : []
       const cadences: string[] = Array.isArray(cadRow?.value) ? (cadRow!.value as string[]) : ['weekly', 'monthly']
+      // from address: app_settings override, else the verified partsdochub.com sender.
+      const fromAddr: string = (typeof fromRow?.value === 'string' && fromRow.value)
+        ? (fromRow.value as string) : 'PartsDoc Orin <orin@partsdochub.com>'
       if (RESEND_API_KEY && recipients.length > 0 && cadences.includes(cadence)) {
-        const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-        const html =
-          `<div style="font-family:system-ui,-apple-system,sans-serif;max-width:680px;line-height:1.55;color:#111"><p>` +
-          esc(narrative)
-            .replace(/^#{1,3}\s+(.*)$/gm, '<strong>$1</strong>')
-            .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-            .replace(/\n{2,}/g, '</p><p>')
-            .replace(/\n/g, '<br>') +
-          `</p><hr style="border:none;border-top:1px solid #eee;margin:24px 0">` +
-          `<p style="font-size:12px;color:#888">Orin · PartsDocHub automated ${cadence} report · ${periodKey}</p></div>`
+        const html = renderEmailHtml(narrative, cadence, periodKey)
         const r = await fetch('https://api.resend.com/emails', {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            from: 'PartsDoc Orin <onboarding@resend.dev>',
+            from: fromAddr,
             to: recipients,
             subject: `Orin ${cadence} report — ${periodKey}`,
             html, text: narrative,
@@ -230,6 +226,41 @@ function derivePeriodKey(cadence: string, scorecard: any[]): string {
   // weekly → the latest profit period label (e.g. 2026-W24)
   const profit = scorecard.find(r => r.metric_key === 'profit_gbp') ?? scorecard[0]
   return profit?.period_label ?? new Date().toISOString().slice(0, 10)
+}
+
+// Branded HTML email — renders the markdown narrative (headings, bold, lists, tables) into a
+// clean PartsDocHub-styled shell. Resend also gets the raw narrative as the plain-text part.
+function renderEmailHtml(narrative: string, cadence: string, periodKey: string): string {
+  const bodyHtml = marked.parse(narrative, { async: false }) as string
+  const title = cadence === 'daily' ? 'Daily Brief' : cadence === 'weekly' ? 'Weekly Report' : 'Monthly Review'
+  const sans = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif"
+  return `<!doctype html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  .orin-body{font-family:${sans};color:#1a1a1a;line-height:1.6;font-size:15px}
+  .orin-body h1,.orin-body h2,.orin-body h3{line-height:1.3;margin:1.4em 0 .5em;color:#0f172a}
+  .orin-body h1{font-size:20px}.orin-body h2{font-size:17px}.orin-body h3{font-size:15px}
+  .orin-body p{margin:.6em 0}
+  .orin-body ul,.orin-body ol{margin:.6em 0;padding-left:1.2em}.orin-body li{margin:.25em 0}
+  .orin-body strong{color:#0f172a}
+  .orin-body table{border-collapse:collapse;width:100%;margin:1em 0;font-size:14px}
+  .orin-body th,.orin-body td{border:1px solid #e2e8f0;padding:8px 10px;text-align:left}
+  .orin-body th{background:#f8fafc}
+  .orin-body blockquote{margin:1em 0;padding:.5em 1em;border-left:3px solid #cbd5e1;background:#f8fafc;color:#334155}
+  .orin-body hr{border:none;border-top:1px solid #e2e8f0;margin:1.5em 0}
+</style></head>
+<body style="margin:0;background:#f1f5f9;padding:24px">
+  <div style="max-width:680px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0">
+    <div style="background:#0f172a;padding:20px 28px">
+      <div style="color:#fff;font-size:18px;font-weight:700;font-family:${sans}">Orin</div>
+      <div style="color:#94a3b8;font-size:12px;margin-top:2px;font-family:${sans}">PartsDocHub · ${title} · ${periodKey}</div>
+    </div>
+    <div class="orin-body" style="padding:24px 28px">${bodyHtml}</div>
+    <div style="padding:14px 28px;background:#f8fafc;border-top:1px solid #e2e8f0;color:#94a3b8;font-size:11px;font-family:${sans}">
+      Automated ${cadence} report generated by Orin · figures from the PartsDocHub scorecard
+    </div>
+  </div>
+</body></html>`
 }
 
 function json(b: unknown, status = 200) {
