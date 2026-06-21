@@ -73,6 +73,7 @@ import ImageScoutCalibration from "./pages/discovery/ImageScoutCalibration";
 import BoxQuantities from "./pages/discovery/BoxQuantities";
 import WebSearcherIndex from "./pages/discovery/WebSearcherIndex";
 import DimsWeights from "./pages/discovery/DimsWeights";
+import SupplierFeeds from "./pages/discovery/SupplierFeeds";
 
 // Intelligence Pages
 import VelocityCoverage from "./pages/intelligence/VelocityCoverage";
@@ -221,6 +222,7 @@ const App = () => (
             <Route path="/discovery/box-quantities" element={<BoxQuantities />} />
             <Route path="/discovery/web-searcher" element={<WebSearcherIndex />} />
             <Route path="/discovery/web-searcher/dims-weights" element={<DimsWeights />} />
+            <Route path="/discovery/supplier-feeds" element={<SupplierFeeds />} />
 
             {/* Intelligence Sub-Routes */}
             <Route path="/intelligence/velocity" element={<VelocityCoverage />} />
