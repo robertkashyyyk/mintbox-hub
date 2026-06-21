@@ -83,6 +83,15 @@ const CADENCE_BRIEF: Record<string, string> = {
     `MONTHLY review. OPEN with the positive trajectory, then use each metric's "series" array to describe the DIRECTION OF TRAVEL over the retained weeks — what is improving or decaying and how it is tracking. Credit sustained good work with real numbers. Reference the trajectory, not just the latest week.`,
 }
 
+// Daily is a different beast: not the weekly scorecard, just yesterday's headline figures
+// plus a prompt to set today's focus. Kept deliberately tiny.
+const DAILY_SYSTEM_PROMPT =
+  `You are Orin, the internal analyst for PartsDocHub. You are given YESTERDAY's headline trading
+figures, already calculated — never recompute or invent a number. Write a VERY short daily note:
+state yesterday's revenue, orders and profit clearly (a tight few lines) in a positive, encouraging
+tone, then ask ONE short, specific question to get the team thinking about today's focus. No preamble,
+no headers, no other metrics, no analysis beyond those three figures.`
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders })
 
@@ -100,19 +109,41 @@ Deno.serve(async (req) => {
     const { data: modelRow } = await read.from('app_settings').select('value').eq('key', 'scorecard.orin_models').maybeSingle()
     const model = (modelRow?.value as any)?.[cadence] ?? DEFAULT_MODELS[cadence]
 
-    // THE single read surface
-    const { data: scorecard, error: scErr } = await read.rpc('get_scorecard', { p_lookback_weeks: lookback })
-    if (scErr) return json({ error: `get_scorecard: ${scErr.message}` }, 500)
-    if (!scorecard || (scorecard as any[]).length === 0) return json({ error: 'scorecard empty' }, 500)
+    // Build the data + prompt. Daily = yesterday's headline figures; weekly/monthly = scorecard.
+    let periodKey: string
+    let systemPrompt: string
+    let userContent: string
+    let maxTokens: number
+    let inputSnapshot: any
 
-    const periodKey = derivePeriodKey(cadence, scorecard as any[])
-
-    // Build the prompt and call Anthropic
-    const userContent =
-      `${CADENCE_BRIEF[cadence]}\n\n` +
-      `Today is ${new Date().toISOString().slice(0, 10)}. Report period: ${periodKey}.\n\n` +
-      `Scorecard (JSON — already computed, do not recompute):\n` +
-      JSON.stringify(scorecard, null, 2)
+    if (cadence === 'daily') {
+      const { data: dayRows, error: dErr } = await read.rpc('get_profit_day')
+      if (dErr) return json({ error: `get_profit_day: ${dErr.message}` }, 500)
+      const d: any = Array.isArray(dayRows) ? dayRows[0] : dayRows
+      if (!d) return json({ error: 'no daily data' }, 500)
+      inputSnapshot = d
+      periodKey = String(d.day)
+      systemPrompt = DAILY_SYSTEM_PROMPT
+      maxTokens = 350
+      const gbp = (n: any) => '£' + Number(n).toLocaleString('en-GB', { maximumFractionDigits: 0 })
+      const por = d.por_pct != null ? ` (POR ${(Number(d.por_pct) * 100).toFixed(1)}%)` : ''
+      userContent =
+        `Yesterday (${d.day}): Revenue ${gbp(d.revenue)}, Orders ${d.orders}, Profit ${gbp(d.profit)}${por}.\n\n` +
+        `Write the short daily note now.`
+    } else {
+      const { data: scorecard, error: scErr } = await read.rpc('get_scorecard', { p_lookback_weeks: lookback })
+      if (scErr) return json({ error: `get_scorecard: ${scErr.message}` }, 500)
+      if (!scorecard || (scorecard as any[]).length === 0) return json({ error: 'scorecard empty' }, 500)
+      inputSnapshot = scorecard
+      periodKey = derivePeriodKey(cadence, scorecard as any[])
+      systemPrompt = SYSTEM_PROMPT
+      maxTokens = 1400
+      userContent =
+        `${CADENCE_BRIEF[cadence]}\n\n` +
+        `Today is ${new Date().toISOString().slice(0, 10)}. Report period: ${periodKey}.\n\n` +
+        `Scorecard (JSON — already computed, do not recompute):\n` +
+        JSON.stringify(scorecard, null, 2)
+    }
 
     const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -123,8 +154,8 @@ Deno.serve(async (req) => {
       },
       body: JSON.stringify({
         model,
-        max_tokens: cadence === 'daily' ? 700 : 1400,
-        system: SYSTEM_PROMPT,
+        max_tokens: maxTokens,
+        system: systemPrompt,
         messages: [{ role: 'user', content: userContent }],
       }),
     })
@@ -144,7 +175,7 @@ Deno.serve(async (req) => {
     const write = createClient(SUPA_URL, SERVICE_KEY)
     const { data: inserted, error: insErr } = await write.from('ai_reports').insert({
       cadence, period_key: periodKey, scope: 'track_a', model,
-      input_snapshot: scorecard, narrative, status: 'complete',
+      input_snapshot: inputSnapshot, narrative, status: 'complete',
     }).select('id').single()
     if (insErr) return json({ error: `ai_reports insert: ${insErr.message}` }, 500)
 
