@@ -186,9 +186,11 @@ Deno.serve(async (req) => {
     let emailed: string[] = []
     try {
       const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')
-      const { data: recRow } = await read.from('app_settings').select('value').eq('key', 'orin.recipients').maybeSingle()
-      const { data: cadRow } = await read.from('app_settings').select('value').eq('key', 'orin.email_cadences').maybeSingle()
-      const { data: fromRow } = await read.from('app_settings').select('value').eq('key', 'orin.email_from').maybeSingle()
+      // app_settings is RLS-locked to authenticated, so read delivery config via the SERVICE
+      // client (anon reads return nothing → silently no recipients → no email).
+      const { data: recRow } = await write.from('app_settings').select('value').eq('key', 'orin.recipients').maybeSingle()
+      const { data: cadRow } = await write.from('app_settings').select('value').eq('key', 'orin.email_cadences').maybeSingle()
+      const { data: fromRow } = await write.from('app_settings').select('value').eq('key', 'orin.email_from').maybeSingle()
       const recipients: string[] = Array.isArray(recRow?.value) ? (recRow!.value as string[]) : []
       const cadences: string[] = Array.isArray(cadRow?.value) ? (cadRow!.value as string[]) : ['weekly', 'monthly']
       // from address: app_settings override, else the verified partsdochub.com sender.
