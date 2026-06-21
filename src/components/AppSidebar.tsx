@@ -17,6 +17,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useRbacEnabled } from "@/hooks/useRbacEnabled";
 import { RbacSidebar } from "@/components/RbacSidebar";
+import { NAV_GROUPS } from "@/config/navigation";
 
 import {
   Sidebar,
@@ -72,7 +73,9 @@ export function AppSidebar() {
   });
 
   // Define navGroups before useState that depends on it
-  const navGroups: NavGroup[] = [
+  const navGroups: NavGroup[] = NAV_GROUPS;
+  /* Legacy inline nav list — now sourced from src/config/navigation.tsx (single source of truth).
+  const _legacyNavGroups: NavGroup[] = [
     {
       label: "Discovery",
       basePath: "/discovery",
@@ -83,6 +86,7 @@ export function AppSidebar() {
         { title: "Discovery Queue", url: "/discovery/discovery-queue", icon: AlertCircle },
         { title: "Images", url: "/discovery/images", icon: Images },
         { title: "Web Searcher", url: "/discovery/web-searcher", icon: Globe },
+        { title: "Supplier Feeds", url: "/discovery/supplier-feeds", icon: RefreshCw },
       ],
     },
     {
@@ -170,7 +174,7 @@ export function AppSidebar() {
         { title: "SKU Transformations", url: "/admin/sku-transformations", icon: ArrowUpDown },
       ],
     },
-  ];
+  ]; */
 
   // Track which groups are open
   const [openGroups, setOpenGroups] = useState<Set<string>>(() => {

@@ -6,6 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { AlertCircle, AlertTriangle, Clock, Package, Sparkles, Tag, Image as ImageIcon, HelpCircle, Link2Off } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import ModuleHeader from "@/components/ModuleHeader";
+import { getNavGroup } from "@/config/navigation";
 
 const HousekeepingIndex = () => {
   const navigate = useNavigate();
@@ -41,79 +42,31 @@ const HousekeepingIndex = () => {
     },
   });
 
+  // Item identity (title/url/icon/description) comes from the shared nav config so this
+  // board stays in sync with the sidebar; severity + live counts are page-specific.
+  const meta: Record<string, { severity: "destructive" | "warning" | "info"; count?: number }> = {
+    "/intelligence/missing-costs": { severity: "destructive", count: counts?.missingCosts },
+    "/intelligence/dirt-skus": { severity: "warning", count: counts?.dirtRecent },
+    "/housekeeping/dirt-listings": { severity: "warning", count: counts?.dirtListings },
+    "/housekeeping/missing-barcodes": { severity: "info", count: counts?.missingBarcodes },
+    "/operations/carriers/remeasure": { severity: "info" },
+    "/housekeeping/orphan-skus": { severity: "destructive", count: counts?.orphans },
+    "/housekeeping/lsa-unmatched": { severity: "warning", count: counts?.lsaUnmatched },
+  };
+
   const tiles = [
-    {
-      title: "Missing Costs",
-      description: "Active SKUs without a cost_price set — blocks profit calculation.",
-      icon: AlertCircle,
-      severity: "destructive" as const,
-      count: counts?.missingCosts,
-      path: "/intelligence/missing-costs",
-    },
-    {
-      title: "Dirt SKUs",
-      description: "SKUs sold recently that don't match any brand prefix style.",
-      icon: AlertTriangle,
-      severity: "warning" as const,
-      count: counts?.dirtRecent,
-      path: "/intelligence/dirt-skus",
-    },
-    {
-      title: "Pending Images",
-      description: "Bulk-uploaded images waiting to be matched to a SKU.",
-      icon: ImageIcon,
-      severity: "warning" as const,
-      count: counts?.pendingImages,
-      path: "/discovery/pending-images",
-    },
-    {
-      title: "Discovery Queue",
-      description: "New SKUs found in orders awaiting enrichment.",
-      icon: Sparkles,
-      severity: "info" as const,
-      count: counts?.discoveryQ,
-      path: "/discovery/discovery-queue",
-    },
-    {
-      title: "Missing Barcodes",
-      description: "Active products without a UPC/EAN barcode set.",
-      icon: Tag,
-      severity: "info" as const,
-      count: counts?.missingBarcodes,
-      path: "/housekeeping/missing-barcodes",
-    },
-    {
-      title: "Dirt SKUs on eBay",
-      description: "Live eBay listings with an old dirt label that Mintsoft maps to a true SKU — needs updating at source.",
-      icon: AlertTriangle,
-      severity: "warning" as const,
-      count: counts?.dirtListings,
-      path: "/housekeeping/dirt-listings",
-    },
-    {
-      title: "Carrier Remeasure",
-      description: "Items flagged by carriers as wrong dimensions/weight.",
-      icon: Package,
-      severity: "info" as const,
-      count: undefined,
-      path: "/operations/carriers/remeasure",
-    },
-    {
-      title: "Orphan SKUs",
-      description: "Catalogue SKUs not linked to a Mintsoft Product ID — blocks cost/stock/LSA pushes.",
-      icon: Link2Off,
-      severity: "destructive" as const,
-      count: counts?.orphans,
-      path: "/housekeeping/orphan-skus",
-    },
-    {
-      title: "LSA Unmatched SKUs",
-      description: "SKUs in Mintsoft's Low Stock Alert file that don't exist in our cache yet.",
-      icon: HelpCircle,
-      severity: "warning" as const,
-      count: counts?.lsaUnmatched,
-      path: "/housekeeping/lsa-unmatched",
-    },
+    ...(getNavGroup("Housekeeping")?.items ?? []).map((it) => ({
+      title: it.title,
+      description: it.description ?? "",
+      icon: it.icon,
+      severity: meta[it.url]?.severity ?? ("info" as const),
+      count: meta[it.url]?.count,
+      path: it.url,
+    })),
+    // Cross-section to-dos surfaced here as data-quality tasks (these live in the
+    // Discovery nav group, not Housekeeping):
+    { title: "Pending Images", description: "Bulk-uploaded images waiting to be matched to a SKU.", icon: ImageIcon, severity: "warning" as const, count: counts?.pendingImages, path: "/discovery/pending-images" },
+    { title: "Discovery Queue", description: "New SKUs found in orders awaiting enrichment.", icon: Sparkles, severity: "info" as const, count: counts?.discoveryQ, path: "/discovery/discovery-queue" },
   ];
 
   const sevColor = (s: "destructive" | "warning" | "info") =>

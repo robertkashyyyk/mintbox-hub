@@ -3,16 +3,17 @@ import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/ca
 import { FileText, Activity, RefreshCw, Truck } from "lucide-react";
 import ModuleHeader from "@/components/ModuleHeader";
 import operationsBanner from "@/assets/banners/operations-banner.jpg";
+import { getNavGroup } from "@/config/navigation";
 
 const OperationsIndex = () => {
   const navigate = useNavigate();
 
-  const options = [
-    { title: "Order Telemetry", description: "Order issue detection, problem tracking and operational actions", icon: Activity, onClick: () => navigate("/operations/order-telemetry") },
-    { title: "Carriers", description: "Royal Mail / courier penalties — invoices, trends, and packer remeasure queue", icon: Truck, onClick: () => navigate("/operations/carriers") },
-    { title: "SKU Analysis", description: "Top problem SKUs, backorder concentration, brand breakdown", icon: RefreshCw, onClick: () => navigate("/operations/sku-analysis") },
-    { title: "Reports", description: "Weekly ops reports and subscriber management", icon: FileText, onClick: () => navigate("/operations/reports") },
-  ];
+  const options = (getNavGroup("Operations")?.items ?? []).map((it) => ({
+    title: it.title,
+    description: it.description,
+    icon: it.icon,
+    onClick: () => navigate(it.url),
+  }));
 
   return (
     <div className="space-y-2">

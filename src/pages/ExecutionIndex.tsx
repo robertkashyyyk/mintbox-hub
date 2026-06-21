@@ -2,17 +2,18 @@ import { useNavigate } from "react-router-dom";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ShoppingCart, DollarSign, RefreshCw, Copy, PlayCircle } from "lucide-react";
 import ModuleHeader from "@/components/ModuleHeader";
+import { getNavGroup } from "@/config/navigation";
 import executionBanner from "@/assets/banners/execution-banner.jpg";
 
 const ExecutionIndex = () => {
   const navigate = useNavigate();
 
-  const options = [
-    { title: "Purchase Orders", description: "Create and manage purchase orders for suppliers", icon: ShoppingCart, onClick: () => navigate("/execution/purchase-orders") },
-    { title: "Price Hunter", description: "eBay price checks and automated pricing updates", icon: DollarSign, onClick: () => navigate("/execution/price-hunter") },
-    { title: "Remote Stock Updates", description: "Configure and manage remote stock feed types", icon: RefreshCw, onClick: () => navigate("/execution/remote-stock-updates") },
-    { title: "Listing Cloner", description: "Create and manage eBay listings from templates", icon: Copy, onClick: () => navigate("/execution/listing-cloner") },
-  ];
+  const options = (getNavGroup("Execution")?.items ?? []).map((it) => ({
+    title: it.title,
+    description: it.description,
+    icon: it.icon,
+    onClick: () => navigate(it.url),
+  }));
 
   return (
     <div className="space-y-2">

@@ -2,17 +2,18 @@ import { useNavigate } from "react-router-dom";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ShoppingBag, ShoppingCart, Gauge, Plug, Sparkles } from "lucide-react";
 import ModuleHeader from "@/components/ModuleHeader";
+import { getNavGroup } from "@/config/navigation";
 import decisionsBanner from "@/assets/banners/decisions-banner.jpg";
 
 const DecisionsIndex = () => {
   const navigate = useNavigate();
 
-  const options = [
-    { title: "Buy Recommendations", description: "AI-driven purchase order suggestions based on velocity", icon: ShoppingBag, onClick: () => navigate("/decisions/buying") },
-    { title: "Purchase Orders", description: "Create and manage purchase orders for suppliers", icon: ShoppingCart, onClick: () => navigate("/execution/purchase-orders") },
-    { title: "LSA Calibration", description: "Review and adjust listing strategy advisor settings", icon: Gauge, onClick: () => navigate("/decisions/lsa-calibration") },
-    { title: "3D Reprice", description: "Trigger repricing runs via 3D Sellers integration", icon: Plug, onClick: () => navigate("/decisions/threeds-reprice") },
-  ];
+  const options = (getNavGroup("Decisions")?.items ?? []).map((it) => ({
+    title: it.title,
+    description: it.description,
+    icon: it.icon,
+    onClick: () => navigate(it.url),
+  }));
 
   return (
     <div className="space-y-2">

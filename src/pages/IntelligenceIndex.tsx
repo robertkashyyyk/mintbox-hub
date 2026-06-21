@@ -3,21 +3,17 @@ import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/ca
 import { TrendingUp, Activity, DollarSign, Calendar, BarChart3, AlertCircle, AlertTriangle, PoundSterling, FileBarChart2, LayoutDashboard } from "lucide-react";
 import ModuleHeader from "@/components/ModuleHeader";
 import intelligenceBanner from "@/assets/banners/intelligence-banner.jpg";
+import { getNavGroup } from "@/config/navigation";
 
 const IntelligenceIndex = () => {
   const navigate = useNavigate();
 
-  const options = [
-    { title: "Scorecard", description: "RAG + trend across profit, 80/20, valuation and data quality — with Orin's narrative.", icon: LayoutDashboard, onClick: () => navigate("/intelligence/scorecard") },
-    { title: "Profit Intelligence", description: "Weekly revenue, costs, channel fees and POR.", icon: DollarSign, onClick: () => navigate("/intelligence/profit") },
-    { title: "Standing Reports", description: "Recurring reports — e.g. repricing payoff, tracked over time.", icon: FileBarChart2, onClick: () => navigate("/intelligence/standing-reports") },
-    { title: "Velocity & Coverage", description: "Sales velocity and inventory coverage analysis", icon: TrendingUp, onClick: () => navigate("/intelligence/velocity") },
-    { title: "Stock Health", description: "Stock levels, overstock, and shortage analysis", icon: Activity, onClick: () => navigate("/intelligence/stock-health") },
-    { title: "Stock Valuation", description: "Cost × on-hand by SKU, brand and health category.", icon: PoundSterling, onClick: () => navigate("/intelligence/stock-valuation") },
-    { title: "Pricing Signals", description: "Market pricing trends and competitor intelligence", icon: DollarSign, onClick: () => navigate("/intelligence/pricing") },
-    { title: "Seasonality", description: "Seasonal demand patterns and forecasts", icon: Calendar, onClick: () => navigate("/intelligence/seasonality") },
-    { title: "Missing Costs", description: "Active SKUs without a cost price set.", icon: AlertCircle, onClick: () => navigate("/intelligence/missing-costs") },
-  ];
+  const options = (getNavGroup("Intelligence")?.items ?? []).map((it) => ({
+    title: it.title,
+    description: it.description,
+    icon: it.icon,
+    onClick: () => navigate(it.url),
+  }));
 
   return (
     <div className="space-y-2">

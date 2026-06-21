@@ -3,18 +3,17 @@ import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/ca
 import { Users, Key, CreditCard, FileText, Settings, Plug } from "lucide-react";
 import ModuleHeader from "@/components/ModuleHeader";
 import adminBanner from "@/assets/banners/admin-banner.jpg";
+import { getNavGroup } from "@/config/navigation";
 
 const AdminIndex = () => {
   const navigate = useNavigate();
 
-  const options = [
-    { title: "User Management", description: "Manage users, roles, and invitations", icon: Users, onClick: () => navigate("/admin/users") },
-    { title: "API Access", description: "Manage API keys and integrations", icon: Key, onClick: () => navigate("/admin/api-keys") },
-    { title: "Billing & Usage", description: "View Xask usage and billing information", icon: CreditCard, onClick: () => navigate("/admin/billing") },
-    { title: "Logs / Diagnostics", description: "System logs and diagnostic information", icon: FileText, onClick: () => navigate("/admin/logs") },
-    { title: "System Settings", description: "Application-wide configuration and feature flags", icon: Settings, onClick: () => navigate("/admin/settings") },
-    { title: "Integrations", description: "Manage connections to external services", icon: Plug, onClick: () => navigate("/admin/integrations") },
-  ];
+  const options = (getNavGroup("Administration")?.items ?? []).map((it) => ({
+    title: it.title,
+    description: it.description,
+    icon: it.icon,
+    onClick: () => navigate(it.url),
+  }));
 
   return (
     <div className="space-y-2">
