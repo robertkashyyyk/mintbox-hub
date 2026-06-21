@@ -62,6 +62,13 @@ SYNTHESIS, not summary: join related signals into one coherent story (e.g. "prof
 harder, so margin actually held"). Do not narrate each metric in isolation. Be concrete (£ where unit is gbp,
 % where pct). Proactively flag anything amber or red.
 
+TARGETS (lead with this when target pace is supplied): you may be given PartsDocHub target pace — actual-
+to-date vs Primary/Stretch/Ultimate lines, with a banding tier per metric (below_primary / on_primary /
+firmly_primary / on_stretch / firmly_stretch / on_ultimate / above_ultimate). OPEN the report by framing
+the period against targets in plain words ("revenue is tracking firmly in Primary, ~12% ahead of Primary
+pace, building toward Stretch"). Use the emitted tier/variance verbatim — never recompute. If a 'gross'
+row has partial_cost=true, caveat that gross is partial pending full cost data.
+
 TOPICS — cover those PRESENT in the scorecard, skip those absent: weekly profit / P&L, profit-on-return %,
 80-20 profit concentration, profit-tier movement (loss / break-even / poor / average / good / great — where
 SKUs are migrating to and from), stock valuation & dead stock (judge materiality), missing-cost data quality
@@ -88,10 +95,14 @@ const CADENCE_BRIEF: Record<string, string> = {
 // plus a prompt to set today's focus. Kept deliberately tiny.
 const DAILY_SYSTEM_PROMPT =
   `You are Orin, the internal analyst for PartsDocHub. You are given YESTERDAY's headline trading
-figures, already calculated — never recompute or invent a number. Write a VERY short daily note:
-state yesterday's revenue, orders and profit clearly (a tight few lines) in a positive, encouraging
-tone, then ask ONE short, specific question to get the team thinking about today's focus. No preamble,
-no headers, no other metrics, no analysis beyond those three figures.`
+figures AND how they landed against the daily TARGETS (Primary/Stretch/Ultimate), already calculated —
+never recompute or invent a number. Write a VERY short daily note:
+- LEAD with how yesterday did vs the PRIMARY daily target — e.g. "Yesterday beat the Primary target by
+  12%" or "came in 8% short of Primary". A single day is not "tiered" — just say ahead/behind Primary
+  (and by how much), and note if it cleared Stretch/Ultimate. This is to keep the team thinking in targets.
+- Then state revenue, orders and profit clearly (a tight few lines), positive and encouraging in tone.
+- Then ask ONE short, specific question to get the team thinking about today's focus.
+No preamble, no headers, no other metrics, no analysis beyond those figures.`
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders })
@@ -122,26 +133,38 @@ Deno.serve(async (req) => {
       if (dErr) return json({ error: `get_profit_day: ${dErr.message}` }, 500)
       const d: any = Array.isArray(dayRows) ? dayRows[0] : dayRows
       if (!d) return json({ error: 'no daily data' }, 500)
-      inputSnapshot = d
+      // Yesterday vs the daily targets (Primary/Stretch/Ultimate) — single day, not tiered.
+      const { data: pace } = await read.rpc('get_target_pace', { p_grain: 'day', p_asof: d.day })
+      inputSnapshot = { day: d, targets: pace ?? [] }
       periodKey = String(d.day)
       systemPrompt = DAILY_SYSTEM_PROMPT
-      maxTokens = 350
+      maxTokens = 450
       const gbp = (n: any) => '£' + Number(n).toLocaleString('en-GB', { maximumFractionDigits: 0 })
       const por = d.por_pct != null ? ` (POR ${(Number(d.por_pct) * 100).toFixed(1)}%)` : ''
       userContent =
         `Yesterday (${d.day}): Revenue ${gbp(d.revenue)}, Orders ${d.orders}, Profit ${gbp(d.profit)}${por}.\n\n` +
-        `Write the short daily note now.`
+        `Daily targets vs actual (Primary/Stretch/Ultimate; variance_vs_primary_pct is the fraction ` +
+        `above/below the Primary target — positive = ahead):\n${JSON.stringify(pace ?? [], null, 2)}\n\n` +
+        `Write the short daily note now — LEAD with how yesterday landed vs the Primary daily target.`
     } else {
       const { data: scorecard, error: scErr } = await read.rpc('get_scorecard', { p_lookback_weeks: lookback })
       if (scErr) return json({ error: `get_scorecard: ${scErr.message}` }, 500)
       if (!scorecard || (scorecard as any[]).length === 0) return json({ error: 'scorecard empty' }, 500)
-      inputSnapshot = scorecard
+      // Target pace vs Primary/Stretch/Ultimate — MTD for the weekly story, YTD for the monthly.
+      const paceGrain = cadence === 'monthly' ? 'ytd' : 'mtd'
+      const { data: pace } = await read.rpc('get_target_pace', { p_grain: paceGrain })
+      inputSnapshot = { scorecard, target_pace: pace ?? [] }
       periodKey = derivePeriodKey(cadence, scorecard as any[])
       systemPrompt = SYSTEM_PROMPT
       maxTokens = 1400
       userContent =
         `${CADENCE_BRIEF[cadence]}\n\n` +
         `Today is ${new Date().toISOString().slice(0, 10)}. Report period: ${periodKey}.\n\n` +
+        `PartsDocHub target pace (${paceGrain.toUpperCase()} — actual-to-date vs Primary/Stretch/Ultimate, ` +
+        `with the banding tier per metric). LEAD the report with this: state the tier (e.g. "revenue is ` +
+        `firmly in Primary, building toward Stretch") and whether we're ahead/behind Primary pace. ` +
+        `For 'gross' rows with partial_cost=true, caveat that gross is partial pending full cost data:\n` +
+        `${JSON.stringify(pace ?? [], null, 2)}\n\n` +
         `Scorecard (JSON — already computed, do not recompute):\n` +
         JSON.stringify(scorecard, null, 2)
     }
