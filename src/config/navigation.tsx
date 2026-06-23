@@ -77,7 +77,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { title: "Missing Costs", url: "/intelligence/missing-costs", icon: AlertCircle, description: "Active SKUs without a cost price set — blocks profit calculation." },
       { title: "Dirt SKUs", url: "/intelligence/dirt-skus", icon: AlertTriangle, description: "SKUs sold recently that don't match any brand prefix style." },
       { title: "Dirt SKUs on eBay", url: "/housekeeping/dirt-listings", icon: AlertTriangle, description: "Live eBay listings with an old dirt label mapped to a true SKU — needs updating at source." },
-      { title: "Missing Barcodes", url: "/housekeeping/missing-barcodes", icon: Tag, description: "Active products without a UPC/EAN barcode set." },
+      { title: "Product Completeness", url: "/housekeeping/missing-barcodes", icon: Tag, description: "Active products missing a barcode, dimensions or weight — fill the gaps and push to Mintsoft." },
       { title: "Carrier Remeasure", url: "/operations/carriers/remeasure", icon: Truck, description: "Items flagged by carriers as wrong dimensions/weight." },
       { title: "Orphan SKUs", url: "/housekeeping/orphan-skus", icon: Link2Off, description: "Catalogue SKUs not linked to a Mintsoft Product ID — blocks cost/stock/LSA pushes." },
       { title: "LSA Unmatched SKUs", url: "/housekeeping/lsa-unmatched", icon: HelpCircle, description: "SKUs in Mintsoft's Low Stock Alert file that don't exist in our cache yet." },
