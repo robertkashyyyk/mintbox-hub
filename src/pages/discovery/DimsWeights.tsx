@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -75,6 +76,8 @@ const DimsWeights = () => {
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<Proposal | null>(null);
   const [editVals, setEditVals] = useState({ length: "", depth: "", height: "", weight: "" });
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const toggleSel = (id: string) => setSelected((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
   // ── Headline stats (live, from current catalogue) ──────────────
   const { data: stats } = useQuery({
@@ -151,6 +154,12 @@ const DimsWeights = () => {
     const name = data?.products[p.sku]?.name ?? "";
     return p.sku.toLowerCase().includes(s) || name.toLowerCase().includes(s);
   });
+
+  const selectedProposals = proposals.filter((p) => selected.has(p.id));
+  const selPending = selectedProposals.filter((p) => p.status === "pending_review");
+  const selApplied = selectedProposals.filter((p) => p.status === "applied" && !(p as any).pushed_to_mintsoft_at);
+  const allSelected = proposals.length > 0 && proposals.every((p) => selected.has(p.id));
+  const toggleAll = () => setSelected(allSelected ? new Set() : new Set(proposals.map((p) => p.id)));
 
   // ── Mutations ──────────────────────────────────────────────────
   const approve = useMutation({
@@ -244,6 +253,54 @@ const DimsWeights = () => {
     onError: (e: any) => toast.error(e?.message ?? "Push failed"),
   });
 
+  // ── Bulk actions (operate on the selected rows) ──
+  const bulkApprove = useMutation({
+    mutationFn: async (ps: Proposal[]) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      const now = new Date().toISOString();
+      for (const p of ps) {
+        const update: Record<string, any> = { dim_search_status: "approved", dim_search_checked_at: now };
+        if (p.proposed_height_cm != null) update.height = p.proposed_height_cm;
+        if (p.proposed_length_cm != null) update.length = p.proposed_length_cm;
+        if (p.proposed_depth_cm != null) update.depth = p.proposed_depth_cm;
+        if (p.proposed_weight_g != null) update.weight = p.proposed_weight_g;
+        const { error: e1 } = await db.from("products_cache").update(update).eq("sku", p.sku);
+        if (e1) throw e1;
+        const { error: e2 } = await db.from("web_search_proposals")
+          .update({ status: "applied", reviewed_by: user?.id ?? null, reviewed_at: now, applied_at: now }).eq("id", p.id);
+        if (e2) throw e2;
+      }
+      return ps.length;
+    },
+    onSuccess: (n) => { toast.success(`Approved ${n} — written to catalogue`); setSelected(new Set()); queryClient.invalidateQueries({ queryKey: ["dims-weights-proposals"] }); queryClient.invalidateQueries({ queryKey: ["dims-weights-stats"] }); },
+    onError: (e: any) => toast.error(e?.message ?? "Bulk approve failed"),
+  });
+
+  const bulkReject = useMutation({
+    mutationFn: async (ps: Proposal[]) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      const now = new Date().toISOString();
+      for (const p of ps) {
+        const { error } = await db.from("web_search_proposals")
+          .update({ status: "rejected", reviewed_by: user?.id ?? null, reviewed_at: now }).eq("id", p.id);
+        if (error) throw error;
+      }
+      return ps.length;
+    },
+    onSuccess: (n) => { toast.success(`Rejected ${n}`); setSelected(new Set()); queryClient.invalidateQueries({ queryKey: ["dims-weights-proposals"] }); },
+    onError: (e: any) => toast.error(e?.message ?? "Bulk reject failed"),
+  });
+
+  const bulkPush = useMutation({
+    mutationFn: async (ps: Proposal[]) => {
+      const { data, error } = await supabase.functions.invoke("push-dims-to-mintsoft", { body: { dryRun: false, skus: ps.map((p) => p.sku) } });
+      if (error) throw error;
+      return data as { successCount: number; failCount: number };
+    },
+    onSuccess: (d) => { toast.success(`Pushed ${d.successCount} to Mintsoft${d.failCount ? ` · ${d.failCount} failed` : ""}`); setSelected(new Set()); queryClient.invalidateQueries({ queryKey: ["dims-weights-proposals"] }); queryClient.invalidateQueries({ queryKey: ["dims-weights-stats"] }); },
+    onError: (e: any) => toast.error(e?.message ?? "Bulk push failed"),
+  });
+
   const runBatch = useMutation({
     mutationFn: async (skus: string[]) => {
       const { data, error } = await supabase.functions.invoke("web-search-dimensions", {
@@ -334,9 +391,37 @@ const DimsWeights = () => {
           </CardTitle>
         </CardHeader>
         <CardContent>
+          {selected.size > 0 && (
+            <div className="flex items-center gap-2 mb-3 px-3 py-2 rounded-lg bg-muted/50 border">
+              <span className="text-sm font-medium">{selected.size} selected</span>
+              {selPending.length > 0 && (
+                <>
+                  <Button size="sm" variant="outline" className="h-7 text-emerald-600" disabled={bulkApprove.isPending}
+                    onClick={() => bulkApprove.mutate(selPending)}>
+                    <Check className="h-3.5 w-3.5 mr-1" /> Approve {selPending.length}
+                  </Button>
+                  <Button size="sm" variant="outline" className="h-7 text-destructive" disabled={bulkReject.isPending}
+                    onClick={() => bulkReject.mutate(selPending)}>
+                    <X className="h-3.5 w-3.5 mr-1" /> Reject {selPending.length}
+                  </Button>
+                </>
+              )}
+              {selApplied.length > 0 && (
+                <Button size="sm" variant="outline" className="h-7" disabled={bulkPush.isPending}
+                  onClick={() => bulkPush.mutate(selApplied)}>
+                  {bulkPush.isPending ? <Wrench className="h-3.5 w-3.5 mr-1 animate-spin" /> : <UploadCloud className="h-3.5 w-3.5 mr-1" />}
+                  Push {selApplied.length} to Mintsoft
+                </Button>
+              )}
+              <Button size="sm" variant="ghost" className="h-7 ml-auto" onClick={() => setSelected(new Set())}>Clear</Button>
+            </div>
+          )}
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-8">
+                  <Checkbox checked={allSelected} onCheckedChange={toggleAll} aria-label="Select all" />
+                </TableHead>
                 <TableHead>SKU / Product</TableHead>
                 <TableHead>Current (L×D×H cm · g)</TableHead>
                 <TableHead>Proposed (L×D×H cm · g)</TableHead>
@@ -350,7 +435,7 @@ const DimsWeights = () => {
             <TableBody>
               {(isLoading || runBatch.isPending) && (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center text-sm text-foreground/60 py-10">
+                  <TableCell colSpan={9} className="text-center text-sm text-foreground/60 py-10">
                     <Wrench className="h-5 w-5 mx-auto mb-2 animate-spin text-pd-accent" />
                     {runBatch.isPending ? "Searching the web for dimensions…" : "Loading…"}
                   </TableCell>
@@ -358,7 +443,7 @@ const DimsWeights = () => {
               )}
               {!isLoading && !runBatch.isPending && proposals.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center text-sm text-foreground/50 py-10">
+                  <TableCell colSpan={9} className="text-center text-sm text-foreground/50 py-10">
                     No proposals yet — set your filters above and hit “Run batch”.
                   </TableCell>
                 </TableRow>
@@ -366,7 +451,10 @@ const DimsWeights = () => {
               {proposals.map((p) => {
                 const prod = data?.products[p.sku];
                 return (
-                  <TableRow key={p.id}>
+                  <TableRow key={p.id} data-state={selected.has(p.id) ? "selected" : undefined}>
+                    <TableCell className="w-8">
+                      <Checkbox checked={selected.has(p.id)} onCheckedChange={() => toggleSel(p.id)} aria-label={`Select ${p.sku}`} />
+                    </TableCell>
                     <TableCell className="max-w-[260px]">
                       <div className="font-medium">{p.sku}</div>
                       <div className="text-xs text-foreground/50 truncate">{prod?.name ?? "—"}</div>
