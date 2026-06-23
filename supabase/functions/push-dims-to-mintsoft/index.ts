@@ -86,13 +86,15 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // Send ONLY {ID + the dim fields we have}. Mirrors the inbound enrich mapping
-      // (Mintsoft Height/Length/Depth/Weight <-> cache height/length/depth/weight).
+      // Send ONLY {ID + the dim fields we have}. Field mapping confirmed against live Mintsoft:
+      //   - cache.length -> Mintsoft 'Width' (documented quirk; Mintsoft has no usable 'Length')
+      //   - cache.height -> Height, cache.depth -> Depth (direct)
+      //   - cache.weight is in GRAMS; Mintsoft weight is in KILOGRAMS -> divide by 1000.
       const payload: Record<string, unknown> = { ID: it.mintsoft_id };
       if (it.height != null) payload.Height = it.height;
-      if (it.length != null) payload.Length = it.length;
+      if (it.length != null) payload.Width = it.length;
       if (it.depth != null) payload.Depth = it.depth;
-      if (it.weight != null) payload.Weight = it.weight;
+      if (it.weight != null) payload.Weight = +(Number(it.weight) / 1000).toFixed(3);
       if (Object.keys(payload).length === 1) { results.push({ sku: it.sku, ok: false, error: "no dims to push" }); continue; }
 
       const postRes = await fetch(`${MINTSOFT_BASE}/api/Product`, {
@@ -111,7 +113,9 @@ Deno.serve(async (req) => {
       if (vRes.ok) {
         const v = await vRes.json();
         const close = (a: any, b: any) => a == null || (b != null && Math.abs(Number(a) - Number(b)) <= 0.5);
-        verified = close(it.height, v.Height) && close(it.length, v.Length) && close(it.depth, v.Depth) && close(it.weight, v.Weight);
+        const wkg = it.weight != null ? Number(it.weight) / 1000 : null;
+        const closeW = (a: any, b: any) => a == null || (b != null && Math.abs(Number(a) - Number(b)) <= 0.05);
+        verified = close(it.height, v.Height) && close(it.length, v.Width) && close(it.depth, v.Depth) && closeW(wkg, v.Weight);
       }
 
       const now = new Date().toISOString();

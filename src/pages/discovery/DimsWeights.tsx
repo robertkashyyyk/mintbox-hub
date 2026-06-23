@@ -157,7 +157,7 @@ const DimsWeights = () => {
 
   const selectedProposals = proposals.filter((p) => selected.has(p.id));
   const selPending = selectedProposals.filter((p) => p.status === "pending_review");
-  const selApplied = selectedProposals.filter((p) => p.status === "applied" && !(p as any).pushed_to_mintsoft_at);
+  const selApplied = selectedProposals.filter((p) => p.status === "applied");
   const allSelected = proposals.length > 0 && proposals.every((p) => selected.has(p.id));
   const toggleAll = () => setSelected(allSelected ? new Set() : new Set(proposals.map((p) => p.id)));
 
@@ -509,9 +509,8 @@ const DimsWeights = () => {
                           </Button>
                         </div>
                       ) : p.status === "applied" ? (
-                        (p as any).pushed_to_mintsoft_at ? (
-                          <Badge variant="outline" className="text-xs text-emerald-600 border-emerald-600/40">Pushed ✓</Badge>
-                        ) : (
+                        <div className="flex items-center justify-end gap-2">
+                          {(p as any).pushed_to_mintsoft_at && <span className="text-xs text-emerald-600">Pushed ✓</span>}
                           <Button size="sm" variant="outline" className="h-7"
                             onClick={() => pushOne.mutate(p)}
                             disabled={pushOne.isPending}
@@ -519,9 +518,9 @@ const DimsWeights = () => {
                             {pushOne.isPending && pushOne.variables?.id === p.id
                               ? <Wrench className="h-3.5 w-3.5 mr-1 animate-spin" />
                               : <UploadCloud className="h-3.5 w-3.5 mr-1" />}
-                            Push to Mintsoft
+                            {(p as any).pushed_to_mintsoft_at ? "Re-push" : "Push to Mintsoft"}
                           </Button>
-                        )
+                        </div>
                       ) : (
                         <Badge variant="outline" className="text-xs capitalize">{p.status.replace("_", " ")}</Badge>
                       )}
