@@ -108,7 +108,11 @@ export default function MissingBarcodes() {
       let ok = 0, fail = 0;
       for (let i = 0; i < items.length; i += 50) {
         const { data, error } = await supabase.functions.invoke("update-product-fields", { body: { items: items.slice(i, i + 50) } });
-        if (error) throw error;
+        if (error) {
+          let detail = error.message;
+          try { const b = await (error as any).context?.json?.(); if (b?.error) detail = b.error; } catch { /* ignore */ }
+          throw new Error(detail);
+        }
         ok += data?.successCount ?? 0; fail += data?.failCount ?? 0;
         const firstErr = (data?.results ?? []).find((x: any) => !x.ok);
         if (firstErr) toast.error(`${firstErr.sku}: ${firstErr.error}`);

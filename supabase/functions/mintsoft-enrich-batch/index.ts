@@ -261,7 +261,9 @@ Deno.serve(async (req) => {
             name: productDetails.Name || product.sku,
             weight: productDetails.Weight || null,
             height: productDetails.Height || null,
-            length: productDetails.Length || null,
+            // Mintsoft holds the length dimension in 'Width' (documented quirk). Prefer Width,
+            // fall back to Length for any product that bucked the quirk.
+            length: productDetails.Width ?? productDetails.Length ?? null,
             depth: productDetails.Depth || null,
             barcode: barcode,
             barcode_type_id: barcodeTypeId,

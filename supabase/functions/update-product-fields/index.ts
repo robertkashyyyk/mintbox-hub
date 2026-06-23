@@ -102,11 +102,14 @@ Deno.serve(async (req) => {
 
   const successCount = results.filter((r) => r.ok).length;
   const failCount = results.length - successCount;
-  await admin.from("edge_function_runs").insert({
-    function_name: "update-product-fields", started_at: startedAt, ended_at: new Date().toISOString(),
-    status: failCount === 0 ? "success" : (successCount === 0 ? "failed" : "partial"),
-    message: `${successCount} ok / ${failCount} failed`, details: { user_id: userData.user.id, results },
-  } as any);
+  // Logging must NEVER fail the push.
+  try {
+    await admin.from("edge_function_runs").insert({
+      function_name: "update-product-fields", started_at: startedAt, ended_at: new Date().toISOString(),
+      status: failCount === 0 ? "success" : (successCount === 0 ? "failed" : "partial"),
+      message: `${successCount} ok / ${failCount} failed`, details: { user_id: userData.user.id, results },
+    } as any);
+  } catch (e) { console.error("edge_function_runs insert failed:", (e as Error)?.message); }
 
   return json({ results, successCount, failCount });
 });
