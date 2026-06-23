@@ -221,9 +221,10 @@ Deno.serve(async (req) => {
       ...classifyBarcode(p.EAN || p.UPC),
       mintsoft_product_id: p.ID,
       cost_price: p.CostPrice || null,
-      weight: p.Weight || null,
+      // Mintsoft weight is KG -> Hub grams; length lives in Mintsoft 'Width' (documented quirk).
+      weight: p.Weight ? Number(p.Weight) * 1000 : null,
       height: p.Height || null,
-      length: p.Length || null,
+      length: (p.Width ?? p.Length) || null,
       depth: p.Depth || null,
       discontinued: p.Discontinued || false,
       low_stock_alert_level: p.LowStockAlertLevel || null,
