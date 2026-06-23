@@ -16,7 +16,7 @@ import {
   Database, Tag, AlertCircle, Images, Globe, RefreshCw, FileText, Sparkles, PackagePlus,
   LayoutDashboard, DollarSign, FileBarChart2, TrendingUp, Activity, PoundSterling, Truck,
   Calendar, AlertTriangle, Link2Off, HelpCircle, ShoppingBag, ShoppingCart, Gauge, Plug,
-  Flame, Package, TrendingDown, Users, Key, CreditCard, Settings, Sliders, ArrowUpDown, Copy,
+  Flame, Package, TrendingDown, Users, Key, CreditCard, Settings, Sliders, ArrowUpDown, Copy, EyeOff,
 } from "lucide-react";
 
 export interface NavItem {
@@ -94,6 +94,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { title: "LSA Calibration", url: "/decisions/lsa-calibration", icon: Gauge, description: "Review and adjust listing strategy advisor settings" },
       { title: "3D Reprice", url: "/decisions/threeds-reprice", icon: Plug, description: "Trigger repricing runs via 3D Sellers integration" },
       { title: "Liquidation", url: "/decisions/liquidation", icon: Flame, description: "Surface and action liquidation / clearance candidates" },
+      { title: "Listing Coverage", url: "/decisions/coverage", icon: EyeOff, description: "Stock we own that isn't listed on eBay — capital tied up in things we can't sell" },
     ],
   },
   {
