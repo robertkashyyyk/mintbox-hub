@@ -85,24 +85,34 @@ export default function MissingBarcodes() {
   const allSel = pageRows.length > 0 && pageRows.every((r) => selected.has(r.id));
   const toggleAll = () => setSelected(allSel ? new Set() : new Set(pageRows.map((r) => r.id)));
 
-  // Build a push item from the row's current (existing + edited) values; only non-empty fields.
+  // Has the user actually changed any field on this row?
+  const hasEdits = (r: Row) => { const e = edits[r.id]; return !!e && Object.values(e).some((v) => (v ?? "").trim() !== ""); };
+
+  // Build a push item from ONLY the fields the user edited — untouched values are never sent,
+  // so editing one field changes exactly that field (in the Hub + Mintsoft) and nothing else.
   function buildItem(r: Row): { item: any; error?: string } {
-    if (!r.mintsoft_id) return { item: null, error: "no Mintsoft ID" };
+    if (!r.mintsoft_id) return { item: null, error: `${r.sku}: no Mintsoft ID` };
+    const e = edits[r.id] ?? {};
     const item: any = { mintsoft_product_id: r.mintsoft_id, sku: r.sku };
-    const bc = cell(r, "barcode").trim();
-    if (bc) { if (!barcodeKind(bc)) return { item: null, error: `${r.sku}: barcode must be 12 (UPC) or 13 (EAN) digits` }; item.barcode = bc; }
-    for (const f of ["length", "depth", "height", "weight"] as Field[]) {
-      const v = cell(r, f).trim();
-      if (v) { const n = Number(v); if (!Number.isFinite(n) || n <= 0) return { item: null, error: `${r.sku}: ${f} must be a positive number` }; item[f] = n; }
+    if (e.barcode !== undefined) {
+      const bc = (e.barcode ?? "").trim();
+      if (bc) { if (!barcodeKind(bc)) return { item: null, error: `${r.sku}: barcode must be 12 (UPC) or 13 (EAN) digits` }; item.barcode = bc; }
     }
-    if (Object.keys(item).length <= 2) return { item: null, error: `${r.sku}: nothing to push` };
+    for (const f of ["length", "depth", "height", "weight"] as Field[]) {
+      if (e[f] !== undefined) {
+        const v = (e[f] ?? "").trim();
+        if (v) { const n = Number(v); if (!Number.isFinite(n) || n <= 0) return { item: null, error: `${r.sku}: ${f} must be a positive number` }; item[f] = n; }
+      }
+    }
+    if (Object.keys(item).length <= 2) return { item: null, error: `${r.sku}: no changes to push` };
     return { item };
   }
 
   async function pushRows(rs: Row[]) {
+    const editedRows = rs.filter(hasEdits);
+    if (!editedRows.length) { toast.error("Nothing changed — edit a value first"); return; }
     const items: any[] = [];
-    for (const r of rs) { const { item, error } = buildItem(r); if (error) { toast.error(error); return; } items.push(item); }
-    if (!items.length) return;
+    for (const r of editedRows) { const { item, error } = buildItem(r); if (error) { toast.error(error); return; } items.push(item); }
     setPushing(true);
     try {
       let ok = 0, fail = 0;
@@ -119,6 +129,7 @@ export default function MissingBarcodes() {
       }
       toast.success(`Pushed ${ok} to Mintsoft${fail ? ` · ${fail} failed` : ""}`);
       setSelected(new Set());
+      setEdits((e) => { const n = { ...e }; for (const r of editedRows) delete n[r.id]; return n; });
       qc.invalidateQueries({ queryKey: ["product-completeness"] });
     } catch (e: any) {
       toast.error(e?.message ?? "Push failed");
@@ -219,7 +230,7 @@ export default function MissingBarcodes() {
                         <TableCell>{numInput(r, "height", "H")}</TableCell>
                         <TableCell>{numInput(r, "weight", "g")}</TableCell>
                         <TableCell className="text-right">
-                          <Button size="sm" variant="outline" className="h-8" disabled={pushing || !r.mintsoft_id} onClick={() => pushRows([r])}>
+                          <Button size="sm" variant="outline" className="h-8" disabled={pushing || !r.mintsoft_id || !hasEdits(r)} onClick={() => pushRows([r])}>
                             <UploadCloud className="h-3.5 w-3.5 mr-1" /> Push
                           </Button>
                         </TableCell>

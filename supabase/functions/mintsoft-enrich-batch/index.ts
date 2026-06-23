@@ -259,7 +259,9 @@ Deno.serve(async (req) => {
         // Update product with enriched data
         const updatePayload: Record<string, unknown> = {
             name: productDetails.Name || product.sku,
-            weight: productDetails.Weight || null,
+            // Mintsoft weight is in KG; the Hub convention is GRAMS (dims search + the push
+            // both use grams) — so convert kg -> g on the way in.
+            weight: productDetails.Weight ? Number(productDetails.Weight) * 1000 : null,
             height: productDetails.Height || null,
             // Mintsoft holds the length dimension in 'Width' (documented quirk). Prefer Width,
             // fall back to Length for any product that bucked the quirk.
