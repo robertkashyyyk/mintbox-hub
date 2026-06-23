@@ -38,9 +38,13 @@ Deno.serve(async (req) => {
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const apiKey = Deno.env.get("THREE_DS_API_KEY")!;
 
-  // Cron-only: the bearer must be the service-role key.
-  const auth = req.headers.get("Authorization") ?? "";
-  if (auth !== `Bearer ${serviceKey}`) return json({ error: "Unauthorized" }, 401);
+  // Cron-only: accept the service-role key by value OR by JWT role claim
+  // (mirrors threeds-reprice-reconcile — robust to multiple valid service tokens).
+  const authHeader = req.headers.get("Authorization") ?? "";
+  const bearer = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+  let authed = bearer === serviceKey;
+  if (!authed && bearer) { try { authed = JSON.parse(atob(bearer.split(".")[1] ?? ""))?.role === "service_role"; } catch { /* ignore */ } }
+  if (!authed) return json({ error: "Unauthorized" }, 401);
 
   let body: { kickoff?: boolean } = {};
   try { body = await req.json(); } catch { /* defaults */ }
@@ -78,6 +82,8 @@ Deno.serve(async (req) => {
     rows_upserted: phase === "done" ? rowsThisRun : state?.rows_upserted ?? null,
     note: `${UK_ACCOUNTS.length} UK accounts`,
   }, { onConflict: "channel" });
+
+  await save(); // make phase='running' + reset cursor observable immediately (not just at the end)
 
   let pagesDone = 0;
   while (Date.now() - started < BUDGET_MS) {
