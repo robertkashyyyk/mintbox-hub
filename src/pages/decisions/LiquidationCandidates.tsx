@@ -23,9 +23,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
-import { Flame, Loader2, PoundSterling, Boxes, AlertTriangle, RotateCcw, CheckCircle2, Plus, Trash2, Send, Download, ArrowUpDown, EyeOff, Eye, Wand2, List as ListIcon, LayoutGrid, LineChart as LineChartIcon, Tag, Clock, TrendingDown, History } from "lucide-react";
+import { Flame, Loader2, PoundSterling, Boxes, AlertTriangle, RotateCcw, CheckCircle2, Plus, Trash2, Send, Download, ArrowUpDown, EyeOff, Eye, Wand2, List as ListIcon, LayoutGrid, LineChart as LineChartIcon, Tag, Clock, TrendingDown, TrendingUp, History } from "lucide-react";
 import ModuleHeader from "@/components/ModuleHeader";
 import { PageLoader } from "@/components/ui/PageLoader";
+import { logisticsBreakevenFloor, bandRecoveryTarget } from "@/lib/reprice";
 import { ResponsiveContainer, ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip, Legend } from "recharts";
 
 interface Candidate {
@@ -35,14 +36,20 @@ interface Candidate {
   last_sold: string | null; in_campaign: boolean; is_excluded: boolean;
 }
 interface Campaign {
-  id: string; sku: string; type: string; status: string;
+  id: string; sku: string; type: string; status: string; stage: string | null;
   original_price: number | null; campaign_price: number | null; discount_pct: number | null;
   baseline_velocity: number | null; baseline_stock: number | null;
   start_date: string; end_date: string | null; pushed_at: string | null; notes: string | null;
+  recovery_step: number | null; recovery_weeks: number | null; recovery_next_at: string | null;
 }
 interface KnownListing { listing_sku: string; store_id: string; store_name: string; mintsoft_channel: string; current_price: number; last_sold: string }
 interface Store { id: string; store_name: string }
 type ListingRow = { store_id: string; listing_sku: string; store_name: string; current: number };
+
+// Logistics-breakeven floor (gross): below this the sale itself loses money
+// (fees + courier exceed what we get). Cost is ignored — dead stock is sunk.
+// Computed once with eBay defaults; ~£2.82 at fee 12% + £0.36 fixed + £1.65 courier.
+const LIQUIDATION_FLOOR = logisticsBreakevenFloor() ?? 0;
 
 // Suggested clearance depth based on how dead the SKU is.
 function suggestDiscount(c: Candidate): number {
@@ -174,7 +181,8 @@ export default function LiquidationCandidates() {
     queryFn: async () => {
       const { data, error } = await (supabase as any).from("price_campaigns").select("*").eq("status", "active").order("start_date", { ascending: false });
       if (error) throw error;
-      return data as Campaign[];
+      // 'review'-stage sales live in the Sale Review card, not here.
+      return (data as Campaign[]).filter(c => c.stage !== "review");
     },
   });
   const { data: stores = [] } = useQuery({
@@ -279,13 +287,15 @@ export default function LiquidationCandidates() {
                   {campaigns.map(c => (
                     <TableRow key={c.id}>
                       <TableCell className="font-mono text-xs">{c.sku}</TableCell>
-                      <TableCell>{c.type === "sale"
+                      <TableCell>{c.stage === "recovering"
+                        ? <Badge variant="outline" className="text-xs text-emerald-400 border-emerald-500/30"><TrendingUp className="h-3 w-3 mr-1" />Recovering</Badge>
+                        : c.type === "sale"
                         ? <Badge variant="outline" className="text-xs"><Tag className="h-3 w-3 mr-1" />Sale</Badge>
                         : <Badge variant="outline" className="text-xs text-orange-400 border-orange-500/30"><Flame className="h-3 w-3 mr-1" />Liq</Badge>}</TableCell>
                       <TableCell className="text-right text-sm">{c.discount_pct != null ? `${c.discount_pct}%` : "—"}</TableCell>
                       <TableCell className="text-right text-sm">{c.original_price != null ? `£${Number(c.original_price).toFixed(2)}` : "—"}<span className="text-orange-400"> → {c.campaign_price != null ? `£${Number(c.campaign_price).toFixed(2)}` : "—"}</span></TableCell>
                       <TableCell className="text-xs text-muted-foreground">{c.start_date}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{c.type === "sale" ? (c.end_date ?? "—") : <span className="opacity-50">—</span>}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{c.stage === "recovering" ? `step ${c.recovery_step ?? 0}/${c.recovery_weeks ?? "—"}` : c.type === "sale" ? (c.end_date ?? "—") : <span className="opacity-50">—</span>}</TableCell>
                       <TableCell className="text-xs">{c.pushed_at ? <Badge variant="outline" className="bg-emerald-500/15 text-emerald-400 text-xs">Pushed</Badge> : <Badge variant="outline" className="text-xs">Record only</Badge>}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex gap-1 justify-end">
@@ -430,7 +440,7 @@ export default function LiquidationCandidates() {
 interface SaleReview {
   id: string; sku: string; discount_pct: number | null;
   original_price: number | null; campaign_price: number | null;
-  baseline_velocity: number | null; start_date: string; end_date: string | null; notes: string | null;
+  baseline_velocity: number | null; baseline_cost: number | null; start_date: string; end_date: string | null; notes: string | null;
   units_sold_window: number; revenue_window: number; days_live: number;
 }
 
@@ -454,6 +464,8 @@ async function campaignListingRows(campaignId: string, priceOf: (originalPrice: 
 function SaleReviewCard({ stores: _stores, onChanged }: { stores: Store[]; onChanged: () => void }) {
   const [reduceTarget, setReduceTarget] = useState<SaleReview | null>(null);
   const [reducePct, setReducePct] = useState("");
+  const [recoverTarget, setRecoverTarget] = useState<SaleReview | null>(null);
+  const [recoverWeeks, setRecoverWeeks] = useState("4");
 
   const { data: reviews = [], isLoading } = useQuery({
     queryKey: ["sale-reviews"],
@@ -470,7 +482,7 @@ function SaleReviewCard({ stores: _stores, onChanged }: { stores: Store[]; onCha
       let res = { pushed: 0, failed: 0 };
       if (rows.length) res = await pushPerStore(rows);
       await (supabase as any).from("price_campaigns").update({
-        status: "ended", outcome: "worked", reverted_at: new Date().toISOString(), end_date: new Date().toISOString().slice(0, 10),
+        status: "ended", stage: null, outcome: "worked", reverted_at: new Date().toISOString(), end_date: new Date().toISOString().slice(0, 10),
       }).eq("id", r.id);
       await (supabase as any).from("price_campaign_listings").update({ reverted_at: new Date().toISOString() }).eq("campaign_id", r.id);
       await closeSaleTask(r.id);
@@ -483,7 +495,7 @@ function SaleReviewCard({ stores: _stores, onChanged }: { stores: Store[]; onCha
   const holdMutation = useMutation({
     mutationFn: async (r: SaleReview) => {
       const newEnd = new Date(Date.now() + 4 * 7 * 86_400_000).toISOString().slice(0, 10);
-      const { error } = await (supabase as any).from("price_campaigns").update({ status: "active", end_date: newEnd, outcome: "too_early" }).eq("id", r.id);
+      const { error } = await (supabase as any).from("price_campaigns").update({ status: "active", stage: "selling", end_date: newEnd, outcome: "too_early", recovery_step: 0, recovery_weeks: null, recovery_next_at: null }).eq("id", r.id);
       if (error) throw error;
       await closeSaleTask(r.id);
       return newEnd;
@@ -501,7 +513,7 @@ function SaleReviewCard({ stores: _stores, onChanged }: { stores: Store[]; onCha
       const newEnd = new Date(Date.now() + 4 * 7 * 86_400_000).toISOString().slice(0, 10);
       const newCampaignPrice = r.original_price != null ? priceOf(Number(r.original_price)) : null;
       await (supabase as any).from("price_campaigns").update({
-        status: "active", discount_pct: pct, campaign_price: newCampaignPrice, end_date: newEnd, outcome: "no_effect",
+        status: "active", stage: "selling", discount_pct: pct, campaign_price: newCampaignPrice, end_date: newEnd, outcome: "no_effect", recovery_step: 0, recovery_weeks: null, recovery_next_at: null,
       }).eq("id", r.id);
       await closeSaleTask(r.id);
       return res;
@@ -510,9 +522,25 @@ function SaleReviewCard({ stores: _stores, onChanged }: { stores: Store[]; onCha
     onError: (e: any) => toast.error(e.message),
   });
 
+  const recoverMutation = useMutation({
+    mutationFn: async ({ r, weeks }: { r: SaleReview; weeks: number }) => {
+      const nextAt = new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10);
+      const target = r.baseline_cost != null ? bandRecoveryTarget({ costUnit: Number(r.baseline_cost) }) : null;
+      const { error } = await (supabase as any).from("price_campaigns").update({
+        status: "active", stage: "recovering", outcome: "worked",
+        recovery_weeks: weeks, recovery_step: 0, recovery_next_at: nextAt, recovery_target_price: target,
+      }).eq("id", r.id);
+      if (error) throw error;
+      await closeSaleTask(r.id);
+      return weeks;
+    },
+    onSuccess: (weeks) => { toast.success(`Recovering to band over ${weeks} week(s) — prices step up weekly, then it hands back to the repricer`); setRecoverTarget(null); onChanged(); },
+    onError: (e: any) => toast.error(e.message),
+  });
+
   if (isLoading || reviews.length === 0) return null;
 
-  const busy = removeMutation.isPending || holdMutation.isPending || reduceMutation.isPending;
+  const busy = removeMutation.isPending || holdMutation.isPending || reduceMutation.isPending || recoverMutation.isPending;
 
   return (
     <Card className="border-pd-accent/30">
@@ -547,7 +575,8 @@ function SaleReviewCard({ stores: _stores, onChanged }: { stores: Store[]; onCha
                     <TableCell className="text-right text-xs"><span className={beat ? "text-emerald-400" : "text-muted-foreground"}>{expected != null ? `~${expected}` : "—"}</span></TableCell>
                     <TableCell className="text-right">
                       <div className="flex gap-1 justify-end">
-                        <Button size="sm" variant="ghost" className="h-7 text-xs text-emerald-400" disabled={busy} title="Restore the original price" onClick={() => removeMutation.mutate(r)}><RotateCcw className="h-3 w-3 mr-1" />Remove</Button>
+                        <Button size="sm" variant="ghost" className="h-7 text-xs text-emerald-400" disabled={busy} title="Step the price back up to the normal band over a few weeks, then hand back to the repricer" onClick={() => { setRecoverTarget(r); setRecoverWeeks("4"); }}><TrendingUp className="h-3 w-3 mr-1" />Recover</Button>
+                        <Button size="sm" variant="ghost" className="h-7 text-xs" disabled={busy} title="Snap the price straight back to pre-sale" onClick={() => removeMutation.mutate(r)}><RotateCcw className="h-3 w-3 mr-1" />Remove</Button>
                         <Button size="sm" variant="ghost" className="h-7 text-xs" disabled={busy} title="Hold the sale for another 4 weeks" onClick={() => holdMutation.mutate(r)}><Clock className="h-3 w-3 mr-1" />Hold</Button>
                         <Button size="sm" variant="ghost" className="h-7 text-xs text-orange-400" disabled={busy} title="Cut the price further" onClick={() => { setReduceTarget(r); setReducePct(String((r.discount_pct ?? 0) + 10)); }}><TrendingDown className="h-3 w-3 mr-1" />Reduce</Button>
                       </div>
@@ -569,14 +598,42 @@ function SaleReviewCard({ stores: _stores, onChanged }: { stores: Store[]; onCha
           <div className="space-y-1.5 py-2">
             <Label>New discount %</Label>
             <Input type="number" min={1} max={95} value={reducePct} onChange={e => setReducePct(e.target.value)} className="w-28" />
-            {reduceTarget?.original_price != null && Number(reducePct) > 0 && (
-              <p className="text-xs text-muted-foreground">New price ≈ £{Math.max(0, Number(reduceTarget.original_price) * (1 - Number(reducePct) / 100)).toFixed(2)}</p>
-            )}
+            {reduceTarget?.original_price != null && Number(reducePct) > 0 && (() => {
+              const newPrice = Math.max(0, Number(reduceTarget.original_price) * (1 - Number(reducePct) / 100));
+              const belowFloor = newPrice < LIQUIDATION_FLOOR;
+              return (
+                <p className={`text-xs ${belowFloor ? "text-destructive" : "text-muted-foreground"}`}>
+                  New price ≈ £{newPrice.toFixed(2)}{belowFloor && ` ⚠ below the £${LIQUIDATION_FLOOR.toFixed(2)} logistics floor — the sale itself would lose money`}
+                </p>
+              );
+            })()}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => { setReduceTarget(null); setReducePct(""); }}>Cancel</Button>
             <Button disabled={reduceMutation.isPending || !(Number(reducePct) > 0) || !reduceTarget} className="bg-orange-500 hover:bg-orange-600 text-white" onClick={() => reduceTarget && reduceMutation.mutate({ r: reduceTarget, pct: Number(reducePct) })}>
               {reduceMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <TrendingDown className="h-4 w-4 mr-2" />}Reduce &amp; push
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!recoverTarget} onOpenChange={(o) => { if (!o) setRecoverTarget(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="font-mono">{recoverTarget?.sku}</DialogTitle>
+            <DialogDescription>
+              Step the price from the sale price back up to pre-sale over N weeks, then end the campaign so the repricer manages it to the normal band.
+              {recoverTarget?.baseline_cost != null && (() => { const b = bandRecoveryTarget({ costUnit: Number(recoverTarget.baseline_cost) }); return b ? ` Normal band ≈ £${b.toFixed(2)}.` : ""; })()}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1.5 py-2">
+            <Label className="flex items-center gap-1"><Clock className="h-3 w-3" />Recover over (weeks)</Label>
+            <Input type="number" min={1} max={26} value={recoverWeeks} onChange={e => setRecoverWeeks(e.target.value)} className="w-28" />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRecoverTarget(null)}>Cancel</Button>
+            <Button disabled={recoverMutation.isPending || !(Number(recoverWeeks) > 0) || !recoverTarget} className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => recoverTarget && recoverMutation.mutate({ r: recoverTarget, weeks: Number(recoverWeeks) })}>
+              {recoverMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <TrendingUp className="h-4 w-4 mr-2" />}Start recovery
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -748,19 +805,23 @@ function LaunchDialog({ launch, stores, onClose, onLaunched }: { launch: { candi
                 <Input type="number" min={1} max={52} value={weeks} onChange={e => setWeeks(e.target.value)} className="w-28" />
               </div>
             )}
-            <p className="text-xs text-muted-foreground pb-2">{isSale ? `Reviews on ${weeks && Number(weeks) > 0 ? new Date(Date.now() + Number(weeks) * 7 * 86_400_000).toISOString().slice(0, 10) : "—"}.` : "Pre-filled with the suggested depth."} Applies off each listing's current price.</p>
+            <p className="text-xs text-muted-foreground pb-2">{isSale ? `Reviews on ${weeks && Number(weeks) > 0 ? new Date(Date.now() + Number(weeks) * 7 * 86_400_000).toISOString().slice(0, 10) : "—"}.` : `Logistics floor ≈ £${LIQUIDATION_FLOOR.toFixed(2)} — below it the sale loses money on fees + courier.`} Applies off each listing's current price.</p>
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs">Listings ({allListings.length})</Label>
             {knownLoading ? <div className="flex items-center gap-2 text-xs text-muted-foreground py-2"><Loader2 className="h-3 w-3 animate-spin" />Finding listings…</div> : (
               <div className="rounded-lg border border-border/60 divide-y divide-border/40 max-h-48 overflow-y-auto">
                 {allListings.length === 0 && <div className="p-3 text-xs text-amber-400 flex items-center gap-2"><AlertTriangle className="h-3.5 w-3.5" /> No sales history — add store + current price below to push.</div>}
-                {allListings.map((l, i) => (
-                  <div key={i} className="flex items-center justify-between px-3 py-1.5 text-xs">
-                    <span className="font-mono">{l.listing_sku}</span><span className="text-muted-foreground">{l.store_name}</span>
-                    <span>£{l.current.toFixed(2)} <span className="text-orange-400 font-semibold">→ £{sale(l.current).toFixed(2)}</span></span>
-                  </div>
-                ))}
+                {allListings.map((l, i) => {
+                  const salePrice = sale(l.current);
+                  const belowFloor = !isSale && salePrice < LIQUIDATION_FLOOR;
+                  return (
+                    <div key={i} className="flex items-center justify-between px-3 py-1.5 text-xs">
+                      <span className="font-mono">{l.listing_sku}</span><span className="text-muted-foreground">{l.store_name}</span>
+                      <span>£{l.current.toFixed(2)} <span className={`font-semibold ${belowFloor ? "text-destructive" : "text-orange-400"}`}>→ £{salePrice.toFixed(2)}{belowFloor && <span title={`Below the £${LIQUIDATION_FLOOR.toFixed(2)} logistics floor`}> ⚠</span>}</span></span>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

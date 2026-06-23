@@ -222,3 +222,58 @@ export function toGross(net: number | null | undefined, vat: number): number | n
   if (net == null) return null;
   return net * (1 + vat);
 }
+
+/**
+ * Default per-unit courier assumption when a SKU-specific courier isn't to hand
+ * (mirrors reprice-payoff's COURIER constant). Used by the liquidation floor.
+ */
+export const DEFAULT_COURIER_UNIT = 1.65;
+
+/**
+ * LIQUIDATION FLOOR — the gross price where the sale just covers the cost OF
+ * SELLING (channel fee + courier), with the item COST ignored (it's dead stock,
+ * sunk). Below this the transaction itself loses money — you'd pay to ship it.
+ * This is `backSolveGrossPrice` with cost = 0 and target POR = 0.
+ */
+export function logisticsBreakevenFloor(args?: {
+  courierUnit?: number;
+  fees?: EffectiveFees;
+  postageUnit?: number;
+}): number | null {
+  const fees = args?.fees ?? DEFAULT_FEES;
+  return backSolveGrossPrice({
+    costUnit: 0,
+    courierUnit: args?.courierUnit ?? DEFAULT_COURIER_UNIT,
+    fixedFeeUnit: fees.fixedFee,
+    feePct: fees.feePct,
+    vat: fees.vat,
+    targetPorFrac: 0,
+    postageUnit: args?.postageUnit ?? 0,
+  });
+}
+
+/**
+ * SALE RECOVERY TARGET — the gross price that returns a SKU to the "average"
+ * profitability band (POR ≈ 10%), i.e. back into normal trading. Reuses the
+ * exact tier the dashboard/repricer use, so a recovered price means the same
+ * thing everywhere. Needs the unit cost; courier/fees default to eBay.
+ */
+export function bandRecoveryTarget(args: {
+  costUnit: number;
+  courierUnit?: number;
+  fees?: EffectiveFees;
+  postageUnit?: number;
+  tier?: Tier;
+}): number | null {
+  const fees = args.fees ?? DEFAULT_FEES;
+  const tier = args.tier ?? "average";
+  return backSolveGrossPrice({
+    costUnit: args.costUnit,
+    courierUnit: args.courierUnit ?? DEFAULT_COURIER_UNIT,
+    fixedFeeUnit: fees.fixedFee,
+    feePct: fees.feePct,
+    vat: fees.vat,
+    targetPorFrac: TIER_TARGET_POR_PCT[tier] / 100,
+    postageUnit: args.postageUnit ?? 0,
+  });
+}
