@@ -77,6 +77,28 @@ async function search(q: string): Promise<Snippet[]> {
   return hits.slice(0, 12);
 }
 
+// Fetch a result page and reduce it to plain text — dims live in page bodies, not snippets.
+async function fetchPageText(url: string, timeoutMs = 6000): Promise<string> {
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), timeoutMs);
+    const res = await fetch(url, {
+      signal: ctrl.signal,
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; PartsDocBot/1.0)" },
+    });
+    clearTimeout(t);
+    if (!res.ok) return "";
+    const ct = res.headers.get("content-type") ?? "";
+    if (!ct.includes("html") && !ct.includes("text")) return "";
+    let html = await res.text();
+    html = html.replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/<style[\s\S]*?<\/style>/gi, " ");
+    const text = html.replace(/<[^>]+>/g, " ").replace(/&[a-z]+;/gi, " ").replace(/\s+/g, " ").trim();
+    return text.slice(0, 4500);
+  } catch {
+    return "";
+  }
+}
+
 // ── Claude reconciliation ──────────────────────────────────────────────────
 type Extracted = {
   found: boolean;
@@ -91,15 +113,19 @@ type Extracted = {
   notes?: string;
 };
 
-async function extractDims(product: any, snippets: Snippet[]): Promise<Extracted | null> {
+async function extractDims(product: any, snippets: Snippet[], pages: { url: string; text: string }[] = []): Promise<Extracted | null> {
   const key = Deno.env.get("ANTHROPIC_API_KEY");
   if (!key) throw new Error("ANTHROPIC_API_KEY not configured");
 
   const snippetText = snippets
     .map((s, i) => `[${i + 1}] ${s.title}\n${s.text}\nURL: ${s.url}`)
     .join("\n\n");
+  const pageText = pages
+    .filter((p) => p.text)
+    .map((p, i) => `[PAGE ${i + 1}] ${p.url}\n${p.text}`)
+    .join("\n\n");
 
-  const prompt = `You extract automotive-part SHIPPING dimensions and weight from web search snippets.
+  const prompt = `You extract automotive-part SHIPPING dimensions and weight from web search results.
 
 PRODUCT
 - SKU: ${product.sku}
@@ -107,7 +133,10 @@ PRODUCT
 - Barcode (EAN): ${product.barcode ?? "none"}
 
 SEARCH SNIPPETS
-${snippetText || "(no results)"}
+${snippetText || "(no snippets)"}
+
+PAGE EXTRACTS (full text pulled from the top result pages — the dimensions usually live here)
+${pageText || "(no page content)"}
 
 RULES
 - PREFER explicit "Packaging length/width/height" fields (the shipping box). Set is_packaged=true.
@@ -162,6 +191,7 @@ serve(async (req) => {
   try {
     const body = await req.json().catch(() => ({}));
     const dryRun = body.dryRun !== false; // default TRUE
+    const debug = body.debug === true;    // returns per-SKU search snippets + extractor output
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
@@ -202,6 +232,10 @@ serve(async (req) => {
       candidates = data ?? [];
     }
 
+    // Page-fetching makes each SKU ~8-10s, so cap per-invocation to stay under the edge
+    // wall-clock limit. Run again to work through a larger backlog.
+    if (candidates.length > 10) candidates = candidates.slice(0, 10);
+
     // run record
     let runId: string | null = null;
     if (!dryRun) {
@@ -213,20 +247,26 @@ serve(async (req) => {
     }
 
     const results: any[] = [];
+    const dbg: any[] = [];
     let found = 0, noData = 0, errors = 0;
 
     for (const p of candidates) {
       try {
-        // cascade: EAN first, then product name
+        // cascade: EAN first (bare EAN surfaces the exact product listing), then name.
         const attempts: { q: string; key: "ean" | "name" }[] = [];
-        if (p.barcode) attempts.push({ q: `${p.barcode} packaged dimensions weight cm`, key: "ean" });
-        if (p.name) attempts.push({ q: `${p.name} packaged dimensions weight cm`, key: "name" });
+        if (p.barcode) attempts.push({ q: `${p.barcode}`, key: "ean" });
+        if (p.name) attempts.push({ q: `${p.name} dimensions weight`, key: "name" });
 
         let ext: Extracted | null = null;
         let matchKey: "ean" | "name" | null = null;
         for (const a of attempts) {
           const snippets = await search(a.q);
-          ext = await extractDims(p, snippets);
+          // Pull the top result pages (parallel) — dimensions live in the page body, not snippets.
+          const pages = (await Promise.all(
+            snippets.slice(0, 3).map(async (s) => ({ url: s.url, text: await fetchPageText(s.url) })),
+          )).filter((p) => p.text);
+          ext = await extractDims(p, snippets, pages);
+          if (debug) dbg.push({ sku: p.sku, q: a.q, key: a.key, snippet_count: snippets.length, pages_fetched: pages.length, snippets: snippets.slice(0, 3), ext });
           if (ext?.found) { matchKey = a.key; break; }
         }
 
@@ -313,6 +353,7 @@ serve(async (req) => {
     return json({
       dryRun, queued: candidates.length, processed: candidates.length,
       found, no_data: noData, errors, results,
+      ...(debug ? { debug: dbg } : {}),
     });
   } catch (e) {
     console.error(e);
