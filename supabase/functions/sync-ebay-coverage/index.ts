@@ -18,7 +18,7 @@ const corsHeaders = {
 const json = (b: unknown, s = 200) =>
   new Response(JSON.stringify(b), { status: s, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
-const BASE = "https://api.3dsellers.com";
+const BASE = (Deno.env.get("THREE_DS_BASE_URL") ?? "https://api.3dsellers.com").replace(/\/$/, "");
 const LIMIT = 100;
 const BUDGET_MS = 110_000;
 
@@ -36,7 +36,7 @@ Deno.serve(async (req) => {
 
   const url = Deno.env.get("SUPABASE_URL")!;
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const apiKey = Deno.env.get("THREE_DS_API_KEY")!;
+  const apiKey = Deno.env.get("THREEDS_API_KEY") ?? Deno.env.get("THREE_DS_API_KEY") ?? "";
 
   // Cron-only: accept the service-role key by value OR by JWT role claim
   // (mirrors threeds-reprice-reconcile — robust to multiple valid service tokens).
