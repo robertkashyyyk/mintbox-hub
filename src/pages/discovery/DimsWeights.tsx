@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import ModuleHeader from "@/components/ModuleHeader";
-import { Ruler, ArrowLeft, Check, X, Pencil, ExternalLink, Wrench } from "lucide-react";
+import { Ruler, ArrowLeft, Check, X, Pencil, ExternalLink, Wrench, UploadCloud } from "lucide-react";
 import WebSearchCriteria from "@/components/discovery/WebSearchCriteria";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -225,6 +225,25 @@ const DimsWeights = () => {
     onError: (e: any) => toast.error(e.message ?? "Update failed"),
   });
 
+  // Push approved dims/weight to Mintsoft (edge fn = the proven edge->Mintsoft write path).
+  const pushOne = useMutation({
+    mutationFn: async (p: Proposal) => {
+      const { data, error } = await supabase.functions.invoke("push-dims-to-mintsoft", {
+        body: { dryRun: false, skus: [p.sku] },
+      });
+      if (error) throw error;
+      const r = (data?.results ?? [])[0];
+      if (!r?.ok) throw new Error(r?.error ?? "Push failed");
+      return r as { sku: string; verified?: boolean };
+    },
+    onSuccess: (r) => {
+      toast.success(`${r.sku}: pushed to Mintsoft${r.verified === false ? " — but verify mismatch, check Mintsoft" : ""}`);
+      queryClient.invalidateQueries({ queryKey: ["dims-weights-proposals"] });
+      queryClient.invalidateQueries({ queryKey: ["dims-weights-stats"] });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Push failed"),
+  });
+
   const runBatch = useMutation({
     mutationFn: async (skus: string[]) => {
       const { data, error } = await supabase.functions.invoke("web-search-dimensions", {
@@ -401,6 +420,20 @@ const DimsWeights = () => {
                             <X className="h-4 w-4" />
                           </Button>
                         </div>
+                      ) : p.status === "applied" ? (
+                        (p as any).pushed_to_mintsoft_at ? (
+                          <Badge variant="outline" className="text-xs text-emerald-600 border-emerald-600/40">Pushed ✓</Badge>
+                        ) : (
+                          <Button size="sm" variant="outline" className="h-7"
+                            onClick={() => pushOne.mutate(p)}
+                            disabled={pushOne.isPending}
+                            title="Push these dimensions & weight to Mintsoft">
+                            {pushOne.isPending && pushOne.variables?.id === p.id
+                              ? <Wrench className="h-3.5 w-3.5 mr-1 animate-spin" />
+                              : <UploadCloud className="h-3.5 w-3.5 mr-1" />}
+                            Push to Mintsoft
+                          </Button>
+                        )
                       ) : (
                         <Badge variant="outline" className="text-xs capitalize">{p.status.replace("_", " ")}</Badge>
                       )}
