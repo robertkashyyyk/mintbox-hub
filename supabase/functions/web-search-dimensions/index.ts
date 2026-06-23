@@ -220,7 +220,8 @@ serve(async (req) => {
       let q = supabase
         .from("products_cache")
         .select("sku,name,barcode,brand_id,height,length,depth,weight,dim_search_checked_at")
-        .eq("active", true)
+        .eq("discontinued", false)
+        .eq("quarantined", false)
         .or("height.is.null,length.is.null,depth.is.null")
         .or(`dim_search_checked_at.is.null,dim_search_checked_at.lt.${cutoff}`)
         .order("dim_search_checked_at", { ascending: true, nullsFirst: true })
@@ -239,10 +240,11 @@ serve(async (req) => {
     // run record
     let runId: string | null = null;
     if (!dryRun) {
-      const { data: run } = await supabase
+      const { data: run, error: runErr } = await supabase
         .from("web_search_runs")
-        .insert({ tool: TOOL, status: "running", criteria, queued: candidates.length })
+        .insert({ tool: TOOL, status: "running", criteria, queued: candidates.length, processed: 0, found: 0, no_data: 0, errors: 0 })
         .select("id").single();
+      if (runErr) console.error("web_search_runs insert failed:", runErr.message);
       runId = run?.id ?? null;
     }
 
@@ -317,12 +319,17 @@ serve(async (req) => {
           // clear any existing open proposal for this sku/tool, then insert
           await supabase.from("web_search_proposals").delete()
             .eq("sku", p.sku).eq("tool", TOOL).in("status", ["pending_review", "approved"]);
-          await supabase.from("web_search_proposals").insert({
-            ...proposal,
+          const { notes: _notes, ...proposalDb } = proposal; // 'notes' is not a column
+          const { error: insErr } = await supabase.from("web_search_proposals").insert({
+            ...proposalDb,
             run_id: runId,
             status: gate ? "applied" : "pending_review",
             applied_at: gate ? new Date().toISOString() : null,
           });
+          if (insErr) {
+            console.error(`proposal insert failed for ${p.sku}:`, insErr.message);
+            if (debug) dbg.push({ sku: p.sku, insert_error: insErr.message });
+          }
 
           const update: Record<string, unknown> = {
             dim_search_status: gate ? "applied" : "proposed",

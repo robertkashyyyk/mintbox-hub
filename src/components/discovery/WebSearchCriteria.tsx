@@ -11,7 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import {
   Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList,
 } from "@/components/ui/command";
-import { SlidersHorizontal, Search, Check, ChevronsUpDown, Save } from "lucide-react";
+import { SlidersHorizontal, Search, Check, ChevronsUpDown, Save, Wrench } from "lucide-react";
 import { toast } from "sonner";
 
 const db = supabase as any;
@@ -38,7 +38,7 @@ const DEFAULTS: Criteria = {
 
 // Apply the criteria to a products_cache query (shared by preview + run).
 function applyFilters(qIn: any, c: Criteria) {
-  let q = qIn.eq("active", true);
+  let q = qIn.eq("discontinued", false).eq("quarantined", false);
   if (c.onlyMissingDims) q = q.or("height.is.null,length.is.null,depth.is.null");
   if (c.requireBarcode) q = q.not("barcode", "is", null);
   if (c.notYetSearched) q = q.is("dim_search_checked_at", null);
@@ -231,8 +231,10 @@ const WebSearchCriteria = ({
             <Save className="h-3.5 w-3.5 mr-1" /> Save as default
           </Button>
           <Button size="sm" onClick={handleRun} disabled={running || fetchingRun || !matchCount}>
-            <Search className="h-3.5 w-3.5 mr-1" />
-            {running || fetchingRun ? "Running…" : `Run batch (${Math.min(c.batchSize, matchCount ?? 0)})`}
+            {running || fetchingRun
+              ? <Wrench className="h-3.5 w-3.5 mr-1 animate-spin" />
+              : <Search className="h-3.5 w-3.5 mr-1" />}
+            {running || fetchingRun ? "Searching the web…" : `Run batch (${Math.min(c.batchSize, matchCount ?? 0)})`}
           </Button>
         </div>
         <p className="text-[11px] text-foreground/40">

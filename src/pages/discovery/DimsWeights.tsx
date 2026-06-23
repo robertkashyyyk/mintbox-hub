@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import ModuleHeader from "@/components/ModuleHeader";
-import { Ruler, ArrowLeft, Check, X, Pencil, ExternalLink } from "lucide-react";
+import { Ruler, ArrowLeft, Check, X, Pencil, ExternalLink, Wrench } from "lucide-react";
 import WebSearchCriteria from "@/components/discovery/WebSearchCriteria";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -83,13 +83,15 @@ const DimsWeights = () => {
       const missingDims = await supabase
         .from("products_cache")
         .select("sku", { count: "exact", head: true })
-        .eq("active", true)
+        .eq("discontinued", false)
+        .eq("quarantined", false)
         .or("height.is.null,length.is.null,depth.is.null");
 
       const missingWithBarcode = await supabase
         .from("products_cache")
         .select("sku", { count: "exact", head: true })
-        .eq("active", true)
+        .eq("discontinued", false)
+        .eq("quarantined", false)
         .not("barcode", "is", null)
         .or("height.is.null,length.is.null,depth.is.null");
 
@@ -327,10 +329,18 @@ const DimsWeights = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {!isLoading && proposals.length === 0 && (
+              {(isLoading || runBatch.isPending) && (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-center text-sm text-foreground/60 py-10">
+                    <Wrench className="h-5 w-5 mx-auto mb-2 animate-spin text-pd-accent" />
+                    {runBatch.isPending ? "Searching the web for dimensions…" : "Loading…"}
+                  </TableCell>
+                </TableRow>
+              )}
+              {!isLoading && !runBatch.isPending && proposals.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={8} className="text-center text-sm text-foreground/50 py-10">
-                    No proposals yet. They will appear here once the search worker runs.
+                    No proposals yet — set your filters above and hit “Run batch”.
                   </TableCell>
                 </TableRow>
               )}
