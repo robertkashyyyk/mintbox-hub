@@ -15,6 +15,8 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { bandRecoveryTarget } from "@/lib/reprice";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
 import { EyeOff, PoundSterling, Boxes, AlertTriangle, Download, Send, Loader2, RefreshCw, CheckCircle2 } from "lucide-react";
@@ -72,6 +74,7 @@ export default function ListingCoverage() {
   const [readyOnly, setReadyOnly] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [raising, setRaising] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
 
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["ebay-unlisted", minCapital],
@@ -172,7 +175,8 @@ export default function ListingCoverage() {
           <div className="space-y-1.5"><Label className="text-xs">Search</Label><Input value={search} onChange={e => setSearch(e.target.value)} placeholder="SKU or name" className="w-48 h-9" /></div>
           <label className="flex items-center gap-2 pb-2 cursor-pointer"><Checkbox checked={readyOnly} onCheckedChange={v => setReadyOnly(!!v)} /><span className="text-xs">Ready to list only</span></label>
           <div className="ml-auto flex items-end gap-2">
-            {selected.size > 0 && <Button size="sm" className="h-9" disabled={raising} onClick={raiseSelected}>{raising ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}Raise {selected.size} task(s) for Jon</Button>}
+            {selected.size > 0 && <Button size="sm" className="h-9 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => setCreateOpen(true)}><CheckCircle2 className="h-4 w-4 mr-2" />Create {selected.size} listing(s)</Button>}
+            {selected.size > 0 && <Button size="sm" variant="outline" className="h-9" disabled={raising} onClick={raiseSelected}>{raising ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}Raise {selected.size} task(s) for Jon</Button>}
             <Button size="sm" variant="outline" className="h-9" onClick={exportCsv} disabled={filtered.length === 0}><Download className="h-4 w-4 mr-2" />Export</Button>
           </div>
         </CardContent>
@@ -221,7 +225,106 @@ export default function ListingCoverage() {
           )}
         </CardContent>
       </Card>
+
+      {createOpen && <CreateListingsDialog rows={selectedRows} onClose={() => setCreateOpen(false)} />}
     </div>
+  );
+}
+
+// ── Listing generation (GTC import template) ──────────────────────
+const GTC_HEADERS = ["SKU","Title","Description","Tags","MetaKeywords","MetaDescription","MobileDescription","CategoryID","StoreCategory","PrivateListing","UpToQuantity","WarehouseQuantity","InventoryControl","Price","Cost","BestOffer","BestOfferAccept","BestOfferDecline","C:MPN","C:Brand","C:Size","Condition","CountryCode","Location","PostalCode","PolicyPayment","PolicyShipping","PolicyReturn","PackageType","MeasurementSystem","PackageLength","PackageWidth","PackageDepth","WeightMajor","WeightMinor","Image 1"];
+
+interface ListingData { sku: string; title: string; brand_name: string | null; barcode: string | null; cost_price: number; stock: number; ebay_category_id: string | null; weight: number | null; height: number | null; length: number | null; depth: number | null; image_url: string | null; }
+interface StoreCfg { store_id: string; policy_payment: string | null; policy_shipping: string | null; policy_return: string | null; location: string | null; postal_code: string | null; country_code: string; default_condition: string; measurement_system: string; package_type: string; best_offer: boolean; }
+
+const csvCell = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+
+function gtcRow(d: ListingData, cfg: StoreCfg | undefined): string[] {
+  const price = bandRecoveryTarget({ costUnit: Number(d.cost_price || 0), tier: "good" });
+  return [
+    d.sku, (d.title ?? "").slice(0, 80),
+    `<p>${(d.title ?? d.sku)}${d.brand_name ? " — " + d.brand_name : ""}</p>`,
+    "", "", "", "",
+    d.ebay_category_id ?? "", "",
+    "FALSE", String(d.stock ?? 1), String(d.stock ?? 1), "True",
+    price != null ? price.toFixed(2) : "", Number(d.cost_price || 0).toFixed(2),
+    cfg?.best_offer ? "TRUE" : "FALSE", "", "",
+    "", d.brand_name ?? "", "",
+    cfg?.default_condition ?? "1000", cfg?.country_code ?? "GB", cfg?.location ?? "", cfg?.postal_code ?? "",
+    cfg?.policy_payment ?? "", cfg?.policy_shipping ?? "", cfg?.policy_return ?? "",
+    cfg?.package_type ?? "PackageThickEnvelope", cfg?.measurement_system ?? "METRIC",
+    d.length != null ? String(d.length) : "", d.depth != null ? String(d.depth) : "", d.height != null ? String(d.height) : "",
+    d.weight != null ? String(d.weight) : "", "0",
+    d.image_url ?? "",
+  ];
+}
+
+function CreateListingsDialog({ rows, onClose }: { rows: Unlisted[]; onClose: () => void }) {
+  const [storeIds, setStoreIds] = useState<Set<string>>(new Set());
+  const [generating, setGenerating] = useState(false);
+
+  const { data: stores = [] } = useQuery({ queryKey: ["threeds-stores-list"], queryFn: async () => {
+    const { data } = await (supabase as any).from("threeds_stores").select("id, store_name").eq("enabled", true).order("store_name");
+    return (data ?? []) as { id: string; store_name: string }[];
+  } });
+  const { data: configs = [] } = useQuery({ queryKey: ["ebay-listing-config"], queryFn: async () => {
+    const { data } = await (supabase as any).from("ebay_listing_config").select("*");
+    return (data ?? []) as StoreCfg[];
+  } });
+
+  const notReady = rows.filter(r => !r.has_category).length;
+
+  async function generate() {
+    if (storeIds.size === 0) { toast.error("Pick at least one store"); return; }
+    setGenerating(true);
+    try {
+      const { data, error } = await (supabase as any).rpc("get_listing_data_for_skus", { p_skus: rows.map(r => r.sku) });
+      if (error) throw error;
+      const ld = (data ?? []) as ListingData[];
+      const cfgByStore = new Map(configs.map(c => [c.store_id, c]));
+      const out: string[][] = [GTC_HEADERS];
+      let missingCat = 0;
+      for (const sid of storeIds) {
+        const cfg = cfgByStore.get(sid);
+        for (const d of ld) { if (!d.ebay_category_id) missingCat++; out.push(gtcRow(d, cfg)); }
+      }
+      const csv = out.map(r => r.map(csvCell).join(",")).join("\n");
+      const blob = new Blob([csv], { type: "text/csv" });
+      const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+      a.download = `3d-gtc-listings-${new Date().toISOString().slice(0, 10)}.csv`; a.click();
+      toast.success(`Generated ${out.length - 1} row(s)${missingCat ? ` — ${missingCat} missing a category` : ""}`);
+      onClose();
+    } catch (e: any) { toast.error(e.message); } finally { setGenerating(false); }
+  }
+
+  return (
+    <Dialog open={rows.length > 0} onOpenChange={o => !o && onClose()}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Create listings — {rows.length} SKU{rows.length === 1 ? "" : "s"}</DialogTitle>
+          <DialogDescription>Generates a 3D GTC import file for the chosen store(s). Download it, test-import one in 3D, then we'll automate the SFTP drop. Price is auto-set to the Good band.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3 py-2">
+          <Label className="text-xs">List on which store(s)?</Label>
+          <div className="grid grid-cols-2 gap-2">
+            {stores.map(s => {
+              const hasCfg = !!configs.find(c => c.store_id === s.id);
+              return (
+                <label key={s.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                  <Checkbox checked={storeIds.has(s.id)} onCheckedChange={v => setStoreIds(prev => { const n = new Set(prev); v ? n.add(s.id) : n.delete(s.id); return n; })} />
+                  {s.store_name}{!hasCfg && <span className="text-[10px] text-amber-400" title="No listing config (policy IDs) for this store yet">(no config)</span>}
+                </label>
+              );
+            })}
+          </div>
+          {notReady > 0 && <p className="text-xs text-amber-400">{notReady} of these have no eBay category — their rows get a blank CategoryID and won't list until mapped.</p>}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={generate} disabled={generating || storeIds.size === 0}>{generating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}Generate GTC file ({rows.length * storeIds.size})</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
