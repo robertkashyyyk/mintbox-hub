@@ -114,6 +114,12 @@ export default function MissingBarcodes() {
   async function pushRows(rs: Row[]) {
     const editedRows = rs.filter(hasEdits);
     if (!editedRows.length) { toast.error("Nothing changed — edit a value first"); return; }
+    // Sanity check: a weight under 30g almost certainly means someone typed kg into the grams box.
+    const looksKg = editedRows.filter((r) => { const w = (edits[r.id]?.weight ?? "").trim(); const n = Number(w); return w !== "" && Number.isFinite(n) && n > 0 && n < 30; });
+    if (looksKg.length && !window.confirm(
+      `These weights are under 30g — tiny for a part. This box is in GRAMS — did you mean kilograms?\n\n` +
+      looksKg.map((r) => `${r.sku}: ${edits[r.id]?.weight} g  (→ ${(Number(edits[r.id]?.weight) / 1000).toFixed(3)} kg)`).join("\n") +
+      `\n\nPush as grams anyway?`)) return;
     const items: any[] = [];
     for (const r of editedRows) { const { item, error } = buildItem(r); if (error) { toast.error(error); return; } items.push(item); }
     setPushing(true);
@@ -144,12 +150,14 @@ export default function MissingBarcodes() {
   const selectedRows = pageRows.filter((r) => selected.has(r.id));
   const numInput = (r: Row, f: Field, unit: string) => {
     const v = cell(r, f).trim();
-    const kg = f === "weight" && v && Number.isFinite(Number(v)) ? ` → ${(Number(v) / 1000).toFixed(2)}kg` : "";
+    const n = Number(v);
+    const kg = f === "weight" && v && Number.isFinite(n) ? ` → ${(n / 1000).toFixed(2)}kg` : "";
+    const looksKg = f === "weight" && v !== "" && Number.isFinite(n) && n > 0 && n < 30; // <30g is implausible for a part
     return (
       <div className="flex items-center gap-1 whitespace-nowrap">
         <Input value={cell(r, f)} onChange={(e) => setCell(r.id, f, e.target.value)} inputMode="decimal"
-          className={`h-8 w-14 text-xs ${v === "" ? "border-amber-500/50" : ""}`} />
-        <span className="text-[10px] text-muted-foreground">{unit}{kg}</span>
+          className={`h-8 w-14 text-xs ${v === "" ? "border-amber-500/50" : looksKg ? "border-amber-600" : ""}`} />
+        <span className={`text-[10px] ${looksKg ? "text-amber-600 font-semibold" : "text-muted-foreground"}`}>{unit}{kg}{looksKg ? " ⚠ kg?" : ""}</span>
       </div>
     );
   };
