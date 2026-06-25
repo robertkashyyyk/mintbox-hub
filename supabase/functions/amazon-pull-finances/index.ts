@@ -185,6 +185,16 @@ Deno.serve(async (req) => {
     let pages = 0;
     let totalSeen = 0;
     let totalInserted = 0;
+    // Signed roll-up by fee type across this invocation (quick margin readout).
+    const summary: Record<string, { net: number; n: number }> = {};
+    const roll = (events: any[]) => {
+      for (const e of events) {
+        const k = `${e.event_type}:${e.event_subtype}`;
+        (summary[k] ??= { net: 0, n: 0 });
+        summary[k].net = Math.round((summary[k].net + Number(e.original_amount)) * 100) / 100;
+        summary[k].n++;
+      }
+    };
 
     while (true) {
       const qs = nextToken
@@ -203,6 +213,7 @@ Deno.serve(async (req) => {
       const events = flattenFinancialEvents(fe);
       pages++;
       totalSeen += events.length;
+      roll(events);
 
       const { data: ing, error: ingErr } = await supa.rpc("amazon_ingest_financial_events", {
         p_marketplace_id: marketplaceId,
@@ -219,12 +230,12 @@ Deno.serve(async (req) => {
       nextToken = tok;
       if (!nextToken) {
         return json({ ok: true, done: true, start: start.toISOString(), end: end.toISOString(),
-          pages, eventsSeen: totalSeen, eventsInserted: totalInserted }, 200);
+          pages, eventsSeen: totalSeen, eventsInserted: totalInserted, summary }, 200);
       }
       if (Date.now() > deadline) {
         return json({ ok: true, done: false, nextToken, start: start.toISOString(), end: end.toISOString(),
           message: "Out of time budget — re-invoke with { nextToken } to continue.",
-          pages, eventsSeen: totalSeen, eventsInserted: totalInserted }, 200);
+          pages, eventsSeen: totalSeen, eventsInserted: totalInserted, summary }, 200);
       }
     }
   } catch (e) {
