@@ -3,7 +3,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { PageLoader } from "@/components/ui/PageLoader";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ArrowUpDown, ChevronLeft, ChevronRight, TrendingUp } from "lucide-react";
+import { ArrowUpDown, ChevronLeft, ChevronRight, TrendingUp, Download, Loader2 } from "lucide-react";
 import ModuleHeader from "@/components/ModuleHeader";
 import { useSkuVelocity } from "@/hooks/useSkuVelocity";
 import { VelocityFilters } from "@/components/intelligence/VelocityFilters";
@@ -25,6 +25,8 @@ const VelocityCoverage = () => {
     brands,
     suppliers,
     getBrandName,
+    exportToCsv,
+    exporting,
   } = useSkuVelocity();
 
   const totalPages = Math.ceil(filteredCount / pageSize);
@@ -52,11 +54,17 @@ const VelocityCoverage = () => {
       />
 
       <Card>
-        <CardHeader>
-          <CardTitle>SKU Sales Velocity</CardTitle>
-          <CardDescription>
-            Showing {filteredCount.toLocaleString()} of {totalCount.toLocaleString()} SKUs
-          </CardDescription>
+        <CardHeader className="flex flex-row items-start justify-between gap-4">
+          <div>
+            <CardTitle>SKU Sales Velocity</CardTitle>
+            <CardDescription>
+              Showing {filteredCount.toLocaleString()} of {totalCount.toLocaleString()} SKUs
+            </CardDescription>
+          </div>
+          <Button variant="outline" size="sm" onClick={exportToCsv} disabled={exporting || filteredCount === 0}>
+            {exporting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Download className="h-4 w-4 mr-1" />}
+            Export CSV
+          </Button>
         </CardHeader>
         <CardContent className="space-y-4">
           <VelocityFilters

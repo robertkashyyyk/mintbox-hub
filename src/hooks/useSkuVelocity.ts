@@ -19,6 +19,11 @@ interface Filters {
 
 interface SupplierOpt { id: string; name: string; prefixes: string[]; }
 
+const csvCell = (s: any) => {
+  const v = s == null ? "" : String(s);
+  return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+};
+
 export const useSkuVelocity = () => {
   const [page, setPage] = useState(1);
   const pageSize = 50;
@@ -134,6 +139,50 @@ export const useSkuVelocity = () => {
     setPage(1);
   };
 
+  const [exporting, setExporting] = useState(false);
+  // Export EVERY row matching the current filters + sort (all pages), as CSV.
+  const exportToCsv = async () => {
+    setExporting(true);
+    try {
+      const all: any[] = [];
+      let from = 0; const step = 1000;
+      while (true) {
+        let q = supabase
+          .from("sku_velocity")
+          .select("sku, brand_id, units_30d, units_60d, units_90d, avg_weekly_units");
+        if (filters.search) q = q.ilike("sku", `%${filters.search}%`);
+        if (filters.brandId && filters.brandId !== "all") q = q.eq("brand_id", filters.brandId);
+        if (filters.supplierId && filters.supplierId !== "all") {
+          const prefixes = selPrefixes ?? [];
+          if (prefixes.length === 0) break;
+          q = q.or(prefixes.flatMap((p) => [`sku.ilike.${p}-%`, `sku.ilike.${p}/%`]).join(","));
+        }
+        if (filters.minAvgWeekly) {
+          const m = parseFloat(filters.minAvgWeekly);
+          if (!isNaN(m)) q = q.gte("avg_weekly_units", m);
+        }
+        q = q.order(sort.field, { ascending: sort.direction === "asc" }).range(from, from + step - 1);
+        const { data, error } = await q;
+        if (error) throw error;
+        all.push(...(data ?? []));
+        if (!data || data.length < step) break;
+        from += step;
+      }
+      const header = ["SKU", "Brand", "Units 30d", "Units 60d", "Units 90d", "Avg/Week"];
+      const lines = [header, ...all.map((r) => [
+        r.sku, getBrandName(r.brand_id), r.units_30d ?? 0, r.units_60d ?? 0, r.units_90d ?? 0,
+        r.avg_weekly_units == null ? 0 : Number(r.avg_weekly_units).toFixed(2),
+      ])];
+      const csv = lines.map((row) => row.map(csvCell).join(",")).join("\n");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = `velocity-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+    } finally { setExporting(false); }
+  };
+
   const getBrandName = (brandId: string | null) => {
     if (!brandId || !brandsData) return "Unknown";
     const brand = brandsData.find((b) => b.id === brandId);
@@ -155,5 +204,7 @@ export const useSkuVelocity = () => {
     brands: brandsData || [],
     suppliers: suppliersData || [],
     getBrandName,
+    exportToCsv,
+    exporting,
   };
 };
