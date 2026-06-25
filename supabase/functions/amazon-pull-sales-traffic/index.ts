@@ -82,6 +82,21 @@ async function gunzipToText(buf: ArrayBuffer): Promise<string> {
   return await new Response(stream).text();
 }
 
+// Read the `role` claim from a JWT WITHOUT verifying the signature. Safe here
+// because the gateway runs with verify_jwt=true, so any token reaching this
+// function has already had its signature validated against the project secret.
+function jwtRole(jwt: string): string | null {
+  try {
+    const part = jwt.split(".")[1];
+    if (!part) return null;
+    const b64 = part.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = b64 + "=".repeat((4 - (b64.length % 4)) % 4);
+    return JSON.parse(atob(padded))?.role ?? null;
+  } catch {
+    return null;
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
 
@@ -102,14 +117,23 @@ Deno.serve(async (req) => {
   }
   const endpoint = ENDPOINTS[region] ?? ENDPOINTS.eu;
 
-  // ---- Auth: service-role key OR a valid authenticated user ----------------
+  // ---- Auth: service-role (cron/ops) OR a valid authenticated user ---------
+  // Accept either the literal service secret, or a JWT whose role is
+  // service_role / authenticated. The role-claim path is robust to this
+  // project using the new sb_secret/sb_publishable API keys (where the
+  // injected SUPABASE_SERVICE_ROLE_KEY no longer equals the legacy JWT).
   const authHeader = req.headers.get("Authorization") || "";
   const bearer = authHeader.replace(/^Bearer\s+/i, "");
   let authed = !!bearer && bearer === SERVICE_KEY;
   if (!authed && bearer) {
-    const uc = createClient(SUPABASE_URL, ANON_KEY, { global: { headers: { Authorization: authHeader } } });
-    const { data } = await uc.auth.getUser();
-    authed = !!data?.user?.id;
+    const role = jwtRole(bearer);
+    if (role === "service_role") {
+      authed = true;
+    } else if (role === "authenticated") {
+      const uc = createClient(SUPABASE_URL, ANON_KEY, { global: { headers: { Authorization: authHeader } } });
+      const { data } = await uc.auth.getUser();
+      authed = !!data?.user?.id;
+    }
   }
   if (!authed) return json({ error: "Unauthorized" }, 401);
 
