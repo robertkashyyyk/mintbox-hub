@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tag, Flame, TrendingUp, PoundSterling } from "lucide-react";
-import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
+import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from "recharts";
 import { PageLoader } from "@/components/ui/PageLoader";
 
 const gbp = (n: number | null | undefined) =>
@@ -37,10 +37,10 @@ export default function ClearanceReport() {
     queryKey: ["clearance-trend"],
     queryFn: async () => {
       const { data, error } = await (supabase as any)
-        .from("liquidation_snapshots").select("snapshot_date, capital_under_clearance, total_capital")
+        .from("liquidation_snapshots").select("snapshot_date, capital_under_clearance, on_sale_capital, liquidation_capital")
         .order("snapshot_date", { ascending: true }).limit(180);
       if (error) return [] as any[];
-      return (data ?? []) as { snapshot_date: string; capital_under_clearance: number; total_capital: number }[];
+      return (data ?? []) as { snapshot_date: string; capital_under_clearance: number; on_sale_capital: number | null; liquidation_capital: number | null }[];
     },
   });
 
@@ -91,24 +91,22 @@ export default function ClearanceReport() {
         </Card>
       </div>
 
-      {/* Trend — capital under clearance over time */}
+      {/* Trend — capital under clearance over time, split On Sale vs In Liquidation */}
       <Card>
         <CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2"><TrendingUp className="h-4 w-4 text-pd-accent" /> Capital under clearance over time</CardTitle></CardHeader>
         <CardContent>
           {trend.length < 2 ? (
-            <div className="py-10 text-center text-xs text-muted-foreground">Builds from the weekly snapshot — the line fills in over the coming weeks as the pile shifts.</div>
+            <div className="py-10 text-center text-xs text-muted-foreground">Builds from the weekly snapshot — the lines fill in over the coming weeks as the pile shifts. (On Sale vs In Liquidation split starts from now.)</div>
           ) : (
-            <ResponsiveContainer width="100%" height={220}>
+            <ResponsiveContainer width="100%" height={240}>
               <AreaChart data={trend} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
-                <defs><linearGradient id="cg" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="hsl(var(--pd-accent))" stopOpacity={0.4} />
-                  <stop offset="100%" stopColor="hsl(var(--pd-accent))" stopOpacity={0} />
-                </linearGradient></defs>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                 <XAxis dataKey="snapshot_date" tickFormatter={(d) => new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short" })} fontSize={11} />
                 <YAxis tickFormatter={(v) => `£${(v / 1000).toFixed(0)}k`} fontSize={11} width={48} />
                 <Tooltip formatter={(v: number) => gbp(v)} labelFormatter={(d) => new Date(d).toLocaleDateString("en-GB", { dateStyle: "medium" })} />
-                <Area type="monotone" dataKey="capital_under_clearance" name="Under clearance" stroke="hsl(var(--pd-accent))" fill="url(#cg)" strokeWidth={2} />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+                <Area type="monotone" dataKey="on_sale_capital" name="On sale" stackId="c" stroke="hsl(var(--pd-accent))" fill="hsl(var(--pd-accent))" fillOpacity={0.3} strokeWidth={2} />
+                <Area type="monotone" dataKey="liquidation_capital" name="In liquidation" stackId="c" stroke="#f59e0b" fill="#f59e0b" fillOpacity={0.25} strokeWidth={2} />
               </AreaChart>
             </ResponsiveContainer>
           )}
