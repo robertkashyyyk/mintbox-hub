@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,22 +20,27 @@ interface Row {
 }
 type Field = "barcode" | "length" | "depth" | "height" | "weight";
 
-async function fetchAll(): Promise<Row[]> {
-  const all: Row[] = []; let from = 0; const step = 1000;
-  while (true) {
-    const { data, error } = await supabase
-      .from("products_cache")
-      .select("id, sku, name, brand_id, mintsoft_id, barcode, height, length, depth, weight, current_stock")
-      .or("barcode.is.null,barcode.eq.,height.is.null,length.is.null,depth.is.null,weight.is.null")
-      .eq("discontinued", false).eq("quarantined", false).not("mintsoft_id", "is", null)
-      .order("current_stock", { ascending: false }).range(from, from + step - 1);
-    if (error) throw error;
-    if (!data || data.length === 0) break;
-    all.push(...(data as Row[]));
-    if (data.length < step) break;
-    from += step;
-  }
-  return all;
+// Server-side, single-page fetch (was pulling the ENTIRE matching set client-side = very slow).
+async function fetchPage(opts: { page: number; pageSize: number; search: string; brand: string; issue: string }): Promise<{ rows: Row[]; hasNext: boolean }> {
+  const { page, pageSize, search, brand, issue } = opts;
+  let q = supabase
+    .from("products_cache")
+    .select("id, sku, name, brand_id, mintsoft_id, barcode, height, length, depth, weight")
+    .eq("discontinued", false).eq("quarantined", false).not("mintsoft_id", "is", null);
+  if (issue === "barcode") q = q.or("barcode.is.null,barcode.eq.");
+  else if (issue === "dims") q = q.or("height.is.null,length.is.null,depth.is.null");
+  else if (issue === "weight") q = q.is("weight", null);
+  else q = q.or("barcode.is.null,barcode.eq.,height.is.null,length.is.null,depth.is.null,weight.is.null");
+  if (brand !== "all") q = q.eq("brand_id", brand);
+  const s = search.trim().replace(/[%,]/g, " ");
+  if (s) q = q.or(`sku.ilike.%${s}%,name.ilike.%${s}%`);
+  // fetch pageSize+1 to know whether a next page exists, without a full count
+  q = q.order("current_stock", { ascending: false, nullsFirst: false }).range((page - 1) * pageSize, page * pageSize);
+  const { data, error } = await q;
+  if (error) throw error;
+  const all = (data ?? []) as Row[];
+  const hasNext = all.length > pageSize;
+  return { rows: hasNext ? all.slice(0, pageSize) : all, hasNext };
 }
 
 const PAGE_OPTIONS = [25, 50, 100, 250];
@@ -49,7 +54,8 @@ const barcodeKind = (raw: string): "UPC" | "EAN" | null => {
 
 export default function MissingBarcodes() {
   const qc = useQueryClient();
-  const [search, setSearch] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [search, setSearch] = useState(""); // debounced, used by the query
   const [brand, setBrand] = useState("all");
   const [issue, setIssue] = useState("all"); // all | barcode | dims | weight
   const [page, setPage] = useState(1);
@@ -58,26 +64,23 @@ export default function MissingBarcodes() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [pushing, setPushing] = useState(false);
 
-  const { data: rows, isLoading } = useQuery({ queryKey: ["product-completeness"], queryFn: fetchAll });
+  // Debounce the search box so typing doesn't re-query on every keystroke.
+  useEffect(() => { const t = setTimeout(() => { setSearch(searchInput); setPage(1); }, 350); return () => clearTimeout(t); }, [searchInput]);
+
+  const { data, isLoading, isFetching } = useQuery({
+    queryKey: ["product-completeness", page, pageSize, search, brand, issue],
+    queryFn: () => fetchPage({ page, pageSize, search, brand, issue }),
+    placeholderData: (prev) => prev,
+    staleTime: 30_000,
+  });
+  const pageRows = data?.rows ?? [];
+  const hasNext = data?.hasNext ?? false;
+
   const { data: brands } = useQuery({
     queryKey: ["brands-min"],
     queryFn: async () => { const { data } = await supabase.from("brands").select("id, name").order("name"); return (data ?? []) as { id: string; name: string }[]; },
   });
   const brandName = (id: string | null) => brands?.find((b) => b.id === id)?.name ?? "—";
-
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return (rows ?? []).filter((r) => {
-      if (q && !(r.sku.toLowerCase().includes(q) || (r.name ?? "").toLowerCase().includes(q))) return false;
-      if (brand !== "all" && r.brand_id !== brand) return false;
-      if (issue === "barcode" && !missingBarcode(r)) return false;
-      if (issue === "dims" && !missingDims(r)) return false;
-      if (issue === "weight" && !missingWeight(r)) return false;
-      return true;
-    });
-  }, [rows, search, brand, issue]);
-  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const pageRows = useMemo(() => filtered.slice((page - 1) * pageSize, page * pageSize), [filtered, page, pageSize]);
 
   const cell = (r: Row, f: Field) => edits[r.id]?.[f] ?? (r[f] != null ? String(r[f]) : "");
   const setCell = (id: string, f: Field, v: string) => setEdits((e) => ({ ...e, [id]: { ...e[id], [f]: v } }));
@@ -150,10 +153,10 @@ export default function MissingBarcodes() {
       <Card>
         <CardHeader className="pb-3 flex flex-row items-center justify-between flex-wrap gap-3">
           <CardTitle className="text-base">
-            {isLoading ? "…" : <><strong>{filtered.length}</strong> products with gaps</>}
+            Products with gaps{isFetching ? " …" : ""}
           </CardTitle>
           <div className="flex items-center gap-2 flex-wrap">
-            <Input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder="Search SKU / name" className="w-[200px]" />
+            <Input value={searchInput} onChange={(e) => setSearchInput(e.target.value)} placeholder="Search SKU / name" className="w-[200px]" />
             <Select value={issue} onValueChange={(v) => { setIssue(v); setPage(1); }}>
               <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -179,7 +182,7 @@ export default function MissingBarcodes() {
         <CardContent className="overflow-x-auto">
           {isLoading ? (
             <PageLoader rows={10} columns={[30, 200, 120, 140, 60, 60, 60, 70, 90]} label="Loading products" />
-          ) : filtered.length === 0 ? (
+          ) : pageRows.length === 0 ? (
             <div className="py-12 text-center text-sm text-muted-foreground">No gaps match these filters. 🎉</div>
           ) : (
             <>
@@ -239,11 +242,11 @@ export default function MissingBarcodes() {
                   })}
                 </TableBody>
               </Table>
-              {pageCount > 1 && (
+              {(page > 1 || hasNext) && (
                 <div className="flex items-center justify-end gap-2 pt-3 text-sm">
-                  <span className="text-muted-foreground">Page {page} of {pageCount}</span>
-                  <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}><ChevronLeft className="h-4 w-4" /></Button>
-                  <Button variant="outline" size="sm" disabled={page >= pageCount} onClick={() => setPage(page + 1)}><ChevronRight className="h-4 w-4" /></Button>
+                  <span className="text-muted-foreground">Page {page}</span>
+                  <Button variant="outline" size="sm" disabled={page <= 1 || isFetching} onClick={() => setPage(page - 1)}><ChevronLeft className="h-4 w-4" /></Button>
+                  <Button variant="outline" size="sm" disabled={!hasNext || isFetching} onClick={() => setPage(page + 1)}><ChevronRight className="h-4 w-4" /></Button>
                 </div>
               )}
             </>
