@@ -126,7 +126,7 @@ export default function LiquidationCandidates() {
   const [showExcluded, setShowExcluded] = useState(false);
   const [view, setView] = useState<"list" | "brands" | "graphs">("list");
   const [launch, setLaunch] = useState<{ candidate: Candidate; intent: "sale" | "liquidation" } | null>(null);
-  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkIntent, setBulkIntent] = useState<"sale" | "liquidation" | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [sortKey, setSortKey] = useState<SortKey>("capital_tied");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
@@ -350,11 +350,14 @@ export default function LiquidationCandidates() {
             <div className="space-y-1.5"><Label className="text-xs">Min capital £</Label><Input type="number" value={minCapital} onChange={e => setMinCapital(Number(e.target.value) || 0)} className="w-24 h-9" /></div>
             <div className="flex items-center gap-2 pb-2"><Switch checked={showExcluded} onCheckedChange={setShowExcluded} id="excl" /><Label htmlFor="excl" className="text-xs cursor-pointer">Show snoozed</Label></div>
             <div className="ml-auto flex items-end gap-2">
-              {selected.size > 0 && (
-                <Button size="sm" className="h-9 bg-orange-500 hover:bg-orange-600 text-white" onClick={() => setBulkOpen(true)}>
-                  <Flame className="h-4 w-4 mr-2" />Clear {selected.size} selected
+              {selected.size > 0 && (<>
+                <Button size="sm" className="h-9" onClick={() => setBulkIntent("sale")}>
+                  <Tag className="h-4 w-4 mr-2" />Put {selected.size} on Sale
                 </Button>
-              )}
+                <Button size="sm" className="h-9 bg-orange-500 hover:bg-orange-600 text-white" onClick={() => setBulkIntent("liquidation")}>
+                  <Flame className="h-4 w-4 mr-2" />Liquidate {selected.size}
+                </Button>
+              </>)}
               <Button size="sm" variant="outline" className="h-9" onClick={exportCsv} disabled={filtered.length === 0}><Download className="h-4 w-4 mr-2" />Export</Button>
             </div>
           </CardContent>
@@ -428,7 +431,7 @@ export default function LiquidationCandidates() {
       </>)}
 
       <LaunchDialog launch={launch} stores={stores} onClose={() => setLaunch(null)} onLaunched={() => { setLaunch(null); invalidate(); }} />
-      <BulkDialog open={bulkOpen} candidates={selectedCandidates} onClose={() => setBulkOpen(false)} onDone={() => { setBulkOpen(false); setSelected(new Set()); invalidate(); }} />
+      <BulkDialog intent={bulkIntent} candidates={selectedCandidates} onClose={() => setBulkIntent(null)} onDone={() => { setBulkIntent(null); setSelected(new Set()); invalidate(); }} />
     </div>
   );
 }
@@ -653,14 +656,15 @@ function SortableHead({ label, k, sortKey, sortDir, onSort }: { label: string; k
 }
 
 // ── Bulk clearance ─────────────────────────────────────────────────
-function BulkDialog({ open, candidates, onClose, onDone }: { open: boolean; candidates: Candidate[]; onClose: () => void; onDone: () => void }) {
-  const [intent, setIntent] = useState<"sale" | "liquidation">("liquidation");
+function BulkDialog({ intent, candidates, onClose, onDone }: { intent: "sale" | "liquidation" | null; candidates: Candidate[]; onClose: () => void; onDone: () => void }) {
+  const [kind, setKind] = useState<"sale" | "liquidation">("liquidation");
   const [weeks, setWeeks] = useState("4");
   const [mode, setMode] = useState<"fixed" | "suggested">("suggested");
   const [pct, setPct] = useState("25");
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState({ done: 0, pushed: 0, recordOnly: 0, failed: 0 });
-  const isSale = intent === "sale";
+  const isSale = kind === "sale";
+  useEffect(() => { if (intent) setKind(intent); }, [intent]);
 
   async function run() {
     const saleWeeks = Number(weeks) || 0;
@@ -674,7 +678,7 @@ function BulkDialog({ open, candidates, onClose, onDone }: { open: boolean; cand
       const usePct = mode === "suggested" ? suggestDiscount(c) : Number(pct);
       try {
         const listings = await fetchListings(c.sku);
-        const res = await launchCampaign({ candidate: c, listings, pct: usePct, type: intent, saleWeeks: isSale ? saleWeeks : undefined, userId: user?.id ?? null });
+        const res = await launchCampaign({ candidate: c, listings, pct: usePct, type: kind, saleWeeks: isSale ? saleWeeks : undefined, userId: user?.id ?? null });
         if (res.recordOnly) recordOnly++; else pushed++;
       } catch { failed++; }
       setProgress({ done: i + 1, pushed, recordOnly, failed });
@@ -685,7 +689,7 @@ function BulkDialog({ open, candidates, onClose, onDone }: { open: boolean; cand
   }
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && !running && onClose()}>
+    <Dialog open={!!intent} onOpenChange={(o) => !o && !running && onClose()}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Bulk {isSale ? "sale" : "clearance"} — {candidates.length} SKU{candidates.length === 1 ? "" : "s"}</DialogTitle>
@@ -693,8 +697,8 @@ function BulkDialog({ open, candidates, onClose, onDone }: { open: boolean; cand
         </DialogHeader>
         <div className="space-y-4 py-2">
           <div className="flex gap-2">
-            <Button variant={intent === "sale" ? "default" : "outline"} size="sm" onClick={() => setIntent("sale")} className="flex-1"><Tag className="h-4 w-4 mr-1" />Sale (timed)</Button>
-            <Button variant={intent === "liquidation" ? "default" : "outline"} size="sm" onClick={() => setIntent("liquidation")} className="flex-1"><Flame className="h-4 w-4 mr-1" />Liquidation</Button>
+            <Button variant={kind === "sale" ? "default" : "outline"} size="sm" onClick={() => setKind("sale")} className="flex-1"><Tag className="h-4 w-4 mr-1" />Sale (timed)</Button>
+            <Button variant={kind === "liquidation" ? "default" : "outline"} size="sm" onClick={() => setKind("liquidation")} className="flex-1"><Flame className="h-4 w-4 mr-1" />Liquidation</Button>
           </div>
           {isSale && (
             <div className="space-y-1.5">
