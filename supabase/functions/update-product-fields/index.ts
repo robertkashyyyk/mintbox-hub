@@ -96,13 +96,14 @@ Deno.serve(async (req) => {
       const vRes = await fetch(`${MINTSOFT_BASE}/api/Product/${it.mintsoft_product_id}`, { headers: { "ms-apikey": mintsoftKey } });
       if (vRes.ok) {
         const v: any = await vRes.json();
-        const num = (a: any, b: any) => b != null && Math.abs(Number(a) - Number(b)) <= 0.05;
+        // Mintsoft rounds dimensions to whole cm, so allow ±1cm; weight (kg) keeps decimals.
+        const num = (a: any, b: any, tol: number) => b != null && Math.abs(Number(a) - Number(b)) <= tol;
         const digits = (s: any) => String(s ?? "").replace(/\D/g, "");
         const mism: string[] = [];
-        if (payload.Height != null && !num(payload.Height, v.Height)) mism.push(`Height sent ${payload.Height}, Mintsoft ${v.Height}`);
-        if (payload.Width  != null && !num(payload.Width,  v.Width))  mism.push(`Width(len) sent ${payload.Width}, Mintsoft ${v.Width}`);
-        if (payload.Depth  != null && !num(payload.Depth,  v.Depth))  mism.push(`Depth sent ${payload.Depth}, Mintsoft ${v.Depth}`);
-        if (payload.Weight != null && !num(payload.Weight, v.Weight)) mism.push(`Weight(kg) sent ${payload.Weight}, Mintsoft ${v.Weight}`);
+        if (payload.Height != null && !num(payload.Height, v.Height, 1)) mism.push(`Height sent ${payload.Height}, Mintsoft ${v.Height}`);
+        if (payload.Width  != null && !num(payload.Width,  v.Width, 1))  mism.push(`Width(len) sent ${payload.Width}, Mintsoft ${v.Width}`);
+        if (payload.Depth  != null && !num(payload.Depth,  v.Depth, 1))  mism.push(`Depth sent ${payload.Depth}, Mintsoft ${v.Depth}`);
+        if (payload.Weight != null && !num(payload.Weight, v.Weight, 0.05)) mism.push(`Weight(kg) sent ${payload.Weight}, Mintsoft ${v.Weight}`);
         if (payload.UPC != null && digits(v.UPC) !== digits(payload.UPC)) mism.push(`UPC sent ${payload.UPC}, Mintsoft ${v.UPC}`);
         if (payload.EAN != null && digits(v.EAN) !== digits(payload.EAN)) mism.push(`EAN sent ${payload.EAN}, Mintsoft ${v.EAN}`);
         if (mism.length) { results.push({ sku: it.sku, ok: false, error: `Mintsoft did not apply the change — ${mism.join("; ")}`, mintsoft_after: { Height: v.Height, Width: v.Width, Depth: v.Depth, Weight: v.Weight, UPC: v.UPC, EAN: v.EAN } }); continue; }
