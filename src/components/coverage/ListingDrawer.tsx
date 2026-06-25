@@ -59,6 +59,16 @@ export default function ListingDrawer({ sku, onClose, onChanged }: { sku: string
     },
   });
 
+  const { data: cats = [] } = useQuery({
+    queryKey: ["ebay-cat-options"],
+    queryFn: async () => {
+      const { data } = await (supabase as any).from("ebay_category_map").select("ebay_category_id, ebay_category_name").order("ebay_category_name");
+      const seen = new Set<string>(); const out: { ebay_category_id: string; ebay_category_name: string | null }[] = [];
+      for (const c of (data ?? [])) { if (!seen.has(c.ebay_category_id)) { seen.add(c.ebay_category_id); out.push(c); } }
+      return out;
+    },
+  });
+
   useEffect(() => {
     if (detail) setF({
       title: detail.title ?? "", description: detail.description ?? "",
@@ -89,7 +99,9 @@ export default function ListingDrawer({ sku, onClose, onChanged }: { sku: string
     if (!detail) return;
     setUploading(true);
     try {
-      const path = `${sku}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+      // Flat, sanitised key (SKUs can contain "/" etc.) — matches the proven uploaders.
+      const ext = (file.name.split(".").pop() || "png").toLowerCase().replace(/[^a-z0-9]/g, "");
+      const path = `${(sku ?? "").replace(/[^a-zA-Z0-9._-]/g, "_")}.${ext}`;
       const { error: upErr } = await supabase.storage.from("product-images").upload(path, file, { upsert: true });
       if (upErr) throw upErr;
       const { data: urlData } = supabase.storage.from("product-images").getPublicUrl(path);
@@ -157,8 +169,16 @@ export default function ListingDrawer({ sku, onClose, onChanged }: { sku: string
             <div className="space-y-1.5"><Label className="text-xs">Title <span className="text-muted-foreground">({f.title.length}/80)</span></Label><Input maxLength={80} value={f.title} onChange={e => setF(s => ({ ...s, title: e.target.value }))} /></div>
             <div className="space-y-1.5"><Label className="text-xs">Description</Label><Textarea rows={4} value={f.description} onChange={e => setF(s => ({ ...s, description: e.target.value }))} placeholder="Listing description (HTML allowed)" /></div>
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5"><Label className="text-xs">eBay category ID</Label><Input value={f.ebay_category_id} onChange={e => setF(s => ({ ...s, ebay_category_id: e.target.value }))} placeholder="e.g. 33555" /></div>
-              <div className="space-y-1.5"><Label className="text-xs">Category name</Label><Input value={f.ebay_category_name} onChange={e => setF(s => ({ ...s, ebay_category_name: e.target.value }))} /></div>
+              <div className="space-y-1.5 col-span-2"><Label className="text-xs">eBay category</Label>
+                <Select value={f.ebay_category_id} onValueChange={v => { const m = cats.find(c => c.ebay_category_id === v); setF(s => ({ ...s, ebay_category_id: v, ebay_category_name: m?.ebay_category_name ?? s.ebay_category_name })); }}>
+                  <SelectTrigger className="h-9"><SelectValue placeholder="Select a category" /></SelectTrigger>
+                  <SelectContent>
+                    {f.ebay_category_id && !cats.find(c => c.ebay_category_id === f.ebay_category_id) && <SelectItem value={f.ebay_category_id}>{f.ebay_category_name || f.ebay_category_id} (current)</SelectItem>}
+                    {cats.map(c => <SelectItem key={c.ebay_category_id} value={c.ebay_category_id}>{c.ebay_category_name ? `${c.ebay_category_name} (${c.ebay_category_id})` : c.ebay_category_id}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-muted-foreground">{f.ebay_category_id ? `${f.ebay_category_name || "—"} · ${f.ebay_category_id}` : "Manage the list in Admin → eBay Categories"}</p>
+              </div>
               <div className="space-y-1.5"><Label className="text-xs">MPN</Label><Input value={f.mpn} onChange={e => setF(s => ({ ...s, mpn: e.target.value }))} placeholder="Manufacturer part no." /></div>
               <div className="space-y-1.5"><Label className="text-xs">Size</Label><Input value={f.size} onChange={e => setF(s => ({ ...s, size: e.target.value }))} /></div>
               <div className="space-y-1.5"><Label className="text-xs">Condition</Label>
