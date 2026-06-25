@@ -553,7 +553,9 @@ const DimsWeights = () => {
               <Input value={editVals.height} onChange={(e) => setEditVals({ ...editVals, height: e.target.value })} />
             </div>
             <div>
-              <Label className="text-xs">Weight (g)</Label>
+              <Label className="text-xs">
+                Weight (g){editVals.weight && Number.isFinite(Number(editVals.weight)) ? ` → ${(Number(editVals.weight) / 1000).toFixed(2)} kg in Mintsoft` : ""}
+              </Label>
               <Input value={editVals.weight} onChange={(e) => setEditVals({ ...editVals, weight: e.target.value })} />
             </div>
           </div>

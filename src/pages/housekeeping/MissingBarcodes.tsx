@@ -142,10 +142,17 @@ export default function MissingBarcodes() {
   }
 
   const selectedRows = pageRows.filter((r) => selected.has(r.id));
-  const numInput = (r: Row, f: Field, ph: string) => (
-    <Input value={cell(r, f)} onChange={(e) => setCell(r.id, f, e.target.value)} placeholder={ph} inputMode="decimal"
-      className={`h-8 w-16 text-xs ${cell(r, f).trim() === "" ? "border-amber-500/50" : ""}`} />
-  );
+  const numInput = (r: Row, f: Field, unit: string) => {
+    const v = cell(r, f).trim();
+    const kg = f === "weight" && v && Number.isFinite(Number(v)) ? ` → ${(Number(v) / 1000).toFixed(2)}kg` : "";
+    return (
+      <div className="flex items-center gap-1 whitespace-nowrap">
+        <Input value={cell(r, f)} onChange={(e) => setCell(r.id, f, e.target.value)} inputMode="decimal"
+          className={`h-8 w-14 text-xs ${v === "" ? "border-amber-500/50" : ""}`} />
+        <span className="text-[10px] text-muted-foreground">{unit}{kg}</span>
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-4">
@@ -205,8 +212,8 @@ export default function MissingBarcodes() {
                     <TableHead>SKU / Product</TableHead>
                     <TableHead>Brand</TableHead>
                     <TableHead>Barcode (UPC/EAN)</TableHead>
-                    <TableHead>L cm</TableHead><TableHead>D cm</TableHead><TableHead>H cm</TableHead>
-                    <TableHead>Wt g</TableHead>
+                    <TableHead>Length</TableHead><TableHead>Depth</TableHead><TableHead>Height</TableHead>
+                    <TableHead>Weight</TableHead>
                     <TableHead className="text-right">Push</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -230,9 +237,9 @@ export default function MissingBarcodes() {
                               : <Badge variant="outline" className="text-[10px] text-destructive border-destructive/40">{bc.replace(/\D/g, "").length}d</Badge>)}
                           </div>
                         </TableCell>
-                        <TableCell>{numInput(r, "length", "L")}</TableCell>
-                        <TableCell>{numInput(r, "depth", "D")}</TableCell>
-                        <TableCell>{numInput(r, "height", "H")}</TableCell>
+                        <TableCell>{numInput(r, "length", "cm")}</TableCell>
+                        <TableCell>{numInput(r, "depth", "cm")}</TableCell>
+                        <TableCell>{numInput(r, "height", "cm")}</TableCell>
                         <TableCell>{numInput(r, "weight", "g")}</TableCell>
                         <TableCell className="text-right">
                           <Button size="sm" variant="outline" className="h-8" disabled={pushing || !r.mintsoft_id || !hasEdits(r)} onClick={() => pushRows([r])}>
