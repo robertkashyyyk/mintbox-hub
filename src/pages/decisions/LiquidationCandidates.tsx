@@ -42,6 +42,11 @@ interface Campaign {
   start_date: string; end_date: string | null; pushed_at: string | null; notes: string | null;
   recovery_step: number | null; recovery_weeks: number | null; recovery_next_at: string | null;
 }
+interface ClearancePerf {
+  on_sale_count: number; on_sale_capital: number; on_sale_units: number; on_sale_revenue: number;
+  on_sale_baseline_units: number; on_sale_avg_discount: number; awaiting_review: number; recovering: number;
+  liq_count: number; liq_capital: number; liq_units: number; liq_revenue: number; liq_avg_discount: number;
+}
 interface KnownListing { listing_sku: string; store_id: string; store_name: string; mintsoft_channel: string; current_price: number; last_sold: string }
 interface Store { id: string; store_name: string }
 type ListingRow = { store_id: string; listing_sku: string; store_name: string; current: number };
@@ -207,6 +212,14 @@ export default function LiquidationCandidates() {
       return (data as Campaign[]).filter(c => c.stage !== "review");
     },
   });
+  const { data: perf } = useQuery({
+    queryKey: ["clearance-performance"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc("get_clearance_performance");
+      if (error) throw error;
+      return (data?.[0] ?? null) as ClearancePerf | null;
+    },
+  });
   const { data: stores = [] } = useQuery({
     queryKey: ["threeds-stores"],
     queryFn: async () => {
@@ -224,6 +237,7 @@ export default function LiquidationCandidates() {
     qc.invalidateQueries({ queryKey: ["price-campaigns-active"] });
     qc.invalidateQueries({ queryKey: ["liquidation-candidates"] });
     qc.invalidateQueries({ queryKey: ["clearance-breakdown"] });
+    qc.invalidateQueries({ queryKey: ["clearance-performance"] });
     qc.invalidateQueries({ queryKey: ["liquidation-count"] });
     qc.invalidateQueries({ queryKey: ["sale-reviews"] });
   };
@@ -314,8 +328,8 @@ export default function LiquidationCandidates() {
         ))}
       </div>
 
-      {view === "onsale" && <ActiveCampaignsTable kind="sale" campaigns={activeSales} onEnd={(id) => endMutation.mutate(id)} onRevert={(c) => revertMutation.mutate(c)} reverting={revertMutation.isPending} />}
-      {view === "liquidation" && <ActiveCampaignsTable kind="liquidation" campaigns={activeLiq} onEnd={(id) => endMutation.mutate(id)} onRevert={(c) => revertMutation.mutate(c)} reverting={revertMutation.isPending} />}
+      {view === "onsale" && <ActiveCampaignsTable kind="sale" campaigns={activeSales} perf={perf} onEnd={(id) => endMutation.mutate(id)} onRevert={(c) => revertMutation.mutate(c)} reverting={revertMutation.isPending} />}
+      {view === "liquidation" && <ActiveCampaignsTable kind="liquidation" campaigns={activeLiq} perf={perf} onEnd={(id) => endMutation.mutate(id)} onRevert={(c) => revertMutation.mutate(c)} reverting={revertMutation.isPending} />}
       {view === "brands" && <BrandsTab maxVelocity={maxVelocity} minCapital={minCapital} setMaxVelocity={setMaxVelocity} setMinCapital={setMinCapital} />}
       {view === "graphs" && <GraphsTab />}
 
@@ -638,8 +652,8 @@ function SaleReviewCard({ stores: _stores, onChanged }: { stores: Store[]; onCha
 }
 
 // ── Active campaigns (paginated) — On Sale / In Liquidation tabs ────
-function ActiveCampaignsTable({ kind, campaigns, onEnd, onRevert, reverting }: {
-  kind: "sale" | "liquidation"; campaigns: Campaign[];
+function ActiveCampaignsTable({ kind, campaigns, perf, onEnd, onRevert, reverting }: {
+  kind: "sale" | "liquidation"; campaigns: Campaign[]; perf: ClearancePerf | null;
   onEnd: (id: string) => void; onRevert: (c: Campaign) => void; reverting: boolean;
 }) {
   const [page, setPage] = useState(1);
@@ -648,11 +662,40 @@ function ActiveCampaignsTable({ kind, campaigns, onEnd, onRevert, reverting }: {
   const pageCount = Math.max(1, Math.ceil(campaigns.length / PAGE));
   const rows = campaigns.slice((page - 1) * PAGE, page * PAGE);
 
+  const gbp = (n: number) => `£${Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+  const uplift = perf ? Math.round(perf.on_sale_units - perf.on_sale_baseline_units) : 0;
+
+  const cards = perf && (kind === "sale" ? (
+    <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+      <Stat label="Active sales" value={String(perf.on_sale_count)} icon={Tag} />
+      <Stat label="Capital on sale" value={gbp(perf.on_sale_capital)} className="text-pd-accent" icon={PoundSterling} />
+      <Stat label="Units sold (since launch)" value={String(perf.on_sale_units)} icon={Send} />
+      <Stat label="Revenue (since launch)" value={gbp(perf.on_sale_revenue)} className="text-emerald-400" icon={PoundSterling} />
+      <Stat label="Uplift vs baseline" value={`${uplift >= 0 ? "+" : ""}${uplift} units`} className={uplift > 0 ? "text-emerald-400" : "text-muted-foreground"} icon={TrendingUp} />
+      <Stat label="Awaiting review" value={String(perf.awaiting_review)} className={perf.awaiting_review > 0 ? "text-amber-400" : ""} icon={History} />
+    </div>
+  ) : (
+    <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <Stat label="Active liquidations" value={String(perf.liq_count)} icon={Flame} />
+      <Stat label="Capital in liquidation" value={gbp(perf.liq_capital)} className="text-orange-400" icon={PoundSterling} />
+      <Stat label="Units cleared" value={String(perf.liq_units)} icon={Send} />
+      <Stat label="Cash recovered" value={gbp(perf.liq_revenue)} className="text-emerald-400" icon={PoundSterling} />
+      <Stat label="Avg depth" value={`${Number(perf.liq_avg_discount || 0)}%`} icon={TrendingDown} />
+    </div>
+  ));
+
   if (campaigns.length === 0) {
-    return <Card><CardContent className="py-12 text-center text-sm text-muted-foreground">No {kind === "sale" ? "active sales" : "active liquidations"} right now.</CardContent></Card>;
+    return (
+      <div className="space-y-4">
+        {cards}
+        <Card><CardContent className="py-12 text-center text-sm text-muted-foreground">No {kind === "sale" ? "active sales" : "active liquidations"} right now.</CardContent></Card>
+      </div>
+    );
   }
 
   return (
+    <div className="space-y-4">
+      {cards}
     <Card className={kind === "sale" ? "border-pd-accent/30" : "border-orange-500/30"}>
       <CardHeader className="pb-3">
         <CardTitle className="text-base flex items-center gap-2">
@@ -705,6 +748,7 @@ function ActiveCampaignsTable({ kind, campaigns, onEnd, onRevert, reverting }: {
         )}
       </CardContent>
     </Card>
+    </div>
   );
 }
 
