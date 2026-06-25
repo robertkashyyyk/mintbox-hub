@@ -311,6 +311,46 @@ export default function ProductDetail() {
     );
   };
 
+  const CostPriceEditor = ({ sku, mintsoftId, initial, onSaved }: { sku: string; mintsoftId: number | null; initial: number | null; onSaved: () => void }) => {
+    const [val, setVal] = useState<string>(initial != null ? String(initial) : "");
+    const [saving, setSaving] = useState(false);
+    useEffect(() => { setVal(initial != null ? String(initial) : ""); }, [initial]);
+    const dirty = val.trim() !== (initial != null ? String(initial) : "");
+    const save = async () => {
+      const n = Number(val);
+      if (!Number.isFinite(n) || n <= 0) { sonnerToast.error("Enter a cost greater than 0"); return; }
+      if (!mintsoftId) { sonnerToast.error("No Mintsoft ID — link it before pushing a cost"); return; }
+      setSaving(true);
+      try {
+        const { data, error } = await supabase.functions.invoke("update-product-cost", {
+          body: { items: [{ mintsoft_product_id: mintsoftId, sku, cost_price: n }] },
+        });
+        if (error) throw error;
+        const r = data?.results?.[0];
+        if (!r?.ok) throw new Error(r?.error ?? "Save failed");
+        sonnerToast.success(`Cost £${n.toFixed(2)} pushed to Mintsoft (profit recomputes on the next refresh)`);
+        onSaved();
+      } catch (e: any) {
+        sonnerToast.error(e?.message ?? "Save failed");
+      } finally { setSaving(false); }
+    };
+    return (
+      <div className="flex justify-between items-center gap-2">
+        <span className="text-muted-foreground text-sm" title="Pushes to Mintsoft + the Hub and marks it manual. Order profit recomputes on the next economics refresh.">Cost Price</span>
+        <div className="flex items-center gap-1">
+          <span className="text-xs text-muted-foreground">£</span>
+          <Input type="number" min={0} step="0.01" value={val} onChange={(e) => setVal(e.target.value)}
+            placeholder="—" className={`h-7 w-24 text-right tabular-nums ${dirty ? "border-pd-accent" : ""}`} />
+          {dirty && (
+            <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={save} disabled={saving} aria-label="Save cost">
+              {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+            </Button>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex items-center gap-4">
@@ -354,9 +394,11 @@ export default function ProductDetail() {
             <DetailRow label="Back Orders" value={product.back_order_qty || 0} />
             <DetailRow label="On Order" value={product.on_order || 0} />
             <DetailRow label="Low Stock Alert" value={product.low_stock_alert_level || 0} />
-            <DetailRow
-              label="Cost Price"
-              value={product.cost_price != null ? `£${Number(product.cost_price).toFixed(2)}` : "—"}
+            <CostPriceEditor
+              sku={product.sku}
+              mintsoftId={product.mintsoft_product_id ?? null}
+              initial={product.cost_price != null ? Number(product.cost_price) : null}
+              onSaved={() => queryClient.invalidateQueries({ queryKey: ["product", id] })}
             />
 
             <BoxQuantityEditor
