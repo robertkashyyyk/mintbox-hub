@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# standardised on npm — keep only package-lock.json
+bun.lock
+bun.lockb
