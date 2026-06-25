@@ -110,6 +110,7 @@ import BuyRecommendations from "./pages/decisions/BuyRecommendations";
 import LsaCalibration from "./pages/decisions/LsaCalibration";
 import LiquidationCandidates from "./pages/decisions/LiquidationCandidates";
 import ListingCoverage from "./pages/decisions/ListingCoverage";
+import ListingQueue from "./pages/decisions/ListingQueue";
 import PriceMoves from "./pages/decisions/PriceMoves";
 import BundleSuggestions from "./pages/decisions/BundleSuggestions";
 import ThreedsReprice from "./pages/decisions/ThreedsReprice";
@@ -254,6 +255,7 @@ const App = () => (
             <Route path="/decisions/lsa-calibration" element={<LsaCalibration />} />
             <Route path="/decisions/liquidation" element={<LiquidationCandidates />} />
             <Route path="/decisions/coverage" element={<ListingCoverage />} />
+            <Route path="/decisions/listing-queue" element={<ListingQueue />} />
             <Route path="/decisions/price-moves" element={<PriceMoves />} />
             <Route path="/decisions/bundles" element={<BundleSuggestions />} />
             <Route path="/decisions/threeds-reprice" element={<ThreedsReprice />} />

@@ -16,7 +16,7 @@ import {
   Database, Tag, AlertCircle, Images, Globe, RefreshCw, FileText, Sparkles, PackagePlus,
   LayoutDashboard, DollarSign, FileBarChart2, TrendingUp, Activity, PoundSterling, Truck,
   Calendar, AlertTriangle, Link2Off, HelpCircle, ShoppingBag, ShoppingCart, Gauge, Plug,
-  Flame, Package, TrendingDown, Users, Key, CreditCard, Settings, Sliders, ArrowUpDown, Copy, EyeOff,
+  Flame, Package, TrendingDown, Users, Key, CreditCard, Settings, Sliders, ArrowUpDown, Copy, EyeOff, ListChecks,
 } from "lucide-react";
 
 export interface NavItem {
@@ -95,6 +95,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { title: "3D Reprice", url: "/decisions/threeds-reprice", icon: Plug, description: "Trigger repricing runs via 3D Sellers integration" },
       { title: "Clearance", url: "/decisions/liquidation", icon: Flame, description: "Put dead stock on a timed Sale or Liquidate it — ring-fenced from the repricer" },
       { title: "Opportunities", url: "/decisions/coverage", icon: EyeOff, description: "In stock but not listed on eBay — list them to unlock sales (Clearance diverts unlisted SKUs here)" },
+      { title: "Listing Queue", url: "/decisions/listing-queue", icon: ListChecks, description: "SKUs queued for listing — generate each store's 3D GTC import file" },
     ],
   },
   {
