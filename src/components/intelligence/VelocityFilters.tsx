@@ -7,24 +7,28 @@ interface VelocityFiltersProps {
   filters: {
     search: string;
     brandId: string;
+    supplierId: string;
     minAvgWeekly: string;
   };
   onFiltersChange: (filters: Partial<{
     search: string;
     brandId: string;
+    supplierId: string;
     minAvgWeekly: string;
   }>) => void;
   brands: Array<{ id: string; name: string }>;
+  suppliers: Array<{ id: string; name: string }>;
 }
 
-export const VelocityFilters = ({ filters, onFiltersChange, brands }: VelocityFiltersProps) => {
+export const VelocityFilters = ({ filters, onFiltersChange, brands, suppliers }: VelocityFiltersProps) => {
   const clearAllFilters = () => {
-    onFiltersChange({ search: "", brandId: "all", minAvgWeekly: "" });
+    onFiltersChange({ search: "", brandId: "all", supplierId: "all", minAvgWeekly: "" });
   };
 
   const activeFilterCount = [
     filters.search,
-    filters.brandId,
+    filters.brandId !== "all" ? filters.brandId : "",
+    filters.supplierId !== "all" ? filters.supplierId : "",
     filters.minAvgWeekly,
   ].filter(Boolean).length;
 
@@ -40,7 +44,7 @@ export const VelocityFilters = ({ filters, onFiltersChange, brands }: VelocityFi
         )}
       </div>
       
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div>
           <label className="text-sm font-medium mb-2 block">Search SKU</label>
           <Input
@@ -64,6 +68,26 @@ export const VelocityFilters = ({ filters, onFiltersChange, brands }: VelocityFi
               {brands.map((brand) => (
                 <SelectItem key={brand.id} value={brand.id}>
                   {brand.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div>
+          <label className="text-sm font-medium mb-2 block">Supplier</label>
+          <Select
+            value={filters.supplierId}
+            onValueChange={(value) => onFiltersChange({ supplierId: value })}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="All Suppliers" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Suppliers</SelectItem>
+              {suppliers.map((s) => (
+                <SelectItem key={s.id} value={s.id}>
+                  {s.name}
                 </SelectItem>
               ))}
             </SelectContent>

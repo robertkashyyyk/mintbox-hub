@@ -13,8 +13,11 @@ interface SortState {
 interface Filters {
   search: string;
   brandId: string;
+  supplierId: string;
   minAvgWeekly: string;
 }
+
+interface SupplierOpt { id: string; name: string; prefixes: string[]; }
 
 export const useSkuVelocity = () => {
   const [page, setPage] = useState(1);
@@ -25,7 +28,7 @@ export const useSkuVelocity = () => {
     return saved ? JSON.parse(saved) : { field: "avg_weekly_units", direction: "desc" };
   });
 
-  const [filters, setFilters] = useState<Filters>({ search: "", brandId: "all", minAvgWeekly: "" });
+  const [filters, setFilters] = useState<Filters>({ search: "", brandId: "all", supplierId: "all", minAvgWeekly: "" });
 
   useEffect(() => {
     localStorage.setItem("velocity_sort", JSON.stringify(sort));
@@ -43,8 +46,33 @@ export const useSkuVelocity = () => {
     },
   });
 
+  // Suppliers + their SKU prefixes (supplier is derived from the SKU prefix, like buy-recs).
+  const { data: suppliersData } = useQuery({
+    queryKey: ["velocity-suppliers"],
+    queryFn: async (): Promise<SupplierOpt[]> => {
+      const [{ data: sups }, { data: prefs }] = await Promise.all([
+        supabase.from("suppliers").select("id, name").order("name"),
+        supabase.from("sku_prefixes").select("prefix, supplier_id"),
+      ]);
+      const byId = new Map<string, string[]>();
+      (prefs ?? []).forEach((p: any) => {
+        if (!p.supplier_id || !p.prefix) return;
+        if (!byId.has(p.supplier_id)) byId.set(p.supplier_id, []);
+        byId.get(p.supplier_id)!.push(p.prefix);
+      });
+      return (sups ?? [])
+        .map((s: any) => ({ id: s.id, name: s.name, prefixes: byId.get(s.id) ?? [] }))
+        .filter((s) => s.prefixes.length > 0); // only suppliers we can actually filter by
+    },
+  });
+
+  const selPrefixes = filters.supplierId === "all"
+    ? null
+    : (suppliersData?.find((s) => s.id === filters.supplierId)?.prefixes ?? []);
+
   const { data: velocityData, isLoading } = useQuery({
-    queryKey: ["sku-velocity", page, sort, filters],
+    queryKey: ["sku-velocity", page, sort, filters, selPrefixes],
+    enabled: filters.supplierId === "all" || suppliersData != null,
     queryFn: async () => {
       let query = supabase
         .from("sku_velocity")
@@ -57,6 +85,14 @@ export const useSkuVelocity = () => {
 
       if (filters.brandId && filters.brandId !== "all") {
         query = query.eq("brand_id", filters.brandId);
+      }
+
+      if (filters.supplierId && filters.supplierId !== "all") {
+        const prefixes = selPrefixes ?? [];
+        if (prefixes.length === 0) return { items: [], totalCount: 0, filteredCount: 0 };
+        // match any of the supplier's prefixes, with the catalogue's '-' or '/' separators
+        const orStr = prefixes.flatMap((p) => [`sku.ilike.${p}-%`, `sku.ilike.${p}/%`]).join(",");
+        query = query.or(orStr);
       }
 
       if (filters.minAvgWeekly) {
@@ -117,6 +153,7 @@ export const useSkuVelocity = () => {
     filters,
     handleFiltersChange,
     brands: brandsData || [],
+    suppliers: suppliersData || [],
     getBrandName,
   };
 };

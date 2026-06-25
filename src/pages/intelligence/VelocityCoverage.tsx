@@ -23,6 +23,7 @@ const VelocityCoverage = () => {
     filters,
     handleFiltersChange,
     brands,
+    suppliers,
     getBrandName,
   } = useSkuVelocity();
 
@@ -62,6 +63,7 @@ const VelocityCoverage = () => {
             filters={filters}
             onFiltersChange={handleFiltersChange}
             brands={brands}
+            suppliers={suppliers}
           />
 
           {isLoading ? (
