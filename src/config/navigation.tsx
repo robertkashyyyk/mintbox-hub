@@ -93,7 +93,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { title: "Purchase Orders", url: "/execution/purchase-orders", icon: ShoppingCart, description: "Create and manage purchase orders for suppliers" },
       { title: "LSA Calibration", url: "/decisions/lsa-calibration", icon: Gauge, description: "Review and adjust listing strategy advisor settings" },
       { title: "3D Reprice", url: "/decisions/threeds-reprice", icon: Plug, description: "Trigger repricing runs via 3D Sellers integration" },
-      { title: "Liquidation", url: "/decisions/liquidation", icon: Flame, description: "Surface and action liquidation / clearance candidates" },
+      { title: "Clearance", url: "/decisions/liquidation", icon: Flame, description: "Put dead stock on a timed Sale or Liquidate it — ring-fenced from the repricer" },
       { title: "Listing Coverage", url: "/decisions/coverage", icon: EyeOff, description: "Stock we own that isn't listed on eBay — capital tied up in things we can't sell" },
     ],
   },

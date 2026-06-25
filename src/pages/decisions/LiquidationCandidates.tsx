@@ -124,7 +124,7 @@ export default function LiquidationCandidates() {
   const [minCapital, setMinCapital] = useState(25);
   const [brandFilter, setBrandFilter] = useState("all");
   const [showExcluded, setShowExcluded] = useState(false);
-  const [view, setView] = useState<"list" | "brands" | "graphs">("list");
+  const [view, setView] = useState<"list" | "onsale" | "liquidation" | "brands" | "graphs">("list");
   const [launch, setLaunch] = useState<{ candidate: Candidate; intent: "sale" | "liquidation" } | null>(null);
   const [bulkIntent, setBulkIntent] = useState<"sale" | "liquidation" | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -169,11 +169,11 @@ export default function LiquidationCandidates() {
     },
   });
   const { data: clearance } = useQuery({
-    queryKey: ["clearance-capital"],
+    queryKey: ["clearance-breakdown"],
     queryFn: async () => {
-      const { data, error } = await (supabase as any).rpc("get_clearance_capital");
+      const { data, error } = await (supabase as any).rpc("get_clearance_breakdown");
       if (error) throw error;
-      return (data?.[0] ?? { active_campaigns: 0, capital_under_clearance: 0, campaigns_run: 0 }) as { active_campaigns: number; capital_under_clearance: number; campaigns_run: number };
+      return (data?.[0] ?? { on_sale_count: 0, on_sale_capital: 0, liquidation_count: 0, liquidation_capital: 0, campaigns_run: 0 }) as { on_sale_count: number; on_sale_capital: number; liquidation_count: number; liquidation_capital: number; campaigns_run: number };
     },
   });
   const { data: campaigns = [] } = useQuery({
@@ -194,10 +194,14 @@ export default function LiquidationCandidates() {
     },
   });
 
+  // Active campaigns split by intent (review-stage already excluded by the query).
+  const activeSales = useMemo(() => campaigns.filter(c => c.type === "sale"), [campaigns]);
+  const activeLiq = useMemo(() => campaigns.filter(c => c.type === "liquidation"), [campaigns]);
+
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["price-campaigns-active"] });
     qc.invalidateQueries({ queryKey: ["liquidation-candidates"] });
-    qc.invalidateQueries({ queryKey: ["clearance-capital"] });
+    qc.invalidateQueries({ queryKey: ["clearance-breakdown"] });
     qc.invalidateQueries({ queryKey: ["liquidation-count"] });
     qc.invalidateQueries({ queryKey: ["sale-reviews"] });
   };
@@ -267,57 +271,20 @@ export default function LiquidationCandidates() {
 
   return (
     <div className="space-y-6">
-      <ModuleHeader title="Liquidation Candidates" description="Dead stock tying up capital. Clear it with one click or in bulk — ring-fenced from the repricer, pushed to the channel, revertible." icon={Flame} />
+      <ModuleHeader title="Clearance" description="Dead stock tying up capital. Put items on a timed Sale or Liquidate them — ring-fenced from the repricer, pushed to the channel, revertible." icon={Flame} />
 
-      {/* Active campaigns */}
-      {campaigns.length > 0 && (
-        <Card className="border-orange-500/30">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2"><Flame className="h-4 w-4 text-orange-500" /> Active campaigns ({campaigns.length})</CardTitle>
-            <CardDescription>Ring-fenced from the repricer. Revert pushes original prices back.</CardDescription>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader><TableRow>
-                  <TableHead>SKU</TableHead><TableHead>Type</TableHead><TableHead className="text-right">Discount</TableHead>
-                  <TableHead className="text-right">Orig → Sale</TableHead><TableHead>Started</TableHead><TableHead>Reviews</TableHead><TableHead>State</TableHead><TableHead className="text-right">Action</TableHead>
-                </TableRow></TableHeader>
-                <TableBody>
-                  {campaigns.map(c => (
-                    <TableRow key={c.id}>
-                      <TableCell className="font-mono text-xs">{c.sku}</TableCell>
-                      <TableCell>{c.stage === "recovering"
-                        ? <Badge variant="outline" className="text-xs text-emerald-400 border-emerald-500/30"><TrendingUp className="h-3 w-3 mr-1" />Recovering</Badge>
-                        : c.type === "sale"
-                        ? <Badge variant="outline" className="text-xs"><Tag className="h-3 w-3 mr-1" />Sale</Badge>
-                        : <Badge variant="outline" className="text-xs text-orange-400 border-orange-500/30"><Flame className="h-3 w-3 mr-1" />Liq</Badge>}</TableCell>
-                      <TableCell className="text-right text-sm">{c.discount_pct != null ? `${c.discount_pct}%` : "—"}</TableCell>
-                      <TableCell className="text-right text-sm">{c.original_price != null ? `£${Number(c.original_price).toFixed(2)}` : "—"}<span className="text-orange-400"> → {c.campaign_price != null ? `£${Number(c.campaign_price).toFixed(2)}` : "—"}</span></TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{c.start_date}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{c.stage === "recovering" ? `step ${c.recovery_step ?? 0}/${c.recovery_weeks ?? "—"}` : c.type === "sale" ? (c.end_date ?? "—") : <span className="opacity-50">—</span>}</TableCell>
-                      <TableCell className="text-xs">{c.pushed_at ? <Badge variant="outline" className="bg-emerald-500/15 text-emerald-400 text-xs">Pushed</Badge> : <Badge variant="outline" className="text-xs">Record only</Badge>}</TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex gap-1 justify-end">
-                          <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => endMutation.mutate(c.id)}><CheckCircle2 className="h-3 w-3 mr-1" />End</Button>
-                          <Button size="sm" variant="ghost" className="h-7 text-xs text-amber-400" onClick={() => revertMutation.mutate(c)} disabled={revertMutation.isPending}>{revertMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <><RotateCcw className="h-3 w-3 mr-1" />Revert</>}</Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Sale Review — time-boxed sales that have reached their end date */}
+      {/* Sale Review — slim alert: time-boxed sales that have reached their end date */}
       <SaleReviewCard stores={stores} onChanged={invalidate} />
 
       {/* View toggle */}
-      <div className="inline-flex rounded-lg border border-border p-1 bg-muted/30">
-        {([["list", "List", ListIcon], ["brands", "Brands", LayoutGrid], ["graphs", "Graphs", LineChartIcon]] as const).map(([v, label, Icon]) => (
+      <div className="inline-flex flex-wrap rounded-lg border border-border p-1 bg-muted/30">
+        {([
+          ["list", "Candidates", ListIcon],
+          ["onsale", `On Sale (${activeSales.length})`, Tag],
+          ["liquidation", `In Liquidation (${activeLiq.length})`, Flame],
+          ["brands", "Brands", LayoutGrid],
+          ["graphs", "Graphs", LineChartIcon],
+        ] as const).map(([v, label, Icon]) => (
           <button key={v} onClick={() => setView(v)}
             className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors inline-flex items-center gap-1.5 ${view === v ? "bg-pd-accent text-white" : "text-muted-foreground hover:text-foreground"}`}>
             <Icon className="h-4 w-4" />{label}
@@ -325,16 +292,19 @@ export default function LiquidationCandidates() {
         ))}
       </div>
 
+      {view === "onsale" && <ActiveCampaignsTable kind="sale" campaigns={activeSales} onEnd={(id) => endMutation.mutate(id)} onRevert={(c) => revertMutation.mutate(c)} reverting={revertMutation.isPending} />}
+      {view === "liquidation" && <ActiveCampaignsTable kind="liquidation" campaigns={activeLiq} onEnd={(id) => endMutation.mutate(id)} onRevert={(c) => revertMutation.mutate(c)} reverting={revertMutation.isPending} />}
       {view === "brands" && <BrandsTab maxVelocity={maxVelocity} minCapital={minCapital} setMaxVelocity={setMaxVelocity} setMinCapital={setMinCapital} />}
       {view === "graphs" && <GraphsTab />}
 
       {view === "list" && (<>
       {/* Sticky toolbar */}
       <div className="sticky top-0 z-20 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 -mx-2 px-2 py-2 space-y-3 border-b border-border/40">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           <Stat label="Total candidates" value={trueTotal.toLocaleString()} icon={Boxes} />
           <Stat label="Capital tied up (all)" value={`£${trueCapital.toLocaleString(undefined, { maximumFractionDigits: 0 })}`} className="text-orange-400" icon={PoundSterling} />
-          <Stat label="Under active clearance" value={`£${Number(clearance?.capital_under_clearance ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`} className="text-emerald-400" icon={Flame} />
+          <Stat label="On sale" value={`£${Number(clearance?.on_sale_capital ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`} className="text-pd-accent" icon={Tag} />
+          <Stat label="In liquidation" value={`£${Number(clearance?.liquidation_capital ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`} className="text-emerald-400" icon={Flame} />
           <Stat label="Dead (never sold)" value={(totals?.dead_count ?? 0).toLocaleString()} className="text-destructive" icon={AlertTriangle} />
         </div>
         <Card>
@@ -641,6 +611,77 @@ function SaleReviewCard({ stores: _stores, onChanged }: { stores: Store[]; onCha
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </Card>
+  );
+}
+
+// ── Active campaigns (paginated) — On Sale / In Liquidation tabs ────
+function ActiveCampaignsTable({ kind, campaigns, onEnd, onRevert, reverting }: {
+  kind: "sale" | "liquidation"; campaigns: Campaign[];
+  onEnd: (id: string) => void; onRevert: (c: Campaign) => void; reverting: boolean;
+}) {
+  const [page, setPage] = useState(1);
+  const PAGE = 25;
+  useEffect(() => { setPage(1); }, [campaigns.length, kind]);
+  const pageCount = Math.max(1, Math.ceil(campaigns.length / PAGE));
+  const rows = campaigns.slice((page - 1) * PAGE, page * PAGE);
+
+  if (campaigns.length === 0) {
+    return <Card><CardContent className="py-12 text-center text-sm text-muted-foreground">No {kind === "sale" ? "active sales" : "active liquidations"} right now.</CardContent></Card>;
+  }
+
+  return (
+    <Card className={kind === "sale" ? "border-pd-accent/30" : "border-orange-500/30"}>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          {kind === "sale" ? <Tag className="h-4 w-4 text-pd-accent" /> : <Flame className="h-4 w-4 text-orange-500" />}
+          {kind === "sale" ? "On Sale" : "In Liquidation"} ({campaigns.length})
+        </CardTitle>
+        <CardDescription>Ring-fenced from the repricer. End keeps the current price; Revert pushes the original back.</CardDescription>
+      </CardHeader>
+      <CardContent className="p-0">
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader><TableRow>
+              <TableHead>SKU</TableHead><TableHead>Type</TableHead><TableHead className="text-right">Discount</TableHead>
+              <TableHead className="text-right">Orig → Sale</TableHead><TableHead>Started</TableHead><TableHead>{kind === "sale" ? "Reviews" : ""}</TableHead><TableHead>State</TableHead><TableHead className="text-right">Action</TableHead>
+            </TableRow></TableHeader>
+            <TableBody>
+              {rows.map(c => (
+                <TableRow key={c.id}>
+                  <TableCell className="font-mono text-xs">{c.sku}</TableCell>
+                  <TableCell>{c.stage === "recovering"
+                    ? <Badge variant="outline" className="text-xs text-emerald-400 border-emerald-500/30"><TrendingUp className="h-3 w-3 mr-1" />Recovering</Badge>
+                    : c.type === "sale"
+                    ? <Badge variant="outline" className="text-xs"><Tag className="h-3 w-3 mr-1" />Sale</Badge>
+                    : <Badge variant="outline" className="text-xs text-orange-400 border-orange-500/30"><Flame className="h-3 w-3 mr-1" />Liq</Badge>}</TableCell>
+                  <TableCell className="text-right text-sm">{c.discount_pct != null ? `${c.discount_pct}%` : "—"}</TableCell>
+                  <TableCell className="text-right text-sm">{c.original_price != null ? `£${Number(c.original_price).toFixed(2)}` : "—"}<span className="text-orange-400"> → {c.campaign_price != null ? `£${Number(c.campaign_price).toFixed(2)}` : "—"}</span></TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{c.start_date}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{c.stage === "recovering" ? `step ${c.recovery_step ?? 0}/${c.recovery_weeks ?? "—"}` : c.type === "sale" ? (c.end_date ?? "—") : <span className="opacity-50">—</span>}</TableCell>
+                  <TableCell className="text-xs">{c.pushed_at ? <Badge variant="outline" className="bg-emerald-500/15 text-emerald-400 text-xs">Pushed</Badge> : <Badge variant="outline" className="text-xs">Record only</Badge>}</TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex gap-1 justify-end">
+                      <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => onEnd(c.id)}><CheckCircle2 className="h-3 w-3 mr-1" />End</Button>
+                      <Button size="sm" variant="ghost" className="h-7 text-xs text-amber-400" onClick={() => onRevert(c)} disabled={reverting}>{reverting ? <Loader2 className="h-3 w-3 animate-spin" /> : <><RotateCcw className="h-3 w-3 mr-1" />Revert</>}</Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+        {pageCount > 1 && (
+          <div className="flex items-center justify-between px-4 py-3 border-t border-border text-sm text-muted-foreground">
+            <span>Showing {(page - 1) * PAGE + 1}–{Math.min(page * PAGE, campaigns.length)} of {campaigns.length}</span>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>Previous</Button>
+              <span className="self-center text-xs">Page {page} / {pageCount}</span>
+              <Button variant="outline" size="sm" disabled={page === pageCount} onClick={() => setPage(p => p + 1)}>Next</Button>
+            </div>
+          </div>
+        )}
+      </CardContent>
     </Card>
   );
 }
