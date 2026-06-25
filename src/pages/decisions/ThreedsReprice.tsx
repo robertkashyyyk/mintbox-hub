@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -101,6 +101,21 @@ const gbp = (n: number | null | undefined) =>
 const pct = (n: number | null | undefined) =>
   n == null ? "—" : `${n.toFixed(1)}%`;
 
+// Sortable columns for the repriceable table → value accessor.
+const SORT_ACCESSORS: Record<string, (r: EnrichedRow) => number | string | null> = {
+  sku: (r) => r.sku,
+  brand_name: (r) => r.brand_name ?? "",
+  units_sold: (r) => r.units_sold ?? 0,
+  revenue: (r) => r.revenue,
+  profit: (r) => r.profit,
+  por_pct: (r) => r.por_pct,
+  costUnit: (r) => r.costUnit,
+  feePctUsed: (r) => r.feePctUsed,
+  current_stock: (r) => r.current_stock,
+  grossLastSold: (r) => r.grossLastSold,
+  suggestedGross: (r) => r.suggestedGross,
+};
+
 function Pager({ page, pageCount, onChange }: { page: number; pageCount: number; onChange: (p: number) => void }) {
   if (pageCount <= 1) return null;
   return (
@@ -126,6 +141,8 @@ export default function ThreedsReprice() {
   const [days, setDays] = useState(90);
   const [search, setSearch] = useState("");
   const [currentBand, setCurrentBand] = useState<string>("all"); // filter by CURRENT por band
+  const [sortKey, setSortKey] = useState<string>("por_pct");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [statusFilter, setStatusFilter] = useState<"outstanding" | "review" | "all">("outstanding");
   const [tier, setTier] = useState<Tier>("breakeven");
   const [selected, setSelected] = useState<Record<string, { checked: boolean; price?: string }>>({});
@@ -329,6 +346,31 @@ export default function ThreedsReprice() {
     return rows.filter(matchesSearch);
   }, [enriched, currentBand, statusFilter, queuedMap, search]);
 
+  // Apply column sort (nulls always last) before pagination.
+  const sortedRepriceable = useMemo(() => {
+    const acc = SORT_ACCESSORS[sortKey] ?? SORT_ACCESSORS.por_pct;
+    const dir = sortDir === "asc" ? 1 : -1;
+    return [...repriceable].sort((a, b) => {
+      const av = acc(a), bv = acc(b);
+      if (av == null && bv == null) return 0;
+      if (av == null) return 1;
+      if (bv == null) return -1;
+      if (typeof av === "number" && typeof bv === "number") return (av - bv) * dir;
+      return String(av).localeCompare(String(bv)) * dir;
+    });
+  }, [repriceable, sortKey, sortDir]);
+  const toggleSort = (key: string) => {
+    if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortKey(key); setSortDir(key === "sku" || key === "brand_name" ? "asc" : "desc"); }
+    setPage(1);
+  };
+  const SortHead = ({ k, label, align, className }: { k: string; label: ReactNode; align?: "right" | "center"; className?: string }) => (
+    <TableHead onClick={() => toggleSort(k)}
+      className={`cursor-pointer select-none hover:text-foreground ${align === "right" ? "text-right" : align === "center" ? "text-center" : ""} ${className ?? ""}`}>
+      <span className="inline-flex items-center gap-1">{label}<span className="text-[10px] text-muted-foreground">{sortKey === k ? (sortDir === "asc" ? "▲" : "▼") : "↕"}</span></span>
+    </TableHead>
+  );
+
   const flagged = useMemo(
     () => enriched.filter((r) => r.flag !== null).filter(matchesSearch),
     [enriched, search],
@@ -343,10 +385,10 @@ export default function ThreedsReprice() {
   useEffect(() => { setFlagPage(1); }, [search, storeId, days]);
   useEffect(() => { setSelected({}); }, [storeId, days]);
 
-  const pageCount = Math.max(1, Math.ceil(repriceable.length / PAGE_SIZE));
+  const pageCount = Math.max(1, Math.ceil(sortedRepriceable.length / PAGE_SIZE));
   const pageRows = useMemo(
-    () => repriceable.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
-    [repriceable, page],
+    () => sortedRepriceable.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+    [sortedRepriceable, page],
   );
   const flagPageCount = Math.max(1, Math.ceil(flagged.length / PAGE_SIZE));
   const flagPageRows = useMemo(
@@ -629,19 +671,19 @@ export default function ThreedsReprice() {
                       <TableHead className="w-10">
                         <Checkbox checked={allChecked} onCheckedChange={(v) => toggleAll(!!v)} />
                       </TableHead>
-                      <TableHead>SKU</TableHead>
+                      <SortHead k="sku" label="SKU" />
                       {isAll && <TableHead>Account</TableHead>}
-                      <TableHead>Brand</TableHead>
+                      <SortHead k="brand_name" label="Brand" />
                       <TableHead className="text-center">Pack</TableHead>
-                      <TableHead className="text-right">Units</TableHead>
-                      <TableHead className="text-right">Revenue</TableHead>
-                      <TableHead className="text-right">Profit</TableHead>
-                      <TableHead className="text-right">PoR%</TableHead>
-                      <TableHead className="text-right">Cost ea</TableHead>
-                      <TableHead className="text-right">Fee</TableHead>
-                      <TableHead className="text-right">Stock</TableHead>
-                      <TableHead className="text-right">Last Sold £<br /><span className="text-[10px] font-normal text-muted-foreground">inc VAT</span></TableHead>
-                      <TableHead className="text-right w-[120px]">New £<br /><span className="text-[10px] font-normal text-muted-foreground">inc VAT</span></TableHead>
+                      <SortHead k="units_sold" label="Units" align="right" />
+                      <SortHead k="revenue" label="Revenue" align="right" />
+                      <SortHead k="profit" label="Profit" align="right" />
+                      <SortHead k="por_pct" label="PoR%" align="right" />
+                      <SortHead k="costUnit" label="Cost ea" align="right" />
+                      <SortHead k="feePctUsed" label="Fee" align="right" />
+                      <SortHead k="current_stock" label="Stock" align="right" />
+                      <SortHead k="grossLastSold" align="right" label={<>Last Sold £<br /><span className="text-[10px] font-normal text-muted-foreground">inc VAT</span></>} />
+                      <SortHead k="suggestedGross" align="right" className="w-[120px]" label={<>New £<br /><span className="text-[10px] font-normal text-muted-foreground">inc VAT</span></>} />
                     </TableRow>
                   </TableHeader>
                   <TableBody>
