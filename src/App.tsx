@@ -101,6 +101,7 @@ import DirtListings from "./pages/housekeeping/DirtListings";
 import ProfitRules from "./pages/admin/ProfitRules";
 import Suppliers from "./pages/admin/Suppliers";
 import SkuTransformations from "./pages/admin/SkuTransformations";
+import EbayCategories from "./pages/admin/EbayCategories";
 import PurchaseOrders from "./pages/execution/PurchaseOrders";
 import PurchaseOrderDetail from "./pages/execution/PurchaseOrderDetail";
 
@@ -281,6 +282,7 @@ const App = () => (
             <Route path="/admin/profit-rules" element={<ProfitRules />} />
             <Route path="/admin/suppliers" element={<Suppliers />} />
             <Route path="/admin/sku-transformations" element={<SkuTransformations />} />
+            <Route path="/admin/ebay-categories" element={<EbayCategories />} />
 
             {/* Operations Sub-Routes */}
             <Route path="/operations/dashboard" element={<OpsDashboard />} />

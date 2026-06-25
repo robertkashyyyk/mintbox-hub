@@ -152,6 +152,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { title: "Profit Rules", url: "/admin/profit-rules", icon: Sliders, description: "Configure profit / fee calculation rules" },
       { title: "Suppliers", url: "/admin/suppliers", icon: Truck, description: "Manage supplier records" },
       { title: "SKU Transformations", url: "/admin/sku-transformations", icon: ArrowUpDown, description: "Configure SKU normalisation / transformation rules" },
+      { title: "eBay Categories", url: "/admin/ebay-categories", icon: Tag, description: "Map internal product categories to eBay category IDs for listing creation" },
     ],
   },
 ];
