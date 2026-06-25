@@ -112,8 +112,30 @@ async function launchCampaign(opts: {
 }
 
 async function fetchListings(sku: string): Promise<ListingRow[]> {
-  const { data } = await (supabase as any).rpc("get_campaign_listings_for_sku", { p_base_sku: sku });
+  // Drive from listing_coverage (every ACTIVE eBay listing), not order history —
+  // so a SKU that's listed but hasn't sold recently is still found and pushable.
+  const { data } = await (supabase as any).rpc("get_coverage_listings_for_sku", { p_base_sku: sku });
   return ((data ?? []) as KnownListing[]).map(l => ({ store_id: l.store_id, listing_sku: l.listing_sku, store_name: l.store_name, current: l.current_price }));
+}
+
+// A SKU with no live eBay listing can't be sold or liquidated — it needs LISTING.
+// Divert it to Opportunities by raising a task for the catalogue owner (Jon).
+async function divertToOpportunities(c: Candidate): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+  const { data: owner } = await (supabase as any).from("app_settings").select("value").eq("key", "coverage_owner").maybeSingle();
+  const ownerId = (owner?.value && typeof owner.value === "string") ? owner.value : null;
+  const { data: existing } = await (supabase as any).from("tasks").select("id")
+    .eq("source_rule", "unlisted_sku").eq("linked_entity_id", c.sku).in("status", ["todo", "in_progress", "blocked"]).limit(1);
+  if (existing && existing.length) return;
+  await (supabase as any).from("tasks").insert({
+    created_by: user.id, assigned_to: ownerId, task_type: "system_generated",
+    title: `Unlisted on eBay: ${c.sku}`,
+    description: `${c.product_name ?? c.sku} has ${c.current_stock} in stock (£${Number(c.capital_tied).toFixed(0)} capital) but isn't live on any UK eBay store, so it can't be put on sale or liquidated${(c.units_sold_90d ?? 0) > 0 ? ` — and it sold ${c.units_sold_90d} in the last 90 days` : ""}. List it.`,
+    priority_level: (c.units_sold_90d ?? 0) > 0 || c.capital_tied >= 200 ? 2 : 3,
+    linked_entity_type: "sku", linked_entity_id: c.sku, linked_entity_label: c.sku,
+    source_module: "catalogue", source_rule: "unlisted_sku", tags: ["coverage", "unlisted", "from-clearance"],
+  });
 }
 
 type SortKey = "capital_tied" | "weeks_of_cover" | "current_stock" | "velocity_per_week" | "last_sold";
@@ -703,7 +725,7 @@ function BulkDialog({ intent, candidates, onClose, onDone }: { intent: "sale" | 
   const [mode, setMode] = useState<"fixed" | "suggested">("suggested");
   const [pct, setPct] = useState("25");
   const [running, setRunning] = useState(false);
-  const [progress, setProgress] = useState({ done: 0, pushed: 0, recordOnly: 0, failed: 0 });
+  const [progress, setProgress] = useState({ done: 0, pushed: 0, diverted: 0, failed: 0 });
   const isSale = kind === "sale";
   useEffect(() => { if (intent) setKind(intent); }, [intent]);
 
@@ -711,21 +733,27 @@ function BulkDialog({ intent, candidates, onClose, onDone }: { intent: "sale" | 
     const saleWeeks = Number(weeks) || 0;
     if (isSale && saleWeeks <= 0) { toast.error("Set a sale length in weeks"); return; }
     setRunning(true);
-    setProgress({ done: 0, pushed: 0, recordOnly: 0, failed: 0 });
+    setProgress({ done: 0, pushed: 0, diverted: 0, failed: 0 });
     const { data: { user } } = await supabase.auth.getUser();
-    let pushed = 0, recordOnly = 0, failed = 0;
+    let pushed = 0, diverted = 0, failed = 0;
     for (let i = 0; i < candidates.length; i++) {
       const c = candidates[i];
       const usePct = mode === "suggested" ? suggestDiscount(c) : Number(pct);
       try {
         const listings = await fetchListings(c.sku);
-        const res = await launchCampaign({ candidate: c, listings, pct: usePct, type: kind, saleWeeks: isSale ? saleWeeks : undefined, userId: user?.id ?? null });
-        if (res.recordOnly) recordOnly++; else pushed++;
+        if (listings.length === 0) {
+          // Not listed anywhere → can't be sold/liquidated → divert to Opportunities.
+          await divertToOpportunities(c);
+          diverted++;
+        } else {
+          await launchCampaign({ candidate: c, listings, pct: usePct, type: kind, saleWeeks: isSale ? saleWeeks : undefined, userId: user?.id ?? null });
+          pushed++;
+        }
       } catch { failed++; }
-      setProgress({ done: i + 1, pushed, recordOnly, failed });
+      setProgress({ done: i + 1, pushed, diverted, failed });
     }
     setRunning(false);
-    toast.success(`Bulk ${isSale ? "sale" : "clearance"} — ${pushed} pushed, ${recordOnly} record-only, ${failed} failed`);
+    toast.success(`Bulk ${isSale ? "sale" : "clearance"} — ${pushed} actioned, ${diverted} diverted to Opportunities (not listed), ${failed} failed`);
     onDone();
   }
 
@@ -763,7 +791,7 @@ function BulkDialog({ intent, candidates, onClose, onDone }: { intent: "sale" | 
           </div>
           {running && (
             <div className="text-sm text-muted-foreground">
-              Processing {progress.done}/{candidates.length} — {progress.pushed} pushed, {progress.recordOnly} record-only, {progress.failed} failed
+              Processing {progress.done}/{candidates.length} — {progress.pushed} actioned, {progress.diverted} diverted (not listed), {progress.failed} failed
             </div>
           )}
         </div>
@@ -805,10 +833,19 @@ function LaunchDialog({ launch, stores, onClose, onLaunched }: { launch: { candi
     return [...k, ...m];
   }, [known, manual, stores]);
 
+  async function divert() {
+    if (!candidate) return;
+    setSaving(true);
+    try {
+      await divertToOpportunities(candidate);
+      toast.success(`${candidate.sku} — not listed, diverted to Opportunities (task raised for Jon)`);
+      onLaunched();
+    } catch (e: any) { toast.error(e.message); } finally { setSaving(false); }
+  }
+
   async function launch() {
     if (!candidate) return;
     if (pct <= 0) { toast.error("Enter a discount %"); return; }
-    if (allListings.length === 0) { toast.error("No listings — add one manually for a dead SKU"); return; }
     const saleWeeks = Number(weeks) || 0;
     if (isSale && saleWeeks <= 0) { toast.error("Set a sale length in weeks"); return; }
     setSaving(true);
@@ -856,7 +893,7 @@ function LaunchDialog({ launch, stores, onClose, onLaunched }: { launch: { candi
             <Label className="text-xs">Listings ({allListings.length})</Label>
             {knownLoading ? <div className="flex items-center gap-2 text-xs text-muted-foreground py-2"><Loader2 className="h-3 w-3 animate-spin" />Finding listings…</div> : (
               <div className="rounded-lg border border-border/60 divide-y divide-border/40 max-h-48 overflow-y-auto">
-                {allListings.length === 0 && <div className="p-3 text-xs text-amber-400 flex items-center gap-2"><AlertTriangle className="h-3.5 w-3.5" /> No sales history — add store + current price below to push.</div>}
+                {allListings.length === 0 && <div className="p-3 text-xs text-amber-400 flex items-center gap-2"><AlertTriangle className="h-3.5 w-3.5" /> Not listed on any UK eBay store. Add one manually below to push, or divert it to Opportunities for listing.</div>}
                 {allListings.map((l, i) => {
                   const salePrice = sale(l.current);
                   const belowFloor = !isSale && salePrice < LIQUIDATION_FLOOR;
@@ -888,7 +925,9 @@ function LaunchDialog({ launch, stores, onClose, onLaunched }: { launch: { candi
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={launch} disabled={saving || pct <= 0 || allListings.length === 0}>{saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}Start &amp; push ({allListings.length})</Button>
+          {allListings.length === 0
+            ? <Button onClick={divert} disabled={saving} variant="secondary">{saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <EyeOff className="h-4 w-4 mr-2" />}Divert to Opportunities</Button>
+            : <Button onClick={launch} disabled={saving || pct <= 0}>{saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}Start &amp; push ({allListings.length})</Button>}
         </DialogFooter>
       </DialogContent>
     </Dialog>

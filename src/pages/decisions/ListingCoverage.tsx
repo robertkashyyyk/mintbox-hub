@@ -129,7 +129,7 @@ export default function ListingCoverage() {
 
   return (
     <div className="space-y-6">
-      <ModuleHeader title="Listing Coverage — Unlisted (eBay)" description="Stock we own that isn't live on any UK eBay store. The genuinely valuable finds: capital tied up in things we can't sell. Amazon coverage is coming next." icon={EyeOff} />
+      <ModuleHeader title="Opportunities" description="In stock but not listed on any UK eBay store — capital tied up in things we can't sell yet. List them to unlock the sales. Clearance diverts unlisted SKUs straight here. (Amazon coverage coming next.)" icon={EyeOff} />
 
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <RefreshCw className="h-3 w-3" />
