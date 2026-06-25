@@ -5,7 +5,7 @@
  * the catalogue owner (Jon) per row or in bulk. Amazon (ASIN) axis lands in B.2.
  */
 import { useMemo, useState } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { bandRecoveryTarget } from "@/lib/reprice";
+import ListingDrawer from "@/components/coverage/ListingDrawer";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
 import { EyeOff, PoundSterling, Boxes, AlertTriangle, Download, Send, Loader2, RefreshCw, CheckCircle2 } from "lucide-react";
@@ -67,6 +68,7 @@ async function raiseUnlistedTask(row: Unlisted) {
 }
 
 export default function ListingCoverage() {
+  const qc = useQueryClient();
   const [priority, setPriority] = useState("all");
   const [brand, setBrand] = useState("all");
   const [minCapital, setMinCapital] = useState(25);
@@ -75,6 +77,7 @@ export default function ListingCoverage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [raising, setRaising] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const [drawerSku, setDrawerSku] = useState<string | null>(null);
 
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["ebay-unlisted", minCapital],
@@ -200,7 +203,7 @@ export default function ListingCoverage() {
                 {filtered.map(r => (
                   <TableRow key={r.sku}>
                     <TableCell><Checkbox checked={selected.has(r.sku)} onCheckedChange={v => setSelected(prev => { const n = new Set(prev); v ? n.add(r.sku) : n.delete(r.sku); return n; })} /></TableCell>
-                    <TableCell><Link to={`/discovery/products?search=${encodeURIComponent(r.sku)}`} className="font-mono text-xs text-pd-accent hover:underline">{r.sku}</Link></TableCell>
+                    <TableCell><button onClick={() => setDrawerSku(r.sku)} className="font-mono text-xs text-pd-accent hover:underline">{r.sku}</button></TableCell>
                     <TableCell className="text-sm max-w-[180px] truncate">{r.product_name ?? "—"}</TableCell>
                     <TableCell className="text-sm text-muted-foreground">{r.brand_name ?? "—"}</TableCell>
                     <TableCell className="text-right text-sm">{r.current_stock}</TableCell>
@@ -227,6 +230,7 @@ export default function ListingCoverage() {
       </Card>
 
       {createOpen && <CreateListingsDialog rows={selectedRows} onClose={() => setCreateOpen(false)} />}
+      <ListingDrawer sku={drawerSku} onClose={() => setDrawerSku(null)} onChanged={() => qc.invalidateQueries({ queryKey: ["ebay-unlisted"] })} />
     </div>
   );
 }
@@ -234,23 +238,24 @@ export default function ListingCoverage() {
 // ── Listing generation (GTC import template) ──────────────────────
 const GTC_HEADERS = ["SKU","Title","Description","Tags","MetaKeywords","MetaDescription","MobileDescription","CategoryID","StoreCategory","PrivateListing","UpToQuantity","WarehouseQuantity","InventoryControl","Price","Cost","BestOffer","BestOfferAccept","BestOfferDecline","C:MPN","C:Brand","C:Size","Condition","CountryCode","Location","PostalCode","PolicyPayment","PolicyShipping","PolicyReturn","PackageType","MeasurementSystem","PackageLength","PackageWidth","PackageDepth","WeightMajor","WeightMinor","Image 1"];
 
-interface ListingData { sku: string; title: string; brand_name: string | null; barcode: string | null; cost_price: number; stock: number; ebay_category_id: string | null; weight: number | null; height: number | null; length: number | null; depth: number | null; image_url: string | null; }
+interface ListingData { sku: string; title: string; description: string | null; brand_name: string | null; barcode: string | null; cost_price: number; stock: number; ebay_category_id: string | null; mpn: string | null; size: string | null; condition: string | null; price: number | null; weight: number | null; height: number | null; length: number | null; depth: number | null; image_url: string | null; }
 interface StoreCfg { store_id: string; policy_payment: string | null; policy_shipping: string | null; policy_return: string | null; location: string | null; postal_code: string | null; country_code: string; default_condition: string; measurement_system: string; package_type: string; best_offer: boolean; }
 
 const csvCell = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
 
 function gtcRow(d: ListingData, cfg: StoreCfg | undefined): string[] {
-  const price = bandRecoveryTarget({ costUnit: Number(d.cost_price || 0), tier: "good" });
+  // Draft price wins; else auto Good band.
+  const price = d.price != null ? Number(d.price) : bandRecoveryTarget({ costUnit: Number(d.cost_price || 0), tier: "good" });
   return [
     d.sku, (d.title ?? "").slice(0, 80),
-    `<p>${(d.title ?? d.sku)}${d.brand_name ? " — " + d.brand_name : ""}</p>`,
+    d.description ?? `<p>${(d.title ?? d.sku)}${d.brand_name ? " — " + d.brand_name : ""}</p>`,
     "", "", "", "",
     d.ebay_category_id ?? "", "",
     "FALSE", String(d.stock ?? 1), String(d.stock ?? 1), "True",
-    price != null ? price.toFixed(2) : "", Number(d.cost_price || 0).toFixed(2),
+    price != null ? Number(price).toFixed(2) : "", Number(d.cost_price || 0).toFixed(2),
     cfg?.best_offer ? "TRUE" : "FALSE", "", "",
-    "", d.brand_name ?? "", "",
-    cfg?.default_condition ?? "1000", cfg?.country_code ?? "GB", cfg?.location ?? "", cfg?.postal_code ?? "",
+    d.mpn ?? "", d.brand_name ?? "", d.size ?? "",
+    d.condition ?? cfg?.default_condition ?? "1000", cfg?.country_code ?? "GB", cfg?.location ?? "", cfg?.postal_code ?? "",
     cfg?.policy_payment ?? "", cfg?.policy_shipping ?? "", cfg?.policy_return ?? "",
     cfg?.package_type ?? "PackageThickEnvelope", cfg?.measurement_system ?? "METRIC",
     d.length != null ? String(d.length) : "", d.depth != null ? String(d.depth) : "", d.height != null ? String(d.height) : "",
