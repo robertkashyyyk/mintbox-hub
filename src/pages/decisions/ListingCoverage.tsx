@@ -78,6 +78,8 @@ export default function ListingCoverage() {
   const [raising, setRaising] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [drawerSku, setDrawerSku] = useState<string | null>(null);
+  const [snoozeSku, setSnoozeSku] = useState<string | null>(null);
+  const [snoozedOpen, setSnoozedOpen] = useState(false);
 
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["ebay-unlisted", minCapital],
@@ -180,6 +182,7 @@ export default function ListingCoverage() {
           <div className="ml-auto flex items-end gap-2">
             {selected.size > 0 && <Button size="sm" className="h-9 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => setCreateOpen(true)}><CheckCircle2 className="h-4 w-4 mr-2" />Create {selected.size} listing(s)</Button>}
             {selected.size > 0 && <Button size="sm" variant="outline" className="h-9" disabled={raising} onClick={raiseSelected}>{raising ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}Raise {selected.size} task(s) for Jon</Button>}
+            <Button size="sm" variant="outline" className="h-9" onClick={() => setSnoozedOpen(true)}><EyeOff className="h-4 w-4 mr-2" />Snoozed</Button>
             <Button size="sm" variant="outline" className="h-9" onClick={exportCsv} disabled={filtered.length === 0}><Download className="h-4 w-4 mr-2" />Export</Button>
           </div>
         </CardContent>
@@ -220,7 +223,12 @@ export default function ListingCoverage() {
                             {READY_FIELDS.filter(([k]) => !r[k]).map(([, lbl]) => <span key={lbl} className="text-[10px] px-1 rounded bg-destructive/15 text-destructive" title={`Missing ${lbl}`}>{lbl}</span>)}
                           </div>}
                     </TableCell>
-                    <TableCell className="text-right"><Button size="sm" variant="outline" className="h-7 text-xs" disabled={raiseOne.isPending} onClick={() => raiseOne.mutate(r)}><Send className="h-3 w-3 mr-1" />Task</Button></TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex gap-1 justify-end">
+                        <Button size="sm" variant="outline" className="h-7 text-xs" disabled={raiseOne.isPending} onClick={() => raiseOne.mutate(r)}><Send className="h-3 w-3 mr-1" />Task</Button>
+                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0" title="Snooze — won't list" onClick={() => setSnoozeSku(r.sku)}><EyeOff className="h-3 w-3 text-muted-foreground" /></Button>
+                      </div>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -231,7 +239,89 @@ export default function ListingCoverage() {
 
       {createOpen && <CreateListingsDialog rows={selectedRows} onClose={() => setCreateOpen(false)} />}
       <ListingDrawer sku={drawerSku} onClose={() => setDrawerSku(null)} onChanged={() => qc.invalidateQueries({ queryKey: ["ebay-unlisted"] })} />
+      <SnoozeDialog sku={snoozeSku} onClose={() => setSnoozeSku(null)} onDone={() => { setSnoozeSku(null); qc.invalidateQueries({ queryKey: ["ebay-unlisted"] }); qc.invalidateQueries({ queryKey: ["coverage-snoozes"] }); }} />
+      {snoozedOpen && <SnoozedManager onClose={() => setSnoozedOpen(false)} onChanged={() => { qc.invalidateQueries({ queryKey: ["ebay-unlisted"] }); qc.invalidateQueries({ queryKey: ["coverage-snoozes"] }); }} />}
     </div>
+  );
+}
+
+const SNOOZE_REASONS = ["Won't sell as a single", "Discontinuing / clearing", "Low value — not worth listing", "Already covered elsewhere", "Other"];
+const SNOOZE_DURATIONS: [string, number | null][] = [["1 week", 7], ["4 weeks", 28], ["3 months", 90], ["Forever", null]];
+
+function SnoozeDialog({ sku, onClose, onDone }: { sku: string | null; onClose: () => void; onDone: () => void }) {
+  const [reason, setReason] = useState(SNOOZE_REASONS[0]);
+  const [durIdx, setDurIdx] = useState("0");
+  const save = useMutation({
+    mutationFn: async () => {
+      const days = SNOOZE_DURATIONS[Number(durIdx)][1];
+      const until = days == null ? null : new Date(Date.now() + days * 86_400_000).toISOString();
+      const { data: { user } } = await supabase.auth.getUser();
+      const { error } = await (supabase as any).from("coverage_snoozes").upsert({ sku, reason, snooze_until: until, snoozed_by: user?.id ?? null, snoozed_at: new Date().toISOString() }, { onConflict: "sku" });
+      if (error) throw error;
+    },
+    onSuccess: () => { toast.success("Snoozed"); onDone(); },
+    onError: (e: any) => toast.error(e.message),
+  });
+  return (
+    <Dialog open={!!sku} onOpenChange={o => !o && onClose()}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader><DialogTitle className="font-mono">{sku}</DialogTitle><DialogDescription>Hide this from Opportunities — record why and for how long.</DialogDescription></DialogHeader>
+        <div className="space-y-3 py-2">
+          <div className="space-y-1.5"><Label className="text-xs">Reason</Label>
+            <Select value={reason} onValueChange={setReason}><SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+              <SelectContent>{SNOOZE_REASONS.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent></Select>
+          </div>
+          <div className="space-y-1.5"><Label className="text-xs">For how long</Label>
+            <Select value={durIdx} onValueChange={setDurIdx}><SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+              <SelectContent>{SNOOZE_DURATIONS.map(([lbl], i) => <SelectItem key={i} value={String(i)}>{lbl}</SelectItem>)}</SelectContent></Select>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button disabled={save.isPending} onClick={() => save.mutate()}>{save.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <EyeOff className="h-4 w-4 mr-2" />}Snooze</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function SnoozedManager({ onClose, onChanged }: { onClose: () => void; onChanged: () => void }) {
+  const { data: rows = [], isLoading } = useQuery({
+    queryKey: ["coverage-snoozes"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc("get_coverage_snoozes");
+      if (error) throw error;
+      return data as { sku: string; product_name: string | null; reason: string | null; snooze_until: string | null; snoozed_at: string }[];
+    },
+  });
+  const unsnooze = useMutation({
+    mutationFn: async (sku: string) => { const { error } = await (supabase as any).from("coverage_snoozes").delete().eq("sku", sku); if (error) throw error; },
+    onSuccess: () => { onChanged(); },
+    onError: (e: any) => toast.error(e.message),
+  });
+  return (
+    <Dialog open onOpenChange={o => !o && onClose()}>
+      <DialogContent className="max-w-xl">
+        <DialogHeader><DialogTitle>Snoozed SKUs ({rows.length})</DialogTitle><DialogDescription>Hidden from Opportunities. Remove a snooze to bring it back.</DialogDescription></DialogHeader>
+        <div className="max-h-[60vh] overflow-y-auto">
+          {isLoading ? <div className="py-8 flex justify-center"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div> : rows.length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">Nothing snoozed.</p> : (
+            <Table>
+              <TableHeader><TableRow><TableHead>SKU</TableHead><TableHead>Reason</TableHead><TableHead>Until</TableHead><TableHead className="text-right">Action</TableHead></TableRow></TableHeader>
+              <TableBody>
+                {rows.map(r => (
+                  <TableRow key={r.sku}>
+                    <TableCell className="font-mono text-xs">{r.sku}</TableCell>
+                    <TableCell className="text-xs">{r.reason ?? "—"}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{r.snooze_until ? new Date(r.snooze_until).toLocaleDateString() : "Forever"}</TableCell>
+                    <TableCell className="text-right"><Button size="sm" variant="ghost" className="h-7 text-xs" disabled={unsnooze.isPending} onClick={() => unsnooze.mutate(r.sku)}>Un-snooze</Button></TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
