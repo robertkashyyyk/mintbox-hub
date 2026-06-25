@@ -17,7 +17,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
-import { EyeOff, PoundSterling, Boxes, AlertTriangle, Download, Send, Loader2, RefreshCw } from "lucide-react";
+import { EyeOff, PoundSterling, Boxes, AlertTriangle, Download, Send, Loader2, RefreshCw, CheckCircle2 } from "lucide-react";
+
+const READY_FIELDS: [keyof Unlisted, string][] = [
+  ["has_category", "Cat"], ["has_image", "Img"], ["has_dims", "Dim"], ["has_barcode", "EAN"], ["has_brand", "Brand"],
+];
 import ModuleHeader from "@/components/ModuleHeader";
 import { PageLoader } from "@/components/ui/PageLoader";
 
@@ -26,6 +30,8 @@ interface Unlisted {
   current_stock: number; cost_price: number; capital_tied: number;
   velocity_per_week: number; units_sold_90d: number | null; last_sold: string | null;
   priority: "high" | "medium" | "low";
+  has_category: boolean; has_image: boolean; has_dims: boolean; has_barcode: boolean; has_brand: boolean;
+  ready_score: number;
 }
 
 const PRIORITY_META: Record<string, { label: string; className: string; rank: number }> = {
@@ -63,6 +69,7 @@ export default function ListingCoverage() {
   const [brand, setBrand] = useState("all");
   const [minCapital, setMinCapital] = useState(25);
   const [search, setSearch] = useState("");
+  const [readyOnly, setReadyOnly] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [raising, setRaising] = useState(false);
 
@@ -90,12 +97,14 @@ export default function ListingCoverage() {
     return rows.filter(r =>
       (priority === "all" || r.priority === priority) &&
       (brand === "all" || r.brand_name === brand) &&
+      (!readyOnly || r.ready_score === 5) &&
       (!s || r.sku.toLowerCase().includes(s) || (r.product_name ?? "").toLowerCase().includes(s)),
     );
-  }, [rows, priority, brand, search]);
+  }, [rows, priority, brand, search, readyOnly]);
 
   const totalCapital = filtered.reduce((a, r) => a + Number(r.capital_tied), 0);
   const highCount = filtered.filter(r => r.priority === "high").length;
+  const readyCount = filtered.filter(r => r.ready_score === 5).length;
   const selectedRows = filtered.filter(r => selected.has(r.sku));
 
   async function raiseSelected() {
@@ -138,9 +147,10 @@ export default function ListingCoverage() {
           : <span className="text-amber-400">No coverage sync yet — run <code>sync-ebay-coverage.ts</code> or every SKU will show as unlisted.</span>}
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Stat label="Unlisted SKUs" value={filtered.length.toLocaleString()} icon={Boxes} />
         <Stat label="Capital tied up" value={`£${totalCapital.toLocaleString(undefined, { maximumFractionDigits: 0 })}`} className="text-orange-400" icon={PoundSterling} />
+        <Stat label="Ready to list" value={readyCount.toLocaleString()} className="text-emerald-400" icon={CheckCircle2} />
         <Stat label="High priority" value={highCount.toLocaleString()} className="text-red-400" icon={AlertTriangle} />
       </div>
 
@@ -160,6 +170,7 @@ export default function ListingCoverage() {
           </div>
           <div className="space-y-1.5"><Label className="text-xs">Min capital £</Label><Input type="number" value={minCapital} onChange={e => setMinCapital(Number(e.target.value) || 0)} className="w-24 h-9" /></div>
           <div className="space-y-1.5"><Label className="text-xs">Search</Label><Input value={search} onChange={e => setSearch(e.target.value)} placeholder="SKU or name" className="w-48 h-9" /></div>
+          <label className="flex items-center gap-2 pb-2 cursor-pointer"><Checkbox checked={readyOnly} onCheckedChange={v => setReadyOnly(!!v)} /><span className="text-xs">Ready to list only</span></label>
           <div className="ml-auto flex items-end gap-2">
             {selected.size > 0 && <Button size="sm" className="h-9" disabled={raising} onClick={raiseSelected}>{raising ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}Raise {selected.size} task(s) for Jon</Button>}
             <Button size="sm" variant="outline" className="h-9" onClick={exportCsv} disabled={filtered.length === 0}><Download className="h-4 w-4 mr-2" />Export</Button>
@@ -177,11 +188,11 @@ export default function ListingCoverage() {
                   <TableHead>SKU</TableHead><TableHead>Product</TableHead><TableHead>Brand</TableHead>
                   <TableHead className="text-right">Stock</TableHead><TableHead className="text-right">Cost</TableHead>
                   <TableHead className="text-right">Capital</TableHead><TableHead className="text-right">Sold 90d</TableHead>
-                  <TableHead className="text-right">Last sold</TableHead><TableHead>Priority</TableHead><TableHead className="text-right">Action</TableHead>
+                  <TableHead className="text-right">Last sold</TableHead><TableHead>Priority</TableHead><TableHead>Readiness</TableHead><TableHead className="text-right">Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtered.length === 0 && <TableRow><TableCell colSpan={11} className="text-center text-muted-foreground py-8">Nothing unlisted at these filters.</TableCell></TableRow>}
+                {filtered.length === 0 && <TableRow><TableCell colSpan={12} className="text-center text-muted-foreground py-8">Nothing unlisted at these filters.</TableCell></TableRow>}
                 {filtered.map(r => (
                   <TableRow key={r.sku}>
                     <TableCell><Checkbox checked={selected.has(r.sku)} onCheckedChange={v => setSelected(prev => { const n = new Set(prev); v ? n.add(r.sku) : n.delete(r.sku); return n; })} /></TableCell>
@@ -194,6 +205,14 @@ export default function ListingCoverage() {
                     <TableCell className="text-right text-sm">{r.units_sold_90d ?? 0}</TableCell>
                     <TableCell className="text-right text-xs text-muted-foreground">{r.last_sold ?? <span className="text-destructive">never</span>}</TableCell>
                     <TableCell><Badge variant="outline" className={`text-xs ${PRIORITY_META[r.priority]?.className}`}>{PRIORITY_META[r.priority]?.label}</Badge></TableCell>
+                    <TableCell>
+                      {r.ready_score === 5
+                        ? <Badge variant="outline" className="text-xs bg-emerald-500/15 text-emerald-400 border-emerald-500/30"><CheckCircle2 className="h-3 w-3 mr-1" />Ready</Badge>
+                        : <div className="flex items-center gap-1 flex-wrap">
+                            <span className="text-xs text-muted-foreground">{r.ready_score}/5</span>
+                            {READY_FIELDS.filter(([k]) => !r[k]).map(([, lbl]) => <span key={lbl} className="text-[10px] px-1 rounded bg-destructive/15 text-destructive" title={`Missing ${lbl}`}>{lbl}</span>)}
+                          </div>}
+                    </TableCell>
                     <TableCell className="text-right"><Button size="sm" variant="outline" className="h-7 text-xs" disabled={raiseOne.isPending} onClick={() => raiseOne.mutate(r)}><Send className="h-3 w-3 mr-1" />Task</Button></TableCell>
                   </TableRow>
                 ))}
