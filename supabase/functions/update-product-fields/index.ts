@@ -77,7 +77,11 @@ Deno.serve(async (req) => {
       if (numOk(it.height)) { payload.Height = Number(it.height); cacheUpdate.height = Number(it.height); }
       if (numOk(it.length)) { payload.Width = Number(it.length); cacheUpdate.length = Number(it.length); }
       if (numOk(it.depth))  { payload.Depth = Number(it.depth);  cacheUpdate.depth  = Number(it.depth); }
-      if (numOk(it.weight)) { payload.Weight = +(Number(it.weight) / 1000).toFixed(3); cacheUpdate.weight = Number(it.weight); }
+      if (numOk(it.weight)) {
+        const kg = +(Number(it.weight) / 1000).toFixed(3);
+        if (kg <= 0) { results.push({ sku: it.sku, ok: false, error: `weight ${it.weight} is too small — enter weight in GRAMS (e.g. 170, not 0.17)` }); continue; }
+        payload.Weight = kg; cacheUpdate.weight = Number(it.weight);
+      }
 
       if (Object.keys(payload).length === 1) { results.push({ sku: it.sku, ok: false, error: "nothing to push" }); continue; }
 

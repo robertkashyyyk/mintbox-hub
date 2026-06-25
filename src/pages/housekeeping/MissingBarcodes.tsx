@@ -118,7 +118,8 @@ export default function MissingBarcodes() {
     for (const r of editedRows) { const { item, error } = buildItem(r); if (error) { toast.error(error); return; } items.push(item); }
     setPushing(true);
     try {
-      let ok = 0, fail = 0;
+      let ok = 0, fail = 0, firstErr = "";
+      const okSkus = new Set<string>();
       for (let i = 0; i < items.length; i += 50) {
         const { data, error } = await supabase.functions.invoke("update-product-fields", { body: { items: items.slice(i, i + 50) } });
         if (error) {
@@ -127,12 +128,13 @@ export default function MissingBarcodes() {
           throw new Error(detail);
         }
         ok += data?.successCount ?? 0; fail += data?.failCount ?? 0;
-        const firstErr = (data?.results ?? []).find((x: any) => !x.ok);
-        if (firstErr) toast.error(`${firstErr.sku}: ${firstErr.error}`);
+        for (const r of (data?.results ?? [])) { if (r.ok) okSkus.add(r.sku); else if (!firstErr) firstErr = `${r.sku}: ${r.error}`; }
       }
-      toast.success(`Pushed ${ok} to Mintsoft${fail ? ` · ${fail} failed` : ""}`);
+      // single toast so the error is always visible (no overlapping success+error)
+      if (fail > 0) toast.error(firstErr || `${fail} failed`, { description: ok ? `${ok} pushed, ${fail} failed` : undefined, duration: 8000 });
+      else toast.success(`Pushed ${ok} to Mintsoft`);
       setSelected(new Set());
-      setEdits((e) => { const n = { ...e }; for (const r of editedRows) delete n[r.id]; return n; });
+      setEdits((e) => { const n = { ...e }; for (const r of editedRows) if (okSkus.has(r.sku)) delete n[r.id]; return n; });
       qc.invalidateQueries({ queryKey: ["product-completeness"] });
     } catch (e: any) {
       toast.error(e?.message ?? "Push failed");
