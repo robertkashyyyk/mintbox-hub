@@ -94,6 +94,12 @@ const PAGE_SIZE = 50;
 const ALL_STORES = "__all__";
 // Rows are keyed by store+sku so the same SKU across stores stays distinct in "All stores" mode.
 const rowKey = (r: { store_id?: string; sku: string }) => `${r.store_id ?? ""}::${r.sku}`;
+// "No-op": already at target, or suggested price within 1% of current — nothing to push.
+const MIN_CHANGE_PCT = 0.01;
+const isNoOp = (r: { atTarget: boolean; grossLastSold: number | null; suggestedGross: number | null }) =>
+  r.atTarget ||
+  (r.grossLastSold != null && r.suggestedGross != null && r.grossLastSold > 0 &&
+    Math.abs(r.suggestedGross - r.grossLastSold) / r.grossLastSold < MIN_CHANGE_PCT);
 
 const gbp = (n: number | null | undefined) =>
   n == null ? "—" :
@@ -341,7 +347,8 @@ export default function ThreedsReprice() {
     // Outstanding = not-repriced + NOT big-move; Review = not-repriced + big-move; All = everything.
     if (statusFilter !== "all") {
       rows = rows.filter((r) => !queuedMap.has(rowKey(r)));
-      rows = rows.filter((r) => (statusFilter === "review" ? r.bigMove : !r.bigMove));
+      // Outstanding = real raises only (drop no-ops); Review = big moves.
+      rows = rows.filter((r) => (statusFilter === "review" ? r.bigMove : !r.bigMove && !isNoOp(r)));
     }
     return rows.filter(matchesSearch);
   }, [enriched, currentBand, statusFilter, queuedMap, search]);

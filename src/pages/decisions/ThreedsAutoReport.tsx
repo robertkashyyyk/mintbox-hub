@@ -41,6 +41,14 @@ const gbp = (n: number | null | undefined) =>
 const pct = (n: number | null | undefined) => (n == null ? "—" : `${n.toFixed(1)}%`);
 const rowKey = (r: { store_id: string; sku: string }) => `${r.store_id}::${r.sku}`;
 
+// "No-op": already at/above target, or the suggested price is within 1% of current
+// — pushing it changes nothing, so it has no place in the actionable Outstanding view.
+const MIN_CHANGE_PCT = 0.01;
+const isNoOp = (r: { atTarget: boolean; grossLastSold: number | null; suggestedGross: number | null }) =>
+  r.atTarget ||
+  (r.grossLastSold != null && r.suggestedGross != null && r.grossLastSold > 0 &&
+    Math.abs(r.suggestedGross - r.grossLastSold) / r.grossLastSold < MIN_CHANGE_PCT);
+
 type SortKey = "sku" | "brand_name" | "store_name" | "units_sold" | "profit" | "por_pct" | "costUnit" | "feePctUsed" | "grossLastSold" | "suggestedGross";
 
 export default function ThreedsAutoReport() {
@@ -183,7 +191,8 @@ export default function ThreedsAutoReport() {
   const scoped = useMemo(() => {
     if (statusFilter === "all") return repriceableAll;
     const notRepriced = repriceableAll.filter((r) => !queuedMap.has(rowKey(r)));
-    return notRepriced.filter((r) => (statusFilter === "review" ? r.bigMove : !r.bigMove));
+    // Outstanding = real raises only (drop no-ops); Review = big moves.
+    return notRepriced.filter((r) => (statusFilter === "review" ? r.bigMove : !r.bigMove && !isNoOp(r)));
   }, [repriceableAll, statusFilter, queuedMap]);
 
   // Per-brand counts over the current scope (before the brand filter, so every brand shows).
@@ -219,7 +228,7 @@ export default function ThreedsAutoReport() {
     });
   }, [scoped, brandFilter, search, sortKey, sortDir]);
 
-  const outstandingCount = useMemo(() => repriceableAll.filter((r) => !queuedMap.has(rowKey(r)) && !r.bigMove).length, [repriceableAll, queuedMap]);
+  const outstandingCount = useMemo(() => repriceableAll.filter((r) => !queuedMap.has(rowKey(r)) && !r.bigMove && !isNoOp(r)).length, [repriceableAll, queuedMap]);
   const reviewCount = useMemo(() => repriceableAll.filter((r) => r.bigMove && !queuedMap.has(rowKey(r))).length, [repriceableAll, queuedMap]);
   const repricedCount = useMemo(() => repriceableAll.filter((r) => queuedMap.has(rowKey(r))).length, [repriceableAll, queuedMap]);
 
