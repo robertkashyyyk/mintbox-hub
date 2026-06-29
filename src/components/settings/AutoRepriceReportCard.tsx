@@ -20,11 +20,11 @@ const DEFAULT: Cfg = { enabled: true, run_hour_london: 8, lookback_days: 30, cur
 
 const BANDS = [
   { v: "loss", l: "Loss" }, { v: "breakeven", l: "Breakeven" }, { v: "poor", l: "Poor" },
-  { v: "average", l: "Average" }, { v: "good", l: "Good" }, { v: "great", l: "Great" }, { v: "amazing", l: "Amazing" },
+  { v: "average", l: "Average" }, { v: "good", l: "Good" }, { v: "great", l: "Great" }, { v: "amazing", l: "Amazing" }, { v: "stellar", l: "Stellar" },
 ];
 const TIERS = [
   { v: "breakeven", l: "Breakeven" }, { v: "poor", l: "Poor" }, { v: "average", l: "Average" },
-  { v: "good", l: "Good" }, { v: "great", l: "Great" }, { v: "amazing", l: "Amazing" },
+  { v: "good", l: "Good" }, { v: "great", l: "Great" }, { v: "amazing", l: "Amazing" }, { v: "stellar", l: "Stellar" },
 ];
 
 export const AutoRepriceReportCard = () => {

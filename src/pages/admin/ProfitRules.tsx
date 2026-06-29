@@ -196,7 +196,8 @@ interface LossBands {
   poor_max: number;       // up to this = Poor
   average_max: number;    // up to this = Average
   good_max: number;       // up to this = Good
-  great_max: number;      // up to this = Great; above = Amazing
+  great_max: number;      // up to this = Great
+  amazing_max: number;    // up to this = Amazing; above = Stellar
 }
 
 const BAND_FIELDS: { key: keyof LossBands; label: string; hint: string }[] = [
@@ -205,7 +206,8 @@ const BAND_FIELDS: { key: keyof LossBands; label: string; hint: string }[] = [
   { key: "poor_max",      label: "Poor ≤",         hint: "Up to this POR % is Poor" },
   { key: "average_max",   label: "Average ≤",      hint: "Up to this POR % is Average" },
   { key: "good_max",      label: "Good ≤",         hint: "Up to this POR % is Good" },
-  { key: "great_max",     label: "Great ≤",        hint: "Up to this POR % is Great; above is Amazing" },
+  { key: "great_max",     label: "Great ≤",        hint: "Up to this POR % is Great" },
+  { key: "amazing_max",   label: "Amazing ≤",      hint: "Up to this POR % is Amazing; above is Stellar" },
 ];
 
 const LossBandsCard = () => {
@@ -219,7 +221,7 @@ const LossBandsCard = () => {
         .eq("key", "profit.loss_bands")
         .maybeSingle();
       if (error) throw error;
-      return (data?.value ?? { mode: "pct", loss_max: -1, breakeven_max: 1, poor_max: 9.99, average_max: 19.99, good_max: 24.99, great_max: 29.99 }) as unknown as LossBands;
+      return (data?.value ?? { mode: "pct", loss_max: -1, breakeven_max: 1, poor_max: 9.99, average_max: 19.99, good_max: 24.99, great_max: 29.99, amazing_max: 49.99 }) as unknown as LossBands;
     },
   });
 
@@ -243,7 +245,7 @@ const LossBandsCard = () => {
         <div>
           <CardTitle className="text-base">Profitability bands (POR %)</CardTitle>
           <CardDescription>
-            Per-line POR % thresholds used by the segmentation card on the Profit dashboard. Bands: <strong>Loss</strong> &lt; loss_max · <strong>Breakeven</strong> ≤ breakeven_max · <strong>Poor</strong> ≤ poor_max · <strong>Average</strong> ≤ average_max · <strong>Good</strong> ≤ good_max · <strong>Great</strong> ≤ great_max · otherwise <strong>Amazing</strong>. Values are percentages (e.g. 9.99 = 9.99%).
+            Per-line POR % thresholds used by the segmentation card on the Profit dashboard. Bands: <strong>Loss</strong> &lt; loss_max · <strong>Breakeven</strong> ≤ breakeven_max · <strong>Poor</strong> ≤ poor_max · <strong>Average</strong> ≤ average_max · <strong>Good</strong> ≤ good_max · <strong>Great</strong> ≤ great_max · <strong>Amazing</strong> ≤ amazing_max · otherwise <strong>Stellar</strong>. Values are percentages (e.g. 9.99 = 9.99%).
           </CardDescription>
         </div>
         <Button size="sm" disabled={!dirty} onClick={save}><Save className="h-4 w-4 mr-1" />Save</Button>

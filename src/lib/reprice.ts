@@ -22,13 +22,14 @@ export const BANDS = {
   average_max: 19.99,
   good_max: 24.99,
   great_max: 29.99,
+  amazing_max: 49.99,
 } as const;
 
 /** Tiers the user can choose to "Move to". Ordered worst → best. */
-export type Tier = "breakeven" | "poor" | "average" | "good" | "great" | "amazing";
+export type Tier = "breakeven" | "poor" | "average" | "good" | "great" | "amazing" | "stellar";
 
 /** A row's CURRENT profitability band (includes "loss", which isn't a move-to tier). */
-export type PorBand = "loss" | "breakeven" | "poor" | "average" | "good" | "great" | "amazing";
+export type PorBand = "loss" | "breakeven" | "poor" | "average" | "good" | "great" | "amazing" | "stellar";
 
 export const POR_BAND_OPTIONS: { value: PorBand; label: string }[] = [
   { value: "loss", label: "Loss" },
@@ -38,6 +39,7 @@ export const POR_BAND_OPTIONS: { value: PorBand; label: string }[] = [
   { value: "good", label: "Good" },
   { value: "great", label: "Great" },
   { value: "amazing", label: "Amazing" },
+  { value: "stellar", label: "Stellar" },
 ];
 
 /**
@@ -52,7 +54,8 @@ export function classifyPorBand(porPct: number | null | undefined): PorBand | nu
   if (porPct <= BANDS.average_max) return "average";
   if (porPct <= BANDS.good_max) return "good";
   if (porPct <= BANDS.great_max) return "great";
-  return "amazing";
+  if (porPct <= BANDS.amazing_max) return "amazing";
+  return "stellar";
 }
 
 export const TIER_OPTIONS: { value: Tier; label: string }[] = [
@@ -62,6 +65,7 @@ export const TIER_OPTIONS: { value: Tier; label: string }[] = [
   { value: "good", label: "Good" },
   { value: "great", label: "Great" },
   { value: "amazing", label: "Amazing" },
+  { value: "stellar", label: "Stellar" },
 ];
 
 /**
@@ -78,6 +82,7 @@ export const TIER_TARGET_POR_PCT: Record<Tier, number> = {
   good: BANDS.average_max + EPS, // 20.00
   great: BANDS.good_max + EPS, // 25.00
   amazing: BANDS.great_max + EPS, // 30.00
+  stellar: BANDS.amazing_max + EPS, // 50.00
 };
 
 /** A row of channel_fee_rules. */

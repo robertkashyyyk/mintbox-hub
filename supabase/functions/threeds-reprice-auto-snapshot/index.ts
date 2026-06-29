@@ -13,7 +13,7 @@ const json = (b: unknown, s = 200) =>
   new Response(JSON.stringify(b), { status: s, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
 // POR band thresholds — mirror src/lib/reprice.ts BANDS.
-const BANDS = { loss_max: -1.0, breakeven_max: 1.0, poor_max: 9.99, average_max: 19.99, good_max: 24.99, great_max: 29.99 };
+const BANDS = { loss_max: -1.0, breakeven_max: 1.0, poor_max: 9.99, average_max: 19.99, good_max: 24.99, great_max: 29.99, amazing_max: 49.99 };
 function classifyBand(por: number | null): string | null {
   if (por == null || !isFinite(por)) return null;
   if (por <= BANDS.loss_max) return "loss";
@@ -22,7 +22,8 @@ function classifyBand(por: number | null): string | null {
   if (por <= BANDS.average_max) return "average";
   if (por <= BANDS.good_max) return "good";
   if (por <= BANDS.great_max) return "great";
-  return "amazing";
+  if (por <= BANDS.amazing_max) return "amazing";
+  return "stellar";
 }
 
 Deno.serve(async (req) => {

@@ -89,7 +89,8 @@ export default {
 				average: 'hsl(var(--band-average))',
 				good: 'hsl(var(--band-good))',
 				great: 'hsl(var(--band-great))',
-				amazing: 'hsl(var(--band-amazing))'
+				amazing: 'hsl(var(--band-amazing))',
+				stellar: 'hsl(var(--band-stellar))'
 			}
   		},
   		borderRadius: {

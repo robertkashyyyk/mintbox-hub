@@ -35,6 +35,7 @@ interface BandRow {
   iso_year: number; iso_week: number; week_start: string;
   unknown_count: number; loss_count: number; breakeven_count: number; poor_count: number;
   average_count: number; good_count: number; great_count: number; amazing_count: number;
+  stellar_count: number;
   total_lines: number;
 }
 
@@ -48,6 +49,7 @@ const BANDS: { key: keyof BandRow; label: string; color: string }[] = [
   { key: "good_count",      label: "Good",      color: "hsl(var(--band-good))" },
   { key: "great_count",     label: "Great",     color: "hsl(var(--band-great))" },
   { key: "amazing_count",   label: "Amazing",   color: "hsl(var(--band-amazing))" },
+  { key: "stellar_count",   label: "Stellar",   color: "hsl(var(--band-stellar))" },
 ];
 
 const gbp = (v: number) =>

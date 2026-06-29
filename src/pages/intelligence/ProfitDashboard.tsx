@@ -46,7 +46,7 @@ const fmtNum = (n: number | null | undefined) =>
 // Per-line band classifier — mirrors get_profit_week_breakdown SQL.
 // Uses POR% on VAT-inclusive order_value (profit / (order_value * 1.2) * 100)
 // Defaults match app_settings.profit.loss_bands.
-type ProfitBand = "unknown" | "loss" | "breakeven" | "poor" | "average" | "good" | "great" | "amazing";
+type ProfitBand = "unknown" | "loss" | "breakeven" | "poor" | "average" | "good" | "great" | "amazing" | "stellar";
 const DEFAULT_THRESHOLDS = {
   loss_max: -1.0,
   breakeven_max: 1.0,
@@ -54,6 +54,7 @@ const DEFAULT_THRESHOLDS = {
   average_max: 19.99,
   good_max: 24.99,
   great_max: 29.99,
+  amazing_max: 49.99,
 };
 function classifyBand(
   profit: number | null | undefined,
@@ -71,7 +72,8 @@ function classifyBand(
   if (por <= t.average_max) return "average";
   if (por <= t.good_max) return "good";
   if (por <= t.great_max) return "great";
-  return "amazing";
+  if (por <= t.amazing_max) return "amazing";
+  return "stellar";
 }
 // Hazard-tape style for unknown: diagonal yellow/black stripes via inline gradient (semantic warning + foreground tokens)
 const HAZARD_STRIPES =
@@ -85,6 +87,7 @@ const BAND_BADGE: Record<ProfitBand, { label: string; className: string }> = {
   good:      { label: "good",      className: "border-band-good/70 bg-band-good/15 text-band-good" },
   great:     { label: "great",     className: "border-band-great/70 bg-band-great/15 text-band-great" },
   amazing:   { label: "amazing",   className: "border-band-amazing/70 bg-band-amazing/20 text-band-amazing" },
+  stellar:   { label: "stellar",   className: "border-band-stellar/70 bg-band-stellar/20 text-band-stellar" },
 };
 
 const ProfitDashboard = () => {
@@ -431,12 +434,12 @@ const ProfitDashboard = () => {
         </CardHeader>
         <CardContent>
           {bandsLoading ? (
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
-              {[...Array(8)].map((_, i) => <Skeleton key={i} className="h-24 w-full" />)}
+            <div className="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-9 gap-2">
+              {[...Array(9)].map((_, i) => <Skeleton key={i} className="h-20 w-full" />)}
             </div>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
-             {(["unknown","loss","breakeven","poor","average","good","great","amazing"] as const).map((b) => {
+            <div className="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-9 gap-2">
+             {(["unknown","loss","breakeven","poor","average","good","great","amazing","stellar"] as const).map((b) => {
                 // Authoritative totals from get_profit_week (server-side, full week).
                 // `line_count` only counts PRICED lines (profit not null, order_value > 0).
                 // `missing_cost_count` is the Unknown band — it's NOT in `line_count`.
@@ -463,7 +466,8 @@ const ProfitDashboard = () => {
                   average:   { label: "Average",   tone: "border-band-average/60 bg-band-average/15" },
                   good:      { label: "Good",      tone: "border-band-good/60 bg-band-good/15" },
                   great:     { label: "Great",     tone: "border-band-great/60 bg-band-great/15" },
-                  amazing:   { label: "Amazing",   tone: "border-band-amazing/70 bg-band-amazing/20" },
+                  amazing:   { label: "Amazing",   tone: "border-band-amazing/60 bg-band-amazing/15" },
+                  stellar:   { label: "Stellar",   tone: "border-band-stellar/70 bg-band-stellar/20" },
                 };
                 const m = meta[b];
                 const isActive = bandFilter === b;
@@ -473,12 +477,12 @@ const ProfitDashboard = () => {
                     key={b}
                     type="button"
                     onClick={() => { setBandFilter(isActive ? "all" : b); setPage(1); }}
-                    className={`text-left rounded-md border-2 p-3 transition hover:brightness-125 focus:outline-none focus:ring-2 focus:ring-pd-accent ${m.tone} ${isActive ? "ring-2 ring-pd-accent" : ""}`}
+                    className={`text-left rounded-md border-2 p-2 transition hover:brightness-125 focus:outline-none focus:ring-2 focus:ring-pd-accent ${m.tone} ${isActive ? "ring-2 ring-pd-accent" : ""}`}
                   >
                     <div className={`text-xs uppercase tracking-wide ${isUnknown ? "text-warning font-bold bg-background/80 px-1 rounded inline-block" : "text-foreground/60"}`}>
                       {isUnknown ? "⚠ " : ""}{m.label}
                     </div>
-                    <div className={`text-xl font-bold mt-1 ${isUnknown ? "text-foreground bg-background/80 px-1 rounded inline-block" : "text-foreground"}`}>{fmtNum(lineCount)}</div>
+                    <div className={`text-lg font-bold mt-0.5 ${isUnknown ? "text-foreground bg-background/80 px-1 rounded inline-block" : "text-foreground"}`}>{fmtNum(lineCount)}</div>
                     <div className={`text-xs mt-0.5 ${isUnknown ? "text-foreground bg-background/80 px-1 rounded inline-block" : "text-foreground/70"}`}>{pctOfLines.toFixed(1)}% of lines</div>
                     <div className={`text-xs font-mono mt-1 ${isUnknown ? "text-foreground bg-background/80 px-1 rounded inline-block" : "text-foreground/80"}`}>
                       {isUnknown ? "no cost data" : fmtGBP(profitTotal ?? 0)}
@@ -527,7 +531,7 @@ const ProfitDashboard = () => {
               <SelectTrigger className="w-[180px]"><SelectValue placeholder="Profit segment" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All segments</SelectItem>
-                {(["unknown","loss","breakeven","poor","average","good","great","amazing"] as const).map((b) => (
+                {(["unknown","loss","breakeven","poor","average","good","great","amazing","stellar"] as const).map((b) => (
                   <SelectItem key={b} value={b}>{b.charAt(0).toUpperCase() + b.slice(1)}</SelectItem>
                 ))}
               </SelectContent>
