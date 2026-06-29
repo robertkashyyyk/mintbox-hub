@@ -46,7 +46,7 @@ const fmtNum = (n: number | null | undefined) =>
 // Per-line band classifier — mirrors get_profit_week_breakdown SQL.
 // Uses POR% on VAT-inclusive order_value (profit / (order_value * 1.2) * 100)
 // Defaults match app_settings.profit.loss_bands.
-type ProfitBand = "unknown" | "loss" | "breakeven" | "poor" | "average" | "good" | "great" | "amazing" | "stellar";
+type ProfitBand = "clearance" | "unknown" | "loss" | "breakeven" | "poor" | "average" | "good" | "great" | "amazing" | "stellar";
 const DEFAULT_THRESHOLDS = {
   loss_max: -1.0,
   breakeven_max: 1.0,
@@ -79,6 +79,7 @@ function classifyBand(
 const HAZARD_STRIPES =
   "[background-image:repeating-linear-gradient(45deg,hsl(var(--warning))_0_10px,hsl(var(--background))_10px_20px)]";
 const BAND_BADGE: Record<ProfitBand, { label: string; className: string }> = {
+  clearance: { label: "clearance", className: "border-foreground/30 bg-muted/60 text-foreground/80 font-medium" },
   unknown:   { label: "⚠ unknown", className: "border-warning/80 bg-warning/20 text-warning font-semibold" },
   loss:      { label: "loss",      className: "border-band-loss/70 bg-band-loss/15 text-band-loss" },
   breakeven: { label: "breakeven", className: "border-band-breakeven/70 bg-band-breakeven/15 text-band-breakeven" },
@@ -146,7 +147,7 @@ const ProfitDashboard = () => {
       while (true) {
         const { data, error } = await supabase
           .from("order_line_economics")
-          .select("mintsoft_order_id, line_index, sku, product_name, channel, qty, price, order_value, cost_each, courier_cost, channel_fee, profit, por_pct, good_dirt, missing_cost, courier, fee_rule_name")
+          .select("mintsoft_order_id, line_index, sku, product_name, channel, qty, price, order_value, cost_each, courier_cost, channel_fee, profit, por_pct, good_dirt, missing_cost, courier, fee_rule_name, order_date")
           .eq("iso_year", year)
           .eq("iso_week", week)
           .order("mintsoft_order_id", { ascending: true })
@@ -186,6 +187,36 @@ const ProfitDashboard = () => {
     },
     staleTime: 5 * 60_000,
   });
+
+  // Active Sale / Liquidation campaigns (price_campaigns) keyed by base SKU, so
+  // we can mark a line as deliberate clearance (and keep it out of the POR bands).
+  const stripQ = (s: string) => (s ?? "").replace(/-Q[0-9]+$/i, "");
+  const { data: clearanceMap } = useQuery({
+    queryKey: ["active-clearance-campaigns"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("price_campaigns")
+        .select("sku, type, start_date, end_date")
+        .eq("status", "active")
+        .in("type", ["sale", "liquidation"]);
+      if (error) throw error;
+      const m = new Map<string, { type: string; start: string; end: string | null }>();
+      for (const r of (data ?? []) as any[]) m.set(stripQ(r.sku), { type: r.type, start: r.start_date, end: r.end_date });
+      return m;
+    },
+    staleTime: 5 * 60_000,
+  });
+
+  // 'sale' | 'liquidation' | null — the line's SKU was on an active campaign of
+  // that type AND the order fell within the campaign window.
+  const clearanceOf = (sku: string | null, orderDate: string | null): "sale" | "liquidation" | null => {
+    if (!clearanceMap || !sku) return null;
+    const c = clearanceMap.get(stripQ(sku));
+    if (!c) return null;
+    const d = orderDate ? orderDate.slice(0, 10) : null;
+    if (d && (d < c.start || (c.end && d > c.end))) return null;
+    return c.type as "sale" | "liquidation";
+  };
 
   // verified (applied & confirmed live) → green; pushed (sent, awaiting verify) → amber; else null.
   const repriceStatus = (sku: string, channel: string | null) => {
@@ -237,7 +268,7 @@ const ProfitDashboard = () => {
     else if (flagFilter === "profitable") rows = rows.filter(r => Number(r.profit ?? 0) >= 0);
     else if (flagFilter === "dirt") rows = rows.filter(r => r.good_dirt === "Dirt");
     else if (flagFilter === "missing_cost") rows = rows.filter(r => r.missing_cost === true);
-    if (bandFilter !== "all") rows = rows.filter(r => classifyBand(r.profit, r.order_value, r.cost_each) === bandFilter);
+    if (bandFilter !== "all") rows = rows.filter(r => (clearanceOf(r.sku, r.order_date) ? "clearance" : classifyBand(r.profit, r.order_value, r.cost_each)) === bandFilter);
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       rows = rows.filter(r =>
@@ -438,26 +469,15 @@ const ProfitDashboard = () => {
               {[...Array(9)].map((_, i) => <Skeleton key={i} className="h-20 w-full" />)}
             </div>
           ) : (
+            <div className="space-y-2">
             <div className="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-9 gap-2">
              {(["unknown","loss","breakeven","poor","average","good","great","amazing","stellar"] as const).map((b) => {
-                // Priced total = sum of the breakdown band counts. The breakdown
-                // now excludes missing-cost lines (they're Unknown only), so this
-                // and missingCost are disjoint and the bands sum to 100%. We do
-                // NOT use kpis.line_count here — it still includes missing-cost
-                // lines, which would double-count them against the Unknown card.
-                const pricedLines = (bands ?? []).reduce((s: number, x: any) => s + Number(x.line_count ?? 0), 0);
-                const missingCost = Number((kpis as any)?.missing_cost_count ?? 0);
-                const denominator = pricedLines + missingCost;
-                let lineCount = 0;
-                let profitTotal: number | null = null;
-                if (b === "unknown") {
-                  lineCount = missingCost;
-                  profitTotal = null; // intentionally hidden — profit is unreliable without cost
-                } else {
-                  const row = (bands ?? []).find((x: any) => x.band === b);
-                  lineCount = Number(row?.line_count ?? 0);
-                  profitTotal = row?.profit_total ?? 0;
-                }
+                // The breakdown is the single source for every bucket (clearance,
+                // unknown, loss..stellar), so the denominator is just their sum.
+                const denominator = (bands ?? []).reduce((s: number, x: any) => s + Number(x.line_count ?? 0), 0);
+                const row = (bands ?? []).find((x: any) => x.band === b);
+                const lineCount = Number(row?.line_count ?? 0);
+                const profitTotal: number | null = b === "unknown" ? null : (row?.profit_total ?? 0);
                 const pctOfLines = denominator > 0 ? (lineCount / denominator) * 100 : 0;
                 const meta: Record<string, { label: string; tone: string }> = {
                   unknown:   { label: "Unknown",   tone: `border-warning/70 ${HAZARD_STRIPES}` },
@@ -491,6 +511,31 @@ const ProfitDashboard = () => {
                   </button>
                 );
               })}
+            </div>
+            {(() => {
+              const denominator = (bands ?? []).reduce((s: number, x: any) => s + Number(x.line_count ?? 0), 0);
+              const row = (bands ?? []).find((x: any) => x.band === "clearance");
+              const lineCount = Number(row?.line_count ?? 0);
+              const profitTotal = Number(row?.profit_total ?? 0);
+              const pctOfLines = denominator > 0 ? (lineCount / denominator) * 100 : 0;
+              let saleN = 0, liqN = 0;
+              for (const r of (lines ?? []) as any[]) { const c = clearanceOf(r.sku, r.order_date); if (c === "sale") saleN++; else if (c === "liquidation") liqN++; }
+              const isActive = bandFilter === "clearance";
+              return (
+                <button type="button"
+                  onClick={() => { setBandFilter(isActive ? "all" : "clearance"); setPage(1); }}
+                  className={`w-full text-left rounded-md border-2 border-foreground/25 bg-muted/50 p-2 transition hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-pd-accent ${isActive ? "ring-2 ring-pd-accent" : ""}`}>
+                  <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                    <span className="text-xs uppercase tracking-wide text-foreground/70 font-medium">Clearance</span>
+                    <span className="text-lg font-bold text-foreground">{fmtNum(lineCount)}</span>
+                    <span className="text-xs text-foreground/70">{pctOfLines.toFixed(1)}% of lines</span>
+                    <span className="text-xs font-mono text-foreground/80">{fmtGBP(profitTotal)}</span>
+                    <span className="text-xs text-foreground/60">{fmtNum(saleN)} on sale · {fmtNum(liqN)} liquidating</span>
+                    <span className="text-xs text-foreground/45 ml-auto">deliberate clearance — excluded from the bands above</span>
+                  </div>
+                </button>
+              );
+            })()}
             </div>
           )}
         </CardContent>
@@ -532,7 +577,7 @@ const ProfitDashboard = () => {
               <SelectTrigger className="w-[180px]"><SelectValue placeholder="Profit segment" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All segments</SelectItem>
-                {(["unknown","loss","breakeven","poor","average","good","great","amazing","stellar"] as const).map((b) => (
+                {(["clearance","unknown","loss","breakeven","poor","average","good","great","amazing","stellar"] as const).map((b) => (
                   <SelectItem key={b} value={b}>{b.charAt(0).toUpperCase() + b.slice(1)}</SelectItem>
                 ))}
               </SelectContent>
@@ -563,7 +608,7 @@ const ProfitDashboard = () => {
                       <SortableHead label="Order" col="mintsoft_order_id" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
                       <SortableHead label="SKU" col="sku" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
                       <SortableHead label="Channel" col="channel" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
-                      <TableHead className="text-center" title="Repriced in the last 30 days in this channel (eBay only). Green = confirmed live, amber = pushed (awaiting verify).">Repriced</TableHead>
+                      <TableHead className="text-center" title="Sale/Liq = on an active clearance campaign. Otherwise reprice recency (eBay only): green = confirmed live, amber = pushed (awaiting verify).">Status</TableHead>
                       <SortableHead label="Qty" col="qty" align="right" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
                       <SortableHead label="Price" col="price" align="right" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
                       <SortableHead label="Cost" col="cost_each" align="right" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
@@ -591,6 +636,13 @@ const ProfitDashboard = () => {
                         <TableCell className="text-xs text-foreground/70">{l.channel ?? "—"}</TableCell>
                         <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
                           {(() => {
+                            const clr = clearanceOf(l.sku, l.order_date);
+                            if (clr) return (
+                              <Badge variant="outline" className="text-[10px] border-foreground/30 bg-muted/60 text-foreground/80"
+                                title={clr === "sale" ? "On an active Sale campaign" : "On an active Liquidation campaign"}>
+                                {clr === "sale" ? "Sale" : "Liq"}
+                              </Badge>
+                            );
                             const st = repriceStatus(l.sku, l.channel);
                             if (!st) return <span className="text-foreground/30">—</span>;
                             const days = Math.max(0, Math.floor((Date.now() - st.at) / 86400000));
@@ -617,7 +669,7 @@ const ProfitDashboard = () => {
                         <TableCell className="text-right">{fmtPct(l.por_pct)}</TableCell>
                         <TableCell className="space-x-1 whitespace-nowrap">
                           {(() => {
-                            const band = classifyBand(l.profit, l.order_value, l.cost_each);
+                            const band = clearanceOf(l.sku, l.order_date) ? ("clearance" as const) : classifyBand(l.profit, l.order_value, l.cost_each);
                             if (band) {
                               const b = BAND_BADGE[band];
                               return <Badge variant="outline" className={`text-[10px] ${b.className}`}>{b.label}</Badge>;
