@@ -422,7 +422,7 @@ function OdrTab() {
               </div>
               <div className="flex justify-end gap-2">
                 <Button variant="outline" size="sm" onClick={() => setShowForm(false)}>Cancel</Button>
-                <Button size="sm" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
+                <Button size="sm" onClick={() => saveMutation.mutate(undefined)} disabled={saveMutation.isPending}>
                   {saveMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Save className="h-4 w-4 mr-1" />}
                   Save Week {week}
                 </Button>

@@ -171,7 +171,7 @@ const ProfitDashboard = () => {
     queryKey: ["reprice-recency", REPRICE_WINDOW_DAYS],
     queryFn: async () => {
       const cutoff = new Date(Date.now() - REPRICE_WINDOW_DAYS * 86400000).toISOString();
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("threeds_reprice_pending")
         .select("sku, applied_at, last_pushed_at, threeds_stores!inner(mintsoft_channel)")
         .or(`applied_at.gte.${cutoff},last_pushed_at.gte.${cutoff}`);
@@ -194,7 +194,7 @@ const ProfitDashboard = () => {
   const { data: clearanceMap } = useQuery({
     queryKey: ["active-clearance-campaigns"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("price_campaigns")
         .select("sku, type, start_date, end_date")
         .eq("status", "active")

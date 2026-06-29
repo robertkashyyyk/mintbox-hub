@@ -92,7 +92,7 @@ const Scorecard = () => {
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["scorecard"],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("get_scorecard", { p_lookback_weeks: 8 });
+      const { data, error } = await (supabase as any).rpc("get_scorecard", { p_lookback_weeks: 8 });
       if (error) throw error;
       return (data || []) as ScorecardRow[];
     },
@@ -102,7 +102,7 @@ const Scorecard = () => {
   const { data: reports = [] } = useQuery({
     queryKey: ["ai-reports"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("ai_reports")
         .select("id,cadence,period_key,model,generated_at,narrative,status")
         .order("generated_at", { ascending: false })

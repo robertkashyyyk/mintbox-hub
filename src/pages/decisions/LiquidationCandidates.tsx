@@ -887,7 +887,7 @@ function LaunchDialog({ launch, stores, onClose, onLaunched }: { launch: { candi
     } catch (e: any) { toast.error(e.message); } finally { setSaving(false); }
   }
 
-  async function launch() {
+  async function runLaunch() {
     if (!candidate) return;
     if (pct <= 0) { toast.error("Enter a discount %"); return; }
     const saleWeeks = Number(weeks) || 0;
@@ -971,7 +971,7 @@ function LaunchDialog({ launch, stores, onClose, onLaunched }: { launch: { candi
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           {allListings.length === 0
             ? <Button onClick={divert} disabled={saving} variant="secondary">{saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <EyeOff className="h-4 w-4 mr-2" />}Divert to Opportunities</Button>
-            : <Button onClick={launch} disabled={saving || pct <= 0}>{saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}Start &amp; push ({allListings.length})</Button>}
+            : <Button onClick={runLaunch} disabled={saving || pct <= 0}>{saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}Start &amp; push ({allListings.length})</Button>}
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -59,11 +59,12 @@ function num(n: number | null | undefined) {
 const SupplierFeeds = () => {
   const { toast } = useToast();
   const qc = useQueryClient();
+  const sb = supabase as any;
 
   const { data: feeds, isLoading: feedsLoading } = useQuery({
     queryKey: ["supplier-feeds"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await sb
         .from("supplier_feeds").select("*").order("supplier");
       if (error) throw error;
       return data as Feed[];
@@ -73,7 +74,7 @@ const SupplierFeeds = () => {
   const { data: runs, isLoading: runsLoading } = useQuery({
     queryKey: ["supplier-feed-runs"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await sb
         .from("agent_runs").select("id, run_type, status, started_at, finished_at, summary")
         .like("run_type", "supplier-feed-%")
         .order("started_at", { ascending: false }).limit(20);
@@ -85,7 +86,7 @@ const SupplierFeeds = () => {
   const { data: anomalies, isLoading: anomLoading } = useQuery({
     queryKey: ["supplier-feed-anomalies"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await sb
         .from("supplier_feed_anomalies").select("*")
         .neq("status", "resolved")
         .order("gap", { ascending: false, nullsFirst: false })
@@ -97,7 +98,7 @@ const SupplierFeeds = () => {
 
   const resolve = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
+      const { error } = await sb
         .from("supplier_feed_anomalies")
         .update({ status: "resolved", resolved_at: new Date().toISOString() })
         .eq("id", id);
@@ -112,7 +113,7 @@ const SupplierFeeds = () => {
 
   const markEmailed = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
+      const { error } = await sb
         .from("supplier_feed_anomalies").update({ status: "emailed" }).eq("id", id);
       if (error) throw error;
     },

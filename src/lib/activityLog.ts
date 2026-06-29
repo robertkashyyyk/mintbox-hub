@@ -45,7 +45,7 @@ export async function logActivity(entry: BaseLogEntry): Promise<void> {
       data: { session },
     } = await supabase.auth.getSession();
 
-    await supabase.from("activity_log").insert({
+    await (supabase as any).from("activity_log").insert({
       actor_type: "user",
       actor_id: session?.user?.id ?? null,
       actor_email: session?.user?.email ?? null,
@@ -65,7 +65,7 @@ export async function logActivity(entry: BaseLogEntry): Promise<void> {
 /** Log an action taken by the system (no human actor). */
 export async function logSystem(entry: BaseLogEntry): Promise<void> {
   try {
-    await supabase.from("activity_log").insert({
+    await (supabase as any).from("activity_log").insert({
       actor_type: "system",
       actor_id: null,
       actor_email: null,
