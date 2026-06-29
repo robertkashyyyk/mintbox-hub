@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -42,20 +43,47 @@ const extractPrefix = (sku: string) => {
 const brandLabel = (r: BuyRecommendationRow) =>
   r.brand_name || extractPrefix(r.sku);
 
-const statusBadge = (r: BuyRecommendationRow) => {
-  if (r.status === "po_sent_pending") {
-    return <Badge className="bg-pd-accent text-pd-accent-foreground">PO Sent</Badge>;
-  }
+type RowStatus = "po_sent_pending" | "critical" | "backorder" | "oos" | "low" | "ok";
+
+// Single source of truth for a row's status — used by both the badge and the Status filter
+// so they can never drift apart.
+const rowStatus = (r: BuyRecommendationRow): RowStatus => {
+  if (r.status === "po_sent_pending") return "po_sent_pending";
   const stock = num(r.current_stock);
   const bo = num(r.back_orders);
   const lsa = num(r.low_stock_alert);
-  if (bo > 0 && stock < lsa) {
-    return <Badge variant="destructive">Critical</Badge>;
+  if (bo > 0 && stock < lsa) return "critical";
+  if (bo > 0) return "backorder";
+  if (stock <= 0) return "oos";
+  if (stock < lsa) return "low";
+  return "ok";
+};
+
+// Status options shown in the detail-view filter (po_sent_pending rows are already excluded upstream).
+const STATUS_FILTERS: { value: string; label: string }[] = [
+  { value: "all", label: "All statuses" },
+  { value: "critical", label: "Critical" },
+  { value: "backorder", label: "Backorder" },
+  { value: "oos", label: "Out of stock" },
+  { value: "low", label: "Low stock" },
+  { value: "ok", label: "OK" },
+];
+
+const statusBadge = (r: BuyRecommendationRow) => {
+  switch (rowStatus(r)) {
+    case "po_sent_pending":
+      return <Badge className="bg-pd-accent text-pd-accent-foreground">PO Sent</Badge>;
+    case "critical":
+      return <Badge variant="destructive">Critical</Badge>;
+    case "backorder":
+      return <Badge className="bg-warning text-warning-foreground">Backorder</Badge>;
+    case "oos":
+      return <Badge variant="destructive">Urgent — Out of Stock</Badge>;
+    case "low":
+      return <Badge variant="secondary">Low Stock</Badge>;
+    default:
+      return <Badge variant="outline">OK</Badge>;
   }
-  if (bo > 0) return <Badge className="bg-warning text-warning-foreground">Backorder</Badge>;
-  if (stock <= 0) return <Badge variant="destructive">Urgent — Out of Stock</Badge>;
-  if (stock < lsa) return <Badge variant="secondary">Low Stock</Badge>;
-  return <Badge variant="outline">OK</Badge>;
 };
 
 interface SupplierGroup {
@@ -101,6 +129,9 @@ const BuyRecommendations = () => {
   const [search, setSearch] = useState("");
   const [boOnly, setBoOnly] = useState(false);
   const [saOnly, setSaOnly] = useState(false);
+  const [brandFilter, setBrandFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [summaryBrand, setSummaryBrand] = useState("all");
   const [overrides, setOverrides] = useState<Record<string, number>>({});
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [creating, setCreating] = useState(false);
@@ -111,10 +142,18 @@ const BuyRecommendations = () => {
     [rows]
   );
 
-  // Group by supplier for the summary view (pre-search/filter so totals are stable)
+  // All brands present across the board (for the summary-view brand filter).
+  const allBrands = useMemo(
+    () => Array.from(new Set(activeRows.map((r) => brandLabel(r)))).sort((a, b) => a.localeCompare(b)),
+    [activeRows]
+  );
+
+  // Group by supplier for the summary view. A brand filter here narrows which
+  // rows feed the groups, so supplier counts/totals reflect just that brand.
   const supplierGroups = useMemo<SupplierGroup[]>(() => {
     const map = new Map<string, SupplierGroup>();
     for (const r of activeRows) {
+      if (summaryBrand !== "all" && brandLabel(r) !== summaryBrand) continue;
       const key = r.supplier_id || "__unmapped__";
       const name = r.supplier_name || "Unmapped";
       if (!map.has(key)) {
@@ -137,7 +176,7 @@ const BuyRecommendations = () => {
       if (num(r.back_orders) > 0) g.hasBackorder = true;
     }
     return Array.from(map.values()).sort((a, b) => b.totalSpend - a.totalSpend);
-  }, [activeRows]);
+  }, [activeRows, summaryBrand]);
 
   // Filter the summary list itself (by search on supplier name + suppression window)
   const filteredSupplierGroups = useMemo(() => {
@@ -163,10 +202,20 @@ const BuyRecommendations = () => {
     return g.rows.filter((r) => {
       if (boOnly && !(Math.max(0, num(r.back_orders) - num(r.on_order)) > 0)) return false;
       if (saOnly && !(num(r.current_stock) < num(r.low_stock_alert))) return false;
+      if (brandFilter !== "all" && brandLabel(r) !== brandFilter) return false;
+      if (statusFilter !== "all" && rowStatus(r) !== statusFilter) return false;
       if (q && !(r.sku.toLowerCase().includes(q) || (r.product_name || "").toLowerCase().includes(q))) return false;
       return true;
     });
-  }, [supplierView, supplierGroups, boOnly, saOnly, search]);
+  }, [supplierView, supplierGroups, boOnly, saOnly, brandFilter, statusFilter, search]);
+
+  // Distinct brands available in the current supplier's rows (for the Brand filter dropdown).
+  const detailBrands = useMemo(() => {
+    if (!supplierView) return [];
+    const g = supplierGroups.find((x) => (x.supplierId || "__unmapped__") === supplierView);
+    if (!g) return [];
+    return Array.from(new Set(g.rows.map((r) => brandLabel(r)))).sort((a, b) => a.localeCompare(b));
+  }, [supplierView, supplierGroups]);
 
   const currentSupplier = useMemo(() => {
     if (!supplierView) return null;
@@ -180,6 +229,8 @@ const BuyRecommendations = () => {
     setSearch("");
     setBoOnly(false);
     setSaOnly(false);
+    setBrandFilter("all");
+    setStatusFilter("all");
   }, [supplierView]);
 
   const selectedRows = useMemo(
@@ -344,10 +395,31 @@ const BuyRecommendations = () => {
 
         <Card>
           <CardContent className="p-4">
-            <div className="relative max-w-md">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Search supplier name..." value={search}
-                onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+            <div className="flex items-center gap-4 flex-wrap">
+              <div className="relative flex-1 min-w-[240px] max-w-md">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input placeholder="Search supplier name..." value={search}
+                  onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+              </div>
+              <div className="flex items-center gap-2">
+                <Label className="text-sm text-muted-foreground">Brand</Label>
+                <Select value={summaryBrand} onValueChange={setSummaryBrand}>
+                  <SelectTrigger className="h-9 w-[180px]" aria-label="Filter by brand">
+                    <SelectValue placeholder="All brands" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All brands</SelectItem>
+                    {allBrands.map((b) => (
+                      <SelectItem key={b} value={b}>{b}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {summaryBrand !== "all" && (
+                <Button variant="ghost" size="sm" onClick={() => setSummaryBrand("all")} className="text-xs">
+                  Clear
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -510,6 +582,39 @@ const BuyRecommendations = () => {
               <Switch id="sa-only" checked={saOnly} onCheckedChange={(v) => { setSaOnly(v); if (v) setBoOnly(false); }} />
               <Label htmlFor="sa-only" className="cursor-pointer text-sm">SA Only</Label>
             </div>
+            {detailBrands.length > 1 && (
+              <Select value={brandFilter} onValueChange={setBrandFilter}>
+                <SelectTrigger className="h-9 w-[160px]" aria-label="Filter by brand">
+                  <SelectValue placeholder="All brands" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All brands</SelectItem>
+                  {detailBrands.map((b) => (
+                    <SelectItem key={b} value={b}>{b}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="h-9 w-[150px]" aria-label="Filter by status">
+                <SelectValue placeholder="All statuses" />
+              </SelectTrigger>
+              <SelectContent>
+                {STATUS_FILTERS.map((s) => (
+                  <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {(brandFilter !== "all" || statusFilter !== "all") && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => { setBrandFilter("all"); setStatusFilter("all"); }}
+                className="text-xs"
+              >
+                Clear
+              </Button>
+            )}
             <div className="ml-auto text-xs text-muted-foreground">
               Showing {detailRows.length.toLocaleString()} of {currentSupplier?.totalSkus || 0}
             </div>
