@@ -96,6 +96,7 @@ import LsaUnmatchedSkus from "./pages/LsaUnmatchedSkus";
 import OrphanSkus from "./pages/housekeeping/OrphanSkus";
 import MissingBarcodes from "./pages/housekeeping/MissingBarcodes";
 import DirtListings from "./pages/housekeeping/DirtListings";
+import AmazonSkuMapping from "./pages/housekeeping/AmazonSkuMapping";
 
 // Admin extras
 import ProfitRules from "./pages/admin/ProfitRules";
@@ -248,6 +249,7 @@ const App = () => (
             <Route path="/housekeeping/lsa-unmatched" element={<LsaUnmatchedSkus />} />
             <Route path="/housekeeping/orphan-skus" element={<OrphanSkus />} />
             <Route path="/housekeeping/missing-barcodes" element={<MissingBarcodes />} />
+            <Route path="/housekeeping/amazon-sku-mapping" element={<AmazonSkuMapping />} />
             <Route path="/housekeeping/dirt-listings" element={<DirtListings />} />
 
             {/* Decisions Sub-Routes */}

@@ -80,6 +80,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { title: "Product Completeness", url: "/housekeeping/missing-barcodes", icon: Tag, description: "Active products missing a barcode, dimensions or weight — fill the gaps and push to Mintsoft." },
       { title: "Carrier Remeasure", url: "/operations/carriers/remeasure", icon: Truck, description: "Items flagged by carriers as wrong dimensions/weight." },
       { title: "Orphan SKUs", url: "/housekeeping/orphan-skus", icon: Link2Off, description: "Catalogue SKUs not linked to a Mintsoft Product ID — blocks cost/stock/LSA pushes." },
+      { title: "Amazon SKUs to map", url: "/housekeeping/amazon-sku-mapping", icon: Link2Off, description: "Amazon ASINs that sold recently but don't resolve to a catalogue SKU — map them to recover FBA replenishment + margin." },
       { title: "LSA Unmatched SKUs", url: "/housekeeping/lsa-unmatched", icon: HelpCircle, description: "SKUs in Mintsoft's Low Stock Alert file that don't exist in our cache yet." },
     ],
   },
