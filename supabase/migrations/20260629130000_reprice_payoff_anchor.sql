@@ -21,15 +21,28 @@ create table if not exists public.reprice_payoff_anchor (
 );
 
 -- Backfill from the current queue.
--- NOTE: SKUs re-queued *before* this migration already lost their original
--- queued_at, so they anchor at their current (later) queued_at. Going forward
--- the anchor is frozen, so no further drift. If the original go-live for those
--- needs recovering, min(snapshot_date) per (store_id, sku) in
--- threeds_reprice_auto_snapshots is an approximate source for a one-off update.
 insert into public.reprice_payoff_anchor (store_id, sku, anchor_queued_at)
 select store_id, sku, queued_at
 from public.threeds_reprice_pending
 on conflict (store_id, sku) do nothing;
+
+-- Recover the ORIGINAL go-live for SKUs re-queued before this migration (whose
+-- queued_at was already overwritten). A SKU first appears in the auto-reprice
+-- snapshots once its new price is live, so min(snapshot_date) approximates the
+-- original go-live. LEAST() only ever moves an anchor EARLIER, never later, so
+-- this is safe: a snapshot can't make go-live later than the recorded queued_at.
+-- (Verified 2026-06-29: recovers an earlier go-live for ~183 of the ~216
+-- recently re-queued SKUs, earliest 2026-06-09 — matching the original batch.)
+update public.reprice_payoff_anchor a
+set anchor_queued_at = least(a.anchor_queued_at, s.first_snap::timestamptz)
+from (
+  select store_id, sku, min(snapshot_date) as first_snap
+  from public.threeds_reprice_auto_snapshots
+  group by store_id, sku
+) s
+where s.store_id = a.store_id
+  and s.sku = a.sku
+  and s.first_snap::timestamptz < a.anchor_queued_at;
 
 alter table public.reprice_payoff_anchor enable row level security;
 
