@@ -1,11 +1,13 @@
 // ============================================================================
-// amazon-pull-fba-inventory — Phase 3a. Pulls the FBA "Manage Inventory"
-// snapshot (GET_FBA_MYI_UNSUPPRESSED_INVENTORY_DATA): on-hand fulfillable +
-// inbound (working/shipped/receiving) per SKU. This is the ONLY missing input
-// to the already-built public.v_fba_replenishment view — once it lands, the
-// "units to send" numbers light up.
+// amazon-pull-fba-inventory — Phase 3a. On-hand fulfillable + inbound per SKU.
 //
-// Body: { reportId?: string, pollSeconds?: number }   (snapshot = current state)
+// Uses the FBA Inventory API (getInventorySummaries, details=true) rather than
+// the GET_FBA_MYI_UNSUPPRESSED_INVENTORY_DATA report — the report type is being
+// deprecated and fails generation intermittently (FATAL). The API is real-time,
+// paginated, and returns fulfillable + inbound (working/shipped/receiving)
+// directly. This snapshot is the only missing input to public.v_fba_replenishment.
+//
+// Body: { pollSeconds?: number unused }   (snapshot = current state)
 // Auth: service-role JWT (cron/ops) OR a valid authenticated user.
 // ============================================================================
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
@@ -19,58 +21,32 @@ const json = (b: unknown, s = 200) =>
 
 const LWA_TOKEN_URL = "https://api.amazon.com/auth/o2/token";
 const ENDPOINTS: Record<string, string> = {
-  na: "https://sellingpartnerapi-na.amazon.com",
-  eu: "https://sellingpartnerapi-eu.amazon.com",
-  fe: "https://sellingpartnerapi-fe.amazon.com",
+  na: "https://sellingpartnerapi-na.amazon.com", eu: "https://sellingpartnerapi-eu.amazon.com", fe: "https://sellingpartnerapi-fe.amazon.com",
 };
 const UK_MARKETPLACE = "A1F83G8C2ARO7P";
-const REPORT_TYPE = "GET_FBA_MYI_UNSUPPRESSED_INVENTORY_DATA";
 
 async function getLwaToken(clientId: string, clientSecret: string, refreshToken: string): Promise<string> {
-  const body = new URLSearchParams({
-    grant_type: "refresh_token", refresh_token: refreshToken, client_id: clientId, client_secret: clientSecret,
-  });
+  const body = new URLSearchParams({ grant_type: "refresh_token", refresh_token: refreshToken, client_id: clientId, client_secret: clientSecret });
   const res = await fetch(LWA_TOKEN_URL, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body });
   if (!res.ok) throw new Error(`LWA token exchange failed (${res.status}): ${await res.text()}`);
   return (await res.json()).access_token as string;
 }
-async function spFetch(endpoint: string, token: string, method: string, path: string, body?: unknown) {
-  const res = await fetch(endpoint + path, {
-    method, headers: { "x-amz-access-token": token, "content-type": "application/json", accept: "application/json" },
-    body: body ? JSON.stringify(body) : undefined,
-  });
+async function spGet(endpoint: string, token: string, path: string) {
+  const res = await fetch(endpoint + path, { method: "GET", headers: { "x-amz-access-token": token, accept: "application/json" } });
   const text = await res.text();
   let parsed: any; try { parsed = text ? JSON.parse(text) : {}; } catch { parsed = { raw: text }; }
   return { ok: res.ok, status: res.status, body: parsed };
 }
-async function gunzipToText(buf: ArrayBuffer): Promise<string> {
-  return await new Response(new Response(buf).body!.pipeThrough(new DecompressionStream("gzip"))).text();
-}
 function jwtRole(jwt: string): string | null {
-  try {
-    const part = jwt.split(".")[1]; if (!part) return null;
+  try { const part = jwt.split(".")[1]; if (!part) return null;
     const b64 = part.replace(/-/g, "+").replace(/_/g, "/");
     return JSON.parse(atob(b64 + "=".repeat((4 - (b64.length % 4)) % 4)))?.role ?? null;
   } catch { return null; }
 }
-function parseTsv(raw: string): Array<Record<string, string>> {
-  const lines = raw.replace(/\r\n/g, "\n").split("\n").filter((l) => l.length > 0);
-  if (!lines.length) return [];
-  const headers = lines[0].split("\t").map((h) => h.trim());
-  const out: Array<Record<string, string>> = [];
-  for (let i = 1; i < lines.length; i++) {
-    const cells = lines[i].split("\t");
-    const row: Record<string, string> = {};
-    for (let j = 0; j < headers.length; j++) row[headers[j]] = (cells[j] ?? "").trim();
-    out.push(row);
-  }
-  return out;
-}
-const num = (s: string | undefined) => String(s ?? "").replace(/[^0-9-]/g, "") || "0";
+const n = (v: unknown) => Number(v ?? 0) || 0;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
-
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
   const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -96,68 +72,58 @@ Deno.serve(async (req) => {
   if (!authed) return json({ error: "Unauthorized" }, 401);
   const supa = createClient(SUPABASE_URL, SERVICE_KEY);
 
-  let input: any = {};
-  try { input = req.method === "POST" ? await req.json() : {}; } catch { input = {}; }
   const snapshotDate = new Date().toISOString().slice(0, 10);
-  const pollSeconds = Math.min(Number(input?.pollSeconds) > 0 ? Number(input.pollSeconds) : 110, 130);
+  const base = `/fba/inventory/v1/summaries?details=true&granularityType=Marketplace&granularityId=${marketplaceId}&marketplaceIds=${marketplaceId}`;
 
   try {
     const token = await getLwaToken(clientId, clientSecret, refreshToken);
-    let reportId: string | undefined = typeof input?.reportId === "string" ? input.reportId : undefined;
-    if (!reportId) {
-      const create = await spFetch(endpoint, token, "POST", "/reports/2021-06-30/reports", {
-        reportType: REPORT_TYPE, marketplaceIds: [marketplaceId],
-      });
-      if (!create.ok) return json({ error: "createReport failed", status: create.status, detail: create.body }, 502);
-      reportId = create.body.reportId;
-    }
-    const deadline = Date.now() + pollSeconds * 1000;
-    let meta: any; let waitMs = 4000;
+    const summaries: any[] = [];
+    let nextToken: string | undefined;
+    let pages = 0;
+    const deadline = Date.now() + 120000;
     while (true) {
-      const got = await spFetch(endpoint, token, "GET", `/reports/2021-06-30/reports/${reportId}`);
-      if (!got.ok) return json({ error: "getReport failed", status: got.status, detail: got.body, reportId }, 502);
-      meta = got.body;
-      if (meta.processingStatus === "DONE") break;
-      if (meta.processingStatus === "CANCELLED" || meta.processingStatus === "FATAL")
-        return json({ status: meta.processingStatus, reportId, message: "Inventory report ended " + meta.processingStatus, meta }, 200);
-      if (Date.now() + waitMs > deadline) return json({ status: "IN_PROGRESS", reportId, message: "Re-invoke with { reportId }.", meta }, 200);
-      await new Promise((r) => setTimeout(r, waitMs)); waitMs = Math.min(Math.floor(waitMs * 1.4), 20000);
+      const path = nextToken ? `${base}&nextToken=${encodeURIComponent(nextToken)}` : base;
+      const res = await spGet(endpoint, token, path);
+      if (res.status === 429) { await new Promise((r) => setTimeout(r, 2000)); continue; }
+      if (!res.ok) return json({ error: "getInventorySummaries failed", status: res.status, detail: res.body }, 502);
+      const list = res.body?.payload?.inventorySummaries ?? [];
+      summaries.push(...list);
+      pages++;
+      nextToken = res.body?.pagination?.nextToken;
+      if (!nextToken || Date.now() > deadline) break;
+      await new Promise((r) => setTimeout(r, 600)); // ~2 req/s
     }
-    if (!meta.reportDocumentId) return json({ error: "DONE but no reportDocumentId", reportId, meta }, 502);
 
-    const doc = await spFetch(endpoint, token, "GET", `/reports/2021-06-30/documents/${meta.reportDocumentId}`);
-    if (!doc.ok) return json({ error: "getReportDocument failed", status: doc.status, detail: doc.body }, 502);
-    const dl = await fetch(doc.body.url);
-    if (!dl.ok) return json({ error: "document download failed", status: dl.status }, 502);
-    const ab = await dl.arrayBuffer();
-    const rawText = doc.body.compressionAlgorithm === "GZIP" ? await gunzipToText(ab) : new TextDecoder().decode(ab);
-    const tsv = parseTsv(rawText);
-
-    const rows = tsv.map((r) => ({
-      sku: r["sku"] ?? "",
-      fnsku: r["fnsku"] ?? "",
-      asin: r["asin"] ?? "",
-      product_name: r["product-name"] ?? "",
-      afn_listing_exists: r["afn-listing-exists"] ?? "",
-      afn_warehouse_quantity: num(r["afn-warehouse-quantity"]),
-      afn_fulfillable_quantity: num(r["afn-fulfillable-quantity"]),
-      afn_unsellable_quantity: num(r["afn-unsellable-quantity"]),
-      afn_reserved_quantity: num(r["afn-reserved-quantity"]),
-      afn_total_quantity: num(r["afn-total-quantity"]),
-      afn_inbound_working_quantity: num(r["afn-inbound-working-quantity"]),
-      afn_inbound_shipped_quantity: num(r["afn-inbound-shipped-quantity"]),
-      afn_inbound_receiving_quantity: num(r["afn-inbound-receiving-quantity"]),
-    })).filter((r) => r.sku);
+    const rows = summaries.map((s) => {
+      const d = s.inventoryDetails ?? {};
+      const inbound = n(d.inboundWorkingQuantity) + n(d.inboundShippedQuantity) + n(d.inboundReceivingQuantity);
+      const total = n(s.totalQuantity);
+      return {
+        sku: s.sellerSku ?? "",
+        fnsku: s.fnSku ?? "",
+        asin: s.asin ?? "",
+        product_name: s.productName ?? "",
+        afn_listing_exists: s.sellerSku ? "Yes" : "",
+        afn_warehouse_quantity: String(Math.max(0, total - inbound)),
+        afn_fulfillable_quantity: String(n(d.fulfillableQuantity)),
+        afn_unsellable_quantity: String(n(d.unfulfillableQuantity?.totalUnfulfillableQuantity)),
+        afn_reserved_quantity: String(n(d.reservedQuantity?.totalReservedQuantity)),
+        afn_total_quantity: String(total),
+        afn_inbound_working_quantity: String(n(d.inboundWorkingQuantity)),
+        afn_inbound_shipped_quantity: String(n(d.inboundShippedQuantity)),
+        afn_inbound_receiving_quantity: String(n(d.inboundReceivingQuantity)),
+      };
+    }).filter((r) => r.sku);
 
     const { data: ing, error: ingErr } = await supa.rpc("amazon_ingest_fba_inventory", {
-      p_marketplace_id: marketplaceId, p_snapshot_date: snapshotDate, p_report_id: reportId,
-      p_document_id: meta.reportDocumentId, p_processing_status: meta.processingStatus, p_rows: rows,
+      p_marketplace_id: marketplaceId, p_snapshot_date: snapshotDate,
+      p_report_id: `inv-api-${snapshotDate}`, p_document_id: null, p_processing_status: "DONE", p_rows: rows,
     });
     if (ingErr) return json({ error: "ingest RPC failed", detail: ingErr.message, rows: rows.length }, 500);
 
     const onHand = rows.reduce((a, r) => a + Number(r.afn_fulfillable_quantity), 0);
     const inbound = rows.reduce((a, r) => a + Number(r.afn_inbound_working_quantity) + Number(r.afn_inbound_shipped_quantity) + Number(r.afn_inbound_receiving_quantity), 0);
-    return json({ ok: true, snapshotDate, reportId, skus: rows.length, totalFulfillable: onHand, totalInbound: inbound, ingest: ing }, 200);
+    return json({ ok: true, snapshotDate, source: "getInventorySummaries", pages, skus: rows.length, totalFulfillable: onHand, totalInbound: inbound, ingest: ing }, 200);
   } catch (e) {
     return json({ error: String((e as Error)?.message ?? e) }, 500);
   }
