@@ -56,7 +56,7 @@ const FbaReplenishment = () => {
   const { data, isLoading } = useQuery({
     queryKey: ["fba-replenishment"],
     queryFn: async (): Promise<Row[]> => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("v_fba_replenishment")
         .select("marketplace_id,country_code,base_sku,weekly_velocity,units_7d,units_30d,fba_on_hand,fba_in_transit,target_units,days_of_cover_weeks,units_to_order,replenish_flag,unit_cost,reorder_cost,avg_sell_price,gross_margin_pct,referral_fee_per_unit,fba_fee_per_unit,net_per_unit,net_margin_pct")
         .limit(5000);

@@ -194,7 +194,7 @@ const ProfitDashboard = () => {
   const { data: clearanceMap } = useQuery({
     queryKey: ["active-clearance-campaigns"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("price_campaigns")
         .select("sku, type, start_date, end_date")
         .eq("status", "active")
