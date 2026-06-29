@@ -141,7 +141,7 @@ const DimsWeights = () => {
         const { data: prods } = await supabase
           .from("products_cache")
           .select("sku,name,barcode,height,length,depth,weight")
-          .in("sku", skus);
+          .in("sku", skus as string[]);
         (prods ?? []).forEach((p: any) => (products[p.sku] = p));
       }
       return { proposals: (proposals ?? []) as Proposal[], products };
