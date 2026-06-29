@@ -68,15 +68,12 @@ const ProfitGraphs = () => {
   const load = async () => {
     setLoading(true);
     const [{ data, error }, { data: bData, error: bErr }] = await Promise.all([
-      (supabase as any)
-        .from("profit_weekly_snapshots")
-        .select("iso_year, iso_week, week_start, week_end, revenue, qty, order_count, line_count, courier_cost_total, channel_fees_total, cost_total, profit, por_pct, aov, good_count, dirt_count, missing_cost_count")
-        .order("iso_year", { ascending: true })
-        .order("iso_week", { ascending: true })
-        .limit(260),
+      // Live per-week aggregation (same maths as the week page / cards) so the
+      // chart never drifts from get_profit_week. Snapshots remain for audit only.
+      (supabase as any).rpc("get_profit_history"),
       (supabase as any).rpc("get_profit_band_history"),
     ]);
-    if (error) toast({ title: "Failed to load snapshots", description: error.message, variant: "destructive" });
+    if (error) toast({ title: "Failed to load profit history", description: error.message, variant: "destructive" });
     else setRows((data ?? []) as SnapshotRow[]);
     if (bErr) toast({ title: "Failed to load profit-band history", description: bErr.message, variant: "destructive" });
     else setBandRows((bData ?? []) as BandRow[]);
@@ -161,14 +158,14 @@ const ProfitGraphs = () => {
       </div>
 
       <p className="text-sm text-muted-foreground">
-        Backfilled from historical order economics. Snapshots refresh automatically every Sunday at 23:59 UTC and are
-        stored against the ISO week (e.g. <code>2026-W21</code>).
+        Computed live from order economics each load, so every week matches the Profit week page exactly. Weekly
+        snapshots are still recorded (Sundays 23:59 UTC) for an audit trail, but no longer drive this chart.
       </p>
 
       {loading ? (
-        <div className="text-center py-12 text-muted-foreground">Loading snapshots…</div>
+        <div className="text-center py-12 text-muted-foreground">Loading…</div>
       ) : rows.length === 0 ? (
-        <Card><CardContent className="py-12 text-center text-muted-foreground">No snapshots yet.</CardContent></Card>
+        <Card><CardContent className="py-12 text-center text-muted-foreground">No data yet.</CardContent></Card>
       ) : (
         <>
           {latest && (
