@@ -131,6 +131,7 @@ const BuyRecommendations = () => {
   const [saOnly, setSaOnly] = useState(false);
   const [brandFilter, setBrandFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [summaryBrand, setSummaryBrand] = useState("all");
   const [overrides, setOverrides] = useState<Record<string, number>>({});
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [creating, setCreating] = useState(false);
@@ -141,10 +142,18 @@ const BuyRecommendations = () => {
     [rows]
   );
 
-  // Group by supplier for the summary view (pre-search/filter so totals are stable)
+  // All brands present across the board (for the summary-view brand filter).
+  const allBrands = useMemo(
+    () => Array.from(new Set(activeRows.map((r) => brandLabel(r)))).sort((a, b) => a.localeCompare(b)),
+    [activeRows]
+  );
+
+  // Group by supplier for the summary view. A brand filter here narrows which
+  // rows feed the groups, so supplier counts/totals reflect just that brand.
   const supplierGroups = useMemo<SupplierGroup[]>(() => {
     const map = new Map<string, SupplierGroup>();
     for (const r of activeRows) {
+      if (summaryBrand !== "all" && brandLabel(r) !== summaryBrand) continue;
       const key = r.supplier_id || "__unmapped__";
       const name = r.supplier_name || "Unmapped";
       if (!map.has(key)) {
@@ -167,7 +176,7 @@ const BuyRecommendations = () => {
       if (num(r.back_orders) > 0) g.hasBackorder = true;
     }
     return Array.from(map.values()).sort((a, b) => b.totalSpend - a.totalSpend);
-  }, [activeRows]);
+  }, [activeRows, summaryBrand]);
 
   // Filter the summary list itself (by search on supplier name + suppression window)
   const filteredSupplierGroups = useMemo(() => {
@@ -386,10 +395,31 @@ const BuyRecommendations = () => {
 
         <Card>
           <CardContent className="p-4">
-            <div className="relative max-w-md">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Search supplier name..." value={search}
-                onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+            <div className="flex items-center gap-4 flex-wrap">
+              <div className="relative flex-1 min-w-[240px] max-w-md">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input placeholder="Search supplier name..." value={search}
+                  onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+              </div>
+              <div className="flex items-center gap-2">
+                <Label className="text-sm text-muted-foreground">Brand</Label>
+                <Select value={summaryBrand} onValueChange={setSummaryBrand}>
+                  <SelectTrigger className="h-9 w-[180px]" aria-label="Filter by brand">
+                    <SelectValue placeholder="All brands" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All brands</SelectItem>
+                    {allBrands.map((b) => (
+                      <SelectItem key={b} value={b}>{b}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {summaryBrand !== "all" && (
+                <Button variant="ghost" size="sm" onClick={() => setSummaryBrand("all")} className="text-xs">
+                  Clear
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>
