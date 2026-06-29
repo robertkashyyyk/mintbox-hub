@@ -53,6 +53,27 @@ Deno.serve(async (req) => {
   const skus = Array.from(new Set(Array.from(rp.values()).map((r) => r.sku)));
   const earliest = Array.from(rp.values()).reduce((m, r) => (r.queued_at < m ? r.queued_at : m), "9999");
 
+  // Immutable go-live anchors (see migration reprice_payoff_anchor). A SKU's
+  // payoff clock is fixed the first time it's seen; re-queuing must NOT move it
+  // forward, or the cumulative counterfactual shrinks and the per-day chart
+  // shows a spurious negative bar (see 28 Jun 2026). Falls back to queued_at if
+  // the table isn't migrated yet, so deploy order doesn't matter.
+  const anchorMap = new Map<string, string>();
+  try {
+    const { data: anchors } = await admin.from("reprice_payoff_anchor")
+      .select("store_id, sku, anchor_queued_at").in("sku", skus);
+    for (const a of anchors ?? []) anchorMap.set(`${a.store_id}::${a.sku}`, a.anchor_queued_at as string);
+    if (body.persist) {
+      const missing: { store_id: string; sku: string; anchor_queued_at: string }[] = [];
+      for (const [k, r] of rp) if (!anchorMap.has(k)) missing.push({ store_id: r.store_id, sku: r.sku, anchor_queued_at: r.queued_at });
+      if (missing.length) {
+        // ignoreDuplicates: first-seen wins — a re-queue never overwrites the anchor.
+        await admin.from("reprice_payoff_anchor").upsert(missing, { onConflict: "store_id,sku", ignoreDuplicates: true });
+        for (const m of missing) anchorMap.set(`${m.store_id}::${m.sku}`, m.anchor_queued_at);
+      }
+    }
+  } catch (_e) { /* table not migrated yet — fall back to queued_at below */ }
+
   const baseSkus = Array.from(new Set(skus.map(baseSkuOf)));
   const cost: Record<string, number> = {};
   for (let i = 0; i < baseSkus.length; i += 100) {
@@ -89,16 +110,19 @@ Deno.serve(async (req) => {
   const total = mk(); const byAcct: Record<string, Acc> = {};
 
   for (const [k, r] of rp) {
-    const gl = goLive(r.queued_at); const periodD = Math.max(0, (nowMs - gl) / 86_400_000);
+    // Use the frozen go-live anchor, not the (mutable) latest queued_at.
+    const anchorIso = anchorMap.get(k) ?? r.queued_at;
+    const anchorMs = new Date(anchorIso).getTime();
+    const gl = goLive(anchorIso); const periodD = Math.max(0, (nowMs - gl) / 86_400_000);
     const os = byKey[k] ?? [];
-    // baseline: sales in the 90d before the reprice
-    const blStart = new Date(r.queued_at).getTime() - BASELINE_DAYS * 86_400_000;
-    const bl = os.filter((o) => { const t = new Date(o.order_date).getTime(); return t >= blStart && t < new Date(r.queued_at).getTime(); });
+    // baseline: sales in the 90d before the reprice (anchored to the frozen go-live)
+    const blStart = anchorMs - BASELINE_DAYS * 86_400_000;
+    const bl = os.filter((o) => { const t = new Date(o.order_date).getTime(); return t >= blStart && t < anchorMs; });
     let oldRate = 0, oldPPU = 0;
     if (bl.length) {
       const blUnits = bl.reduce((s, o) => s + Number(o.quantity), 0);
       const firstT = Math.min(...bl.map((o) => new Date(o.order_date).getTime()));
-      const spanD = Math.max(1, Math.min(BASELINE_DAYS, (new Date(r.queued_at).getTime() - firstT) / 86_400_000));
+      const spanD = Math.max(1, Math.min(BASELINE_DAYS, (anchorMs - firstT) / 86_400_000));
       oldRate = blUnits / spanD;
       const blProfit = bl.reduce((s, o) => s + realProfit(o), 0);
       oldPPU = blUnits ? blProfit / blUnits : 0;
