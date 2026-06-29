@@ -90,6 +90,7 @@ export const NAV_GROUPS: NavGroup[] = [
     requireSenior: true,
     items: [
       { title: "Buy Recommendations", url: "/decisions/buying", icon: ShoppingBag, description: "AI-driven purchase order suggestions based on velocity" },
+      { title: "FBA Replenishment", url: "/decisions/fba-replenishment", icon: Truck, description: "What to ship into Amazon FBA — demand vs current FBA stock, MOQ-rounded reorder quantities." },
       { title: "Purchase Orders", url: "/execution/purchase-orders", icon: ShoppingCart, description: "Create and manage purchase orders for suppliers" },
       { title: "LSA Calibration", url: "/decisions/lsa-calibration", icon: Gauge, description: "Review and adjust listing strategy advisor settings" },
       { title: "3D Reprice", url: "/decisions/threeds-reprice", icon: Plug, description: "Trigger repricing runs via 3D Sellers integration" },
