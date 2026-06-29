@@ -440,11 +440,12 @@ const ProfitDashboard = () => {
           ) : (
             <div className="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-9 gap-2">
              {(["unknown","loss","breakeven","poor","average","good","great","amazing","stellar"] as const).map((b) => {
-                // Authoritative totals from get_profit_week (server-side, full week).
-                // `line_count` only counts PRICED lines (profit not null, order_value > 0).
-                // `missing_cost_count` is the Unknown band — it's NOT in `line_count`.
-                // To make all 8 bands share one denominator that sums to 100%, add them.
-                const pricedLines = Number((kpis as any)?.line_count ?? 0);
+                // Priced total = sum of the breakdown band counts. The breakdown
+                // now excludes missing-cost lines (they're Unknown only), so this
+                // and missingCost are disjoint and the bands sum to 100%. We do
+                // NOT use kpis.line_count here — it still includes missing-cost
+                // lines, which would double-count them against the Unknown card.
+                const pricedLines = (bands ?? []).reduce((s: number, x: any) => s + Number(x.line_count ?? 0), 0);
                 const missingCost = Number((kpis as any)?.missing_cost_count ?? 0);
                 const denominator = pricedLines + missingCost;
                 let lineCount = 0;
