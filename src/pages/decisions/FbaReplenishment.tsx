@@ -25,7 +25,14 @@ interface Row {
   days_of_cover_weeks: number | null;
   units_to_order: number | null;
   replenish_flag: boolean | null;
+  unit_cost: number | null;
+  reorder_cost: number | null;
+  avg_sell_price: number | null;
+  gross_margin_pct: number | null;
 }
+
+const gbp = (v: number | null | undefined) =>
+  v == null ? "—" : `£${Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 type SortField = keyof Row;
 
@@ -47,7 +54,7 @@ const FbaReplenishment = () => {
     queryFn: async (): Promise<Row[]> => {
       const { data, error } = await supabase
         .from("v_fba_replenishment")
-        .select("marketplace_id,country_code,base_sku,weekly_velocity,units_7d,units_30d,fba_on_hand,fba_in_transit,target_units,days_of_cover_weeks,units_to_order,replenish_flag")
+        .select("marketplace_id,country_code,base_sku,weekly_velocity,units_7d,units_30d,fba_on_hand,fba_in_transit,target_units,days_of_cover_weeks,units_to_order,replenish_flag,unit_cost,reorder_cost,avg_sell_price,gross_margin_pct")
         .limit(5000);
       if (error) throw error;
       return (data ?? []) as Row[];
@@ -85,6 +92,7 @@ const FbaReplenishment = () => {
       flaggedSkus: flagged.length,
       unitsToOrder: flagged.reduce((a, r) => a + (r.units_to_order ?? 0), 0),
       stockedOut: flagged.filter((r) => (r.fba_on_hand ?? 0) === 0 && (r.fba_in_transit ?? 0) === 0).length,
+      reorderCost: flagged.reduce((a, r) => a + (r.reorder_cost ?? 0), 0),
     };
   }, [rows]);
 
@@ -92,10 +100,11 @@ const FbaReplenishment = () => {
     setSort((p) => ({ field, dir: p.field === field && p.dir === "desc" ? "asc" : "desc" }));
 
   const exportCsv = () => {
-    const header = ["SKU", "Country", "Weekly velocity", "Units 30d", "FBA on-hand", "In-transit", "Weeks cover", "Target units", "Units to order", "Reorder"];
+    const header = ["SKU", "Country", "Weekly velocity", "Units 30d", "FBA on-hand", "In-transit", "Weeks cover", "Target units", "Units to order", "Unit cost", "Reorder cost", "Avg sell price", "Gross margin %", "Reorder?"];
     const lines = [header, ...filtered.map((r) => [
       r.base_sku, r.country_code ?? "", r.weekly_velocity ?? 0, r.units_30d ?? 0, r.fba_on_hand ?? 0,
       r.fba_in_transit ?? 0, r.days_of_cover_weeks ?? "", r.target_units ?? 0, r.units_to_order ?? 0,
+      r.unit_cost ?? "", r.reorder_cost ?? "", r.avg_sell_price ?? "", r.gross_margin_pct ?? "",
       r.replenish_flag ? "YES" : "no",
     ])];
     const csv = lines.map((row) => row.map(csvCell).join(",")).join("\n");
@@ -121,11 +130,13 @@ const FbaReplenishment = () => {
         icon={Truck}
       />
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <Card><CardHeader className="pb-2"><CardDescription>SKUs to reorder</CardDescription>
           <CardTitle className="text-3xl">{nf(totals.flaggedSkus)}</CardTitle></CardHeader></Card>
         <Card><CardHeader className="pb-2"><CardDescription>Total units to send</CardDescription>
           <CardTitle className="text-3xl">{nf(totals.unitsToOrder)}</CardTitle></CardHeader></Card>
+        <Card><CardHeader className="pb-2"><CardDescription>Reorder cost (at cost)</CardDescription>
+          <CardTitle className="text-3xl">{gbp(totals.reorderCost)}</CardTitle></CardHeader></Card>
         <Card><CardHeader className="pb-2"><CardDescription className="flex items-center gap-1">
           <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />Stocked-out movers</CardDescription>
           <CardTitle className="text-3xl">{nf(totals.stockedOut)}</CardTitle></CardHeader></Card>
@@ -172,11 +183,13 @@ const FbaReplenishment = () => {
                     <SortHead field="days_of_cover_weeks" label="Weeks cover" className="text-right" />
                     <SortHead field="target_units" label="Target" className="text-right" />
                     <SortHead field="units_to_order" label="To order" className="text-right" />
+                    <SortHead field="gross_margin_pct" label="Margin %" className="text-right" />
+                    <SortHead field="reorder_cost" label="Reorder £" className="text-right" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filtered.length === 0 ? (
-                    <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No SKUs match</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={10} className="text-center py-8 text-muted-foreground">No SKUs match</TableCell></TableRow>
                   ) : filtered.map((r) => {
                     const out = (r.fba_on_hand ?? 0) === 0 && (r.fba_in_transit ?? 0) === 0;
                     return (
@@ -194,6 +207,12 @@ const FbaReplenishment = () => {
                         <TableCell className="text-right">{nf(r.days_of_cover_weeks, 1)}</TableCell>
                         <TableCell className="text-right text-muted-foreground">{nf(r.target_units, 0)}</TableCell>
                         <TableCell className="text-right font-semibold tabular-nums">{nf(r.units_to_order)}</TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {r.gross_margin_pct == null ? <span className="text-muted-foreground">—</span> : (
+                            <span className={r.gross_margin_pct < 0 ? "text-destructive font-medium" : undefined}>{nf(r.gross_margin_pct, 1)}%</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">{gbp(r.reorder_cost)}</TableCell>
                       </TableRow>
                     );
                   })}
