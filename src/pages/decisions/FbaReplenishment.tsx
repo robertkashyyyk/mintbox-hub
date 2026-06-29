@@ -29,6 +29,10 @@ interface Row {
   reorder_cost: number | null;
   avg_sell_price: number | null;
   gross_margin_pct: number | null;
+  referral_fee_per_unit: number | null;
+  fba_fee_per_unit: number | null;
+  net_per_unit: number | null;
+  net_margin_pct: number | null;
 }
 
 const gbp = (v: number | null | undefined) =>
@@ -54,7 +58,7 @@ const FbaReplenishment = () => {
     queryFn: async (): Promise<Row[]> => {
       const { data, error } = await supabase
         .from("v_fba_replenishment")
-        .select("marketplace_id,country_code,base_sku,weekly_velocity,units_7d,units_30d,fba_on_hand,fba_in_transit,target_units,days_of_cover_weeks,units_to_order,replenish_flag,unit_cost,reorder_cost,avg_sell_price,gross_margin_pct")
+        .select("marketplace_id,country_code,base_sku,weekly_velocity,units_7d,units_30d,fba_on_hand,fba_in_transit,target_units,days_of_cover_weeks,units_to_order,replenish_flag,unit_cost,reorder_cost,avg_sell_price,gross_margin_pct,referral_fee_per_unit,fba_fee_per_unit,net_per_unit,net_margin_pct")
         .limit(5000);
       if (error) throw error;
       return (data ?? []) as Row[];
@@ -100,11 +104,12 @@ const FbaReplenishment = () => {
     setSort((p) => ({ field, dir: p.field === field && p.dir === "desc" ? "asc" : "desc" }));
 
   const exportCsv = () => {
-    const header = ["SKU", "Country", "Weekly velocity", "Units 30d", "FBA on-hand", "In-transit", "Weeks cover", "Target units", "Units to order", "Unit cost", "Reorder cost", "Avg sell price", "Gross margin %", "Reorder?"];
+    const header = ["SKU", "Country", "Weekly velocity", "Units 30d", "FBA on-hand", "In-transit", "Weeks cover", "Target units", "Units to order", "Unit cost", "Reorder cost", "Avg sell price", "Channel fee/unit", "FBA fee/unit", "Gross margin %", "Net per unit", "Net margin %", "Reorder?"];
     const lines = [header, ...filtered.map((r) => [
       r.base_sku, r.country_code ?? "", r.weekly_velocity ?? 0, r.units_30d ?? 0, r.fba_on_hand ?? 0,
       r.fba_in_transit ?? 0, r.days_of_cover_weeks ?? "", r.target_units ?? 0, r.units_to_order ?? 0,
-      r.unit_cost ?? "", r.reorder_cost ?? "", r.avg_sell_price ?? "", r.gross_margin_pct ?? "",
+      r.unit_cost ?? "", r.reorder_cost ?? "", r.avg_sell_price ?? "", r.referral_fee_per_unit ?? "", r.fba_fee_per_unit ?? "",
+      r.gross_margin_pct ?? "", r.net_per_unit ?? "", r.net_margin_pct ?? "",
       r.replenish_flag ? "YES" : "no",
     ])];
     const csv = lines.map((row) => row.map(csvCell).join(",")).join("\n");
@@ -183,13 +188,15 @@ const FbaReplenishment = () => {
                     <SortHead field="days_of_cover_weeks" label="Weeks cover" className="text-right" />
                     <SortHead field="target_units" label="Target" className="text-right" />
                     <SortHead field="units_to_order" label="To order" className="text-right" />
-                    <SortHead field="gross_margin_pct" label="Margin %" className="text-right" />
+                    <SortHead field="referral_fee_per_unit" label="Channel £" className="text-right" />
+                    <SortHead field="fba_fee_per_unit" label="FBA £" className="text-right" />
+                    <SortHead field="net_margin_pct" label="Net %" className="text-right" />
                     <SortHead field="reorder_cost" label="Reorder £" className="text-right" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filtered.length === 0 ? (
-                    <TableRow><TableCell colSpan={10} className="text-center py-8 text-muted-foreground">No SKUs match</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={12} className="text-center py-8 text-muted-foreground">No SKUs match</TableCell></TableRow>
                   ) : filtered.map((r) => {
                     const out = (r.fba_on_hand ?? 0) === 0 && (r.fba_in_transit ?? 0) === 0;
                     return (
@@ -207,9 +214,11 @@ const FbaReplenishment = () => {
                         <TableCell className="text-right">{nf(r.days_of_cover_weeks, 1)}</TableCell>
                         <TableCell className="text-right text-muted-foreground">{nf(r.target_units, 0)}</TableCell>
                         <TableCell className="text-right font-semibold tabular-nums">{nf(r.units_to_order)}</TableCell>
+                        <TableCell className="text-right tabular-nums text-muted-foreground">{gbp(r.referral_fee_per_unit)}</TableCell>
+                        <TableCell className="text-right tabular-nums text-muted-foreground">{gbp(r.fba_fee_per_unit)}</TableCell>
                         <TableCell className="text-right tabular-nums">
-                          {r.gross_margin_pct == null ? <span className="text-muted-foreground">—</span> : (
-                            <span className={r.gross_margin_pct < 0 ? "text-destructive font-medium" : undefined}>{nf(r.gross_margin_pct, 1)}%</span>
+                          {r.net_margin_pct == null ? <span className="text-muted-foreground">—</span> : (
+                            <span className={r.net_margin_pct < 0 ? "text-destructive font-semibold" : "font-medium"}>{nf(r.net_margin_pct, 1)}%</span>
                           )}
                         </TableCell>
                         <TableCell className="text-right tabular-nums">{gbp(r.reorder_cost)}</TableCell>
