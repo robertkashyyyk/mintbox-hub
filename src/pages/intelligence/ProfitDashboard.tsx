@@ -261,6 +261,29 @@ const ProfitDashboard = () => {
     return { lossLines, lossTotal, lossRevenue, lossOrders: lossOrders.size };
   }, [lines]);
 
+  // Per-channel comparison for the week (always all channels, ignores the filter)
+  const byChannel = useMemo(() => {
+    const m = new Map<string, { rev: number; profit: number; units: number; fee: number; courier: number; lines: number }>();
+    (lines ?? []).forEach((l: any) => {
+      const ch = l.channel || "—";
+      const e = m.get(ch) ?? { rev: 0, profit: 0, units: 0, fee: 0, courier: 0, lines: 0 };
+      e.rev += Number(l.order_value) || 0;
+      e.profit += Number(l.profit) || 0;
+      e.units += Number(l.qty) || 0;
+      e.fee += Number(l.channel_fee) || 0;
+      e.courier += Number(l.courier_cost) || 0;
+      e.lines += 1;
+      m.set(ch, e);
+    });
+    return Array.from(m.entries())
+      .map(([channel, v]) => ({
+        channel, ...v,
+        por: v.rev > 0 ? (v.profit / (v.rev * 1.2)) * 100 : null,
+        feeLoad: v.rev > 0 ? ((v.fee + v.courier) / v.rev) * 100 : null,
+      }))
+      .sort((a, b) => b.rev - a.rev);
+  }, [lines]);
+
   const filteredLines = useMemo(() => {
     let rows = (lines ?? []) as any[];
     if (channelFilter !== "all") rows = rows.filter(r => (r.channel ?? "") === channelFilter);
@@ -391,6 +414,37 @@ const ProfitDashboard = () => {
       <p className="text-xs text-foreground/50 -mt-2">
         Counts exclude cancelled, refunded and returned orders — only active &amp; despatched orders feed profit calculations. Mintsoft's raw weekly count will be higher.
       </p>
+
+      {/* Per-channel comparison — click a channel to filter the table below */}
+      {byChannel.length > 1 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">By channel</CardTitle>
+            <CardDescription>Revenue, net profit, POR and fee load per channel this week. Click a channel to filter the lines below.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+              {byChannel.map((c) => {
+                const active = channelFilter === c.channel;
+                return (
+                  <button
+                    key={c.channel}
+                    onClick={() => setChannelFilter(active ? "all" : c.channel)}
+                    className={`text-left rounded-lg border p-3 transition ${active ? "border-primary ring-1 ring-primary bg-primary/5" : "hover:bg-muted/50"}`}
+                  >
+                    <div className="text-xs font-medium truncate" title={c.channel}>{c.channel}</div>
+                    <div className="text-lg font-bold">{fmtGBP(c.rev)}</div>
+                    <div className={`text-sm ${c.profit < 0 ? "text-destructive" : "text-success"}`}>{fmtGBP(c.profit)} net</div>
+                    <div className="text-xs text-muted-foreground">
+                      {c.por != null ? c.por.toFixed(1) : "—"}% POR · {c.feeLoad != null ? c.feeLoad.toFixed(0) : "—"}% fees · {fmtNum(c.units)}u
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* All sales recognised — including deliberate loss-makers (clearance) */}
       <Card className="border-pd-accent/20 bg-pd-accent/5">
