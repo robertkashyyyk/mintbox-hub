@@ -145,8 +145,8 @@ const ProfitDashboard = () => {
       let from = 0;
       const all: any[] = [];
       while (true) {
-        const { data, error } = await supabase
-          .from("order_line_economics")
+        const { data, error } = await (supabase as any)
+          .from("order_economics_all")
           .select("mintsoft_order_id, line_index, sku, product_name, channel, qty, price, order_value, cost_each, courier_cost, channel_fee, profit, por_pct, good_dirt, missing_cost, courier, fee_rule_name, order_date")
           .eq("iso_year", year)
           .eq("iso_week", week)
