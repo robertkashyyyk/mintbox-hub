@@ -61,22 +61,25 @@ const ProfitGraphs = () => {
   const { toast } = useToast();
   const [rows, setRows] = useState<SnapshotRow[]>([]);
   const [bandRows, setBandRows] = useState<BandRow[]>([]);
+  const [channelRows, setChannelRows] = useState<any[]>([]);
   const [bandMode, setBandMode] = useState<"lines" | "share">("share");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
 
   const load = async () => {
     setLoading(true);
-    const [{ data, error }, { data: bData, error: bErr }] = await Promise.all([
+    const [{ data, error }, { data: bData, error: bErr }, { data: cData, error: cErr }] = await Promise.all([
       // Live per-week aggregation (same maths as the week page / cards) so the
       // chart never drifts from get_profit_week. Snapshots remain for audit only.
       (supabase as any).rpc("get_profit_history"),
       (supabase as any).rpc("get_profit_band_history"),
+      (supabase as any).rpc("get_profit_history_by_channel"),
     ]);
     if (error) toast({ title: "Failed to load profit history", description: error.message, variant: "destructive" });
     else setRows((data ?? []) as SnapshotRow[]);
     if (bErr) toast({ title: "Failed to load profit-band history", description: bErr.message, variant: "destructive" });
     else setBandRows((bData ?? []) as BandRow[]);
+    if (!cErr) setChannelRows((cData ?? []) as any[]);
     setLoading(false);
   };
 
@@ -123,6 +126,22 @@ const ProfitGraphs = () => {
     }
     return out;
   }), [bandRows, bandMode]);
+
+  // Profit by channel, pivoted to one series per channel per week.
+  const CHANNEL_COLORS = ["hsl(217 90% 60%)", "hsl(var(--pd-accent))", "hsl(41 90% 56%)", "hsl(265 80% 65%)", "hsl(150 60% 45%)", "hsl(0 75% 60%)"];
+  const channels = useMemo(
+    () => Array.from(new Set(channelRows.map((r: any) => r.channel))).sort() as string[],
+    [channelRows],
+  );
+  const channelChartData = useMemo(() => {
+    const byWeek = new Map<string, any>();
+    for (const r of channelRows) {
+      const wk = `${r.iso_year}-W${String(r.iso_week).padStart(2, "0")}`;
+      if (!byWeek.has(wk)) byWeek.set(wk, { week: wk });
+      byWeek.get(wk)[r.channel] = Number(r.profit);
+    }
+    return Array.from(byWeek.values());
+  }, [channelRows]);
 
   const latest = rows.length > 0 ? rows[rows.length - 1] : undefined;
   const previous = rows.length > 1 ? rows[rows.length - 2] : null;
@@ -217,6 +236,30 @@ const ProfitGraphs = () => {
               </ResponsiveContainer>
             </CardContent>
           </Card>
+
+          {/* Profit by channel */}
+          {channels.length > 1 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Profit by channel</CardTitle>
+                <CardDescription>Weekly net profit per channel (Amazon FBA vs eBay vs FBM), from W12.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={320}>
+                  <LineChart data={channelChartData} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <XAxis dataKey="week" stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                    <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickFormatter={(v) => gbp(v)} />
+                    <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }} formatter={(v: number) => gbp(v)} />
+                    <Legend />
+                    {channels.map((ch, i) => (
+                      <Line key={ch} type="monotone" dataKey={ch} stroke={CHANNEL_COLORS[i % CHANNEL_COLORS.length]} strokeWidth={2} dot={false} name={ch} connectNulls />
+                    ))}
+                  </LineChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Cost breakdown */}
           <Card>
