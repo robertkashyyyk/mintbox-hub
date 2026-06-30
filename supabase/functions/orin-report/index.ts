@@ -104,6 +104,20 @@ never recompute or invent a number. Write a VERY short daily note:
 - Then ask ONE short, specific question to get the team thinking about today's focus.
 No preamble, no headers, no other metrics, no analysis beyond those figures.`
 
+// get_scorecard / get_profit_day are heavy and sit on the ~8s statement timeout
+// when COLD (cache/plan not warm) — a single cold call fails the report. Retry so
+// the warm attempt (≈3-4s) succeeds. Same pattern as the LSA/dispatch RPCs.
+async function rpcRetry(client: any, fnName: string, args: any, attempts = 4) {
+  let last: any = null
+  for (let i = 1; i <= attempts; i++) {
+    const { data, error } = await client.rpc(fnName, args)
+    if (!error) return { data, error: null }
+    last = error
+    if (i < attempts) await new Promise(r => setTimeout(r, 1500 * i))
+  }
+  return { data: null, error: last }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders })
 
@@ -132,7 +146,7 @@ Deno.serve(async (req) => {
     const gbp = (n: any) => '£' + Number(n).toLocaleString('en-GB', { maximumFractionDigits: 0 })
 
     if (cadence === 'daily') {
-      const { data: dayRows, error: dErr } = await read.rpc('get_profit_day')
+      const { data: dayRows, error: dErr } = await rpcRetry(read, 'get_profit_day', {})
       if (dErr) return json({ error: `get_profit_day: ${dErr.message}` }, 500)
       const d: any = Array.isArray(dayRows) ? dayRows[0] : dayRows
       if (!d) return json({ error: 'no daily data' }, 500)
@@ -164,7 +178,7 @@ Deno.serve(async (req) => {
         `above/below the Primary target — positive = ahead):\n${JSON.stringify(pace ?? [], null, 2)}\n\n` +
         `Write the short daily note now — LEAD with how yesterday landed vs the Primary daily target.`
     } else {
-      const { data: scorecard, error: scErr } = await read.rpc('get_scorecard', { p_lookback_weeks: lookback })
+      const { data: scorecard, error: scErr } = await rpcRetry(read, 'get_scorecard', { p_lookback_weeks: lookback })
       if (scErr) return json({ error: `get_scorecard: ${scErr.message}` }, 500)
       if (!scorecard || (scorecard as any[]).length === 0) return json({ error: 'scorecard empty' }, 500)
       // Target pace vs Primary/Stretch/Ultimate — MTD for the weekly story, YTD for the monthly.
@@ -230,7 +244,7 @@ Deno.serve(async (req) => {
     if (!narrative) return json({ error: 'empty narrative from model' }, 502)
 
     if (dryRun) {
-      return json({ cadence, period_key: periodKey, model, dry_run: true, narrative, metrics: (scorecard as any[]).length })
+      return json({ cadence, period_key: periodKey, model, dry_run: true, narrative, metrics: (inputSnapshot?.scorecard?.length ?? null) })
     }
 
     // The ONLY write: Orin's narrative into its own store. Service client used here only.
