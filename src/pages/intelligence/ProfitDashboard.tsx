@@ -43,6 +43,15 @@ const fmtPct = (n: number | null | undefined) =>
 const fmtNum = (n: number | null | undefined) =>
   n == null ? "—" : new Intl.NumberFormat("en-GB").format(Number(n));
 
+// Fold country/marketplace variants into a parent (mirrors SQL channel_group):
+// "Amazon - IE" -> "Amazon", keep "Amazon FBA" separate, eBay stores as-is.
+const channelGroup = (ch: string | null | undefined): string => {
+  const c = (ch ?? "").trim();
+  if (/^amazon fba/i.test(c)) return "Amazon FBA";
+  if (/^amazon/i.test(c)) return "Amazon";
+  return c || "—";
+};
+
 // Per-line band classifier — mirrors get_profit_week_breakdown SQL.
 // Uses POR% on VAT-inclusive order_value (profit / (order_value * 1.2) * 100)
 // Defaults match app_settings.profit.loss_bands.
@@ -249,7 +258,7 @@ const ProfitDashboard = () => {
 
   const channelOptions = useMemo(() => {
     const set = new Set<string>();
-    (lines ?? []).forEach((l: any) => { if (l.channel) set.add(l.channel); });
+    (lines ?? []).forEach((l: any) => { if (l.channel) set.add(channelGroup(l.channel)); });
     return Array.from(set).sort();
   }, [lines]);
 
@@ -270,7 +279,7 @@ const ProfitDashboard = () => {
   const byChannel = useMemo(() => {
     const m = new Map<string, { rev: number; profit: number; units: number; fee: number; courier: number; lines: number }>();
     (lines ?? []).forEach((l: any) => {
-      const ch = l.channel || "—";
+      const ch = channelGroup(l.channel);
       const e = m.get(ch) ?? { rev: 0, profit: 0, units: 0, fee: 0, courier: 0, lines: 0 };
       e.rev += Number(l.order_value) || 0;
       e.profit += Number(l.profit) || 0;
@@ -291,7 +300,7 @@ const ProfitDashboard = () => {
 
   const filteredLines = useMemo(() => {
     let rows = (lines ?? []) as any[];
-    if (channelFilter !== "all") rows = rows.filter(r => (r.channel ?? "") === channelFilter);
+    if (channelFilter !== "all") rows = rows.filter(r => channelGroup(r.channel) === channelFilter);
     if (flagFilter === "loss") rows = rows.filter(r => Number(r.profit ?? 0) < 0);
     else if (flagFilter === "profitable") rows = rows.filter(r => Number(r.profit ?? 0) >= 0);
     else if (flagFilter === "dirt") rows = rows.filter(r => r.good_dirt === "Dirt");
