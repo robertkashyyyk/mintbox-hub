@@ -6,7 +6,9 @@
 //
 // Read/write boundary (governing principle #2 — deliberate break from the 4 other
 // AI functions that write operational tables with the service role):
-//   - reads via the ANON client, and only ever calls get_scorecard()
+//   - reads via the ANON client, and only ever calls the read-only reporting RPCs:
+//     get_scorecard / get_profit_day (computed metrics), get_target_pace (vs targets),
+//     get_work_completed (the data-hygiene graft narrated in the "Work completed" section)
 //   - the service-role client is used for EXACTLY ONE thing: inserting into ai_reports
 // Do not add operational reads/writes here.
 //
@@ -61,6 +63,17 @@ TONE & FRAMING (important — this is how the team wants to read you):
   generated, how many SKUs were given a cost this week, items migrating UP out of the loss / break-even tiers.
   If a clear push is happening and working, make that obvious.
 
+STRUCTURE — open with a TL;DR the reader grasps in five seconds, THEN the detail:
+- **TL;DR** at the very top: a one-line HEADLINE (the single most important thing — a profit/margin statement,
+  never revenue), then "Key movements" (3-4 tight bullets of what actually moved this period), then
+  "Watch-items" (the 1-2 things genuinely worth acting on).
+- THEN the fuller narrative below, area by area. The detail DEEPENS the TL;DR — it must never simply restate it.
+- SAY IT ONCE. Each fact lives in exactly ONE place. State the "behind/ahead of Primary pace" position ONCE
+  (in the headline), not again in every section. "Say it once, let it land."
+- GROSS-IS-PARTIAL: state this caveat EXACTLY ONCE, as a single footnote-style line at the very end
+  (e.g. "* Profit/gross is partial pending the missing-cost backlog"). Do NOT repeat "gross is partial" against
+  every profit figure — mark it once with an asterisk and move on.
+
 SYNTHESIS, not summary: join related signals into one coherent story (e.g. "profit fell but revenue fell
 harder, so margin actually held"). Do not narrate each metric in isolation. Be concrete (£ where unit is gbp,
 % where pct). Proactively flag anything amber or red.
@@ -71,15 +84,25 @@ firmly_primary / on_stretch / firmly_stretch / on_ultimate / above_ultimate). OP
 the period against targets, LEADING WITH PROFIT (the 'gross' metric — profit matters more than revenue, so it
 is the headline): state the profit tier/variance first ("profit is tracking ~12% behind Primary, but firmly
 above break-even pace"), THEN revenue and orders as supporting colour, never as the lead. Use the emitted
-tier/variance verbatim — never recompute. If the 'gross' row has partial_cost=true, still lead with profit but
-caveat it is partial pending full cost data.
+tier/variance verbatim — never recompute. If the 'gross' row has partial_cost=true, still lead with profit; the
+partial caveat goes ONCE in the single end footnote (see STRUCTURE) — not inline against each figure.
 
 TOPICS — cover those PRESENT in the scorecard, skip those absent: weekly profit / P&L, profit-on-return %,
 80-20 profit concentration, profit-tier movement (loss / break-even / poor / average / good / great — where
 SKUs are migrating to and from), stock valuation & dead stock (judge materiality), missing-cost data quality
 (the count AND the weekly change — how many SKUs were given a cost this week, and whether it is trending down),
 repricing payoff (SKUs repriced and the additional profit generated), and dispatch performance (% despatched
-within 24h / 48h on the canonical "label-printed" clock). You must NOT mention velocity, stock accuracy,
+within 24h / 48h on the canonical "label-printed" clock).
+- WORK COMPLETED / DATA HYGIENE (only when a work_completed block is supplied): the "what we actively did to the
+  data" story — credit the deliberate graft in the window with the real numbers: missing costs amended
+  (costs_amended = individual + bulk), LSA levels recalibrated (lsa_recalibrated), and purchase orders raised
+  (count + value). Two figures are CUMULATIVE totals, not per-window — describe them as coverage reached, not
+  work done this period: the dirt-SKU crosswalk (dirt_alias_coverage, "the crosswalk now maps N SKUs") and
+  repricing coverage (reprice_coverage_skus, "repricing now covers N SKUs").
+  Also state the remaining FBA unmapped backlog (fba_unmapped_backlog) as a watch-item — note per-period tie-ups
+  aren't logged yet, so report it as work-still-to-do, not as completed. Frame this whole section as deliberate
+  effort SEPARATE from the trading result. If a count is 0, don't invent activity — just omit that line.
+You must NOT mention velocity, stock accuracy,
 returns, or complaints — there is no data and commenting on them is a serious error. Dispatch history is short
 (accurate only from mid-June 2026) — respect periods_available and describe its level, not a trend, until
 enough weeks exist.
@@ -91,9 +114,9 @@ const CADENCE_BRIEF: Record<string, string> = {
   daily:
     `DAILY brief. ~4 short bullets. LEAD with what is holding up (margin/POR first), THEN anything amber/red right now and any notable change. Credit good work with real numbers. No preamble, no headers.`,
   weekly:
-    `WEEKLY report. OPEN with the positive — margin/POR holding and what is on track — then tell the week's story across the areas: what moved and why, whether the change is material, and the one or two things genuinely worth acting on. Credit any good work with its real numbers. A few short paragraphs.`,
+    `WEEKLY report. Lead with a short TL;DR: a one-line HEADLINE (profit/margin first), then 2-3 "Key movements" bullets and 1 "Watch-item". Then the week's story across the areas — what moved, why, whether it is material — plus a short "Work completed" note from the work_completed block crediting the data-hygiene graft with real numbers. Say each thing once; put the single gross-partial footnote at the very end if profit is partial.`,
   monthly:
-    `MONTHLY review. OPEN with the positive trajectory, then use each metric's "series" array to describe the DIRECTION OF TRAVEL over the retained weeks — what is improving or decaying and how it is tracking. Credit sustained good work with real numbers. Reference the trajectory, not just the latest week.`,
+    `MONTHLY review. Structure it top-down: (1) TL;DR — a one-line HEADLINE leading with profit/margin, then "Key movements" (3-4 bullets, using each metric's "series" for the DIRECTION OF TRAVEL over the retained weeks) and "Watch-items" (the 1-2 things worth acting on); (2) the fuller detail below, area by area, referencing the trajectory not just the latest week; (3) a "Work completed" section from the work_completed block — the missing costs amended, dirt-SKU work, LSA recalibration, POs raised and repricing coverage, with real numbers, framed as deliberate graft; (4) end with the single gross-partial footnote if profit is partial. Say each thing once — the detail deepens the TL;DR, never repeats it.`,
 }
 
 // Daily is a different beast: not the weekly scorecard, just yesterday's headline figures
@@ -189,7 +212,13 @@ Deno.serve(async (req) => {
       // Target pace vs Primary/Stretch/Ultimate — MTD for the weekly story, YTD for the monthly.
       const paceGrain = cadence === 'monthly' ? 'ytd' : 'mtd'
       const { data: pace } = await read.rpc('get_target_pace', { p_grain: paceGrain })
-      inputSnapshot = { scorecard, target_pace: pace ?? [] }
+      // Work-completed / data-hygiene graft over the recent window (read-only: activity_log +
+      // dirt + reprice + FBA backlog). Trailing 30d for monthly, 7d for weekly. Never fatal.
+      const wcDays = cadence === 'monthly' ? 30 : 7
+      const wcTo = new Date().toISOString().slice(0, 10)
+      const wcFrom = new Date(Date.now() - (wcDays - 1) * 86400000).toISOString().slice(0, 10)
+      const { data: work } = await read.rpc('get_work_completed', { p_from: wcFrom, p_to: wcTo })
+      inputSnapshot = { scorecard, target_pace: pace ?? [], work_completed: work ?? null }
       periodKey = derivePeriodKey(cadence, scorecard as any[])
       systemPrompt = SYSTEM_PROMPT
       maxTokens = cadence === 'monthly' ? 4000 : 2000   // monthly review is long — don't truncate
@@ -201,6 +230,11 @@ Deno.serve(async (req) => {
         `firmly in Primary, building toward Stretch") and whether we're ahead/behind Primary pace. ` +
         `For 'gross' rows with partial_cost=true, caveat that gross is partial pending full cost data:\n` +
         `${JSON.stringify(pace ?? [], null, 2)}\n\n` +
+        (work
+          ? `Work completed / data-hygiene graft in the last ${wcDays} days (already counted — give this its ` +
+            `own "Work completed" section and name the numbers; omit any line whose count is 0; the FBA ` +
+            `backlog is work still-to-do, not completed):\n${JSON.stringify(work, null, 2)}\n\n`
+          : '') +
         `Scorecard (JSON — already computed, do not recompute):\n` +
         JSON.stringify(scorecard, null, 2)
       // KPI cards: target pace per metric (actual-to-date + banding tier).
