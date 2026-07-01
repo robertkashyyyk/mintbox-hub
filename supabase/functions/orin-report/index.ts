@@ -192,7 +192,7 @@ Deno.serve(async (req) => {
       inputSnapshot = { scorecard, target_pace: pace ?? [] }
       periodKey = derivePeriodKey(cadence, scorecard as any[])
       systemPrompt = SYSTEM_PROMPT
-      maxTokens = 1400
+      maxTokens = cadence === 'monthly' ? 4000 : 2000   // monthly review is long — don't truncate
       userContent =
         `${CADENCE_BRIEF[cadence]}\n\n` +
         `Today is ${new Date().toISOString().slice(0, 10)}. Report period: ${periodKey}.\n\n` +
