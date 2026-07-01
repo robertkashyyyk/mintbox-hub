@@ -79,8 +79,10 @@ export default function OrderLineDetailSheet({
     queryKey: ["order-detail-lines", orderId],
     enabled: open && orderId != null,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("order_line_economics")
+      // order_economics_all = FBM/eBay matview + Amazon FBA, so FBA orders (with a
+      // synthetic mintsoft_order_id) resolve too — order_line_economics has no FBA.
+      const { data, error } = await (supabase as any)
+        .from("order_economics_all")
         .select(
           "mintsoft_order_id, line_index, sku, product_name, channel, qty, price, cost_each, courier_cost, channel_fee, profit, por_pct, order_value, order_date, fee_rule_name, good_dirt, missing_cost",
         )
