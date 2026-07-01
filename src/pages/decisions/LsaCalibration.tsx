@@ -86,6 +86,24 @@ const LsaCalibration = () => {
     staleTime: 5 * 60_000,
   });
 
+  // Toggle brands.auto_update_lsa straight from the grid (no trip to the Brands page)
+  const toggleAutoLsa = useMutation({
+    mutationFn: async ({ brandId, next }: { brandId: string; next: boolean }) => {
+      const { error } = await supabase.from("brands").update({ auto_update_lsa: next }).eq("id", brandId);
+      if (error) throw error;
+      return { brandId, next };
+    },
+    onSuccess: ({ brandId, next }) => {
+      qc.setQueryData<Set<string>>(["brands-auto-lsa-flags"], (prev) => {
+        const s = new Set(prev ?? []);
+        if (next) s.add(brandId); else s.delete(brandId);
+        return s;
+      });
+      toast({ title: next ? "Auto-Update LSA enabled" : "Auto-Update LSA disabled" });
+    },
+    onError: (e: any) => toast({ title: "Update failed", description: e?.message ?? String(e), variant: "destructive" }),
+  });
+
   const filteredBrands = useMemo(() => {
     const q = brandSearch.trim().toLowerCase();
     if (!q) return brandSummary;
@@ -427,16 +445,29 @@ const LsaCalibration = () => {
                           <TableCell className="font-medium">
                             <div className="flex items-center gap-1.5">
                               {b.brand_name || <span className="text-muted-foreground italic">Unmapped</span>}
-                              {b.brand_id && autoBrandIds.has(b.brand_id) && (
-                                <TooltipProvider>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <Zap className="h-3.5 w-3.5 text-warning fill-warning" />
-                                    </TooltipTrigger>
-                                    <TooltipContent>Auto-Update LSA enabled</TooltipContent>
-                                  </Tooltip>
-                                </TooltipProvider>
-                              )}
+                              {b.brand_id && (() => {
+                                const on = autoBrandIds.has(b.brand_id);
+                                return (
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <button
+                                          type="button"
+                                          onClick={() => toggleAutoLsa.mutate({ brandId: b.brand_id!, next: !on })}
+                                          disabled={toggleAutoLsa.isPending}
+                                          aria-label={on ? "Disable Auto-Update LSA" : "Enable Auto-Update LSA"}
+                                          className="inline-flex items-center rounded p-0.5 hover:bg-muted disabled:opacity-50"
+                                        >
+                                          <Zap className={`h-3.5 w-3.5 ${on ? "text-warning fill-warning" : "text-muted-foreground/40"}`} />
+                                        </button>
+                                      </TooltipTrigger>
+                                      <TooltipContent>
+                                        {on ? "Auto-Update LSA on — click to disable" : "Auto-Update LSA off — click to enable"}
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                );
+                              })()}
                             </div>
                           </TableCell>
                           <TableCell className="text-right tabular-nums font-medium">{b.total.toLocaleString()}</TableCell>
