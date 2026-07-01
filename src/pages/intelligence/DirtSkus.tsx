@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -23,14 +24,64 @@ const RANGE_LABEL: Record<RangeKey, string> = {
 
 type SortKey = "sku" | "product_name" | "lines" | "qty" | "revenue" | "profit" | "last_seen";
 
+const SNOOZE_DAYS = 7; // Resolve hides a dirt SKU for this long, then it returns if still dirt.
+
 const DirtSkus = () => {
+  const qc = useQueryClient();
   const [range, setRange] = useState<RangeKey>("4");
   const [search, setSearch] = useState("");
-  const [resolved, setResolved] = useState<Set<string>>(new Set());
+  const [justResolved, setJustResolved] = useState<Set<string>>(new Set()); // optimistic instant-hide
   const [sortKey, setSortKey] = useState<SortKey>("lines");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
   const days = Number(range) * 7;
+
+  // Active snoozes (persisted). A SKU stays hidden until snoozed_until passes.
+  const { data: snoozes } = useQuery({
+    queryKey: ["dirt-sku-snoozes"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("dirt_sku_snoozes")
+        .select("sku, snoozed_until")
+        .gt("snoozed_until", new Date().toISOString());
+      if (error) throw error;
+      return (data ?? []) as { sku: string; snoozed_until: string }[];
+    },
+  });
+  const snoozedSet = useMemo(() => {
+    const s = new Set<string>(justResolved);
+    (snoozes ?? []).forEach((x) => s.add(x.sku));
+    return s;
+  }, [snoozes, justResolved]);
+
+  const resolveMutation = useMutation({
+    mutationFn: async (sku: string) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      const until = new Date(Date.now() + SNOOZE_DAYS * 86400000).toISOString();
+      const { error } = await (supabase as any)
+        .from("dirt_sku_snoozes")
+        .upsert({ sku, snoozed_until: until, snoozed_by: user?.id ?? null }, { onConflict: "sku" });
+      if (error) throw error;
+    },
+    onMutate: (sku: string) => setJustResolved((p) => new Set(p).add(sku)),
+    onError: (e: any, sku) => {
+      setJustResolved((p) => { const n = new Set(p); n.delete(sku); return n; });
+      toast.error(`Couldn't resolve ${sku}: ${e?.message ?? "error"}`);
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ["dirt-sku-snoozes"] }),
+  });
+
+  const unsnoozeAll = useMutation({
+    mutationFn: async () => {
+      const { error } = await (supabase as any)
+        .from("dirt_sku_snoozes")
+        .delete()
+        .gt("snoozed_until", new Date().toISOString());
+      if (error) throw error;
+    },
+    onSuccess: () => { setJustResolved(new Set()); qc.invalidateQueries({ queryKey: ["dirt-sku-snoozes"] }); },
+    onError: (e: any) => toast.error(e?.message ?? "Couldn't clear snoozes"),
+  });
 
   const { data, isLoading } = useQuery({
     queryKey: ["dirt-skus-recent", days],
@@ -64,7 +115,7 @@ const DirtSkus = () => {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    let rows = grouped.filter((r) => !resolved.has(r.sku));
+    let rows = grouped.filter((r) => !snoozedSet.has(r.sku));
     if (q) {
       rows = rows.filter(
         (r) => r.sku.toLowerCase().includes(q) || (r.product_name ?? "").toLowerCase().includes(q),
@@ -79,7 +130,7 @@ const DirtSkus = () => {
       return String(av ?? "").localeCompare(String(bv ?? "")) * dir;
     });
     return rows;
-  }, [grouped, resolved, search, sortKey, sortDir]);
+  }, [grouped, snoozedSet, search, sortKey, sortDir]);
 
   const toggleSort = (k: SortKey) => {
     if (sortKey === k) setSortDir(sortDir === "asc" ? "desc" : "asc");
@@ -121,7 +172,7 @@ const DirtSkus = () => {
               <CardDescription>
                 {isLoading
                   ? "Loading…"
-                  : `${filtered.length} shown · ${grouped.length} unique · ${data?.length ?? 0} order lines${resolved.size ? ` · ${resolved.size} resolved` : ""}`}
+                  : `${filtered.length} shown · ${grouped.length} unique · ${data?.length ?? 0} order lines${snoozedSet.size ? ` · ${snoozedSet.size} resolved (snoozed ${SNOOZE_DAYS}d)` : ""}`}
               </CardDescription>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -141,9 +192,9 @@ const DirtSkus = () => {
                   ))}
                 </SelectContent>
               </Select>
-              {resolved.size > 0 && (
-                <Button variant="ghost" size="sm" onClick={() => setResolved(new Set())}>
-                  Clear resolved ({resolved.size})
+              {snoozedSet.size > 0 && (
+                <Button variant="ghost" size="sm" disabled={unsnoozeAll.isPending} onClick={() => unsnoozeAll.mutate()}>
+                  Un-snooze all ({snoozedSet.size})
                 </Button>
               )}
             </div>
@@ -190,7 +241,9 @@ const DirtSkus = () => {
                           variant="ghost"
                           size="sm"
                           className="h-7 px-2 text-xs"
-                          onClick={() => setResolved((prev) => new Set(prev).add(row.sku))}
+                          title={`Hide for ${SNOOZE_DAYS} days; reappears if it's still a dirt SKU after that`}
+                          disabled={resolveMutation.isPending}
+                          onClick={() => resolveMutation.mutate(row.sku)}
                         >
                           <X className="h-3 w-3 mr-1" /> Resolve
                         </Button>
@@ -206,7 +259,7 @@ const DirtSkus = () => {
 
       <div className="text-xs text-foreground/60">
         Tip: fix these by either (a) adding the missing brand prefix in <Link to="/discovery/brands" className="underline">Brands</Link>, or
-        (b) renaming the SKU in Mintsoft to match an existing prefix style. "Resolve" only hides the row from this view until refresh.
+        (b) renaming the SKU in Mintsoft to match an existing prefix style. <strong>Resolve</strong> hides it for {SNOOZE_DAYS} days to let the fix propagate — if it's still a dirt SKU after that, it comes back.
       </div>
     </div>
   );
