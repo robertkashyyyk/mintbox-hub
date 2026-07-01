@@ -305,14 +305,40 @@ async function processBrand(
   const dirty = all.filter(r => Math.round(Number(r.target_lsa)) !== Math.round(Number(r.current_lsa)))
   const idMap = await buildIdMap(admin, dirty.map(r => r.sku))
 
+  // DEAD-STOCK override for the OOS guard. An out-of-stock item we'd normally never lower is
+  // safe to trim to the floor IF it has had ZERO sales over the long "dead" window
+  // (lsa.dead_window_weeks, default 26). The buy engine treats LSA > 1 as a reorder point, so
+  // a stale-high LSA on a genuinely dead product drives phantom reorders; trimming it to 1
+  // stops that. Items with ANY demand in the long window stay protected (real sellers merely
+  // out of stock). We ask the RPC which of the OOS-would-lower SKUs are still ALIVE; the rest
+  // are dead and allowed through.
+  const oosLowerSkus = dirty
+    .filter(r => Math.max(1, Math.round(Number(r.target_lsa))) < Math.round(Number(r.current_lsa))
+              && Number(r.current_stock) <= 0)
+    .map(r => r.sku)
+  const aliveSkus = new Set<string>()
+  for (let i = 0; i < oosLowerSkus.length; i += ID_CHUNK) {
+    const chunk = oosLowerSkus.slice(i, i + ID_CHUNK)
+    const rows = await withRetry(async () => {
+      const { data, error } = await admin.rpc('lsa_skus_with_recent_sales', { p_skus: chunk } as any)
+      if (error) throw new Error(error.message)
+      return (data || []) as Array<{ sku: string }>
+    })
+    for (const r of rows) aliveSkus.add(r.sku)
+  }
+
   // Apply guards → build the real worklist
   const work: Array<{ sku: string; id: number; from: number; to: number }> = []
-  let skipped_oos = 0, skipped_noop = 0, skipped_no_id = 0
+  let skipped_oos = 0, skipped_noop = 0, skipped_no_id = 0, lowered_dead = 0
   for (const r of dirty) {
     const to = Math.max(1, Math.round(Number(r.target_lsa)))   // coerce 0 -> 1
     const from = Math.round(Number(r.current_lsa))
     if (to === from) { skipped_noop++; continue }
-    if (to < from && Number(r.current_stock) <= 0) { skipped_oos++; continue }
+    if (to < from && Number(r.current_stock) <= 0) {
+      // OOS + would-lower: skip UNLESS genuinely dead (no sales in the long window).
+      if (aliveSkus.has(r.sku)) { skipped_oos++; continue }
+      lowered_dead++   // dead stock → allow trim to floor, killing phantom reorders
+    }
     const id = idMap.get(r.sku)
     if (!id) { skipped_no_id++; continue }
     work.push({ sku: r.sku, id, from, to })
@@ -320,7 +346,7 @@ async function processBrand(
 
   const base = {
     brand_id: brand.id, brand_name: brand.name,
-    candidates: work.length, skipped_oos, skipped_noop, skipped_no_id,
+    candidates: work.length, skipped_oos, skipped_noop, skipped_no_id, lowered_dead,
     dry_run: dryRun,
   }
 
