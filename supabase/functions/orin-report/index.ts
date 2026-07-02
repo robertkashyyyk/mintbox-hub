@@ -312,6 +312,9 @@ Deno.serve(async (req) => {
       const { data: fromRow } = await write.from('app_settings').select('value').eq('key', 'orin.email_from').maybeSingle()
       // test_to overrides recipients (for previewing without mailing the full list).
       const testTo = body?.test_to
+      // Optional one-off note (e.g. a correction/apology while in test) — rendered as a
+      // banner above the report in the email ONLY; never stored in ai_reports.narrative.
+      const note = typeof body?.note === 'string' ? body.note.trim() : ''
       const cfgRecipients: string[] = Array.isArray(recRow?.value) ? (recRow!.value as string[]) : []
       const recipients: string[] = testTo ? (Array.isArray(testTo) ? testTo : [testTo]) : cfgRecipients
       const cadences: string[] = Array.isArray(cadRow?.value) ? (cadRow!.value as string[]) : ['weekly', 'monthly']
@@ -319,7 +322,9 @@ Deno.serve(async (req) => {
       const fromAddr: string = (typeof fromRow?.value === 'string' && fromRow.value)
         ? (fromRow.value as string) : 'PartsDoc Orin <orin@partsdochub.com>'
       if (RESEND_API_KEY && recipients.length > 0 && (testTo || cadences.includes(cadence))) {
-        const html = renderEmailHtml(narrative, cadence, periodKey, cards)
+        // Prepend the note as a blockquote banner (styled via .orin-body blockquote) for the email only.
+        const emailBody = note ? `> ${note}\n\n${narrative}` : narrative
+        const html = renderEmailHtml(emailBody, cadence, periodKey, cards)
         const r = await fetch('https://api.resend.com/emails', {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
@@ -327,7 +332,7 @@ Deno.serve(async (req) => {
             from: fromAddr,
             to: recipients,
             subject: `Orin ${cadence} report — ${periodKey}`,
-            html, text: narrative,
+            html, text: emailBody,
           }),
         })
         if (r.ok) emailed = recipients
