@@ -20,6 +20,7 @@ import { ArrowLeft, Upload, Loader2, AlertTriangle, RefreshCw, ChevronLeft, Chev
 import ModuleHeader from "@/components/ModuleHeader";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import ThreedsAutoReport from "./ThreedsAutoReport";
+import AmazonReprice from "./AmazonReprice";
 import { format } from "date-fns";
 import {
   type Tier, type FeeRule, type CostFlag,
@@ -142,6 +143,7 @@ export default function ThreedsReprice() {
   const { toast } = useToast();
   const qc = useQueryClient();
 
+  const [channel, setChannel] = useState<"ebay" | "amazon">("ebay");
   const [mode, setMode] = useState<"manual" | "auto">("manual");
   const [storeId, setStoreId] = useState<string | null>(null);
   const [days, setDays] = useState(90);
@@ -492,13 +494,13 @@ export default function ThreedsReprice() {
           Back to Decisions
         </Button>
         <ModuleHeader
-          title="3D Reprice"
-          description="Pick a store, choose the profitability tier to move prices to, review the suggested inc-VAT price, then push to 3D via SFTP."
+          title="Reprice"
+          description="eBay/3D: pick a store and tier, review the inc-VAT price, push via SFTP. Amazon: live view of the autonomous eSagu repricer."
           icon={RefreshCw}
         />
       </div>
 
-      {fencedCount > 0 && (
+      {channel === "ebay" && fencedCount > 0 && (
         <div className="rounded-lg border border-orange-500/30 bg-orange-500/10 px-3 py-2 text-xs text-orange-400 flex items-center gap-2">
           <Flame className="h-3.5 w-3.5 flex-shrink-0" />
           {fencedCount} SKU{fencedCount === 1 ? "" : "s"} ring-fenced under an active price campaign — excluded from repricing.{" "}
@@ -506,14 +508,24 @@ export default function ThreedsReprice() {
         </div>
       )}
 
-      <ToggleGroup type="single" value={mode} onValueChange={(v) => v && setMode(v as "manual" | "auto")} className="justify-start">
-        <ToggleGroupItem value="manual" className="data-[state=on]:bg-pd-accent data-[state=on]:text-white px-4">Semi-Manual</ToggleGroupItem>
-        <ToggleGroupItem value="auto" className="data-[state=on]:bg-pd-accent data-[state=on]:text-white px-4">Auto-Report</ToggleGroupItem>
-      </ToggleGroup>
+      <div className="flex items-center gap-3 flex-wrap">
+        <ToggleGroup type="single" value={channel} onValueChange={(v) => v && setChannel(v as "ebay" | "amazon")} className="justify-start">
+          <ToggleGroupItem value="ebay" className="data-[state=on]:bg-pd-accent data-[state=on]:text-white px-4">eBay / 3D</ToggleGroupItem>
+          <ToggleGroupItem value="amazon" className="data-[state=on]:bg-pd-accent data-[state=on]:text-white px-4">Amazon</ToggleGroupItem>
+        </ToggleGroup>
+        {channel === "ebay" && (
+          <ToggleGroup type="single" value={mode} onValueChange={(v) => v && setMode(v as "manual" | "auto")} className="justify-start">
+            <ToggleGroupItem value="manual" className="data-[state=on]:bg-pd-accent data-[state=on]:text-white px-4">Semi-Manual</ToggleGroupItem>
+            <ToggleGroupItem value="auto" className="data-[state=on]:bg-pd-accent data-[state=on]:text-white px-4">Auto-Report</ToggleGroupItem>
+          </ToggleGroup>
+        )}
+      </div>
 
-      {mode === "auto" && <ThreedsAutoReport />}
+      {channel === "amazon" && <AmazonReprice />}
 
-      {mode === "manual" && (
+      {channel === "ebay" && mode === "auto" && <ThreedsAutoReport />}
+
+      {channel === "ebay" && mode === "manual" && (
       <>
       <Card>
         <CardHeader className="pb-3">
