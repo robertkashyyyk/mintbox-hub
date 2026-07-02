@@ -129,8 +129,13 @@ never recompute or invent a number. Write a VERY short daily note:
   "Yesterday's profit beat Primary by 12%" or "profit came in 8% short of Primary". A single day is not
   "tiered" — just say ahead/behind Primary (and by how much), and note if it cleared Stretch/Ultimate.
 - Then state revenue and orders as supporting context (a tight line or two), positive and encouraging in tone.
+- POR% is given as a LEVEL only. You may state it ("25.0% POR"), but you are NOT given any margin target or
+  baseline — so NEVER say margin/POR is "above"/"below"/"well above" an expected level, and never invent a
+  baseline figure (e.g. a "27.5% baseline"). Beating the profit £ target does NOT imply margin is high; do not
+  claim margin "drove" the day. Only compare against the Primary/Stretch/Ultimate PROFIT £ lines you are given.
 - Then ask ONE short, specific question to get the team thinking about today's focus.
-No preamble, no headers, no other metrics, no analysis beyond those figures.`
+No preamble, no headers, no other metrics, no analysis beyond those figures. Never invent or compare against any
+target/baseline not present in the data.`
 
 // get_scorecard / get_profit_day are heavy and sit on the ~8s statement timeout
 // when COLD (cache/plan not warm) — a single cold call fails the report. Retry so
