@@ -149,6 +149,7 @@ export default function LiquidationCandidates() {
   const qc = useQueryClient();
   const [maxVelocity, setMaxVelocity] = useState(0.5);
   const [minCapital, setMinCapital] = useState(25);
+  const [minCover, setMinCover] = useState(12);
   const [brandFilter, setBrandFilter] = useState("all");
   const [showExcluded, setShowExcluded] = useState(false);
   const [view, setView] = useState<"list" | "onsale" | "liquidation" | "brands" | "graphs">("list");
@@ -162,11 +163,12 @@ export default function LiquidationCandidates() {
   const TOP_N = 500;
 
   const { data: candidates = [], isLoading } = useQuery({
-    queryKey: ["liquidation-candidates", maxVelocity, minCapital, showExcluded, brandFilter],
+    queryKey: ["liquidation-candidates", maxVelocity, minCapital, minCover, showExcluded, brandFilter],
     queryFn: async () => {
       const { data, error } = await (supabase as any).rpc("get_liquidation_candidates", {
         max_velocity: maxVelocity, min_capital: minCapital, limit_n: TOP_N,
         include_excluded: showExcluded, p_brand: brandFilter === "all" ? null : brandFilter,
+        min_cover: minCover,
       });
       if (error) throw error;
       return data as Candidate[];
@@ -176,29 +178,31 @@ export default function LiquidationCandidates() {
   // Brand options come from a broad (brand-agnostic) candidate fetch so the
   // dropdown doesn't collapse once a brand is selected.
   const { data: brandList = [] } = useQuery({
-    queryKey: ["liquidation-brands", maxVelocity, minCapital],
+    queryKey: ["liquidation-brands", maxVelocity, minCapital, minCover],
     queryFn: async () => {
       const { data, error } = await (supabase as any).rpc("get_liquidation_candidates", {
         max_velocity: maxVelocity, min_capital: minCapital, limit_n: 2000, include_excluded: true, p_brand: null,
+        min_cover: minCover,
       });
       if (error) throw error;
       return Array.from(new Set(((data ?? []) as Candidate[]).map(c => c.brand_name).filter(Boolean) as string[])).sort();
     },
   });
   const { data: totals } = useQuery({
-    queryKey: ["liquidation-count", maxVelocity, minCapital, brandFilter],
+    queryKey: ["liquidation-count", maxVelocity, minCapital, minCover, brandFilter],
     queryFn: async () => {
       const { data, error } = await (supabase as any).rpc("get_liquidation_candidate_count", {
         max_velocity: maxVelocity, min_capital: minCapital, p_brand: brandFilter === "all" ? null : brandFilter,
+        min_cover: minCover,
       });
       if (error) throw error;
       return (data?.[0] ?? { total: 0, total_capital: 0, dead_count: 0 }) as { total: number; total_capital: number; dead_count: number };
     },
   });
   const { data: brandCounts = [] } = useQuery({
-    queryKey: ["liquidation-brand-counts", maxVelocity, minCapital],
+    queryKey: ["liquidation-brand-counts", maxVelocity, minCapital, minCover],
     queryFn: async () => {
-      const { data, error } = await (supabase as any).rpc("get_liquidation_by_brand", { max_velocity: maxVelocity, min_capital: minCapital });
+      const { data, error } = await (supabase as any).rpc("get_liquidation_by_brand", { max_velocity: maxVelocity, min_capital: minCapital, min_cover: minCover });
       if (error) throw error;
       return ((data ?? []) as { brand_name: string; total_candidates: number }[])
         .filter(b => Number(b.total_candidates) > 0)
@@ -294,7 +298,7 @@ export default function LiquidationCandidates() {
     return r;
   }, [candidates, brandFilter, sortKey, sortDir]);
 
-  useEffect(() => { setPage(1); setSelected(new Set()); }, [maxVelocity, minCapital, brandFilter, showExcluded]);
+  useEffect(() => { setPage(1); setSelected(new Set()); }, [maxVelocity, minCapital, minCover, brandFilter, showExcluded]);
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageRows = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   const trueTotal = totals?.total ?? 0;
@@ -374,6 +378,7 @@ export default function LiquidationCandidates() {
             </div>
             <div className="space-y-1.5"><Label className="text-xs">Max velocity /wk</Label><Input type="number" step="0.1" value={maxVelocity} onChange={e => setMaxVelocity(Number(e.target.value))} className="w-28 h-9" /></div>
             <div className="space-y-1.5"><Label className="text-xs">Min capital £</Label><Input type="number" value={minCapital} onChange={e => setMinCapital(Number(e.target.value) || 0)} className="w-24 h-9" /></div>
+            <div className="space-y-1.5"><Label className="text-xs" title="Only flag stock that covers more than this many weeks of sales. Recently-sold items are excluded too.">Min weeks cover</Label><Input type="number" value={minCover} onChange={e => setMinCover(Number(e.target.value) || 0)} className="w-24 h-9" /></div>
             <div className="flex items-center gap-2 pb-2"><Switch checked={showExcluded} onCheckedChange={setShowExcluded} id="excl" /><Label htmlFor="excl" className="text-xs cursor-pointer">Show snoozed</Label></div>
             <div className="ml-auto flex items-end gap-2">
               {selected.size > 0 && (<>
