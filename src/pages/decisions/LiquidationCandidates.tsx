@@ -562,14 +562,15 @@ function SaleReviewCard({ stores: _stores, onChanged }: { stores: Store[]; onCha
       const rows = await campaignListingRows(r.id, (orig) => orig); // restore original prices
       let res = { pushed: 0, failed: 0 };
       if (rows.length) res = await pushPerStore(rows);
+      const amz = await revertAmazonClearance([r.id]);
       await (supabase as any).from("price_campaigns").update({
         status: "ended", stage: null, outcome: "worked", reverted_at: new Date().toISOString(), end_date: new Date().toISOString().slice(0, 10),
       }).eq("id", r.id);
       await (supabase as any).from("price_campaign_listings").update({ reverted_at: new Date().toISOString() }).eq("campaign_id", r.id);
       await closeSaleTask(r.id);
-      return res;
+      return { ...res, amz: amz.restored };
     },
-    onSuccess: (res) => { toast.success(`Removed from sale — ${res.pushed} price(s) restored${res.failed ? `, ${res.failed} failed` : ""}`); onChanged(); },
+    onSuccess: (res) => { toast.success(`Removed from sale — ${res.pushed} price(s) restored${res.amz ? `, ${res.amz} Amazon floor(s) restored` : ""}${res.failed ? `, ${res.failed} failed` : ""}`); onChanged(); },
     onError: (e: any) => toast.error(e.message),
   });
 
@@ -596,10 +597,11 @@ function SaleReviewCard({ stores: _stores, onChanged }: { stores: Store[]; onCha
       await (supabase as any).from("price_campaigns").update({
         status: "active", stage: "selling", discount_pct: pct, campaign_price: newCampaignPrice, end_date: newEnd, outcome: "no_effect", recovery_step: 0, recovery_weeks: null, recovery_next_at: null,
       }).eq("id", r.id);
+      const amz = await applyAmazonClearance([r.id]); // campaign_price now deeper → lowers the Amazon floor further
       await closeSaleTask(r.id);
-      return res;
+      return { ...res, amz: amz.applied };
     },
-    onSuccess: (res) => { toast.success(`Reduced further — ${res.pushed} price(s) pushed${res.failed ? `, ${res.failed} failed` : ""}`); setReduceTarget(null); setReducePct(""); onChanged(); },
+    onSuccess: (res) => { toast.success(`Reduced further — ${res.pushed} price(s) pushed${res.amz ? `, ${res.amz} Amazon floor(s) lowered` : ""}${res.failed ? `, ${res.failed} failed` : ""}`); setReduceTarget(null); setReducePct(""); onChanged(); },
     onError: (e: any) => toast.error(e.message),
   });
 
@@ -612,10 +614,12 @@ function SaleReviewCard({ stores: _stores, onChanged }: { stores: Store[]; onCha
         recovery_weeks: weeks, recovery_step: 0, recovery_next_at: nextAt, recovery_target_price: target,
       }).eq("id", r.id);
       if (error) throw error;
+      // Amazon has no gradual step-up; restore its original floor so eSagu prices back up.
+      await revertAmazonClearance([r.id]);
       await closeSaleTask(r.id);
       return weeks;
     },
-    onSuccess: (weeks) => { toast.success(`Recovering to band over ${weeks} week(s) — prices step up weekly, then it hands back to the repricer`); setRecoverTarget(null); onChanged(); },
+    onSuccess: (weeks) => { toast.success(`Recovering to band over ${weeks} week(s) — prices step up weekly (Amazon floor restored), then it hands back to the repricer`); setRecoverTarget(null); onChanged(); },
     onError: (e: any) => toast.error(e.message),
   });
 
