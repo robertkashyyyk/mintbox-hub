@@ -85,11 +85,17 @@ async function pushPerStore(rows: { store_id: string; listing_sku: string; price
 // Shared: create a campaign + listing snapshots, clear stale pending, push.
 // `type` distinguishes a time-boxed Sale (restored at end_date via the review
 // loop) from a clear-and-forget Liquidation. saleWeeks sets the Sale's end_date.
+// Which channel(s) a clearance applies to. eBay = the existing SFTP price push;
+// Amazon = lower the eSagu min-price floor via the esagu-clearance edge fn.
+type ClearanceChannel = "ebay" | "amazon" | "both";
+
 async function launchCampaign(opts: {
   candidate: Candidate; listings: ListingRow[]; pct: number;
   type: "sale" | "liquidation"; saleWeeks?: number; notes?: string; userId: string | null;
-}): Promise<{ pushed: number; failed: number; recordOnly: boolean }> {
-  const { candidate, listings, pct, type, saleWeeks, notes, userId } = opts;
+  channel?: ClearanceChannel;
+}): Promise<{ pushed: number; failed: number; recordOnly: boolean; campaignId: string }> {
+  const { candidate, listings, pct, type, saleWeeks, notes, userId, channel = "ebay" } = opts;
+  const pushEbay = channel === "ebay" || channel === "both";
   const sale = (cur: number) => Math.max(0, Number((cur * (1 - pct / 100)).toFixed(2)));
   const base = listings.length ? [...listings].sort((a, b) => a.current - b.current)[0] : null;
   const endDate = type === "sale" && saleWeeks
@@ -103,7 +109,7 @@ async function launchCampaign(opts: {
   }).select("id").single();
   if (cErr) throw new Error(cErr.code === "23505" ? `${candidate.sku} already has an active campaign` : cErr.message);
 
-  if (listings.length) {
+  if (pushEbay && listings.length) {
     await (supabase as any).from("price_campaign_listings").insert(listings.map(l => ({
       campaign_id: camp.id, listing_sku: l.listing_sku, store_id: l.store_id, store_name: l.store_name,
       original_price: l.current, sale_price: sale(l.current),
@@ -111,9 +117,30 @@ async function launchCampaign(opts: {
     await (supabase as any).rpc("clear_pending_for_base_sku", { p_base_sku: candidate.sku });
     const res = await pushPerStore(listings.map(l => ({ store_id: l.store_id, listing_sku: l.listing_sku, price: sale(l.current) })));
     await (supabase as any).from("price_campaigns").update({ pushed_at: new Date().toISOString() }).eq("id", camp.id);
-    return { ...res, recordOnly: false };
+    return { ...res, recordOnly: false, campaignId: camp.id };
   }
-  return { pushed: 0, failed: 0, recordOnly: true };
+  return { pushed: 0, failed: 0, recordOnly: !pushEbay, campaignId: camp.id };
+}
+
+// Amazon side: hand campaign ids to the esagu-clearance orchestrator (dry-run safe;
+// we pass live:true only from a deliberate launch/revert action). Chunked to stay
+// under the edge fn's 200-item cap. No-op / resilient if the SKU isn't on Amazon.
+async function applyAmazonClearance(campaignIds: string[]): Promise<{ applied: number; skipped: number; failed: number }> {
+  const out = { applied: 0, skipped: 0, failed: 0 };
+  for (let i = 0; i < campaignIds.length; i += 50) {
+    const chunk = campaignIds.slice(i, i + 50);
+    const { data, error } = await supabase.functions.invoke("esagu-clearance", { body: { campaignIds: chunk, mode: "apply", live: true } });
+    if (error) { out.failed += chunk.length; continue; }
+    out.applied += Number(data?.applied ?? 0);
+    out.skipped += Number(data?.skipped ?? 0);
+    out.failed += ((data?.results ?? []) as any[]).filter(r => r.live && !r.ok).length;
+  }
+  return out;
+}
+async function revertAmazonClearance(campaignIds: string[]): Promise<{ restored: number }> {
+  const { data, error } = await supabase.functions.invoke("esagu-clearance", { body: { campaignIds, mode: "revert", live: true } });
+  if (error) return { restored: 0 };
+  return { restored: Number(data?.restored ?? 0) };
 }
 
 async function fetchListings(sku: string): Promise<ListingRow[]> {
@@ -263,11 +290,12 @@ export default function LiquidationCandidates() {
       const rows = (listings ?? []).filter((l: any) => l.store_id && l.original_price != null).map((l: any) => ({ store_id: l.store_id, listing_sku: l.listing_sku, price: Number(l.original_price) }));
       let res = { pushed: 0, failed: 0 };
       if (rows.length) res = await pushPerStore(rows);
+      const amz = await revertAmazonClearance([campaign.id]);
       await (supabase as any).from("price_campaigns").update({ status: "reverted", outcome: "reverted", reverted_at: new Date().toISOString(), end_date: new Date().toISOString().slice(0, 10) }).eq("id", campaign.id);
       await (supabase as any).from("price_campaign_listings").update({ reverted_at: new Date().toISOString() }).eq("campaign_id", campaign.id);
-      return res;
+      return { ...res, amzRestored: amz.restored };
     },
-    onSuccess: (res) => { toast.success(`Reverted — ${res.pushed} price(s) pushed back${res.failed ? `, ${res.failed} failed` : ""}`); invalidate(); },
+    onSuccess: (res) => { toast.success(`Reverted — ${res.pushed} eBay price(s) pushed back${res.amzRestored ? `, ${res.amzRestored} Amazon floor(s) restored` : ""}${res.failed ? `, ${res.failed} failed` : ""}`); invalidate(); },
     onError: (e: any) => toast.error(e.message),
   });
   const endMutation = useMutation({
@@ -812,9 +840,11 @@ function BulkDialog({ intent, candidates, onClose, onDone }: { intent: "sale" | 
   const [weeks, setWeeks] = useState("4");
   const [mode, setMode] = useState<"fixed" | "suggested">("suggested");
   const [pct, setPct] = useState("25");
+  const [channel, setChannel] = useState<ClearanceChannel>("ebay");
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState({ done: 0, pushed: 0, diverted: 0, failed: 0 });
   const isSale = kind === "sale";
+  const wantAmazon = channel === "amazon" || channel === "both";
   useEffect(() => { if (intent) setKind(intent); }, [intent]);
 
   async function run() {
@@ -824,24 +854,27 @@ function BulkDialog({ intent, candidates, onClose, onDone }: { intent: "sale" | 
     setProgress({ done: 0, pushed: 0, diverted: 0, failed: 0 });
     const { data: { user } } = await supabase.auth.getUser();
     let pushed = 0, diverted = 0, failed = 0;
+    const amazonIds: string[] = [];
     for (let i = 0; i < candidates.length; i++) {
       const c = candidates[i];
       const usePct = mode === "suggested" ? suggestDiscount(c) : Number(pct);
       try {
         const listings = await fetchListings(c.sku);
-        if (listings.length === 0) {
-          // Not listed anywhere → can't be sold/liquidated → divert to Opportunities.
+        if (listings.length === 0 && !wantAmazon) {
+          // Not listed on eBay and no Amazon channel → can't act → divert to Opportunities.
           await divertToOpportunities(c);
           diverted++;
         } else {
-          await launchCampaign({ candidate: c, listings, pct: usePct, type: kind, saleWeeks: isSale ? saleWeeks : undefined, userId: user?.id ?? null });
+          const r = await launchCampaign({ candidate: c, listings, pct: usePct, type: kind, saleWeeks: isSale ? saleWeeks : undefined, userId: user?.id ?? null, channel });
+          if (wantAmazon) amazonIds.push(r.campaignId);
           pushed++;
         }
       } catch { failed++; }
       setProgress({ done: i + 1, pushed, diverted, failed });
     }
+    const amz = wantAmazon && amazonIds.length ? await applyAmazonClearance(amazonIds) : null;
     setRunning(false);
-    toast.success(`Bulk ${isSale ? "sale" : "clearance"} — ${pushed} actioned, ${diverted} diverted to Opportunities (not listed), ${failed} failed`);
+    toast.success(`Bulk ${isSale ? "sale" : "clearance"} — ${pushed} actioned${amz ? `, Amazon: ${amz.applied} floor(s) lowered${amz.skipped ? ` (${amz.skipped} already low)` : ""}` : ""}, ${diverted} diverted to Opportunities (not listed), ${failed} failed`);
     onDone();
   }
 
@@ -856,6 +889,17 @@ function BulkDialog({ intent, candidates, onClose, onDone }: { intent: "sale" | 
           <div className="flex gap-2">
             <Button variant={kind === "sale" ? "default" : "outline"} size="sm" onClick={() => setKind("sale")} className="flex-1"><Tag className="h-4 w-4 mr-1" />Sale (timed)</Button>
             <Button variant={kind === "liquidation" ? "default" : "outline"} size="sm" onClick={() => setKind("liquidation")} className="flex-1"><Flame className="h-4 w-4 mr-1" />Liquidation</Button>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Channel</Label>
+            <div className="flex gap-2">
+              {(["ebay", "both", "amazon"] as ClearanceChannel[]).map(ch => (
+                <Button key={ch} variant={channel === ch ? "default" : "outline"} size="sm" className="flex-1 text-xs" onClick={() => setChannel(ch)}>
+                  {ch === "ebay" ? "eBay" : ch === "amazon" ? "Amazon" : "Both"}
+                </Button>
+              ))}
+            </div>
+            {wantAmazon && <p className="text-xs text-muted-foreground">Amazon: lowers the eSagu min-price floor so it competes down toward the sale price only when beaten — revertible.</p>}
           </div>
           {isSale && (
             <div className="space-y-1.5">
@@ -902,8 +946,10 @@ function LaunchDialog({ launch, stores, onClose, onLaunched }: { launch: { candi
   const [discount, setDiscount] = useState("");
   const [weeks, setWeeks] = useState("4");
   const [notes, setNotes] = useState("");
+  const [channel, setChannel] = useState<ClearanceChannel>("ebay");
   const [manual, setManual] = useState<{ store_id: string; listing_sku: string; current_price: string }[]>([]);
   const [saving, setSaving] = useState(false);
+  const wantAmazon = channel === "amazon" || channel === "both";
 
   const { data: known = [], isLoading: knownLoading } = useQuery({
     queryKey: ["campaign-listings", candidate?.sku],
@@ -911,7 +957,7 @@ function LaunchDialog({ launch, stores, onClose, onLaunched }: { launch: { candi
     queryFn: async () => fetchListings(candidate!.sku),
   });
 
-  useEffect(() => { if (candidate) { setDiscount(String(suggestDiscount(candidate))); setWeeks("4"); setNotes(""); setManual([]); } }, [candidate]);
+  useEffect(() => { if (candidate) { setDiscount(String(suggestDiscount(candidate))); setWeeks("4"); setNotes(""); setManual([]); setChannel("ebay"); } }, [candidate]);
 
   const pct = Number(discount) || 0;
   const sale = (cur: number) => Math.max(0, Number((cur * (1 - pct / 100)).toFixed(2)));
@@ -939,9 +985,10 @@ function LaunchDialog({ launch, stores, onClose, onLaunched }: { launch: { candi
     setSaving(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      const res = await launchCampaign({ candidate, listings: allListings, pct, type: intent, saleWeeks: isSale ? saleWeeks : undefined, notes, userId: user?.id ?? null });
+      const r = await launchCampaign({ candidate, listings: allListings, pct, type: intent, saleWeeks: isSale ? saleWeeks : undefined, notes, userId: user?.id ?? null, channel });
+      const amz = wantAmazon ? await applyAmazonClearance([r.campaignId]) : null;
       const label = isSale ? `Sale (${saleWeeks}w)` : "Liquidation";
-      toast.success(`${candidate.sku} — ${label}, ${pct}% off, ${res.pushed} listing(s) pushed${res.failed ? `, ${res.failed} failed` : ""}`);
+      toast.success(`${candidate.sku} — ${label}, ${pct}% off, ${r.pushed} eBay listing(s) pushed${amz ? `, Amazon: ${amz.applied} floor(s) lowered${amz.skipped ? ` (${amz.skipped} already low)` : ""}` : ""}${r.failed ? `, ${r.failed} failed` : ""}`);
       onLaunched();
     } catch (e: any) { toast.error(e.message); } finally { setSaving(false); }
   }
@@ -976,6 +1023,17 @@ function LaunchDialog({ launch, stores, onClose, onLaunched }: { launch: { candi
               </div>
             )}
             <p className="text-xs text-muted-foreground pb-2">{isSale ? `Reviews on ${weeks && Number(weeks) > 0 ? new Date(Date.now() + Number(weeks) * 7 * 86_400_000).toISOString().slice(0, 10) : "—"}.` : `Logistics floor ≈ £${LIQUIDATION_FLOOR.toFixed(2)} — below it the sale loses money on fees + courier.`} Applies off each listing's current price.</p>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Channel</Label>
+            <div className="flex gap-2">
+              {(["ebay", "both", "amazon"] as ClearanceChannel[]).map(ch => (
+                <Button key={ch} variant={channel === ch ? "default" : "outline"} size="sm" className="flex-1 text-xs" onClick={() => setChannel(ch)}>
+                  {ch === "ebay" ? "eBay" : ch === "amazon" ? "Amazon" : "Both"}
+                </Button>
+              ))}
+            </div>
+            {wantAmazon && <p className="text-xs text-muted-foreground">Amazon: lowers the eSagu min-price floor{allListings.length ? ` to ~£${sale([...allListings].sort((a, b) => a.current - b.current)[0].current).toFixed(2)}` : ""} — it competes down toward that only when beaten. Revertible.</p>}
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs">Listings ({allListings.length})</Label>
