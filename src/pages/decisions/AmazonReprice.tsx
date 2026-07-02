@@ -9,7 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { Bot, Info, Upload, Loader2 } from "lucide-react";
+import { Bot, Info, Upload, Loader2, Flame } from "lucide-react";
 import { type Tier, TIER_OPTIONS, TIER_TARGET_POR_PCT, classifyPorBand } from "@/lib/reprice";
 
 // Amazon reprices via eSagu. This panel is a live worklist AND an action surface:
@@ -83,6 +83,31 @@ export default function AmazonReprice() {
       qc.invalidateQueries({ queryKey: ["amazon-reprice-summary"] });
     },
     onError: (e) => toast({ title: "Push failed", description: String(e), variant: "destructive" }),
+  });
+
+  // Blow out a stuck-FBA item: create an Amazon-scoped liquidation campaign (reusing the
+  // Clearance system), enact it via esagu-clearance (drops the eSagu floor to clear the
+  // stock), and flag the SKU never-FBA so the recommender won't restock it.
+  const blowOutMut = useMutation({
+    mutationFn: async (row: any) => {
+      const { data: auth } = await supabase.auth.getUser();
+      const blowoutPrice = row.competable_price ?? row.amazon_price; // clear at market
+      const { data: camp, error: cErr } = await (supabase as any).from("price_campaigns").insert({
+        sku: row.sku, type: "liquidation", status: "active", channels: ["amazon"],
+        original_price: row.amazon_price, campaign_price: blowoutPrice, baseline_cost: row.cost ?? null,
+        notes: "FBA storage blow-out (from Amazon worklist)", created_by: auth?.user?.id ?? null,
+      }).select("id").single();
+      if (cErr) throw new Error(cErr.code === "23505" ? `${row.sku} already has an active campaign` : cErr.message);
+      await supabase.functions.invoke("esagu-clearance", { body: { campaignIds: [camp.id], mode: "apply", live: true } });
+      await (supabase as any).rpc("amazon_flag_never_fba", { p_sku: row.sku, p_note: "FBA storage blow-out" });
+      return row.sku as string;
+    },
+    onSuccess: (sku) => {
+      toast({ title: "Blown out", description: `${sku} is on Amazon clearance and flagged never-FBA.` });
+      qc.invalidateQueries({ queryKey: ["amazon-reprice-overview"] });
+      qc.invalidateQueries({ queryKey: ["amazon-reprice-summary"] });
+    },
+    onError: (e) => toast({ title: "Blow-out failed", description: String(e), variant: "destructive" }),
   });
 
   const toggleFilter = (k: StatusKey) => { setStatusFilter((cur) => (cur === k ? "all" : k)); setSelected({}); };
@@ -185,6 +210,7 @@ export default function AmazonReprice() {
                     <TableHead className="text-right">Target ({tier})</TableHead>
                     <TableHead className="text-right">Market</TableHead>
                     <TableHead>Buy box</TableHead>
+                    <TableHead>Action</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -206,7 +232,10 @@ export default function AmazonReprice() {
                         <TableCell className="font-mono text-xs">
                           <a href={`https://www.amazon.co.uk/dp/${r.asin}`} target="_blank" rel="noreferrer" className="text-pd-accent hover:underline">{r.asin}</a>
                         </TableCell>
-                        <TableCell><Badge variant="secondary" className="text-[10px]">{r.fba ? "FBA" : "FBM"}</Badge></TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          <Badge variant="secondary" className="text-[10px]">{r.fba ? "FBA" : "FBM"}</Badge>
+                          {r.never_fba && <Badge variant="outline" className="text-[10px] ml-1 border-orange-500/50 text-orange-400">never-FBA</Badge>}
+                        </TableCell>
                         <TableCell className="text-right">{fmtGBP(r.amazon_price)}</TableCell>
                         <TableCell className="text-xs text-muted-foreground">{band ?? "—"}</TableCell>
                         <TableCell className="text-right text-muted-foreground">{fmtGBP(r.cost_floor)}</TableCell>
@@ -216,6 +245,21 @@ export default function AmazonReprice() {
                           {r.we_hold_box ? <span className="text-emerald-500">You</span>
                             : r.buy_box_seller ? <span className="text-muted-foreground">{r.buy_box_seller}</span>
                             : <span className="text-muted-foreground">—</span>}
+                        </TableCell>
+                        <TableCell>
+                          {r.status === "stuck_fba" && r.sku && (
+                            <Button
+                              size="sm" variant="outline"
+                              className="h-7 text-xs border-orange-500/50 text-orange-400 hover:bg-orange-500/10"
+                              disabled={blowOutMut.isPending}
+                              onClick={() => blowOutMut.mutate(r)}
+                            >
+                              {blowOutMut.isPending && blowOutMut.variables?.esagu_item_id === r.esagu_item_id
+                                ? <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                : <Flame className="h-3 w-3 mr-1" />}
+                              Blow out
+                            </Button>
+                          )}
                         </TableCell>
                       </TableRow>
                     );
