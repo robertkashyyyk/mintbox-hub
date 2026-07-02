@@ -101,11 +101,12 @@ async function launchCampaign(opts: {
   const endDate = type === "sale" && saleWeeks
     ? new Date(Date.now() + saleWeeks * 7 * 86_400_000).toISOString().slice(0, 10)
     : null;
+  const channels = channel === "both" ? ["ebay", "amazon"] : [channel];
   const { data: camp, error: cErr } = await (supabase as any).from("price_campaigns").insert({
     sku: candidate.sku, type, status: "active", discount_pct: pct, end_date: endDate,
     original_price: base?.current ?? null, campaign_price: base ? sale(base.current) : null,
     baseline_velocity: candidate.velocity_per_week, baseline_stock: candidate.current_stock, baseline_cost: candidate.cost_price,
-    notes: notes?.trim() || null, created_by: userId,
+    notes: notes?.trim() || null, created_by: userId, channels,
   }).select("id").single();
   if (cErr) throw new Error(cErr.code === "23505" ? `${candidate.sku} already has an active campaign` : cErr.message);
 
