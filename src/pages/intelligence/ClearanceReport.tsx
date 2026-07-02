@@ -33,6 +33,15 @@ export default function ClearanceReport() {
     },
   });
 
+  const { data: payoff } = useQuery({
+    queryKey: ["clearance-payoff"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc("get_clearance_payoff");
+      if (error) return null;
+      return (data?.[0] ?? null) as { total_units: number; total_revenue: number; total_profit: number; total_capital_cleared: number } | null;
+    },
+  });
+
   const { data: trend = [] } = useQuery({
     queryKey: ["clearance-trend"],
     queryFn: async () => {
@@ -90,6 +99,21 @@ export default function ClearanceReport() {
           <CardContent><div className="text-2xl font-bold">{m.campaignsRun}</div><div className="text-xs text-muted-foreground">ended or reverted</div></CardContent>
         </Card>
       </div>
+
+      {/* Realized payoff — the value the programme has actually delivered (all channels incl. Amazon, net of cost + fees) */}
+      {payoff && (
+        <Card className="border-pd-accent/30">
+          <CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2"><PoundSterling className="h-4 w-4 text-pd-accent" /> Realized payoff — all channels (incl. Amazon)</CardTitle></CardHeader>
+          <CardContent>
+            <div className="grid gap-3 md:grid-cols-4">
+              <div><div className="text-xs text-muted-foreground">Capital cleared</div><div className="text-2xl font-bold text-pd-accent">{gbp(payoff.total_capital_cleared)}</div><div className="text-[11px] text-muted-foreground">frozen stock released</div></div>
+              <div><div className="text-xs text-muted-foreground">Revenue in</div><div className="text-2xl font-bold text-emerald-400">{gbp(payoff.total_revenue)}</div><div className="text-[11px] text-muted-foreground">{payoff.total_units} units shifted</div></div>
+              <div><div className="text-xs text-muted-foreground">Net profit</div><div className={`text-2xl font-bold ${payoff.total_profit >= 0 ? "text-emerald-400" : "text-destructive"}`}>{gbp(payoff.total_profit)}</div><div className="text-[11px] text-muted-foreground">revenue − cost − fees</div></div>
+              <div><div className="text-xs text-muted-foreground">Effective cost to free capital</div><div className="text-2xl font-bold">{payoff.total_profit < 0 ? gbp(-payoff.total_profit) : "£0"}</div><div className="text-[11px] text-muted-foreground">the write-down we accepted</div></div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Trend — capital under clearance over time, split On Sale vs In Liquidation */}
       <Card>

@@ -146,6 +146,17 @@ const ProfitDashboard = () => {
     },
   });
 
+  // Repricing impact — value captured by the Amazon/eSagu levers (margin recovery,
+  // FBA guard). Not week-scoped: it's cumulative-since-launch (the levers are new).
+  const { data: impact } = useQuery({
+    queryKey: ["reprice-impact", refetchKey],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc("get_reprice_impact_summary");
+      if (error) throw error;
+      return (data ?? null) as any;
+    },
+  });
+
   // Fetch ALL lines for the week (paged through 1k limit), then sort/filter/page client-side
   const { data: lines, isLoading: linesLoading } = useQuery({
     queryKey: ["profit-lines-all", year, week, refetchKey],
@@ -428,6 +439,54 @@ const ProfitDashboard = () => {
       <p className="text-xs text-foreground/50 -mt-2">
         Counts exclude cancelled, refunded and returned orders — only active &amp; despatched orders feed profit calculations. Mintsoft's raw weekly count will be higher.
       </p>
+
+      {/* Repricing impact — value captured by the Amazon/eSagu levers (cumulative since launch) */}
+      {impact && (
+        <Card className="border-pd-accent/20 bg-pd-accent/5">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <TrendingUp className="h-4 w-4" />
+              Repricing impact
+              <Badge variant="outline" className="ml-1 font-normal">Amazon · since launch</Badge>
+            </CardTitle>
+            <CardDescription>
+              Value captured by the eSagu levers. Margin recovery is provably-incremental — every £ sold
+              above the old price ceiling we lifted. Guard shows buy-box recapture on capped FBA items.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div>
+                <div className="text-xs text-foreground/60">Margin unlocked</div>
+                <div className="text-xl font-semibold">{fmtGBP(impact?.margin?.gbp_unlocked)}</div>
+                <div className="text-xs text-foreground/50">
+                  {fmtNum(impact?.margin?.units_post)} units since launch
+                </div>
+              </div>
+              <div>
+                <div className="text-xs text-foreground/60">Buy box recaptured</div>
+                <div className="text-xl font-semibold">
+                  {impact?.guard?.box_held_now ?? 0}/{impact?.guard?.items ?? 0}
+                  <span className="text-sm text-foreground/60 ml-1">
+                    ({impact?.guard?.pct_box != null ? `${impact.guard.pct_box}%` : "—"})
+                  </span>
+                </div>
+                <div className="text-xs text-foreground/50">FBA items held after guard</div>
+              </div>
+              <div>
+                <div className="text-xs text-foreground/60">Margin raises</div>
+                <div className="text-xl font-semibold">{fmtNum(impact?.margin?.actions)}</div>
+                <div className="text-xs text-foreground/50">ceilings un-caged</div>
+              </div>
+              <div>
+                <div className="text-xs text-foreground/60">Guard actions</div>
+                <div className="text-xl font-semibold">{fmtNum(impact?.guard?.actions)}</div>
+                <div className="text-xs text-foreground/50">FBA caps applied</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Per-channel comparison — click a channel to filter the table below */}
       {byChannel.length > 1 && (

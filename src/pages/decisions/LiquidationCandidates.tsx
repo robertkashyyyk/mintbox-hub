@@ -43,9 +43,9 @@ interface Campaign {
   recovery_step: number | null; recovery_weeks: number | null; recovery_next_at: string | null;
 }
 interface ClearancePerf {
-  on_sale_count: number; on_sale_capital: number; on_sale_units: number; on_sale_revenue: number;
+  on_sale_count: number; on_sale_capital: number; on_sale_units: number; on_sale_revenue: number; on_sale_profit: number;
   on_sale_baseline_units: number; on_sale_avg_discount: number; awaiting_review: number; recovering: number;
-  liq_count: number; liq_capital: number; liq_units: number; liq_revenue: number; liq_avg_discount: number;
+  liq_count: number; liq_capital: number; liq_units: number; liq_revenue: number; liq_profit: number; liq_avg_discount: number;
 }
 interface KnownListing { listing_sku: string; store_id: string; store_name: string; mintsoft_channel: string; current_price: number; last_sold: string }
 interface Store { id: string; store_name: string }
@@ -742,20 +742,22 @@ function ActiveCampaignsTable({ kind, campaigns, perf, onEnd, onRevert, revertin
   const uplift = perf ? Math.round(perf.on_sale_units - perf.on_sale_baseline_units) : 0;
 
   const cards = perf && (kind === "sale" ? (
-    <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+    <div className="grid grid-cols-2 md:grid-cols-7 gap-3">
       <Stat label="Active sales" value={String(perf.on_sale_count)} icon={Tag} />
       <Stat label="Capital on sale" value={gbp(perf.on_sale_capital)} className="text-pd-accent" icon={PoundSterling} />
       <Stat label="Units sold (since launch)" value={String(perf.on_sale_units)} icon={Send} />
       <Stat label="Revenue (since launch)" value={gbp(perf.on_sale_revenue)} className="text-emerald-400" icon={PoundSterling} />
+      <Stat label="Net profit (since launch)" value={gbp(perf.on_sale_profit)} className={perf.on_sale_profit >= 0 ? "text-emerald-400" : "text-destructive"} icon={PoundSterling} />
       <Stat label="Uplift vs baseline" value={`${uplift >= 0 ? "+" : ""}${uplift} units`} className={uplift > 0 ? "text-emerald-400" : "text-muted-foreground"} icon={TrendingUp} />
       <Stat label="Awaiting review" value={String(perf.awaiting_review)} className={perf.awaiting_review > 0 ? "text-amber-400" : ""} icon={History} />
     </div>
   ) : (
-    <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+    <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
       <Stat label="Active liquidations" value={String(perf.liq_count)} icon={Flame} />
       <Stat label="Capital in liquidation" value={gbp(perf.liq_capital)} className="text-orange-400" icon={PoundSterling} />
       <Stat label="Units cleared" value={String(perf.liq_units)} icon={Send} />
       <Stat label="Cash recovered" value={gbp(perf.liq_revenue)} className="text-emerald-400" icon={PoundSterling} />
+      <Stat label="Net profit" value={gbp(perf.liq_profit)} className={perf.liq_profit >= 0 ? "text-emerald-400" : "text-destructive"} icon={PoundSterling} />
       <Stat label="Avg depth" value={`${Number(perf.liq_avg_discount || 0)}%`} icon={TrendingDown} />
     </div>
   ));
