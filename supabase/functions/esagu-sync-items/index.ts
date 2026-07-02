@@ -90,13 +90,22 @@ Deno.serve(async (req) => {
     { auth: { persistSession: false } },
   );
 
-  let maxPages = 200, pageDelayMs = 120, startAfterId: number | undefined;
+  let maxPages = 200, pageDelayMs = 120, startAfterId: number | undefined, cron = false;
   try {
     const body = req.method === "POST" ? await req.json().catch(() => ({})) : {};
     if (body.maxPages) maxPages = Math.min(1000, Math.max(1, Number(body.maxPages)));
     if (body.pageDelayMs != null) pageDelayMs = Math.max(0, Number(body.pageDelayMs));
     if (body.startAfterId != null) startAfterId = Number(body.startAfterId);
+    if (body.cron === true) cron = true;
   } catch { /* defaults */ }
+
+  // Cron mode: self-cycle a persisted cursor (a full 42k sync exceeds one
+  // invocation, so each tick advances a bounded chunk and resets at the end).
+  if (cron) {
+    maxPages = 180;
+    const { data } = await supabase.from("app_settings").select("value").eq("key", "esagu_sync_cursor").maybeSingle();
+    startAfterId = Number((data?.value as any)?.after ?? 0) || undefined;
+  }
 
   let lastId: number | undefined = startAfterId;
   let pages = 0, totalFetched = 0, totalUpserted = 0;
@@ -130,7 +139,13 @@ Deno.serve(async (req) => {
       if (pageDelayMs) await new Promise((r) => setTimeout(r, pageDelayMs));
     }
 
-    return json({ ok: true, pages, totalFetched, totalUpserted, lastId, rate, cappedAtMaxPages: pages >= maxPages });
+    const capped = pages >= maxPages;
+    if (cron) {
+      // capped = more to sync → save cursor; otherwise the cycle finished → reset to 0.
+      const nextAfter = capped ? lastId ?? 0 : 0;
+      await supabase.from("app_settings").upsert({ key: "esagu_sync_cursor", value: { after: nextAfter, updated: new Date().toISOString() } }, { onConflict: "key" });
+    }
+    return json({ ok: true, cron, pages, totalFetched, totalUpserted, lastId, rate, cappedAtMaxPages: capped });
   } catch (e) {
     return json({ ok: false, stage: "loop", pages, totalFetched, totalUpserted, error: String(e) }, 200);
   }
