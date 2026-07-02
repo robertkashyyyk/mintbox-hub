@@ -94,7 +94,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { title: "FBA Replenishment", url: "/decisions/fba-replenishment", icon: Truck, description: "What to ship into Amazon FBA — demand vs current FBA stock, MOQ-rounded reorder quantities." },
       { title: "Purchase Orders", url: "/execution/purchase-orders", icon: ShoppingCart, description: "Create and manage purchase orders for suppliers" },
       { title: "LSA Calibration", url: "/decisions/lsa-calibration", icon: Gauge, description: "Review and adjust listing strategy advisor settings" },
-      { title: "3D Reprice", url: "/decisions/threeds-reprice", icon: Plug, description: "Trigger repricing runs via 3D Sellers integration" },
+      { title: "Reprice", url: "/decisions/threeds-reprice", icon: Plug, description: "Reprice eBay/3D via SFTP, or monitor the autonomous Amazon (eSagu) repricer" },
       { title: "Clearance", url: "/decisions/liquidation", icon: Flame, description: "Put dead stock on a timed Sale or Liquidate it — ring-fenced from the repricer" },
       { title: "Opportunities", url: "/decisions/coverage", icon: EyeOff, description: "In stock but not listed on eBay — list them to unlock sales (Clearance diverts unlisted SKUs here)" },
       { title: "Listing Queue", url: "/decisions/listing-queue", icon: ListChecks, description: "SKUs queued for listing — generate each store's 3D GTC import file" },
