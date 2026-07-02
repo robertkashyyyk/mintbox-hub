@@ -207,9 +207,9 @@ export default function LiquidationCandidates() {
     },
   });
   const { data: clearance } = useQuery({
-    queryKey: ["clearance-breakdown"],
+    queryKey: ["clearance-breakdown", brandFilter],
     queryFn: async () => {
-      const { data, error } = await (supabase as any).rpc("get_clearance_breakdown");
+      const { data, error } = await (supabase as any).rpc("get_clearance_breakdown", { p_brand: brandFilter === "all" ? null : brandFilter });
       if (error) throw error;
       return (data?.[0] ?? { on_sale_count: 0, on_sale_capital: 0, liquidation_count: 0, liquidation_capital: 0, campaigns_run: 0 }) as { on_sale_count: number; on_sale_capital: number; liquidation_count: number; liquidation_capital: number; campaigns_run: number };
     },
@@ -347,9 +347,18 @@ export default function LiquidationCandidates() {
       {view === "list" && (<>
       {/* Sticky toolbar */}
       <div className="sticky top-0 z-20 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 -mx-2 px-2 py-2 space-y-3 border-b border-border/40">
+        {brandFilter !== "all" && (
+          <div className="flex items-center gap-2 -mb-1">
+            <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-md bg-pd-accent/15 text-pd-accent border border-pd-accent/30">
+              <Tag className="h-3.5 w-3.5" />{brandFilter === "(no brand)" ? "No brand" : brandFilter}
+            </span>
+            <span className="text-xs text-muted-foreground">Cards below are for this brand only</span>
+            <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => setBrandFilter("all")}>Show all brands</Button>
+          </div>
+        )}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           <Stat label="Total candidates" value={trueTotal.toLocaleString()} icon={Boxes} />
-          <Stat label="Capital tied up (all)" value={`£${trueCapital.toLocaleString(undefined, { maximumFractionDigits: 0 })}`} className="text-orange-400" icon={PoundSterling} />
+          <Stat label={brandFilter === "all" ? "Capital tied up (all)" : "Capital tied up"} value={`£${trueCapital.toLocaleString(undefined, { maximumFractionDigits: 0 })}`} className="text-orange-400" icon={PoundSterling} />
           <Stat label="On sale" value={`£${Number(clearance?.on_sale_capital ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`} className="text-pd-accent" icon={Tag} />
           <Stat label="In liquidation" value={`£${Number(clearance?.liquidation_capital ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`} className="text-emerald-400" icon={Flame} />
           <Stat label="Dead (never sold)" value={(totals?.dead_count ?? 0).toLocaleString()} className="text-destructive" icon={AlertTriangle} />
