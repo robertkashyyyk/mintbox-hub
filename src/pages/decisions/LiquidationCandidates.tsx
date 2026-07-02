@@ -195,6 +195,17 @@ export default function LiquidationCandidates() {
       return (data?.[0] ?? { total: 0, total_capital: 0, dead_count: 0 }) as { total: number; total_capital: number; dead_count: number };
     },
   });
+  const { data: brandCounts = [] } = useQuery({
+    queryKey: ["liquidation-brand-counts", maxVelocity, minCapital],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc("get_liquidation_by_brand", { max_velocity: maxVelocity, min_capital: minCapital });
+      if (error) throw error;
+      return ((data ?? []) as { brand_name: string; total_candidates: number }[])
+        .filter(b => Number(b.total_candidates) > 0)
+        .map(b => [b.brand_name, Number(b.total_candidates)] as [string, number])
+        .sort((a, b) => b[1] - a[1]);
+    },
+  });
   const { data: clearance } = useQuery({
     queryKey: ["clearance-breakdown"],
     queryFn: async () => {
@@ -370,6 +381,25 @@ export default function LiquidationCandidates() {
         </Card>
         {capped && <p className="text-xs text-muted-foreground">Showing top {candidates.length.toLocaleString()} by capital of {trueTotal.toLocaleString()} — raise "min capital" to narrow.</p>}
       </div>
+
+      {brandCounts.length > 0 && (
+        <Card>
+          <CardContent className="py-3">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-xs font-medium text-muted-foreground">By brand</span>
+              {brandFilter !== "all" && <Button variant="ghost" size="sm" className="h-5 px-2 text-xs" onClick={() => setBrandFilter("all")}>clear</Button>}
+            </div>
+            <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto">
+              {brandCounts.map(([b, n]) => (
+                <button key={b} type="button" onClick={() => setBrandFilter(cur => cur === b ? "all" : b)}
+                  className={`text-xs px-2 py-0.5 rounded border transition-colors ${brandFilter === b ? "bg-pd-accent text-white border-pd-accent" : "border-border hover:bg-muted"}`}>
+                  {b === "(no brand)" ? "—" : b} <span className="opacity-70">{n}</span>
+                </button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardContent className="p-0">
