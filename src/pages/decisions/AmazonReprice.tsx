@@ -91,7 +91,9 @@ export default function AmazonReprice() {
   const blowOutMut = useMutation({
     mutationFn: async (row: any) => {
       const { data: auth } = await supabase.auth.getUser();
-      const blowoutPrice = row.competable_price ?? row.amazon_price; // clear at market
+      // clear at the REAL cheapest (domestic competable OR Amazon's own offer)
+      const lows = [row.competable_price, row.amazon_own].filter((n: any) => n != null).map(Number);
+      const blowoutPrice = lows.length ? Math.min(...lows) : row.amazon_price;
       const { data: camp, error: cErr } = await (supabase as any).from("price_campaigns").insert({
         sku: row.sku, type: "liquidation", status: "active", channels: ["amazon"],
         original_price: row.amazon_price, campaign_price: blowoutPrice, baseline_cost: row.cost ?? null,
@@ -209,6 +211,7 @@ export default function AmazonReprice() {
                     <TableHead className="text-right">Floor</TableHead>
                     <TableHead className="text-right">Target ({tier})</TableHead>
                     <TableHead className="text-right">Market</TableHead>
+                    <TableHead className="text-right">Amazon</TableHead>
                     <TableHead>Buy box</TableHead>
                     <TableHead>Action</TableHead>
                   </TableRow>
@@ -241,6 +244,9 @@ export default function AmazonReprice() {
                         <TableCell className="text-right text-muted-foreground">{fmtGBP(r.cost_floor)}</TableCell>
                         <TableCell className="text-right font-medium">{fmtGBP(r.target_price)}</TableCell>
                         <TableCell className="text-right text-muted-foreground">{fmtGBP(r.competable_price)}</TableCell>
+                        <TableCell className={`text-right ${r.amazon_own != null && r.amazon_own < r.amazon_price ? "text-destructive font-medium" : "text-muted-foreground"}`}>
+                          {r.amazon_own != null ? fmtGBP(r.amazon_own) : <span className="text-muted-foreground/50">—</span>}
+                        </TableCell>
                         <TableCell className="text-xs">
                           {r.we_hold_box ? <span className="text-emerald-500">You</span>
                             : r.buy_box_seller ? <span className="text-muted-foreground">{r.buy_box_seller}</span>
@@ -268,6 +274,7 @@ export default function AmazonReprice() {
               </Table>
               <p className="text-[10px] text-muted-foreground/70 mt-2">
                 Push sets each selected item's eSagu <strong>floor</strong> (minimum) to the {tier}-tier price; eSagu optimises upward from there.
+                <strong>Amazon</strong> = Amazon's own retail offer (red when it undercuts us — it caps what we can realistically win, and drives the "stuck in FBA" flag).
                 Rows without a cost map can't be tiered. Up to 400 items shown, worst first.
               </p>
             </div>
