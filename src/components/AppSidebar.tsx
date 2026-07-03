@@ -7,8 +7,9 @@ import {
   Users, Key, CreditCard, LogOut, UserCircle, Gauge,
   ChevronDown, ChevronRight, LayoutDashboard, Settings,
   Images, Clock, Plug, Truck, AlertTriangle, Sliders, Beaker, BarChart3, ArrowUpDown,
-  PoundSterling, Link2Off, HelpCircle, ClipboardList, CheckSquare, Gamepad2, Globe, Flame, FileBarChart2
+  PoundSterling, Link2Off, HelpCircle, ClipboardList, CheckSquare, Gamepad2, Globe, Flame, FileBarChart2, Crosshair
 } from "lucide-react";
+import { useCapability } from "@/hooks/useCapability";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -56,6 +57,9 @@ export function AppSidebar() {
   const navigate = useNavigate();
   const currentPath = location.pathname;
   const { data: rbacEnabled, isLoading: rbacLoading } = useRbacEnabled();
+  // War Room is leadership-only — gate its nav entry on the RBAC capability directly
+  // (works even while the global RBAC nav flag is off). Resolves 'none' for everyone else.
+  const { isAdmin: canWarRoom } = useCapability("strategy.war_room");
 
   // Move useQuery to top (before any conditional return)
   const { data: userRoles } = useQuery({
@@ -292,6 +296,16 @@ export function AppSidebar() {
                   </NavLink>
                 </SidebarMenuButton>
               </SidebarMenuItem>
+              {canWarRoom && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={currentPath.startsWith("/war-room")} tooltip="War Room">
+                    <NavLink to="/war-room">
+                      <Crosshair className="h-4 w-4" />
+                      <span>War Room</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

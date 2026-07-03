@@ -89,6 +89,7 @@ import StandingReports from "./pages/intelligence/StandingReports";
 import DirtSkus from "./pages/intelligence/DirtSkus";
 import CourierMargin from "./pages/intelligence/CourierMargin";
 import Scorecard from "./pages/intelligence/Scorecard";
+import WarRoom from "./pages/WarRoom";
 
 // Housekeeping
 import HousekeepingIndex from "./pages/HousekeepingIndex";
@@ -243,6 +244,7 @@ const App = () => (
             <Route path="/intelligence/dirt-skus" element={<DirtSkus />} />
             <Route path="/intelligence/courier-margin" element={<CourierMargin />} />
             <Route path="/intelligence/scorecard" element={<Scorecard />} />
+            <Route path="/war-room" element={<WarRoom />} />
 
             {/* Housekeeping */}
             <Route path="/housekeeping" element={<HousekeepingIndex />} />
