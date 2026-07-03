@@ -428,7 +428,8 @@ const ProfitDashboard = () => {
         <KpiCard label="Revenue (ex VAT)" value={fmtGBP(kpis?.revenue)} loading={kpisLoading} />
         <KpiCard label="Profit" value={fmtGBP(kpis?.profit)} loading={kpisLoading}
           accent={kpis?.profit != null && Number(kpis.profit) < 0 ? "destructive" : "good"} />
-        <KpiCard label="POR (profit / GMV inc VAT)" value={fmtPct(kpis?.por_pct)} loading={kpisLoading} />
+        <KpiCard label="POR (profit / GMV inc VAT)" value={fmtPct(kpis?.por_pct)} loading={kpisLoading}
+          sub={kpis?.por_pct != null ? `GM ${fmtPct(Number(kpis.por_pct) * 1.2)} (profit / ex-VAT)` : undefined} />
         <KpiCard label="Orders" value={fmtNum(kpis?.order_count)} loading={kpisLoading} />
         <KpiCard label="Cost of goods" value={fmtGBP(kpis?.cost_total)} loading={kpisLoading} />
         <KpiCard label="Courier spend" value={fmtGBP(kpis?.courier_cost_total)} loading={kpisLoading} />
@@ -903,16 +904,19 @@ const ProfitDashboard = () => {
   );
 };
 
-const KpiCard = ({ label, value, loading, accent }: { label: string; value: string; loading?: boolean; accent?: "good" | "destructive" }) => (
+const KpiCard = ({ label, value, loading, accent, sub }: { label: string; value: string; loading?: boolean; accent?: "good" | "destructive"; sub?: string }) => (
   <Card>
     <CardContent className="p-4">
       <div className="text-xs uppercase tracking-wide text-foreground/60">{label}</div>
       {loading ? (
         <Skeleton className="h-7 w-24 mt-2" />
       ) : (
-        <div className={`text-2xl font-bold mt-1 ${accent === "destructive" ? "text-destructive" : accent === "good" ? "text-pd-accent" : "text-foreground"}`}>
-          {value}
-        </div>
+        <>
+          <div className={`text-2xl font-bold mt-1 ${accent === "destructive" ? "text-destructive" : accent === "good" ? "text-pd-accent" : "text-foreground"}`}>
+            {value}
+          </div>
+          {sub && <div className="text-xs text-foreground/50 mt-0.5">{sub}</div>}
+        </>
       )}
     </CardContent>
   </Card>
