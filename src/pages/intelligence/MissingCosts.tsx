@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageLoader } from "@/components/ui/PageLoader";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, Save } from "lucide-react";
+import { AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, Download, Save } from "lucide-react";
 import ModuleHeader from "@/components/ModuleHeader";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -276,6 +276,39 @@ const MissingCosts = () => {
     }
   }
 
+  function exportCsv() {
+    const esc = (v: unknown) => {
+      const s = v == null ? "" : String(v);
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const header = ["SKU", "Product", "Brand", "Suppliers", "Stock", "Units 28d", "Last sold", "Mintsoft ID"];
+    const lines = [header.join(",")];
+    for (const r of filtered) {
+      lines.push([
+        r.sku,
+        r.name ?? "",
+        r.brand_name ?? "",
+        r.suppliers ?? "",
+        r.current_stock ?? 0,
+        r.units_28d ?? 0,
+        r.last_sold ? new Date(r.last_sold).toISOString().slice(0, 10) : "",
+        r.mintsoft_id ?? "",
+      ].map(esc).join(","));
+    }
+    const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8;" });
+    const brandPart = brandFilter !== "all" && brandFilter !== "none"
+      ? "-" + (brandMap.get(brandFilter) ?? "brand").replace(/[^a-z0-9]+/gi, "_")
+      : "";
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `missing-costs${brandPart}-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
   async function saveAllPage() {
     const items = pageRows
       .filter((r) => edits[r.id] && r.mintsoft_id)
@@ -405,6 +438,9 @@ const MissingCosts = () => {
               </SelectContent>
             </Select>
             <div className="ml-auto flex items-center gap-2">
+              <Button size="sm" variant="outline" onClick={exportCsv} disabled={filtered.length === 0}>
+                <Download className="h-4 w-4 mr-1" /> Export CSV ({filtered.length.toLocaleString()})
+              </Button>
               <Button size="sm" onClick={saveAllPage} disabled={Object.keys(edits).length === 0}>
                 <Save className="h-4 w-4 mr-1" /> Save edited rows
               </Button>
