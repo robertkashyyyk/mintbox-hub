@@ -244,11 +244,26 @@ const PricingSignals = () => {
     return c;
   }, [skuRollups]);
 
+  // Per-brand flagged counts → the brand chips (respects the current band tab).
+  const brandChips = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const r of skuRollups) {
+      if (r.band === "ok") continue;
+      if (bandFilter !== "all" && r.band !== bandFilter) continue;
+      const key = r.brand_id ?? "__none__";
+      m.set(key, (m.get(key) ?? 0) + 1);
+    }
+    return Array.from(m.entries())
+      .map(([id, count]) => ({ id, name: id === "__none__" ? "Unmapped" : brandName(id), count }))
+      .sort((a, b) => b.count - a.count);
+  }, [skuRollups, bandFilter, brands]);
+
   // Filtered SKUs — only flagged bands by default; selectable via tab
   const flaggedRows = useMemo(() => {
     let rows = skuRollups.filter((r) => r.band !== "ok");
     if (bandFilter !== "all") rows = rows.filter((r) => r.band === bandFilter);
-    if (brandFilter !== "all") rows = rows.filter((r) => r.brand_id === brandFilter);
+    if (brandFilter === "__none__") rows = rows.filter((r) => !r.brand_id);
+    else if (brandFilter !== "all") rows = rows.filter((r) => r.brand_id === brandFilter);
     const q = search.trim().toLowerCase();
     if (q) {
       rows = rows.filter((r) =>
@@ -376,6 +391,27 @@ const PricingSignals = () => {
           {/* Controls + search + target POR */}
           <Card>
             <CardContent className="p-4 grid gap-3 md:grid-cols-[1fr_auto_auto_auto] items-end">
+              {brandChips.length > 0 && (
+                <div className="col-span-full flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+                  <button
+                    type="button"
+                    onClick={() => setBrandFilter("all")}
+                    className={`rounded-full border px-2.5 py-1 text-xs transition ${brandFilter === "all" ? "border-pd-accent bg-pd-accent/15 text-foreground" : "border-border text-muted-foreground hover:bg-muted/50"}`}
+                  >
+                    All <span className="tabular-nums opacity-70">{(counts.total - counts.ok).toLocaleString()}</span>
+                  </button>
+                  {brandChips.map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => setBrandFilter(c.id)}
+                      className={`rounded-full border px-2.5 py-1 text-xs transition ${brandFilter === c.id ? "border-pd-accent bg-pd-accent/15 text-foreground" : "border-border text-muted-foreground hover:bg-muted/50"}`}
+                    >
+                      {c.name} <span className="tabular-nums opacity-70">{c.count.toLocaleString()}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
