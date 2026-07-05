@@ -45,28 +45,42 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
-  const userClient = createClient(supabaseUrl, anonKey, {
-    global: { headers: { Authorization: authHeader } },
-  });
-  const { data: userData, error: userErr } = await userClient.auth.getUser();
-  if (userErr || !userData?.user?.id) {
-    return new Response(JSON.stringify({ error: "Unauthorized" }), {
-      status: 401,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
-  const userId = userData.user.id;
 
   const admin = createClient(supabaseUrl, serviceKey);
-  const { data: hasRole, error: roleErr } = await admin.rpc("has_any_role", {
-    _user_id: userId,
-    _roles: ["super_user", "senior_user"],
-  });
-  if (roleErr || !hasRole) {
-    return new Response(JSON.stringify({ error: "Forbidden — senior or super role required" }), {
-      status: 403,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+
+  // Service-role callers (server-side bulk cost imports via pg_net) are already fully
+  // trusted, so they bypass the per-user senior/super gate. UI callers carry a user
+  // token and still go through getUser + has_any_role.
+  const token = authHeader.slice("Bearer ".length).trim();
+  let isServiceRole = false;
+  try {
+    isServiceRole = JSON.parse(atob(token.split(".")[1] ?? "")).role === "service_role";
+  } catch { /* not a decodable JWT — treat as a user token */ }
+
+  let userId = "service_role";
+  if (!isServiceRole) {
+    const userClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader } },
     });
+    const { data: userData, error: userErr } = await userClient.auth.getUser();
+    if (userErr || !userData?.user?.id) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    userId = userData.user.id;
+
+    const { data: hasRole, error: roleErr } = await admin.rpc("has_any_role", {
+      _user_id: userId,
+      _roles: ["super_user", "senior_user"],
+    });
+    if (roleErr || !hasRole) {
+      return new Response(JSON.stringify({ error: "Forbidden — senior or super role required" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
   }
 
   // ---- Input ----
