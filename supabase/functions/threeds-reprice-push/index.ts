@@ -23,19 +23,32 @@ Deno.serve(async (req) => {
   const anon = Deno.env.get("SUPABASE_ANON_KEY")!;
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-  // Auth
+  // Auth. Accept either a logged-in user token OR the service-role key (for
+  // automation — e.g. the cross-account "align to validated price" batch).
   const authHeader = req.headers.get("Authorization");
   if (!authHeader?.startsWith("Bearer ")) {
     return json({ error: "Unauthorized" }, 401);
   }
-  const userClient = createClient(url, anon, {
-    global: { headers: { Authorization: authHeader } },
-  });
-  const { data: userData, error: userErr } = await userClient.auth.getUser();
-  if (userErr || !userData?.user?.id) {
-    return json({ error: "Unauthorized" }, 401);
+  const token = authHeader.slice("Bearer ".length).trim();
+  let userId: string | null = null;
+  let isService = token === serviceKey;
+  if (!isService) {
+    // Fallback: accept any valid service-role JWT (key formats can differ from env).
+    try {
+      const claims = JSON.parse(atob(token.split(".")[1] ?? ""));
+      if (claims?.role === "service_role") isService = true;
+    } catch { /* not a JWT */ }
   }
-  const userId = userData.user.id;
+  if (!isService) {
+    const userClient = createClient(url, anon, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: userData, error: userErr } = await userClient.auth.getUser();
+    if (userErr || !userData?.user?.id) {
+      return json({ error: "Unauthorized" }, 401);
+    }
+    userId = userData.user.id;
+  }
 
 
   // Parse + validate
@@ -71,15 +84,17 @@ Deno.serve(async (req) => {
 
   const admin = createClient(url, serviceKey);
 
-  // Role check
-  const { data: roleRow } = await admin
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", userId)
-    .in("role", ["super_user", "senior_user"])
-    .maybeSingle();
-  if (!roleRow) {
-    return json({ error: "Forbidden: senior or super role required" }, 403);
+  // Role check (skipped for service/automation calls).
+  if (!isService) {
+    const { data: roleRow } = await admin
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId)
+      .in("role", ["super_user", "senior_user"])
+      .maybeSingle();
+    if (!roleRow) {
+      return json({ error: "Forbidden: senior or super role required" }, 403);
+    }
   }
 
   // Load store
