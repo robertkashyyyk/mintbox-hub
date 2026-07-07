@@ -13,7 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger, DialogDescription,
 } from "@/components/ui/dialog";
-import { Crosshair, Loader2, Pencil, ShieldCheck } from "lucide-react";
+import { Crosshair, Loader2, Pencil, ShieldCheck, SlidersHorizontal } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 // War Room — leadership-only targets board. Access is enforced two ways: this page
@@ -51,6 +51,11 @@ const GOAL_META: Record<keyof Goals, { label: string; accent: string }> = {
   ultimate: { label: "Ultimate", accent: "text-pd-accent" },
 };
 
+// Seasonality weight labels. Order MUST match regenerate_scorecard_targets:
+// dow_weight[0]=Mon..[6]=Sun (ISODOW-1), month_share[0]=Jan..[11]=Dec.
+const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
 const gbp = (n: number | null) => (n == null ? "—" : "£" + Math.round(n).toLocaleString("en-GB"));
 const gbpBig = (n: number) => "£" + Number(n).toLocaleString("en-GB", { maximumFractionDigits: 0 });
 const pct = (n: number | null) => (n == null ? "—" : `${(n * 100).toFixed(1)}%`);
@@ -74,6 +79,20 @@ const WarRoom = () => {
         .from("app_settings").select("value").eq("key", "scorecard.target_model").maybeSingle();
       if (error) throw error;
       return (data?.value?.goals ?? null) as Goals | null;
+    },
+    staleTime: 30_000,
+  });
+
+  const { data: weights } = useQuery({
+    queryKey: ["target-model-weights"],
+    enabled: isAdmin,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("app_settings").select("value").eq("key", "scorecard.target_model").maybeSingle();
+      if (error) throw error;
+      const v = data?.value;
+      if (!Array.isArray(v?.dow_weight) || !Array.isArray(v?.month_share)) return null;
+      return { dow: v.dow_weight as number[], months: v.month_share as number[] };
     },
     staleTime: 30_000,
   });
@@ -123,11 +142,18 @@ const WarRoom = () => {
           <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
           Restricted area — changes are logged to the audit trail.
         </div>
-        {goals && <EditTargetsDialog goals={goals} onSaved={() => {
-          qc.invalidateQueries({ queryKey: ["target-model-goals"] });
-          qc.invalidateQueries({ queryKey: ["war-room-pace"] });
-          qc.invalidateQueries({ queryKey: ["scorecard"] });
-        }} />}
+        <div className="flex items-center gap-2">
+          {weights && <EditSeasonalityDialog weights={weights} onSaved={() => {
+            qc.invalidateQueries({ queryKey: ["target-model-weights"] });
+            qc.invalidateQueries({ queryKey: ["war-room-pace"] });
+            qc.invalidateQueries({ queryKey: ["scorecard"] });
+          }} />}
+          {goals && <EditTargetsDialog goals={goals} onSaved={() => {
+            qc.invalidateQueries({ queryKey: ["target-model-goals"] });
+            qc.invalidateQueries({ queryKey: ["war-room-pace"] });
+            qc.invalidateQueries({ queryKey: ["scorecard"] });
+          }} />}
+        </div>
       </div>
 
       {/* The three lines */}
@@ -279,6 +305,112 @@ function EditTargetsDialog({ goals, onSaved }: { goals: Goals; onSaved: () => vo
         <DialogFooter>
           <Button variant="ghost" onClick={() => setOpen(false)} disabled={saving}>Cancel</Button>
           <Button onClick={save} disabled={saving}>
+            {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Save &amp; regenerate
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ---- edit dialog: seasonality weights (day-of-week + month), display/target-only ----
+// Raw numbers can be entered; the save path auto-normalises each set to sum 1.0 and
+// regenerates the year's daily targets. Never touches the buy engine.
+function EditSeasonalityDialog({ weights, onSaved }: { weights: { dow: number[]; months: number[] }; onSaved: () => void }) {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [dow, setDow] = useState<string[]>(() => weights.dow.map(String));
+  const [months, setMonths] = useState<string[]>(() => weights.months.map(String));
+
+  const toNums = (a: string[]) => a.map((s) => Number(s));
+  const dowNums = toNums(dow);
+  const monNums = toNums(months);
+  const sum = (a: number[]) => a.reduce((s, n) => s + (Number.isFinite(n) ? n : 0), 0);
+  const dowSum = sum(dowNums);
+  const monSum = sum(monNums);
+  const setValid = (a: string[], nums: number[], total: number) =>
+    a.every((s) => s.trim() !== "" && Number.isFinite(Number(s)) && Number(s) >= 0) && total > 0 && nums.every(Number.isFinite);
+  const dowValid = setValid(dow, dowNums, dowSum);
+  const monValid = setValid(months, monNums, monSum);
+
+  const setAt = (setter: (fn: (s: string[]) => string[]) => void, i: number, v: string) =>
+    setter((s) => s.map((x, j) => (j === i ? v : x)));
+
+  const save = async () => {
+    if (!dowValid || !monValid) {
+      toast({ title: "Check the weights", description: "Every box needs a non-negative number and each set must total more than zero.", variant: "destructive" });
+      return;
+    }
+    setSaving(true);
+    try {
+      const { error } = await (supabase as any).rpc("set_target_seasonality", { p_dow: dowNums, p_months: monNums });
+      if (error) throw error;
+      toast({ title: "Seasonality updated", description: "Weights normalised and this year's daily targets regenerated." });
+      setOpen(false);
+      onSaved();
+    } catch (e: any) {
+      toast({ title: "Save failed", description: e?.message ?? String(e), variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Render one weight cell: label, input, normalised %, and a relative-to-max bar.
+  const cell = (label: string, value: string, onChange: (v: string) => void, total: number, max: number) => {
+    const n = Number(value);
+    const share = total > 0 && Number.isFinite(n) ? n / total : 0;
+    const barPct = max > 0 && Number.isFinite(n) ? Math.max(0, (n / max) * 100) : 0;
+    return (
+      <div key={label} className="space-y-1">
+        <Label className="text-[11px] text-muted-foreground">{label}</Label>
+        <Input inputMode="decimal" value={value} onChange={(e) => onChange(e.target.value)} className="h-8 px-2 text-sm" />
+        <div className="text-[10px] text-center tabular-nums text-muted-foreground">{(share * 100).toFixed(1)}%</div>
+        <div className="h-1 rounded bg-muted"><div className="h-1 rounded bg-pd-accent" style={{ width: `${barPct}%` }} /></div>
+      </div>
+    );
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline"><SlidersHorizontal className="h-4 w-4 mr-2" />Seasonality</Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Seasonality weights</DialogTitle>
+          <DialogDescription>
+            How the annual goal is spread across the year — this shapes the target line only, not the buy engine.
+            Enter any numbers (even raw figures); each set is auto-normalised to 100% on save. The percentages under
+            each box preview the saved split. Saving rebuilds this year's daily targets.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-5 py-2">
+          <div className="space-y-2">
+            <div className="flex items-baseline justify-between">
+              <span className="text-sm font-semibold">Day of week</span>
+              <span className={`text-[11px] tabular-nums ${dowValid ? "text-muted-foreground" : "text-amber-600"}`}>total {dowSum.toFixed(3)} → 100%</span>
+            </div>
+            <div className="grid grid-cols-7 gap-2">
+              {DAY_LABELS.map((d, i) => cell(d, dow[i], (v) => setAt(setDow, i, v), dowSum, Math.max(...dowNums.filter(Number.isFinite), 0)))}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-baseline justify-between">
+              <span className="text-sm font-semibold">Month</span>
+              <span className={`text-[11px] tabular-nums ${monValid ? "text-muted-foreground" : "text-amber-600"}`}>total {monSum.toFixed(3)} → 100%</span>
+            </div>
+            <div className="grid grid-cols-6 gap-2">
+              {MONTH_LABELS.map((m, i) => cell(m, months[i], (v) => setAt(setMonths, i, v), monSum, Math.max(...monNums.filter(Number.isFinite), 0)))}
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => setOpen(false)} disabled={saving}>Cancel</Button>
+          <Button onClick={save} disabled={saving || !dowValid || !monValid}>
             {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Save &amp; regenerate
           </Button>
         </DialogFooter>
