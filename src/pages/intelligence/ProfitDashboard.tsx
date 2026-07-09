@@ -286,6 +286,19 @@ const ProfitDashboard = () => {
     return { lossLines, lossTotal, lossRevenue, lossOrders: lossOrders.size };
   }, [lines]);
 
+  // Actionable losses = the "loss" band only: excludes deliberate clearance, missing-cost
+  // (unknown) and tiny ±1% (breakeven) lines. This is the subset worth reviewing, shown
+  // as the second number in "all / actionable".
+  const materialLossLines = useMemo(() => {
+    let n = 0;
+    for (const r of (lines ?? []) as any[]) {
+      if (Number(r.profit ?? 0) >= 0) continue;
+      if (clearanceOf(r.sku, r.order_date)) continue; // deliberate loss-maker
+      if (classifyBand(r.profit, r.order_value, r.cost_each) === "loss") n++;
+    }
+    return n;
+  }, [lines, clearanceMap]);
+
   // Per-channel comparison for the week (always all channels, ignores the filter)
   const byChannel = useMemo(() => {
     const m = new Map<string, { rev: number; profit: number; units: number; fee: number; courier: number; lines: number }>();
@@ -541,9 +554,11 @@ const ProfitDashboard = () => {
               <div className={`text-lg font-bold ${kpis?.profit != null && Number(kpis.profit) < 0 ? "text-destructive" : "text-success"}`}>{fmtGBP(kpis?.profit)}</div>
             </div>
             <div>
-              <div className="text-xs text-muted-foreground">Loss-making lines</div>
-              <div className="text-lg font-bold text-destructive">{fmtNum(recognition.lossLines)}</div>
-              <div className="text-xs text-muted-foreground">{recognition.lossOrders} order(s)</div>
+              <div className="text-xs text-muted-foreground">Loss-making lines <span className="opacity-70">(all / to review)</span></div>
+              <div className="text-lg font-bold text-destructive">
+                {fmtNum(recognition.lossLines)} <span className="text-muted-foreground font-normal">/</span> {fmtNum(materialLossLines)}
+              </div>
+              <div className="text-xs text-muted-foreground">{recognition.lossOrders} order(s) · {fmtNum(materialLossLines)} to review</div>
             </div>
             <div>
               <div className="text-xs text-muted-foreground">Loss absorbed</div>
@@ -552,7 +567,7 @@ const ProfitDashboard = () => {
             </div>
           </div>
           <p className="text-xs text-muted-foreground mt-3">
-            "Loss absorbed" is the combined negative profit on loss-making lines this week — your true cost of clearing stock / selling below cost. Revenue and orders from these are fully counted above.
+"Loss-making lines" shows <strong>all / to review</strong>: the first is every line under £0; the second strips out deliberate clearance, missing-cost (unknown) and tiny ±1% lines — the actionable "loss" band. "Loss absorbed" is the combined negative profit on all loss-making lines this week. Revenue and orders from these are fully counted above.
           </p>
         </CardContent>
       </Card>
