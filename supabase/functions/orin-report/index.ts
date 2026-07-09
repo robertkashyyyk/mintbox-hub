@@ -88,6 +88,11 @@ tier/variance verbatim — never recompute. If the 'gross' row has partial_cost=
 partial caveat goes ONCE in the single end footnote (see STRUCTURE) — not inline against each figure.
 
 TOPICS — cover those PRESENT in the scorecard, skip those absent: weekly profit / P&L, profit-on-return %,
+- AOV (average order value, metric aov_gbp) — a PRIORITY the team is actively working to lift. ALWAYS report it
+  when present: its level AND direction of travel over the series (is it climbing or slipping, and by how much).
+  It moves in small increments (pence), so judge it on the trend across weeks, not one week's wobble. When an
+  aov_leverage block is supplied, use it to frame WHY it matters (the £/order and £/yr stake per +£1) — cite the
+  supplied numbers, never compute your own. Flag clearly whether AOV is helping or hurting the profit picture.
 80-20 profit concentration, profit-tier movement (loss / break-even / poor / average / good / great — where
 SKUs are migrating to and from), stock valuation & dead stock (judge materiality), missing-cost data quality
 (the count AND the weekly change — how many SKUs were given a cost this week, and whether it is trending down),
@@ -129,6 +134,9 @@ never recompute or invent a number. Write a VERY short daily note:
   "Yesterday's profit beat Primary by 12%" or "profit came in 8% short of Primary". A single day is not
   "tiered" — just say ahead/behind Primary (and by how much), and note if it cleared Stretch/Ultimate.
 - Then state revenue and orders as supporting context (a tight line or two), positive and encouraging in tone.
+- Include ONE line on AOV (average order value): the figure and whether it is ahead/behind the day's target. AOV
+  is a priority lever — every +£1 is ~£0.68 incremental profit per order — so it's always worth a mention, but
+  keep it to a single line and don't over-read a single day.
 - POR% is given as a LEVEL only. You may state it ("25.0% POR"), but you are NOT given any margin target or
   baseline — so NEVER say margin/POR is "above"/"below"/"well above" an expected level, and never invent a
   baseline figure (e.g. a "27.5% baseline"). Beating the profit £ target does NOT imply margin is high; do not
@@ -200,16 +208,27 @@ Deno.serve(async (req) => {
         const v = pRow(mk)?.variance_vs_primary_pct
         return v == null ? '#64748b' : (v >= 0 ? '#2A9D8F' : '#d97706')
       }
+      // AOV = revenue / orders. Target AOV = the day's implied Primary (revenue target / orders target).
+      // AOV is a PRIORITY lever: each +£1 drops through at high incremental margin (~£0.68/order).
+      const aov = Number(d.orders) > 0 ? Number(d.revenue) / Number(d.orders) : null
+      const revP = pRow('revenue')?.exp_primary, ordP = pRow('orders')?.exp_primary
+      const aovTarget = (revP && ordP) ? Number(revP) / Number(ordP) : null
       cards = [
         { label: 'Revenue', value: gbp(d.revenue), sub: vsP('revenue'), accent: accP('revenue') },
         { label: 'Orders', value: Number(d.orders).toLocaleString('en-GB'), sub: vsP('orders'), accent: accP('orders') },
+        { label: 'AOV', value: aov != null ? '£' + aov.toFixed(2) : '—',
+          sub: (aov != null && aovTarget) ? `${aov >= aovTarget ? '+' : ''}£${(aov - aovTarget).toFixed(2)} vs £${aovTarget.toFixed(2)} target` : '',
+          accent: (aov != null && aovTarget) ? (aov >= aovTarget ? '#2A9D8F' : '#d97706') : '#64748b' },
         { label: 'Profit', value: gbp(d.profit), sub: d.por_pct != null ? `POR ${(Number(d.por_pct) * 100).toFixed(1)}%` : '', accent: '#64748b' },
       ]
       userContent =
-        `Yesterday (${d.day}): Revenue ${gbp(d.revenue)}, Orders ${d.orders}, Profit ${gbp(d.profit)}${por}.\n\n` +
-        `Daily targets vs actual (Primary/Stretch/Ultimate; variance_vs_primary_pct is the fraction ` +
+        `Yesterday (${d.day}): Revenue ${gbp(d.revenue)}, Orders ${d.orders}, Profit ${gbp(d.profit)}${por}.\n` +
+        (aov != null ? `AOV (average order value) = £${aov.toFixed(2)}${aovTarget ? ` vs £${aovTarget.toFixed(2)} target (${aov >= aovTarget ? 'ahead' : 'behind'})` : ''}. ` +
+          `AOV is a priority lever — every +£1 of AOV is ~£0.68 incremental profit per order.\n` : '\n') +
+        `\nDaily targets vs actual (Primary/Stretch/Ultimate; variance_vs_primary_pct is the fraction ` +
         `above/below the Primary target — positive = ahead):\n${JSON.stringify(pace ?? [], null, 2)}\n\n` +
-        `Write the short daily note now — LEAD with how yesterday landed vs the Primary daily target.`
+        `Write the short daily note now — LEAD with how yesterday landed vs the Primary daily target, and ` +
+        `include one line on AOV (the figure and whether it is ahead/behind target).`
     } else {
       const { data: scorecard, error: scErr } = await rpcRetry(read, 'get_scorecard', { p_lookback_weeks: lookback })
       if (scErr) return json({ error: `get_scorecard: ${scErr.message}` }, 500)
@@ -223,7 +242,20 @@ Deno.serve(async (req) => {
       const wcTo = new Date().toISOString().slice(0, 10)
       const wcFrom = new Date(Date.now() - (wcDays - 1) * 86400000).toISOString().slice(0, 10)
       const { data: work } = await read.rpc('get_work_completed', { p_from: wcFrom, p_to: wcTo })
-      inputSnapshot = { scorecard, target_pace: pace ?? [], work_completed: work ?? null }
+      // AOV leverage — a priority lever. Each +£1 of AOV drops through at high incremental margin
+      // (~£0.68/order, the team's rule of thumb). Annualise at the current weekly order run-rate
+      // (orders = weekly revenue / AOV, both from the scorecard) so Orin can state the stake precisely.
+      const AOV_PROFIT_PER_POUND = 0.68
+      const sc = (mk: string) => (scorecard as any[]).find((r) => r.metric_key === mk)
+      const aovNow = sc('aov_gbp')?.current_value
+      const wkRev = sc('revenue_gbp')?.current_value
+      const wkOrders = (wkRev && aovNow) ? Number(wkRev) / Number(aovNow) : null
+      const aovLeverage = wkOrders ? {
+        profit_per_pound_per_order: AOV_PROFIT_PER_POUND,
+        annual_orders_runrate: Math.round(wkOrders * 52),
+        gbp_per_year_per_plus_1_aov: Math.round(wkOrders * 52 * AOV_PROFIT_PER_POUND),
+      } : null
+      inputSnapshot = { scorecard, target_pace: pace ?? [], work_completed: work ?? null, aov_leverage: aovLeverage }
       periodKey = derivePeriodKey(cadence, scorecard as any[])
       systemPrompt = SYSTEM_PROMPT
       maxTokens = cadence === 'monthly' ? 4000 : 2000   // monthly review is long — don't truncate
@@ -239,6 +271,13 @@ Deno.serve(async (req) => {
           ? `Work completed / data-hygiene graft in the last ${wcDays} days (already counted — give this its ` +
             `own "Work completed" section and name the numbers; omit any line whose count is 0; the FBA ` +
             `backlog is work still-to-do, not completed):\n${JSON.stringify(work, null, 2)}\n\n`
+          : '') +
+        (aovLeverage
+          ? `AOV (average order value, scorecard metric aov_gbp) is a PRIORITY the team is actively lifting — ` +
+            `report its LEVEL and DIRECTION OF TRAVEL over the series, and frame the stake using these SUPPLIED ` +
+            `figures (do not compute your own): each +£1 of AOV ≈ £${AOV_PROFIT_PER_POUND.toFixed(2)} incremental ` +
+            `profit per order; at the current ~${aovLeverage.annual_orders_runrate.toLocaleString('en-GB')} orders/yr ` +
+            `run-rate that is ≈ £${aovLeverage.gbp_per_year_per_plus_1_aov.toLocaleString('en-GB')}/yr per +£1 of AOV.\n\n`
           : '') +
         `Scorecard (JSON — already computed, do not recompute):\n` +
         JSON.stringify(scorecard, null, 2)
@@ -263,6 +302,17 @@ Deno.serve(async (req) => {
           accent: tierAcc(r.tier),
         }
       }).filter(Boolean) as typeof cards
+      // AOV tile — latest weekly average order value + WoW move (a priority lever).
+      const aovRow = sc('aov_gbp')
+      if (aovRow?.current_value != null) {
+        const dp = aovRow.delta_pct
+        cards.push({
+          label: 'AOV · latest wk',
+          value: '£' + Number(aovRow.current_value).toFixed(2),
+          sub: dp != null ? `${dp >= 0 ? '+' : ''}${dp}% WoW` : '',
+          accent: dp == null ? '#64748b' : (dp >= 0 ? '#2A9D8F' : '#d97706'),
+        })
+      }
     }
 
     const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
