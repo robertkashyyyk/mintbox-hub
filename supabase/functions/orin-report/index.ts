@@ -242,6 +242,9 @@ Deno.serve(async (req) => {
       const wcTo = new Date().toISOString().slice(0, 10)
       const wcFrom = new Date(Date.now() - (wcDays - 1) * 86400000).toISOString().slice(0, 10)
       const { data: work } = await read.rpc('get_work_completed', { p_from: wcFrom, p_to: wcTo })
+      // Live current-week AOV (a ratio, so a partial week is representative) — the scorecard's
+      // aov_gbp only carries COMPLETED weeks, so without this Orin narrates a week-stale figure.
+      const { data: aovNow } = await read.rpc('get_aov_now')
       // AOV leverage — a priority lever. Each +£1 of AOV drops through at high incremental margin
       // (~£0.68/order, the team's rule of thumb). Annualise at the current weekly order run-rate
       // (orders = weekly revenue / AOV, both from the scorecard) so Orin can state the stake precisely.
@@ -255,7 +258,7 @@ Deno.serve(async (req) => {
         annual_orders_runrate: Math.round(wkOrders * 52),
         gbp_per_year_per_plus_1_aov: Math.round(wkOrders * 52 * AOV_PROFIT_PER_POUND),
       } : null
-      inputSnapshot = { scorecard, target_pace: pace ?? [], work_completed: work ?? null, aov_leverage: aovLeverage }
+      inputSnapshot = { scorecard, target_pace: pace ?? [], work_completed: work ?? null, aov_leverage: aovLeverage, aov_now: aovNow ?? null }
       periodKey = derivePeriodKey(cadence, scorecard as any[])
       systemPrompt = SYSTEM_PROMPT
       maxTokens = cadence === 'monthly' ? 4000 : 2000   // monthly review is long — don't truncate
@@ -273,11 +276,18 @@ Deno.serve(async (req) => {
             `backlog is work still-to-do, not completed):\n${JSON.stringify(work, null, 2)}\n\n`
           : '') +
         (aovLeverage
-          ? `AOV (average order value, scorecard metric aov_gbp) is a PRIORITY the team is actively lifting — ` +
-            `report its LEVEL and DIRECTION OF TRAVEL over the series, and frame the stake using these SUPPLIED ` +
-            `figures (do not compute your own): each +£1 of AOV ≈ £${AOV_PROFIT_PER_POUND.toFixed(2)} incremental ` +
-            `profit per order; at the current ~${aovLeverage.annual_orders_runrate.toLocaleString('en-GB')} orders/yr ` +
-            `run-rate that is ≈ £${aovLeverage.gbp_per_year_per_plus_1_aov.toLocaleString('en-GB')}/yr per +£1 of AOV.\n\n`
+          ? `AOV (average order value) is a PRIORITY the team is actively lifting. ` +
+            (aovNow
+              ? `LEAD the AOV story with the LIVE current week: ${aovNow.current_week} is running at ` +
+                `£${aovNow.current_week_aov} so far (${aovNow.orders_so_far} orders) — that is ` +
+                `${aovNow.wow_delta >= 0 ? 'up' : 'down'} £${Math.abs(aovNow.wow_delta).toFixed(2)} on ` +
+                `${aovNow.last_completed_week}'s £${aovNow.last_completed_aov}. It is a partial week but AOV is a ` +
+                `per-order average, so it is representative — say "so far this week". THEN give the completed-week ` +
+                `trend (scorecard aov_gbp series). Do NOT present the last completed week as the current level. `
+              : `Report its LEVEL and DIRECTION OF TRAVEL over the scorecard aov_gbp series. `) +
+            `Frame the stake using these SUPPLIED figures (do not compute your own): each +£1 of AOV ≈ ` +
+            `£${AOV_PROFIT_PER_POUND.toFixed(2)} incremental profit per order; at ~${aovLeverage.annual_orders_runrate.toLocaleString('en-GB')} ` +
+            `orders/yr that is ≈ £${aovLeverage.gbp_per_year_per_plus_1_aov.toLocaleString('en-GB')}/yr per +£1 of AOV.\n\n`
           : '') +
         `Scorecard (JSON — already computed, do not recompute):\n` +
         JSON.stringify(scorecard, null, 2)
@@ -302,9 +312,18 @@ Deno.serve(async (req) => {
           accent: tierAcc(r.tier),
         }
       }).filter(Boolean) as typeof cards
-      // AOV tile — latest weekly average order value + WoW move (a priority lever).
+      // AOV tile — LIVE current week (a per-order average, representative even mid-week) + WoW move.
+      // Falls back to the last completed scorecard week if the live figure is unavailable.
       const aovRow = sc('aov_gbp')
-      if (aovRow?.current_value != null) {
+      if (aovNow?.current_week_aov != null) {
+        const dl = Number(aovNow.wow_delta)
+        cards.push({
+          label: 'AOV · this wk',
+          value: '£' + Number(aovNow.current_week_aov).toFixed(2),
+          sub: Number.isFinite(dl) ? `${dl >= 0 ? '+' : ''}£${dl.toFixed(2)} vs last wk` : '',
+          accent: !Number.isFinite(dl) ? '#64748b' : (dl >= 0 ? '#2A9D8F' : '#d97706'),
+        })
+      } else if (aovRow?.current_value != null) {
         const dp = aovRow.delta_pct
         cards.push({
           label: 'AOV · latest wk',
