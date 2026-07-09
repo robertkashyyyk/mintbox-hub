@@ -250,9 +250,9 @@ Deno.serve(async (req) => {
       // (orders = weekly revenue / AOV, both from the scorecard) so Orin can state the stake precisely.
       const AOV_PROFIT_PER_POUND = 0.68
       const sc = (mk: string) => (scorecard as any[]).find((r) => r.metric_key === mk)
-      const aovNow = sc('aov_gbp')?.current_value
+      const aovWk = sc('aov_gbp')?.current_value
       const wkRev = sc('revenue_gbp')?.current_value
-      const wkOrders = (wkRev && aovNow) ? Number(wkRev) / Number(aovNow) : null
+      const wkOrders = (wkRev && aovWk) ? Number(wkRev) / Number(aovWk) : null
       const aovLeverage = wkOrders ? {
         profit_per_pound_per_order: AOV_PROFIT_PER_POUND,
         annual_orders_runrate: Math.round(wkOrders * 52),
