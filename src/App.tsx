@@ -117,6 +117,7 @@ import PriceMoves from "./pages/decisions/PriceMoves";
 import BundleSuggestions from "./pages/decisions/BundleSuggestions";
 import ThreedsReprice from "./pages/decisions/ThreedsReprice";
 import FbaReplenishment from "./pages/decisions/FbaReplenishment";
+import FbaBlowout from "./pages/decisions/FbaBlowout";
 
 // Admin Pages
 import BillingUsage from "./pages/admin/BillingUsage";
@@ -265,6 +266,7 @@ const App = () => (
             <Route path="/decisions/bundles" element={<BundleSuggestions />} />
             <Route path="/decisions/threeds-reprice" element={<ThreedsReprice />} />
             <Route path="/decisions/fba-replenishment" element={<FbaReplenishment />} />
+            <Route path="/decisions/fba-blowout" element={<FbaBlowout />} />
 
             {/* Execution Sub-Routes */}
             <Route path="/execution/purchase-orders" element={<PurchaseOrders />} />
