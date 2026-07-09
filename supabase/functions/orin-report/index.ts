@@ -192,7 +192,8 @@ Deno.serve(async (req) => {
       const d: any = Array.isArray(dayRows) ? dayRows[0] : dayRows
       if (!d) return json({ error: 'no daily data' }, 500)
       // Yesterday vs the daily targets (Primary/Stretch/Ultimate) — single day, not tiered.
-      const { data: pace } = await read.rpc('get_target_pace', { p_grain: 'day', p_asof: d.day })
+      // Retry: a cold get_target_pace (now FBA-union) can miss the first call at 6am.
+      const { data: pace } = await rpcRetry(read, 'get_target_pace', { p_grain: 'day', p_asof: d.day })
       inputSnapshot = { day: d, targets: pace ?? [] }
       periodKey = String(d.day)
       systemPrompt = DAILY_SYSTEM_PROMPT
