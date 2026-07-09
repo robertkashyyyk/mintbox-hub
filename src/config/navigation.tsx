@@ -92,6 +92,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { title: "Buy Recommendations", url: "/decisions/buying", icon: ShoppingBag, description: "AI-driven purchase order suggestions based on velocity" },
       { title: "FBA Replenishment", url: "/decisions/fba-replenishment", icon: Truck, description: "What to ship into Amazon FBA — demand vs current FBA stock, MOQ-rounded reorder quantities." },
+      { title: "FBA Blow-Out", url: "/decisions/fba-blowout", icon: Flame, description: "Stock stuck in FBA (underwater vs the Buy Box) — blow it out to £0.01 to clear, and flag it never-FBA." },
       { title: "Purchase Orders", url: "/execution/purchase-orders", icon: ShoppingCart, description: "Create and manage purchase orders for suppliers" },
       { title: "LSA Calibration", url: "/decisions/lsa-calibration", icon: Gauge, description: "Review and adjust listing strategy advisor settings" },
       { title: "Reprice", url: "/decisions/threeds-reprice", icon: Plug, description: "Reprice eBay/3D via SFTP, or monitor the autonomous Amazon (eSagu) repricer" },
