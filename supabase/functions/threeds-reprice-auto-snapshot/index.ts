@@ -52,7 +52,11 @@ Deno.serve(async (req) => {
   const enabled = cfg.enabled !== false;
   const runHour = Number(cfg.run_hour_london ?? 8);
   const lookback = Number(cfg.lookback_days ?? 30);
-  const band = String(cfg.current_band ?? "loss");
+  // Bands to sweep — supports a multi-band set (current_bands: string[]) with a
+  // backward-compatible fallback to the legacy single current_band string.
+  const rawBands = cfg.current_bands ?? cfg.current_band ?? "loss";
+  const bandSet = new Set((Array.isArray(rawBands) ? rawBands : [rawBands]).map(String));
+  const bandLabel = Array.from(bandSet).join("/");
 
   if (!enabled && !force) return json({ ok: true, skipped: "disabled" });
 
@@ -86,7 +90,7 @@ Deno.serve(async (req) => {
       if (!error) break;
     }
     if (error) { perStore[s.store_name] = -1; errors[s.store_name] = error.message ?? String(error); continue; }
-    const inBand = (cands ?? []).filter((c: any) => classifyBand(c.por_pct) === band);
+    const inBand = (cands ?? []).filter((c: any) => bandSet.has(classifyBand(c.por_pct) as string));
     perStore[s.store_name] = inBand.length;
     for (const c of inBand) {
       rows.push({
@@ -138,7 +142,7 @@ Deno.serve(async (req) => {
       await admin.from("tasks").insert({
         created_by: owner, assigned_to: owner, task_type: "system_generated",
         title: `3D Reprice Auto-Report ready — ${rows.length} candidates`,
-        description: `Daily ${band} → review across ${acctCount} account(s). Open 3D Reprice → Auto-Report.`,
+        description: `Daily ${bandLabel} → review across ${acctCount} account(s). Open 3D Reprice → Auto-Report.`,
         status: "todo", priority_level: 3, due_date: new Date().toISOString(),
         source_module: "threeds_reprice", source_rule: "auto_report_daily",
         tags: ["reprice", "auto-report", "3d"],

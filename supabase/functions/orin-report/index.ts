@@ -234,9 +234,13 @@ Deno.serve(async (req) => {
       const { data: scorecard, error: scErr } = await rpcRetry(read, 'get_scorecard', { p_lookback_weeks: lookback })
       if (scErr) return json({ error: `get_scorecard: ${scErr.message}` }, 500)
       if (!scorecard || (scorecard as any[]).length === 0) return json({ error: 'scorecard empty' }, 500)
-      // Target pace vs Primary/Stretch/Ultimate — MTD for the weekly story, YTD for the monthly.
-      const paceGrain = cadence === 'monthly' ? 'ytd' : 'mtd'
-      const { data: pace } = await read.rpc('get_target_pace', { p_grain: paceGrain })
+      // Target pace vs Primary/Stretch/Ultimate — the WEEK for the weekly story, YTD for the monthly.
+      // A weekly report is about the week, not month-to-date. asof=yesterday so the Monday cron's
+      // 'week' grain resolves to the just-completed Mon–Sun week (not a ragged rolling 7 days).
+      const paceGrain = cadence === 'monthly' ? 'ytd' : 'week'
+      const paceArgs: any = { p_grain: paceGrain }
+      if (cadence === 'weekly') paceArgs.p_asof = new Date(Date.now() - 86400000).toISOString().slice(0, 10)
+      const { data: pace } = await rpcRetry(read, 'get_target_pace', paceArgs)
       // Work-completed / data-hygiene graft over the recent window (read-only: activity_log +
       // dirt + reprice + FBA backlog). Trailing 30d for monthly, 7d for weekly. Never fatal.
       const wcDays = cadence === 'monthly' ? 30 : 7
@@ -259,6 +263,12 @@ Deno.serve(async (req) => {
         annual_orders_runrate: Math.round(wkOrders * 52),
         gbp_per_year_per_plus_1_aov: Math.round(wkOrders * 52 * AOV_PROFIT_PER_POUND),
       } : null
+      // The live current-week AOV is only meaningful once the week has a real sample. Weekly/monthly
+      // reports run at period-start (Mon/1st), when the current week has a handful of orders — so
+      // gate on order count: below the floor, lead AOV with the last COMPLETED week, not noise.
+      const AOV_MIN_ORDERS = 1000
+      const aovRepresentative = !!(aovNow && Number(aovNow.orders_so_far) >= AOV_MIN_ORDERS)
+      const aovCompletedWk = sc('aov_gbp')  // scorecard = completed weeks only
       inputSnapshot = { scorecard, target_pace: pace ?? [], work_completed: work ?? null, aov_leverage: aovLeverage, aov_now: aovNow ?? null }
       periodKey = derivePeriodKey(cadence, scorecard as any[])
       systemPrompt = SYSTEM_PROMPT
@@ -266,8 +276,10 @@ Deno.serve(async (req) => {
       userContent =
         `${CADENCE_BRIEF[cadence]}\n\n` +
         `Today is ${new Date().toISOString().slice(0, 10)}. Report period: ${periodKey}.\n\n` +
-        `PartsDocHub target pace (${paceGrain.toUpperCase()} — actual-to-date vs Primary/Stretch/Ultimate, ` +
-        `with the banding tier per metric). LEAD the report with this: state the tier (e.g. "revenue is ` +
+        `PartsDocHub target pace — ${cadence === 'weekly'
+          ? 'THIS COMPLETED WEEK vs the weekly Primary/Stretch/Ultimate target. This is a WEEKLY report: frame it around the WEEK, not month-to-date, and do not lead on MTD figures'
+          : 'YTD actual-to-date vs Primary/Stretch/Ultimate'} ` +
+        `— with the banding tier per metric. LEAD the report with this: state the tier (e.g. "revenue is ` +
         `firmly in Primary, building toward Stretch") and whether we're ahead/behind Primary pace. ` +
         `For 'gross' rows with partial_cost=true, caveat that gross is partial pending full cost data:\n` +
         `${JSON.stringify(pace ?? [], null, 2)}\n\n` +
@@ -278,14 +290,16 @@ Deno.serve(async (req) => {
           : '') +
         (aovLeverage
           ? `AOV (average order value) is a PRIORITY the team is actively lifting. ` +
-            (aovNow
-              ? `LEAD the AOV story with the LIVE current week: ${aovNow.current_week} is running at ` +
-                `£${aovNow.current_week_aov} so far (${aovNow.orders_so_far} orders) — that is ` +
-                `${aovNow.wow_delta >= 0 ? 'up' : 'down'} £${Math.abs(aovNow.wow_delta).toFixed(2)} on ` +
-                `${aovNow.last_completed_week}'s £${aovNow.last_completed_aov}. It is a partial week but AOV is a ` +
-                `per-order average, so it is representative — say "so far this week". THEN give the completed-week ` +
-                `trend (scorecard aov_gbp series). Do NOT present the last completed week as the current level. `
-              : `Report its LEVEL and DIRECTION OF TRAVEL over the scorecard aov_gbp series. `) +
+            (aovRepresentative
+              ? `The live current week (${aovNow.current_week}) already has a real sample — £${aovNow.current_week_aov} ` +
+                `across ${aovNow.orders_so_far} orders, ${aovNow.wow_delta >= 0 ? 'up' : 'down'} £${Math.abs(aovNow.wow_delta).toFixed(2)} ` +
+                `on ${aovNow.last_completed_week}'s £${aovNow.last_completed_aov}. Lead with it (say "so far this week"), THEN the ` +
+                `completed-week trend (scorecard aov_gbp). `
+              : `LEAD with the last COMPLETED week: scorecard aov_gbp is £${aovCompletedWk?.current_value} in ` +
+                `${aovCompletedWk?.period_label} (prior £${aovCompletedWk?.prior_value}) — report that level and the ` +
+                `direction of travel over the series. ` +
+                (aovNow ? `The current week (${aovNow.current_week}) has only ${aovNow.orders_so_far} orders so far — FAR ` +
+                  `too few to read, so do NOT cite its AOV (${aovNow.current_week_aov}) or treat it as a signal or headline. ` : '')) +
             `Frame the stake using these SUPPLIED figures (do not compute your own): each +£1 of AOV ≈ ` +
             `£${AOV_PROFIT_PER_POUND.toFixed(2)} incremental profit per order; at ~${aovLeverage.annual_orders_runrate.toLocaleString('en-GB')} ` +
             `orders/yr that is ≈ £${aovLeverage.gbp_per_year_per_plus_1_aov.toLocaleString('en-GB')}/yr per +£1 of AOV.\n\n`
@@ -293,7 +307,7 @@ Deno.serve(async (req) => {
         `Scorecard (JSON — already computed, do not recompute):\n` +
         JSON.stringify(scorecard, null, 2)
       // KPI cards: target pace per metric (actual-to-date + banding tier).
-      const grainTag = paceGrain.toUpperCase()
+      const grainTag = cadence === 'monthly' ? 'YTD' : 'WK'
       const tierAcc = (t: string | null) =>
         t === 'below_primary' ? '#d97706'
           : (t && t !== 'on_primary' && t !== 'firmly_primary') ? '#2A9D8F'
@@ -313,10 +327,10 @@ Deno.serve(async (req) => {
           accent: tierAcc(r.tier),
         }
       }).filter(Boolean) as typeof cards
-      // AOV tile — LIVE current week (a per-order average, representative even mid-week) + WoW move.
-      // Falls back to the last completed scorecard week if the live figure is unavailable.
-      const aovRow = sc('aov_gbp')
-      if (aovNow?.current_week_aov != null) {
+      // AOV tile — the live current week ONLY if it has a real sample (else it's Monday-morning
+      // noise, e.g. £23.77 off 19 orders). Otherwise show the last COMPLETED week's AOV.
+      const aovRow = aovCompletedWk
+      if (aovRepresentative && aovNow?.current_week_aov != null) {
         const dl = Number(aovNow.wow_delta)
         cards.push({
           label: 'AOV · this wk',

@@ -13,10 +13,11 @@ type Cfg = {
   enabled: boolean;
   run_hour_london: number;
   lookback_days: number;
-  current_band: string;
+  current_bands: string[];
+  current_band?: string; // legacy single-band (kept in sync for backward compatibility)
   move_to_tier: string;
 };
-const DEFAULT: Cfg = { enabled: true, run_hour_london: 8, lookback_days: 30, current_band: "loss", move_to_tier: "average" };
+const DEFAULT: Cfg = { enabled: true, run_hour_london: 8, lookback_days: 30, current_bands: ["loss", "breakeven", "poor"], move_to_tier: "average" };
 
 const BANDS = [
   { v: "loss", l: "Loss" }, { v: "breakeven", l: "Breakeven" }, { v: "poor", l: "Poor" },
@@ -37,14 +38,18 @@ export const AutoRepriceReportCard = () => {
   useEffect(() => {
     (async () => {
       const { data } = await supabase.from("app_settings").select("value").eq("key", "reprice.auto_report").maybeSingle();
-      if (data?.value) setC({ ...DEFAULT, ...(data.value as any) });
+      if (data?.value) {
+        const v = data.value as any;
+        setC({ ...DEFAULT, ...v, current_bands: Array.isArray(v.current_bands) ? v.current_bands : v.current_band ? [v.current_band] : DEFAULT.current_bands });
+      }
       setLoading(false);
     })();
   }, []);
 
   const save = async () => {
     setSaving(true);
-    const { error } = await supabase.from("app_settings").upsert({ key: "reprice.auto_report", value: c as any });
+    const payload = { ...c, current_band: c.current_bands[0] ?? "loss" }; // keep legacy field in sync
+    const { error } = await supabase.from("app_settings").upsert({ key: "reprice.auto_report", value: payload as any });
     setSaving(false);
     if (error) toast({ title: "Save failed", description: error.message, variant: "destructive" });
     else toast({ title: "Saved", description: "Auto-Report settings updated" });
@@ -75,7 +80,7 @@ export const AutoRepriceReportCard = () => {
               <Label>Enabled (daily snapshot)</Label>
               <Switch checked={c.enabled} onCheckedChange={(v) => setC({ ...c, enabled: v })} />
             </div>
-            <div className="grid gap-4 md:grid-cols-4">
+            <div className="grid gap-4 md:grid-cols-3">
               <div className="space-y-2">
                 <Label>Run hour (London)</Label>
                 <Input type="number" min={0} max={23} value={c.run_hour_london}
@@ -89,19 +94,30 @@ export const AutoRepriceReportCard = () => {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Current band</Label>
-                <Select value={c.current_band} onValueChange={(v) => setC({ ...c, current_band: v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{BANDS.map((b) => <SelectItem key={b.v} value={b.v}>{b.l}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
                 <Label>Move prices to</Label>
                 <Select value={c.move_to_tier} onValueChange={(v) => setC({ ...c, move_to_tier: v })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>{TIERS.map((t) => <SelectItem key={t.v} value={t.v}>{t.l}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Bands to sweep → raise to target</Label>
+              <div className="flex flex-wrap gap-1.5">
+                {BANDS.map((b) => {
+                  const on = c.current_bands.includes(b.v);
+                  return (
+                    <button key={b.v} type="button"
+                      onClick={() => setC({ ...c, current_bands: on ? c.current_bands.filter((x) => x !== b.v) : [...c.current_bands, b.v] })}
+                      className={`px-2.5 py-1 rounded-md border text-xs transition ${on ? "border-pd-accent bg-pd-accent/15 text-pd-accent font-medium" : "border-border text-muted-foreground hover:bg-muted/50"}`}>
+                      {b.l}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Every line in a selected band gets a suggested raise to the target tier. Loss + Breakeven + Poor selected = sweep everything below target upward.
+              </p>
             </div>
             <p className="text-xs text-muted-foreground">
               Runs at {String(c.run_hour_london).padStart(2, "0")}:00 Europe/London daily. The Auto-Report tab is locked to these values —

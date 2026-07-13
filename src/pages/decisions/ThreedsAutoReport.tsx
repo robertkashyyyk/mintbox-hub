@@ -25,7 +25,7 @@ import {
 } from "@/lib/reprice";
 
 interface AutoCfg {
-  enabled?: boolean; run_hour_london?: number; lookback_days?: number; current_band?: string; move_to_tier?: Tier;
+  enabled?: boolean; run_hour_london?: number; lookback_days?: number; current_band?: string; current_bands?: string[]; move_to_tier?: Tier;
 }
 interface SnapRow {
   store_id: string; store_name: string | null; mintsoft_channel: string | null;
@@ -75,7 +75,8 @@ export default function ThreedsAutoReport() {
   });
   const tier: Tier = (cfg?.move_to_tier ?? "average") as Tier;
   const lookback = cfg?.lookback_days ?? 30;
-  const bandLabel = POR_BAND_OPTIONS.find((b) => b.value === (cfg?.current_band ?? "loss"))?.label ?? "Loss";
+  const cfgBands: string[] = Array.isArray(cfg?.current_bands) ? cfg!.current_bands! : [cfg?.current_band ?? "loss"];
+  const bandLabel = cfgBands.map((v) => POR_BAND_OPTIONS.find((b) => b.value === v)?.label ?? v).join(" / ");
 
   const { data: feeRules } = useQuery({
     queryKey: ["channel_fee_rules"],
