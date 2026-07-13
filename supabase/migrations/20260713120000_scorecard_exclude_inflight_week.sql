@@ -1,0 +1,17 @@
+-- Exclude the in-flight current ISO week from the profit-tier scorecard metrics.
+-- Applied live via MCP apply_migration 2026-07-13; kept for version control.
+--
+-- get_profit_band_history() is LIVE (it includes the partial current week), so a report run on a
+-- Monday saw the "latest" loss_lines/healthy_share as the current week's handful of orders
+-- (e.g. W29 = 2 loss lines / 50% healthy off 19 orders) and read it as a dramatic shift. Every
+-- other scorecard metric is completed-weeks (snapshot tables); this aligns profit_mix so the whole
+-- scorecard is completed-weeks only. The get_scorecard() body was recreated with a `curwk` CTE and
+-- a `WHERE (iso_year*100+iso_week) < curwk.psort_now` filter on the two get_profit_band_history()
+-- blocks; everything else is identical to 20260702140000 (the AOV addition). Pull the live def with
+-- pg_get_functiondef if regenerating.
+--
+-- Delta applied to each profit_mix block:
+--   FROM get_profit_band_history(), curwk
+--   WHERE (iso_year*100+iso_week) < curwk.psort_now
+-- where curwk = current Europe/London ISO year*100+week.
+SELECT 'see apply_migration scorecard_exclude_inflight_week (2026-07-13) for the full get_scorecard body' AS note;
