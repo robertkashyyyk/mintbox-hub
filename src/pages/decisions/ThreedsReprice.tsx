@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Upload, Loader2, AlertTriangle, RefreshCw, ChevronLeft, ChevronRight, Flame } from "lucide-react";
+import { ArrowLeft, Upload, Loader2, AlertTriangle, RefreshCw, ChevronLeft, ChevronRight, Flame, Wand2 } from "lucide-react";
 import ModuleHeader from "@/components/ModuleHeader";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import ThreedsAutoReport from "./ThreedsAutoReport";
@@ -28,6 +28,7 @@ import {
   POR_BAND_OPTIONS, classifyPorBand,
   effectiveFeesFor, backSolveGrossPrice, classifyCost, toGross, feeInputsForBackSolve,
 } from "@/lib/reprice";
+import { snapPrice, ladderFromRows, DEFAULT_LADDER, type LadderEntry } from "@/lib/charmSnap";
 
 interface Store {
   id: string;
@@ -156,6 +157,18 @@ export default function ThreedsReprice() {
   const [selected, setSelected] = useState<Record<string, { checked: boolean; price?: string }>>({});
   const [page, setPage] = useState(1);
   const [flagPage, setFlagPage] = useState(1);
+
+  // Charm-price ladder (source of truth = public.price_sweetspots; DEFAULT_LADDER fallback).
+  const { data: ladderData } = useQuery({
+    queryKey: ["price-sweetspots"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("price_sweetspots").select("price, type").eq("active", true);
+      if (error) throw error;
+      return ladderFromRows((data ?? []) as Array<{ price: number; type?: string }>);
+    },
+  });
+  const ladder: LadderEntry[] = ladderData && ladderData.length ? ladderData : DEFAULT_LADDER;
 
   const { data: stores, isLoading: storesLoading } = useQuery({
     queryKey: ["threeds_stores"],
@@ -408,6 +421,37 @@ export default function ThreedsReprice() {
   // Effective price for a row = user override, else the tier suggestion.
   const effectivePrice = (r: EnrichedRow): string =>
     selected[rowKey(r)]?.price ?? (r.suggestedGross != null ? r.suggestedGross.toFixed(2) : "");
+
+  // Snapper: snap every in-view New £ (the floored, profitable suggestion) up to the
+  // nearest charm price. Writes into the per-row override; never below the profitable
+  // floor (tolerance 0). "hemmed" (forced over a barrier) + "above-ladder" are surfaced.
+  const snapAll = () => {
+    const ch: "charm" | "buybox" = channel === "amazon" ? "buybox" : "charm";
+    let snapped = 0, hemmed = 0, aboveLadder = 0, unchanged = 0;
+    setSelected((prev) => {
+      const next = { ...prev };
+      for (const r of repriceable) {
+        if (r.suggestedGross == null) continue;
+        const res = snapPrice(r.suggestedGross, ch, 0, ladder);
+        if (res.listPrice == null) { aboveLadder++; continue; }
+        const k = rowKey(r);
+        const newPrice = res.listPrice.toFixed(2);
+        if (newPrice === r.suggestedGross.toFixed(2)) unchanged++;
+        next[k] = { checked: next[k]?.checked ?? false, price: newPrice };
+        snapped++;
+        if (res.flag === "hemmed") hemmed++;
+      }
+      return next;
+    });
+    toast({
+      title: `Snapped ${snapped} to charm prices`,
+      description:
+        `${snapped} New £ value${snapped === 1 ? "" : "s"} moved to the nearest charm rung (never below the profitable floor).` +
+        (hemmed ? ` · ${hemmed} hemmed — forced over a price barrier, worth an eyeball.` : "") +
+        (aboveLadder ? ` · ${aboveLadder} above the ladder — left unchanged.` : "") +
+        ` Tick the rows and Push to 3D when happy.`,
+    });
+  };
 
   const selectedRows = useMemo(() => {
     return repriceable
@@ -664,16 +708,26 @@ export default function ThreedsReprice() {
                 )}
               </p>
             </div>
-            <Button
-              onClick={() => pushMutation.mutate()}
-              disabled={pushMutation.isPending || candFetching || selectedRows.length === 0}
-            >
-              {pushMutation.isPending ? (
-                <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Pushing…</>
-              ) : (
-                <><Upload className="h-4 w-4 mr-2" /> Push {selectedRows.length} to 3D</>
-              )}
-            </Button>
+            <div className="flex items-center gap-2 shrink-0">
+              <Button
+                variant="secondary"
+                onClick={snapAll}
+                disabled={candFetching || repriceable.length === 0}
+                title="Snap every New £ in view up to the nearest charm price (e.g. 14.08 → 14.95). Never drops below the profitable floor."
+              >
+                <Wand2 className="h-4 w-4 mr-2" /> Snapper
+              </Button>
+              <Button
+                onClick={() => pushMutation.mutate()}
+                disabled={pushMutation.isPending || candFetching || selectedRows.length === 0}
+              >
+                {pushMutation.isPending ? (
+                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Pushing…</>
+                ) : (
+                  <><Upload className="h-4 w-4 mr-2" /> Push {selectedRows.length} to 3D</>
+                )}
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className={`overflow-x-auto transition-opacity ${candFetching ? "pointer-events-none opacity-50" : ""}`}>
             {candLoading ? (
