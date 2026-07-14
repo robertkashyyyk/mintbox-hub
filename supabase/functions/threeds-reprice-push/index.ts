@@ -62,7 +62,12 @@ Deno.serve(async (req) => {
   // Where the price came from: "repricer" (profit) or "liquidation" (clearance).
   // The Repricing Payoff report excludes "liquidation" so deliberate clearance
   // cuts don't get counted as repricing value.
-  const source = body.source === "liquidation" ? "liquidation" : "repricer";
+  // "repricer" (profit) unless a recognised non-payoff source: "liquidation"
+  // (clearance) or "charm_snap" (charm-price tidy). Both are excluded from the
+  // Repricing Payoff report so they don't count as repricing value.
+  const source = (body.source === "liquidation" || body.source === "charm_snap")
+    ? body.source
+    : "repricer";
   const rows = (body.rows ?? []).filter(
     (r) =>
       r &&

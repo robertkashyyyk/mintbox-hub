@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import {
   Upload, Loader2, AlertTriangle, ChevronLeft, ChevronRight, CalendarClock,
-  ArrowUp, ArrowDown, ArrowUpDown, TrendingUp, EyeOff, Pencil, RotateCcw,
+  ArrowUp, ArrowDown, ArrowUpDown, TrendingUp, EyeOff, Pencil, RotateCcw, Wand2,
 } from "lucide-react";
 import { format } from "date-fns";
 import {
@@ -23,6 +23,7 @@ import {
   TIER_OPTIONS, TIER_TARGET_POR_PCT, POR_BAND_OPTIONS, BIG_MOVE_MULTIPLE,
   effectiveFeesFor, backSolveGrossPrice, classifyCost, toGross, feeInputsForBackSolve,
 } from "@/lib/reprice";
+import { snapPrice, ladderFromRows, DEFAULT_LADDER, type LadderEntry } from "@/lib/charmSnap";
 
 interface AutoCfg {
   enabled?: boolean; run_hour_london?: number; lookback_days?: number; current_band?: string; current_bands?: string[]; move_to_tier?: Tier;
@@ -252,6 +253,44 @@ export default function ThreedsAutoReport() {
   const effectivePrice = (r: Enriched): string =>
     selected[rowKey(r)]?.price ?? (r.suggestedGross != null ? r.suggestedGross.toFixed(2) : "");
 
+  // Charm ladder (config table; DEFAULT_LADDER fallback) + Snapper: snap every
+  // in-view New £ up to the nearest charm rung, into the per-row override.
+  const { data: ladderData } = useQuery({
+    queryKey: ["price-sweetspots"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("price_sweetspots").select("price, type").eq("active", true);
+      if (error) throw error;
+      return ladderFromRows((data ?? []) as Array<{ price: number; type?: string }>);
+    },
+  });
+  const ladder: LadderEntry[] = ladderData && ladderData.length ? ladderData : DEFAULT_LADDER;
+
+  const snapAll = () => {
+    let snapped = 0, hemmed = 0, aboveLadder = 0;
+    setSelected((prev) => {
+      const next = { ...prev };
+      for (const r of filtered) {
+        if (r.suggestedGross == null) continue;
+        const res = snapPrice(r.suggestedGross, "charm", 0, ladder);
+        if (res.listPrice == null) { aboveLadder++; continue; }
+        const k = rowKey(r);
+        next[k] = { checked: next[k]?.checked ?? false, price: res.listPrice.toFixed(2) };
+        snapped++;
+        if (res.flag === "hemmed") hemmed++;
+      }
+      return next;
+    });
+    toast({
+      title: `Snapped ${snapped} to charm prices`,
+      description:
+        `${snapped} New £ value${snapped === 1 ? "" : "s"} moved to the nearest charm rung (never below the profitable floor).`
+        + (hemmed ? ` · ${hemmed} hemmed — eyeball these.` : "")
+        + (aboveLadder ? ` · ${aboveLadder} above the ladder — unchanged.` : "")
+        + ` Tick + Push to 3D.`,
+    });
+  };
+
   const selectedByStore = useMemo(() => {
     const m = new Map<string, { sku: string; new_price: number }[]>();
     for (const r of filtered) {
@@ -437,6 +476,10 @@ export default function ThreedsAutoReport() {
           </ToggleGroup>
           <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search SKU / brand / account" className="w-[240px]" />
           <div className="flex-1" />
+          <Button variant="secondary" onClick={snapAll} disabled={filtered.length === 0}
+            title="Snap every New £ in view up to the nearest charm price (never below the profitable floor).">
+            <Wand2 className="h-4 w-4 mr-2" /> Snapper
+          </Button>
           <Button onClick={() => pushMutation.mutate()} disabled={pushMutation.isPending || selectedCount === 0}>
             {pushMutation.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Pushing…</> : <><Upload className="h-4 w-4 mr-2" /> Push {selectedCount} to 3D</>}
           </Button>

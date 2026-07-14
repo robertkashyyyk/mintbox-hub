@@ -20,6 +20,7 @@ import { ArrowLeft, Upload, Loader2, AlertTriangle, RefreshCw, ChevronLeft, Chev
 import ModuleHeader from "@/components/ModuleHeader";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import ThreedsAutoReport from "./ThreedsAutoReport";
+import ThreedsSnapperSweep from "./ThreedsSnapperSweep";
 import AmazonReprice from "./AmazonReprice";
 import { format } from "date-fns";
 import {
@@ -145,7 +146,7 @@ export default function ThreedsReprice() {
   const qc = useQueryClient();
 
   const [channel, setChannel] = useState<"ebay" | "amazon">("ebay");
-  const [mode, setMode] = useState<"manual" | "auto">("manual");
+  const [mode, setMode] = useState<"manual" | "auto" | "snapper">("manual");
   const [storeId, setStoreId] = useState<string | null>(null);
   const [days, setDays] = useState(90);
   const [search, setSearch] = useState("");
@@ -558,9 +559,10 @@ export default function ThreedsReprice() {
           <ToggleGroupItem value="amazon" className="data-[state=on]:bg-pd-accent data-[state=on]:text-white px-4">Amazon</ToggleGroupItem>
         </ToggleGroup>
         {channel === "ebay" && (
-          <ToggleGroup type="single" value={mode} onValueChange={(v) => v && setMode(v as "manual" | "auto")} className="justify-start">
+          <ToggleGroup type="single" value={mode} onValueChange={(v) => v && setMode(v as "manual" | "auto" | "snapper")} className="justify-start">
             <ToggleGroupItem value="manual" className="data-[state=on]:bg-pd-accent data-[state=on]:text-white px-4">Semi-Manual</ToggleGroupItem>
             <ToggleGroupItem value="auto" className="data-[state=on]:bg-pd-accent data-[state=on]:text-white px-4">Auto-Report</ToggleGroupItem>
+            <ToggleGroupItem value="snapper" className="data-[state=on]:bg-pd-accent data-[state=on]:text-white px-4">Snapper</ToggleGroupItem>
           </ToggleGroup>
         )}
       </div>
@@ -568,6 +570,8 @@ export default function ThreedsReprice() {
       {channel === "amazon" && <AmazonReprice />}
 
       {channel === "ebay" && mode === "auto" && <ThreedsAutoReport />}
+
+      {channel === "ebay" && mode === "snapper" && <ThreedsSnapperSweep />}
 
       {channel === "ebay" && mode === "manual" && (
       <>
