@@ -35,12 +35,13 @@ interface BandRow {
   iso_year: number; iso_week: number; week_start: string;
   unknown_count: number; loss_count: number; breakeven_count: number; poor_count: number;
   average_count: number; good_count: number; great_count: number; amazing_count: number;
-  stellar_count: number;
+  stellar_count: number; clearance_count: number;
   total_lines: number;
 }
 
 // Stack order worst→best; colours match the band badges on the Profit page.
 const BANDS: { key: keyof BandRow; label: string; color: string }[] = [
+  { key: "clearance_count", label: "Clearance", color: "hsl(var(--muted-foreground))" },
   { key: "unknown_count",   label: "Unknown",   color: "hsl(var(--warning))" },
   { key: "loss_count",      label: "Loss",      color: "hsl(var(--band-loss))" },
   { key: "breakeven_count", label: "Breakeven", color: "hsl(var(--band-breakeven))" },
