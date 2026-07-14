@@ -8,6 +8,8 @@ import ModuleHeader from "@/components/ModuleHeader";
 import { useSkuVelocity } from "@/hooks/useSkuVelocity";
 import { VelocityFilters } from "@/components/intelligence/VelocityFilters";
 import { Link } from "react-router-dom";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { PriceExperiments } from "@/components/intelligence/PriceExperiments";
 
 const VelocityCoverage = () => {
   const {
@@ -53,6 +55,12 @@ const VelocityCoverage = () => {
         icon={TrendingUp}
       />
 
+      <Tabs defaultValue="coverage" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="coverage">Coverage</TabsTrigger>
+          <TabsTrigger value="tracked">Tracked</TabsTrigger>
+        </TabsList>
+        <TabsContent value="coverage">
       <Card>
         <CardHeader className="flex flex-row items-start justify-between gap-4">
           <div>
@@ -165,6 +173,11 @@ const VelocityCoverage = () => {
           )}
         </CardContent>
       </Card>
+        </TabsContent>
+        <TabsContent value="tracked">
+          <PriceExperiments />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };

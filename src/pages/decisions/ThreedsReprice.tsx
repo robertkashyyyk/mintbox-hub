@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Upload, Loader2, AlertTriangle, RefreshCw, ChevronLeft, ChevronRight, Flame, Wand2 } from "lucide-react";
+import { ArrowLeft, Upload, Loader2, AlertTriangle, RefreshCw, ChevronLeft, ChevronRight, Flame, Wand2, LineChart } from "lucide-react";
 import ModuleHeader from "@/components/ModuleHeader";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import ThreedsAutoReport from "./ThreedsAutoReport";
@@ -501,6 +501,54 @@ export default function ThreedsReprice() {
     },
   });
 
+  // Push AND start a price experiment: push the new prices, then record each as a
+  // tracked experiment (baseline = current inc-VAT price = the "revert to" number).
+  // Watch them on Velocity → Tracked; revert in one click if sales drop.
+  const pushAndTrackMutation = useMutation({
+    mutationFn: async () => {
+      if (selectedRows.length === 0) throw new Error("Tick rows and enter prices first");
+      const byStore = new Map<string, { sku: string; new_price: number }[]>();
+      for (const r of selectedRows) {
+        if (!byStore.has(r.store_id)) byStore.set(r.store_id, []);
+        byStore.get(r.store_id)!.push({ sku: r.sku, new_price: r.new_price });
+      }
+      let added = 0;
+      const failures: string[] = [];
+      for (const [sid, rows] of byStore) {
+        const { data, error } = await supabase.functions.invoke("threeds-reprice-push", { body: { store_id: sid, rows } });
+        if (error || data?.error) { failures.push(error?.message ?? data?.error ?? "unknown error"); continue; }
+        added += data.added ?? 0;
+      }
+      if (failures.length && added === 0) throw new Error(failures.join("; "));
+
+      const items = repriceable
+        .filter((r) => selected[rowKey(r)]?.checked && r.store_id && r.grossLastSold != null)
+        .map((r) => {
+          const np = parseFloat(effectivePrice(r));
+          const base = r.grossLastSold as number;
+          return { store_id: r.store_id, sku: r.sku, baseline_price: base, new_price: np,
+                   change_pct: base > 0 ? Math.round(((np - base) / base) * 1000) / 10 : null };
+        })
+        .filter((i) => !isNaN(i.new_price) && i.new_price > 0);
+      let tracked = 0;
+      if (items.length) {
+        const { data, error } = await (supabase as any).rpc("track_price_experiments", { p_items: items });
+        if (error) throw new Error(`Pushed, but tracking failed: ${error.message}`);
+        tracked = Number(data ?? 0);
+      }
+      return { added, tracked };
+    },
+    onSuccess: (d) => {
+      toast({ title: "Pushed to 3D & tracking",
+        description: `${d.added} price${d.added === 1 ? "" : "s"} pushed · ${d.tracked} now tracked. Watch them on Velocity → Tracked; revert in a click if sales drop.` });
+      setSelected({});
+      qc.invalidateQueries({ queryKey: ["threeds_pushes", storeId] });
+      qc.invalidateQueries({ queryKey: ["threeds_pending", storeId] });
+      qc.invalidateQueries({ queryKey: ["price_experiments"] });
+    },
+    onError: (e: Error) => toast({ title: "Push & track failed", description: e.message, variant: "destructive" }),
+  });
+
   // Select / clear all rows on the CURRENT page only.
   const toggleAll = (checked: boolean) => {
     setSelected((prev) => {
@@ -729,6 +777,18 @@ export default function ThreedsReprice() {
                   <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Pushing…</>
                 ) : (
                   <><Upload className="h-4 w-4 mr-2" /> Push {selectedRows.length} to 3D</>
+                )}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => pushAndTrackMutation.mutate()}
+                disabled={pushAndTrackMutation.isPending || candFetching || selectedRows.length === 0}
+                title="Push these prices AND track their weekly sales velocity at the new price, so you can revert if sales drop (Velocity → Tracked)."
+              >
+                {pushAndTrackMutation.isPending ? (
+                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> …</>
+                ) : (
+                  <><LineChart className="h-4 w-4 mr-2" /> Push &amp; Track</>
                 )}
               </Button>
             </div>
