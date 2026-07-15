@@ -15,6 +15,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { TrendingUp, Send, Calculator, Search, AlertTriangle, TrendingDown } from "lucide-react";
 import ModuleHeader from "@/components/ModuleHeader";
 import { useToast } from "@/hooks/use-toast";
+import { ElasticityProposals } from "@/components/intelligence/ElasticityProposals";
 
 // ---------- helpers ----------
 const fmtGBP = (n: number) =>
@@ -631,10 +632,7 @@ const PricingSignals = () => {
         </TabsContent>
 
         <TabsContent value="elasticity" className="mt-4">
-          <PlaceholderArea
-            title="Elasticity"
-            blurb="Estimate price sensitivity per SKU from historical price/volume movements. Suggest the price point that maximises projected weekly profit, not just margin."
-          />
+          <ElasticityProposals />
         </TabsContent>
 
         <TabsContent value="dynamic" className="mt-4">
