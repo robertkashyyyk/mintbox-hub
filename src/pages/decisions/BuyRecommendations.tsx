@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageLoader } from "@/components/ui/PageLoader";
@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/table";
 import {
   Search, Truck, Package, PoundSterling, Loader2, FilePlus2, ArrowLeft, ChevronRight, AlertTriangle, Clock, RefreshCw,
+  Download, ArrowUpDown, ArrowUp, ArrowDown,
 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
@@ -32,6 +33,20 @@ const num = (v: unknown) => {
   const n = typeof v === "number" ? v : parseFloat(String(v ?? 0));
   return Number.isFinite(n) ? n : 0;
 };
+
+// Profitability tier (from get_sku_profit_tiers). Bands mirror src/lib/reprice.ts.
+const TIER_META: Record<string, { label: string; dot: string; rank: number }> = {
+  loss:      { label: "Loss",      dot: "bg-red-500",              rank: 0 },
+  breakeven: { label: "Breakeven", dot: "bg-orange-500",           rank: 1 },
+  poor:      { label: "Poor",      dot: "bg-amber-500",            rank: 2 },
+  average:   { label: "Average",   dot: "bg-yellow-400",           rank: 3 },
+  good:      { label: "Good",      dot: "bg-lime-500",             rank: 4 },
+  great:     { label: "Great",     dot: "bg-green-500",            rank: 5 },
+  amazing:   { label: "Amazing",   dot: "bg-emerald-500",          rank: 6 },
+  stellar:   { label: "Stellar",   dot: "bg-sky-500",              rank: 7 },
+  unknown:   { label: "No recent costed sale", dot: "bg-muted-foreground/30", rank: -1 },
+};
+interface SkuTier { band: string; por: number | null; n: number }
 
 const extractPrefix = (sku: string) => {
   if (!sku) return "—";
@@ -85,6 +100,21 @@ const statusBadge = (r: BuyRecommendationRow) => {
       return <Badge variant="outline">OK</Badge>;
   }
 };
+
+function SortTH({ label, k, sortKey, sortDir, onSort, align, title }: {
+  label: string; k: string; sortKey: string | null; sortDir: "asc" | "desc";
+  onSort: (k: string) => void; align?: "right"; title?: string;
+}) {
+  const active = sortKey === k;
+  return (
+    <TableHead className={`cursor-pointer select-none ${align === "right" ? "text-right" : ""}`} onClick={() => onSort(k)} title={title}>
+      <span className={`inline-flex items-center gap-1 ${align === "right" ? "flex-row-reverse" : ""}`}>
+        {label}
+        {active ? (sortDir === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />) : <ArrowUpDown className="h-3 w-3 opacity-30" />}
+      </span>
+    </TableHead>
+  );
+}
 
 interface SupplierGroup {
   supplierId: string | null;
@@ -222,6 +252,31 @@ const BuyRecommendations = () => {
     return supplierGroups.find((g) => (g.supplierId || "__unmapped__") === supplierView) || null;
   }, [supplierView, supplierGroups]);
 
+  // Per-SKU "last known" profitability tier (blended POR over recent costed sales).
+  const supplierSkus = useMemo(() => currentSupplier?.rows.map((r) => r.sku) ?? [], [currentSupplier]);
+  const { data: tierRows = [] } = useQuery({
+    queryKey: ["sku-profit-tiers", supplierView, supplierSkus.length],
+    enabled: supplierSkus.length > 0,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc("get_sku_profit_tiers", { p_skus: supplierSkus });
+      if (error) throw error;
+      return (data ?? []) as { sku: string; blended_por: number | null; band: string; sample_size: number }[];
+    },
+  });
+  const tierMap = useMemo(() => {
+    const m = new Map<string, SkuTier>();
+    for (const t of tierRows) m.set(t.sku, { band: t.band, por: t.blended_por, n: t.sample_size });
+    return m;
+  }, [tierRows]);
+
+  type SortKey = "sku" | "product" | "brand" | "status" | "stock" | "lsa" | "bo" | "sales4w" | "onorder" | "qty" | "cost" | "tier";
+  const [sortKey, setSortKey] = useState<SortKey | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const toggleSort = (k: SortKey) => {
+    if (sortKey === k) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortKey(k); setSortDir("asc"); }
+  };
+
   // Reset selection when leaving detail or changing supplier
   useEffect(() => {
     setSelected({});
@@ -231,6 +286,7 @@ const BuyRecommendations = () => {
     setSaOnly(false);
     setBrandFilter("all");
     setStatusFilter("all");
+    setSortKey(null);
   }, [supplierView]);
 
   const selectedRows = useMemo(
@@ -274,6 +330,52 @@ const BuyRecommendations = () => {
     );
     return { count: selectedRows.length, units, cost };
   }, [selectedRows, overrides, boOnly]);
+
+  const sortedRows = useMemo(() => {
+    if (!sortKey) return detailRows;
+    const dir = sortDir === "asc" ? 1 : -1;
+    const val = (r: BuyRecommendationRow): number | string => {
+      switch (sortKey) {
+        case "sku": return r.sku;
+        case "product": return r.product_name || "";
+        case "brand": return brandLabel(r);
+        case "status": return rowStatus(r);
+        case "stock": return num(r.current_stock);
+        case "lsa": return num(r.low_stock_alert);
+        case "bo": return Math.max(0, num(r.back_orders) - num(r.on_order));
+        case "sales4w": return num(r.sales_4w);
+        case "onorder": return num(r.on_order);
+        case "qty": return overrides[r.sku] ?? suggestedFor(r);
+        case "cost": return (overrides[r.sku] ?? suggestedFor(r)) * num(r.unit_cost);
+        case "tier": return TIER_META[tierMap.get(r.sku)?.band ?? "unknown"].rank;
+        default: return 0;
+      }
+    };
+    return [...detailRows].sort((a, b) => {
+      const av = val(a), bv = val(b);
+      if (typeof av === "number" && typeof bv === "number") return (av - bv) * dir;
+      return String(av).localeCompare(String(bv)) * dir;
+    });
+  }, [detailRows, sortKey, sortDir, overrides, tierMap]);
+
+  const exportCsv = () => {
+    const rowsToExport = selectedRows.length ? selectedRows : sortedRows;
+    const hdr = ["SKU", "Product", "Brand", "Status", "Stock", "LSA", "BO_net", "Sales4W", "OnOrder", "SuggestQty", "EstCost", "Tier", "POR_pct", "SampleSize"];
+    const lines = rowsToExport.map((r) => {
+      const qty = overrides[r.sku] ?? suggestedFor(r);
+      const t = tierMap.get(r.sku);
+      return [
+        r.sku, r.product_name ?? "", brandLabel(r), rowStatus(r), num(r.current_stock), num(r.low_stock_alert),
+        Math.max(0, num(r.back_orders) - num(r.on_order)), num(r.sales_4w), num(r.on_order), qty,
+        (qty * num(r.unit_cost)).toFixed(2), TIER_META[t?.band ?? "unknown"].label, t?.por ?? "", t?.n ?? "",
+      ].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",");
+    });
+    const blob = new Blob([[hdr.join(","), ...lines].join("\n")], { type: "text/csv" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `buy-recs-${(currentSupplier?.supplierName ?? "supplier").replace(/[^a-z0-9]+/gi, "-")}-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+  };
 
   const pendingCount = rows.filter((r) => r.status === "po_sent_pending").length;
 
@@ -515,6 +617,16 @@ const BuyRecommendations = () => {
           <Button
             variant="outlineDark"
             size="sm"
+            onClick={exportCsv}
+            disabled={detailRows.length === 0}
+            title={selectedRows.length ? `Export ${selectedRows.length} selected rows to CSV` : "Export all shown rows to CSV"}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Export CSV{selectedRows.length ? ` (${selectedRows.length})` : ""}
+          </Button>
+          <Button
+            variant="outlineDark"
+            size="sm"
             onClick={() => refreshStock(currentSupplier?.rows.map((r) => r.sku) || [])}
             disabled={refreshing || !currentSupplier}
             title="Pull live stock AND low-stock-alert (LSA) levels from Mintsoft for this supplier's SKUs, then recompute the recommendations"
@@ -631,26 +743,27 @@ const BuyRecommendations = () => {
           <CardContent className="p-0">
             <div className="overflow-x-auto">
               <Table>
-                <TableHeader>
+                <TableHeader className="[&_th]:sticky [&_th]:top-0 [&_th]:z-20 [&_th]:bg-card">
                   <TableRow>
                     <TableHead className="w-10">
                       <Checkbox checked={allOnPageSelected} onCheckedChange={toggleAll} aria-label="Select all" />
                     </TableHead>
-                    <TableHead>SKU</TableHead>
-                    <TableHead>Product</TableHead>
-                    <TableHead>Brand</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Stock</TableHead>
-                    <TableHead className="text-right">LSA</TableHead>
-                    <TableHead className="text-right">BO</TableHead>
-                    <TableHead className="text-right" title="Units sold in last 28 days">Sales 4W</TableHead>
-                    <TableHead className="text-right">On Order</TableHead>
-                    <TableHead className="text-right">Suggest Qty</TableHead>
-                    <TableHead className="text-right">Est. Cost</TableHead>
+                    <SortTH label="SKU" k="sku" sortKey={sortKey} sortDir={sortDir} onSort={(k) => toggleSort(k as any)} />
+                    <SortTH label="Product" k="product" sortKey={sortKey} sortDir={sortDir} onSort={(k) => toggleSort(k as any)} />
+                    <SortTH label="Brand" k="brand" sortKey={sortKey} sortDir={sortDir} onSort={(k) => toggleSort(k as any)} />
+                    <SortTH label="Margin" k="tier" sortKey={sortKey} sortDir={sortDir} onSort={(k) => toggleSort(k as any)} title="Last-known profit tier — blended POR over recent costed sales, all channels" />
+                    <SortTH label="Status" k="status" sortKey={sortKey} sortDir={sortDir} onSort={(k) => toggleSort(k as any)} />
+                    <SortTH label="Stock" k="stock" sortKey={sortKey} sortDir={sortDir} onSort={(k) => toggleSort(k as any)} align="right" />
+                    <SortTH label="LSA" k="lsa" sortKey={sortKey} sortDir={sortDir} onSort={(k) => toggleSort(k as any)} align="right" />
+                    <SortTH label="BO" k="bo" sortKey={sortKey} sortDir={sortDir} onSort={(k) => toggleSort(k as any)} align="right" />
+                    <SortTH label="Sales 4W" k="sales4w" sortKey={sortKey} sortDir={sortDir} onSort={(k) => toggleSort(k as any)} align="right" title="Units sold in last 28 days" />
+                    <SortTH label="On Order" k="onorder" sortKey={sortKey} sortDir={sortDir} onSort={(k) => toggleSort(k as any)} align="right" />
+                    <SortTH label="Suggest Qty" k="qty" sortKey={sortKey} sortDir={sortDir} onSort={(k) => toggleSort(k as any)} align="right" />
+                    <SortTH label="Est. Cost" k="cost" sortKey={sortKey} sortDir={sortDir} onSort={(k) => toggleSort(k as any)} align="right" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                   {detailRows.map((r) => {
+                   {sortedRows.map((r) => {
                     const fullSuggested = Math.max(0, Math.round(num(r.required_qty)));
                     const raw = Math.max(0, Math.round(num(r.raw_required_qty)));
                     const box = Math.max(1, num(r.box_quantity) || 1);
@@ -682,6 +795,20 @@ const BuyRecommendations = () => {
                               {brandLabel(r)}
                             </span>
                           )}
+                        </TableCell>
+                        <TableCell>
+                          {(() => {
+                            const t = tierMap.get(r.sku);
+                            const meta = TIER_META[t?.band ?? "unknown"];
+                            const tip = t && t.por != null
+                              ? `${meta.label} · ${t.por}% POR over last ${t.n} sale${t.n === 1 ? "" : "s"}`
+                              : "No recent costed sale";
+                            return (
+                              <span className="inline-flex items-center justify-center" title={tip}>
+                                <span className={`h-2.5 w-2.5 rounded-full ${meta.dot}`} />
+                              </span>
+                            );
+                          })()}
                         </TableCell>
                         <TableCell>{statusBadge(r)}</TableCell>
                         <TableCell className="text-right tabular-nums">{num(r.current_stock)}</TableCell>
