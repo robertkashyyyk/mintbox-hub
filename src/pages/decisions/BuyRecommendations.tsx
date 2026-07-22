@@ -15,8 +15,10 @@ import {
 } from "@/components/ui/table";
 import {
   Search, Truck, Package, PoundSterling, Loader2, FilePlus2, ArrowLeft, ChevronRight, AlertTriangle, Clock, RefreshCw,
-  Download, ArrowUpDown, ArrowUp, ArrowDown,
+  Download, ArrowUpDown, ArrowUp, ArrowDown, TrendingUp,
 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { bandRecoveryTarget, TIER_OPTIONS, TIER_TARGET_POR_PCT, type Tier } from "@/lib/reprice";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   useBuyRecommendationsRpc, useBuyRecommendationsSummary, type BuyRecommendationRow,
@@ -165,6 +167,9 @@ const BuyRecommendations = () => {
   const [overrides, setOverrides] = useState<Record<string, number>>({});
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [creating, setCreating] = useState(false);
+  const [raiseOpen, setRaiseOpen] = useState(false);
+  const [raiseTier, setRaiseTier] = useState<Tier>("good");
+  const [raising, setRaising] = useState(false);
 
   // Active rows = exclude pending suppressed; apply BO/SA toggles and search at page level
   const activeRows = useMemo(
@@ -375,6 +380,68 @@ const BuyRecommendations = () => {
     a.href = URL.createObjectURL(blob);
     a.download = `buy-recs-${(currentSupplier?.supplierName ?? "supplier").replace(/[^a-z0-9]+/gi, "-")}-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
+  };
+
+  // "Raise to tier & re-order" — preview per selected SKU: target price + minimal order qty.
+  const raisePreview = useMemo(() => selectedRows.map((r) => {
+    const target = bandRecoveryTarget({ costUnit: num(r.unit_cost), tier: raiseTier });
+    const box = Math.max(1, num(r.box_quantity) || 1);
+    return { sku: r.sku, cost: num(r.unit_cost), target, orderQty: box > 1 ? box : 2, band: tierMap.get(r.sku)?.band ?? "unknown" };
+  }), [selectedRows, raiseTier, tierMap]);
+
+  const runRaiseReorder = async () => {
+    if (raisePreview.length === 0) return;
+    setRaising(true);
+    const sb = supabase as any;
+    try {
+      // 1. Reprice each to the tier target → the evening eBay reprice queue.
+      const pushByStore = new Map<string, { sku: string; new_price: number }[]>();
+      let noListing = 0;
+      for (const p of raisePreview) {
+        if (!p.target || p.target <= 0) { noListing++; continue; }
+        const { data: listings } = await sb.rpc("get_coverage_listings_for_sku", { p_base_sku: p.sku });
+        if (!listings?.length) { noListing++; continue; }
+        for (const l of listings as any[]) {
+          if (!l.store_id) continue;
+          if (!pushByStore.has(l.store_id)) pushByStore.set(l.store_id, []);
+          pushByStore.get(l.store_id)!.push({ sku: l.listing_sku, new_price: Number(p.target!.toFixed(2)) });
+        }
+      }
+      let repriced = 0;
+      for (const [store_id, storeRows] of pushByStore) {
+        const { error } = await sb.functions.invoke("threeds-reprice-push", { body: { store_id, rows: storeRows, source: "buy_probation" } });
+        if (!error) repriced += storeRows.length;
+      }
+      // 2. Reset LSA to 2 (Mintsoft + mirror to products_cache, handled by the edge fn).
+      const skus = raisePreview.map((p) => p.sku);
+      const { data: products } = await sb.from("products_cache").select("sku, mintsoft_id").in("sku", skus);
+      const idMap = new Map((products || []).map((pp: any) => [pp.sku, pp.mintsoft_id]));
+      const items = raisePreview
+        .map((p) => ({ sku: p.sku, mintsoft_product_id: idMap.get(p.sku), low_stock_alert_level: 2 }))
+        .filter((it) => !!it.mintsoft_product_id);
+      let lsaUpdated = 0;
+      if (items.length) {
+        const { data: lsaRes } = await sb.functions.invoke("mintsoft-update-lsa", { body: { items } });
+        lsaUpdated = Number((lsaRes as any)?.updated ?? 0);
+      }
+      // 3. Set minimal re-order qty + keep selected → ready for Create Draft PO.
+      const nextOverrides = { ...overrides };
+      for (const p of raisePreview) nextOverrides[p.sku] = p.orderQty;
+      setOverrides(nextOverrides);
+
+      logActivity({ action: LOG_ACTIONS.REPRICE_TRIGGER, entityType: "brand", entityLabel: currentSupplier?.supplierName, detail: { context: "buy_probation", skus: skus.length, tier: raiseTier, repriced, lsa_reset: lsaUpdated, no_listing: noListing } });
+      toast({
+        title: "Repriced, LSA reset — ready to re-order",
+        description: `${repriced} listing price(s) queued to ${raiseTier}, LSA→2 on ${lsaUpdated} SKU(s)${noListing ? `, ${noListing} had no eBay listing` : ""}. Review qty and Create Draft PO.`,
+      });
+      setRaiseOpen(false);
+      qc.invalidateQueries({ queryKey: ["buy-recommendations"] });
+      qc.invalidateQueries({ queryKey: ["sku-profit-tiers"] });
+    } catch (e: any) {
+      toast({ title: "Raise & re-order failed", description: e.message, variant: "destructive" });
+    } finally {
+      setRaising(false);
+    }
   };
 
   const pendingCount = rows.filter((r) => r.status === "po_sent_pending").length;
@@ -634,6 +701,17 @@ const BuyRecommendations = () => {
             {refreshing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
             Refresh stock & LSA
           </Button>
+          {selectionSummary.count > 0 && (
+            <Button
+              variant="outlineDark"
+              size="sm"
+              onClick={() => setRaiseOpen(true)}
+              title="Reprice each to a target profit tier (evening eBay push), reset LSA to 2, and set a minimal re-order qty — so the item proves itself at the right price"
+            >
+              <TrendingUp className="h-4 w-4 mr-2" />
+              Raise &amp; re-order ({selectionSummary.count})
+            </Button>
+          )}
           <Button
             disabled={creating || selectionSummary.count === 0 || !currentSupplier?.supplierId}
             onClick={createDraftPo}
@@ -866,6 +944,63 @@ const BuyRecommendations = () => {
           </CardContent>
         </Card>
       )}
+
+      <Dialog open={raiseOpen} onOpenChange={(o) => !raising && setRaiseOpen(o)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Raise price &amp; re-order — {raisePreview.length} SKU{raisePreview.length === 1 ? "" : "s"}</DialogTitle>
+            <DialogDescription>
+              Reprice each to the target tier (queued to the evening eBay push), reset LSA to 2, and set a minimal re-order qty so it can prove itself at the right price. Amazon repricing to follow. All reversible via the repricer.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="flex items-center gap-2">
+              <Label className="text-sm">Target tier</Label>
+              <Select value={raiseTier} onValueChange={(v) => setRaiseTier(v as Tier)}>
+                <SelectTrigger className="h-9 w-[180px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {TIER_OPTIONS.map((t) => (
+                    <SelectItem key={t.value} value={t.value}>{t.label} (~{TIER_TARGET_POR_PCT[t.value]}% POR)</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="rounded-lg border border-border/60 max-h-64 overflow-y-auto text-xs">
+              <table className="w-full">
+                <thead className="sticky top-0 bg-card text-muted-foreground">
+                  <tr>
+                    <th className="text-left p-2">SKU</th><th className="text-right p-2">Cost</th>
+                    <th className="text-right p-2">Now</th><th className="text-right p-2">→ Target price</th><th className="text-right p-2">Order</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {raisePreview.map((p) => (
+                    <tr key={p.sku} className="border-t border-border/40">
+                      <td className="p-2 font-mono">
+                        <span className={`inline-block h-2 w-2 rounded-full mr-1.5 ${TIER_META[p.band].dot}`} />{p.sku}
+                      </td>
+                      <td className="p-2 text-right">{formatGBP(p.cost)}</td>
+                      <td className="p-2 text-right text-muted-foreground">{TIER_META[p.band].label}</td>
+                      <td className="p-2 text-right font-semibold text-emerald-400">{p.target != null ? `£${p.target.toFixed(2)}` : "—"}</td>
+                      <td className="p-2 text-right tabular-nums">{p.orderQty}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Prices queue to the evening SFTP push. LSA resets to 2 now (pushed to Mintsoft) so velocity rebuilds from real sales at the healthy price. After this, review the quantities and hit <strong>Create Draft PO</strong>.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRaiseOpen(false)} disabled={raising}>Cancel</Button>
+            <Button onClick={runRaiseReorder} disabled={raising}>
+              {raising ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <TrendingUp className="h-4 w-4 mr-2" />}
+              Raise to {TIER_OPTIONS.find((t) => t.value === raiseTier)?.label} &amp; set re-order
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
