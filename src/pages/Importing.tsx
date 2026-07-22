@@ -2,6 +2,7 @@ import { ImportRulesManager } from "@/components/importing/ImportRulesManager";
 import { ProductCacheUpload } from "@/components/importing/ProductCacheUpload";
 import { MintsoftProductPull } from "@/components/importing/MintsoftProductPull";
 import { ImportHistory } from "@/components/importing/ImportHistory";
+import { BundleMapUpload } from "@/components/importing/BundleMapUpload";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const Importing = () => {
@@ -18,6 +19,7 @@ const Importing = () => {
         <TabsList>
           <TabsTrigger value="push">Product PUSH</TabsTrigger>
           <TabsTrigger value="pull">Product PULL</TabsTrigger>
+          <TabsTrigger value="bundles">Bundle Map</TabsTrigger>
           <TabsTrigger value="rules">Import Rules</TabsTrigger>
           <TabsTrigger value="history">Import History</TabsTrigger>
         </TabsList>
@@ -28,6 +30,10 @@ const Importing = () => {
 
         <TabsContent value="pull" className="space-y-6">
           <MintsoftProductPull />
+        </TabsContent>
+
+        <TabsContent value="bundles" className="space-y-6">
+          <BundleMapUpload />
         </TabsContent>
 
         <TabsContent value="rules" className="space-y-6">
