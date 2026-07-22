@@ -456,7 +456,7 @@ export default function ProductDetail() {
             <CardTitle>Physical Attributes</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            <DetailRow label="Weight" value={product.weight ? (Number(product.weight) >= 1000 ? `${(Number(product.weight) / 1000).toFixed(2)}kg` : `${product.weight}g`) : "—"} />
+            <DetailRow label="Weight" value={product.weight ? `${product.weight}kg` : "—"} />
             <DetailRow label="Height" value={product.height ? `${product.height}cm` : "—"} />
             <DetailRow label="Length" value={product.length ? `${product.length}cm` : "—"} />
             <DetailRow label="Depth" value={product.depth ? `${product.depth}cm` : "—"} />

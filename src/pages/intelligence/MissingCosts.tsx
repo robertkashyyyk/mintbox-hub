@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { logActivity, LOG_ACTIONS } from "@/lib/activityLog";
+import WeeklyMissingCostList from "./WeeklyMissingCostList";
 
 type Row = {
   id: string;
@@ -270,6 +271,9 @@ const MissingCosts = () => {
           </Button>
         </CardContent>
       </Card>
+
+      {/* Cron-generated weekly worklist (top missing-cost SKUs by velocity) */}
+      <WeeklyMissingCostList />
 
       {/* Brand chips — sorted by 28-day sales impact, click to load */}
       <Card>
