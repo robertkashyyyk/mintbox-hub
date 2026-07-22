@@ -48,7 +48,7 @@ const TIER_META: Record<string, { label: string; dot: string; rank: number }> = 
   stellar:   { label: "Stellar",   dot: "bg-sky-500",              rank: 7 },
   unknown:   { label: "No recent costed sale", dot: "bg-muted-foreground/30", rank: -1 },
 };
-interface SkuTier { band: string; por: number | null; n: number }
+interface SkuTier { band: string; por: number | null; n: number; courier: number | null }
 
 const extractPrefix = (sku: string) => {
   if (!sku) return "—";
@@ -265,12 +265,12 @@ const BuyRecommendations = () => {
     queryFn: async () => {
       const { data, error } = await (supabase as any).rpc("get_sku_profit_tiers", { p_skus: supplierSkus });
       if (error) throw error;
-      return (data ?? []) as { sku: string; blended_por: number | null; band: string; sample_size: number }[];
+      return (data ?? []) as { sku: string; blended_por: number | null; band: string; sample_size: number; avg_courier: number | null }[];
     },
   });
   const tierMap = useMemo(() => {
     const m = new Map<string, SkuTier>();
-    for (const t of tierRows) m.set(t.sku, { band: t.band, por: t.blended_por, n: t.sample_size });
+    for (const t of tierRows) m.set(t.sku, { band: t.band, por: t.blended_por, n: t.sample_size, courier: t.avg_courier });
     return m;
   }, [tierRows]);
 
@@ -382,23 +382,28 @@ const BuyRecommendations = () => {
     a.click();
   };
 
-  // "Raise to tier & re-order" — preview per selected SKU: target price + minimal order qty.
+  // "Raise to tier & re-order" — preview per selected SKU. Target price uses the
+  // SKU's OWN average courier (from its recent sales) — never a flat fee. If we
+  // have no courier data we can't price it honestly, so target is null → skipped.
   const raisePreview = useMemo(() => selectedRows.map((r) => {
-    const target = bandRecoveryTarget({ costUnit: num(r.unit_cost), tier: raiseTier });
+    const t = tierMap.get(r.sku);
+    const courier = t?.courier ?? null;
+    const target = courier != null ? bandRecoveryTarget({ costUnit: num(r.unit_cost), courierUnit: courier, tier: raiseTier }) : null;
     const box = Math.max(1, num(r.box_quantity) || 1);
-    return { sku: r.sku, cost: num(r.unit_cost), target, orderQty: box > 1 ? box : 2, band: tierMap.get(r.sku)?.band ?? "unknown" };
+    return { sku: r.sku, cost: num(r.unit_cost), courier, target, orderQty: box > 1 ? box : 2, band: t?.band ?? "unknown" };
   }), [selectedRows, raiseTier, tierMap]);
 
+  const raiseActionable = useMemo(() => raisePreview.filter((p) => p.target != null && p.target > 0), [raisePreview]);
+
   const runRaiseReorder = async () => {
-    if (raisePreview.length === 0) return;
+    if (raiseActionable.length === 0) return;
     setRaising(true);
     const sb = supabase as any;
     try {
       // 1. Reprice each to the tier target → the evening eBay reprice queue.
       const pushByStore = new Map<string, { sku: string; new_price: number }[]>();
       let noListing = 0;
-      for (const p of raisePreview) {
-        if (!p.target || p.target <= 0) { noListing++; continue; }
+      for (const p of raiseActionable) {
         const { data: listings } = await sb.rpc("get_coverage_listings_for_sku", { p_base_sku: p.sku });
         if (!listings?.length) { noListing++; continue; }
         for (const l of listings as any[]) {
@@ -413,10 +418,10 @@ const BuyRecommendations = () => {
         if (!error) repriced += storeRows.length;
       }
       // 2. Reset LSA to 2 (Mintsoft + mirror to products_cache, handled by the edge fn).
-      const skus = raisePreview.map((p) => p.sku);
+      const skus = raiseActionable.map((p) => p.sku);
       const { data: products } = await sb.from("products_cache").select("sku, mintsoft_id").in("sku", skus);
       const idMap = new Map((products || []).map((pp: any) => [pp.sku, pp.mintsoft_id]));
-      const items = raisePreview
+      const items = raiseActionable
         .map((p) => ({ sku: p.sku, mintsoft_product_id: idMap.get(p.sku), low_stock_alert_level: 2 }))
         .filter((it) => !!it.mintsoft_product_id);
       let lsaUpdated = 0;
@@ -426,13 +431,14 @@ const BuyRecommendations = () => {
       }
       // 3. Set minimal re-order qty + keep selected → ready for Create Draft PO.
       const nextOverrides = { ...overrides };
-      for (const p of raisePreview) nextOverrides[p.sku] = p.orderQty;
+      for (const p of raiseActionable) nextOverrides[p.sku] = p.orderQty;
       setOverrides(nextOverrides);
 
-      logActivity({ action: LOG_ACTIONS.REPRICE_TRIGGER, entityType: "brand", entityLabel: currentSupplier?.supplierName, detail: { context: "buy_probation", skus: skus.length, tier: raiseTier, repriced, lsa_reset: lsaUpdated, no_listing: noListing } });
+      const skippedNoData = raisePreview.length - raiseActionable.length;
+      logActivity({ action: LOG_ACTIONS.REPRICE_TRIGGER, entityType: "brand", entityLabel: currentSupplier?.supplierName, detail: { context: "buy_probation", skus: skus.length, tier: raiseTier, repriced, lsa_reset: lsaUpdated, no_listing: noListing, skipped_no_data: skippedNoData } });
       toast({
         title: "Repriced, LSA reset — ready to re-order",
-        description: `${repriced} listing price(s) queued to ${raiseTier}, LSA→2 on ${lsaUpdated} SKU(s)${noListing ? `, ${noListing} had no eBay listing` : ""}. Review qty and Create Draft PO.`,
+        description: `${repriced} listing price(s) queued to ${raiseTier}, LSA→2 on ${lsaUpdated} SKU(s)${noListing ? `, ${noListing} had no eBay listing` : ""}${skippedNoData ? `, ${skippedNoData} skipped (no courier data)` : ""}. Review qty and Create Draft PO.`,
       });
       setRaiseOpen(false);
       qc.invalidateQueries({ queryKey: ["buy-recommendations"] });
@@ -969,34 +975,37 @@ const BuyRecommendations = () => {
               <table className="w-full">
                 <thead className="sticky top-0 bg-card text-muted-foreground">
                   <tr>
-                    <th className="text-left p-2">SKU</th><th className="text-right p-2">Cost</th>
+                    <th className="text-left p-2">SKU</th><th className="text-right p-2">Cost</th><th className="text-right p-2">Courier</th>
                     <th className="text-right p-2">Now</th><th className="text-right p-2">→ Target price</th><th className="text-right p-2">Order</th>
                   </tr>
                 </thead>
                 <tbody>
                   {raisePreview.map((p) => (
-                    <tr key={p.sku} className="border-t border-border/40">
+                    <tr key={p.sku} className={`border-t border-border/40 ${p.target == null ? "opacity-50" : ""}`}>
                       <td className="p-2 font-mono">
                         <span className={`inline-block h-2 w-2 rounded-full mr-1.5 ${TIER_META[p.band].dot}`} />{p.sku}
                       </td>
                       <td className="p-2 text-right">{formatGBP(p.cost)}</td>
+                      <td className="p-2 text-right text-muted-foreground">{p.courier != null ? `£${p.courier.toFixed(2)}` : "—"}</td>
                       <td className="p-2 text-right text-muted-foreground">{TIER_META[p.band].label}</td>
-                      <td className="p-2 text-right font-semibold text-emerald-400">{p.target != null ? `£${p.target.toFixed(2)}` : "—"}</td>
-                      <td className="p-2 text-right tabular-nums">{p.orderQty}</td>
+                      <td className="p-2 text-right font-semibold text-emerald-400">
+                        {p.target != null ? `£${p.target.toFixed(2)}` : <span className="text-muted-foreground font-normal" title="No courier data from recent sales — skipped rather than guess a fee">— no data</span>}
+                      </td>
+                      <td className="p-2 text-right tabular-nums">{p.target != null ? p.orderQty : "—"}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
             <p className="text-[11px] text-muted-foreground">
-              Prices queue to the evening SFTP push. LSA resets to 2 now (pushed to Mintsoft) so velocity rebuilds from real sales at the healthy price. After this, review the quantities and hit <strong>Create Draft PO</strong>.
+              Target price uses each SKU's <strong>own</strong> average courier from recent sales — never a flat fee; SKUs with no courier data are skipped. Prices queue to the evening SFTP push. LSA resets to 2 now (pushed to Mintsoft) so velocity rebuilds from real sales at the healthy price. Then review quantities and hit <strong>Create Draft PO</strong>.
             </p>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setRaiseOpen(false)} disabled={raising}>Cancel</Button>
-            <Button onClick={runRaiseReorder} disabled={raising}>
+            <Button onClick={runRaiseReorder} disabled={raising || raiseActionable.length === 0}>
               {raising ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <TrendingUp className="h-4 w-4 mr-2" />}
-              Raise to {TIER_OPTIONS.find((t) => t.value === raiseTier)?.label} &amp; set re-order
+              Raise {raiseActionable.length} to {TIER_OPTIONS.find((t) => t.value === raiseTier)?.label} &amp; set re-order
             </Button>
           </DialogFooter>
         </DialogContent>
