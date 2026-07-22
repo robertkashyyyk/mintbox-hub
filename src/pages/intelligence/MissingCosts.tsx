@@ -108,8 +108,11 @@ const MissingCosts = () => {
     if (q) r = r.filter((x) => x.sku.toLowerCase().includes(q) || (x.name ?? "").toLowerCase().includes(q) || (x.suppliers ?? "").toLowerCase().includes(q));
     if (stockFilter === "in_stock") r = r.filter((x) => (x.current_stock ?? 0) > 0);
     else if (stockFilter === "out") r = r.filter((x) => (x.current_stock ?? 0) <= 0);
-    if (soldFilter === "sold_28") r = r.filter((x) => x.units_28d > 0);
-    else if (soldFilter === "sold_7") r = r.filter((x) => x.units_7d > 0);
+    if (soldFilter !== "all") {
+      const days = soldFilter === "sold_7" ? 7 : soldFilter === "sold_90" ? 90 : 28;
+      const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+      r = r.filter((x) => x.last_sold != null && new Date(x.last_sold).getTime() >= cutoff);
+    }
 
     const sorted = [...r].sort((a, b) => {
       const dir = sortDir === "asc" ? 1 : -1;
@@ -336,8 +339,9 @@ const MissingCosts = () => {
                 <SelectTrigger className="w-44"><SelectValue placeholder="Sold recently" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Any (sold or not)</SelectItem>
-                  <SelectItem value="sold_28">Sold last 28 days</SelectItem>
                   <SelectItem value="sold_7">Sold last 7 days</SelectItem>
+                  <SelectItem value="sold_28">Sold last 28 days</SelectItem>
+                  <SelectItem value="sold_90">Sold last 90 days</SelectItem>
                 </SelectContent>
               </Select>
               <div className="ml-auto flex items-center gap-2">
