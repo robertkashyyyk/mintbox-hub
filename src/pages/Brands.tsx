@@ -68,6 +68,7 @@ const Brands = () => {
     base_multiplier: "",
     auto_update_lsa: false,
     stock_sync_interval_hours: "24",
+    is_own_brand: false,
   });
   const [runningLsaBrandId, setRunningLsaBrandId] = useState<string | null>(null);
   const [addFormData, setAddFormData] = useState({
@@ -78,6 +79,7 @@ const Brands = () => {
     remote_stock_feed_type: "" as any,
     base_multiplier: "",
     stock_sync_interval_hours: "24",
+    is_own_brand: false,
   });
 
   const { data: brands, isLoading } = useQuery({
@@ -110,6 +112,7 @@ const Brands = () => {
         remote_stock_feed_type: "",
         base_multiplier: "",
         stock_sync_interval_hours: "24",
+        is_own_brand: false,
       });
     },
     onError: (error) => {
@@ -198,6 +201,7 @@ const Brands = () => {
       base_multiplier: brand.base_multiplier?.toString() || "",
       auto_update_lsa: !!brand.auto_update_lsa,
       stock_sync_interval_hours: (brand.stock_sync_interval_hours ?? 24).toString(),
+      is_own_brand: !!brand.is_own_brand,
     });
   };
 
@@ -224,6 +228,7 @@ const Brands = () => {
       base_multiplier: editFormData.base_multiplier ? Number(editFormData.base_multiplier) : null,
       auto_update_lsa: editFormData.auto_update_lsa,
       stock_sync_interval_hours: interval,
+      is_own_brand: editFormData.is_own_brand,
     };
     
     updateBrandMutation.mutate({
@@ -265,6 +270,7 @@ const Brands = () => {
       remote_stock_feed_type: addFormData.remote_stock_feed_type || null,
       base_multiplier: addFormData.base_multiplier ? Number(addFormData.base_multiplier) : null,
       stock_sync_interval_hours: Math.max(1, Math.min(168, Number(addFormData.stock_sync_interval_hours) || 24)),
+      is_own_brand: addFormData.is_own_brand,
     });
   };
 
@@ -292,7 +298,7 @@ const Brands = () => {
           {isLoading ? (
             <PageLoader
               rows={10}
-              columns={[180, 80, 100, 120, 120, 80, 80, 80, 100]}
+              columns={[180, 80, 100, 120, 80, 120, 80, 80, 80, 100]}
               label="Loading brands"
             />
           ) : (
@@ -303,6 +309,7 @@ const Brands = () => {
                   <TableHead>Prefix</TableHead>
                   <TableHead>Prefix Style</TableHead>
                   <TableHead>Family</TableHead>
+                  <TableHead>Own Brand</TableHead>
                   <TableHead>Base Multiplier</TableHead>
                   <TableHead>Auto LSA</TableHead>
                   <TableHead>Stock Sync</TableHead>
@@ -326,6 +333,13 @@ const Brands = () => {
                         <span className="text-muted-foreground">{brand.family}</span>
                       ) : (
                         <span className="text-muted-foreground italic">-</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {brand.is_own_brand ? (
+                        <Badge className="bg-pd-accent/15 text-pd-accent border-pd-accent/40" variant="outline">Own</Badge>
+                      ) : (
+                        <span className="text-muted-foreground text-xs">—</span>
                       )}
                     </TableCell>
                     <TableCell>
@@ -508,6 +522,18 @@ const Brands = () => {
                 }
               />
             </div>
+            <div className="flex items-center justify-between rounded-md border border-border p-3">
+              <div>
+                <Label className="text-sm font-medium">PartsDoc Own Brand</Label>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Marks this brand as ours. Used across the Hub — e.g. Amazon buy-box tiering holds own-brand listings to a stricter standard.
+                </p>
+              </div>
+              <Switch
+                checked={addFormData.is_own_brand}
+                onCheckedChange={(v) => setAddFormData({ ...addFormData, is_own_brand: v })}
+              />
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsAddingBrand(false)}>
@@ -637,6 +663,19 @@ const Brands = () => {
               <p className="text-xs text-muted-foreground">
                 The rotator runs every 15 minutes and refreshes brands whose data is older than this interval.
               </p>
+            </div>
+
+            <div className="flex items-center justify-between rounded-md border border-border p-3">
+              <div>
+                <Label className="text-sm font-medium">PartsDoc Own Brand</Label>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Marks this brand as ours. Used across the Hub — e.g. Amazon buy-box tiering holds own-brand listings to a stricter standard.
+                </p>
+              </div>
+              <Switch
+                checked={editFormData.is_own_brand}
+                onCheckedChange={(v) => setEditFormData({ ...editFormData, is_own_brand: v })}
+              />
             </div>
 
             <div className="rounded-md border border-border p-3 space-y-3">
