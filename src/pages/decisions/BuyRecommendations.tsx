@@ -236,7 +236,7 @@ const BuyRecommendations = () => {
     const q = search.trim().toLowerCase();
     return g.rows.filter((r) => {
       if (boOnly && !(Math.max(0, num(r.back_orders) - num(r.on_order)) > 0)) return false;
-      if (saOnly && !(num(r.current_stock) < num(r.low_stock_alert))) return false;
+      if (saOnly && Math.max(0, num(r.back_orders) - num(r.on_order)) > 0) return false;
       if (brandFilter !== "all" && brandLabel(r) !== brandFilter) return false;
       if (statusFilter !== "all" && rowStatus(r) !== statusFilter) return false;
       if (q && !(r.sku.toLowerCase().includes(q) || (r.product_name || "").toLowerCase().includes(q))) return false;
