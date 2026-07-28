@@ -73,6 +73,11 @@ function flattenComponents(
   postedDate: string,
   orderId: string,
   sku: string,
+  // Position of the enclosing ShipmentEvent + ShipmentItem (e.g. "e0i1"). Without
+  // it, a multi-shipment/-item order posts identical (order,sku,subtype,idx)
+  // charges that collide on the event_hash unique key and get DROPPED — losing
+  // per-unit revenue while keeping the fees (fabricated FBA losses). Fix 2026-07.
+  pathKey: string,
   list: any[] | undefined,
   typeKey: string,
   amountKey: string,
@@ -92,7 +97,7 @@ function flattenComponents(
       original_amount: Number(amt),
       currency_code: comp?.[amountKey]?.CurrencyCode ?? "GBP",
       fee_description: subtype,
-      event_hash: `${eventType}|${orderId ?? ""}|${sku ?? ""}|${listName}|${subtype}|${postedDate}|${idx}`,
+      event_hash: `${eventType}|${orderId ?? ""}|${sku ?? ""}|${pathKey}|${listName}|${subtype}|${postedDate}|${idx}`,
     });
   });
 }
@@ -101,29 +106,31 @@ function flattenFinancialEvents(fe: any): any[] {
   const out: any[] = [];
   if (!fe) return out;
 
-  for (const se of fe.ShipmentEventList ?? []) {
+  (fe.ShipmentEventList ?? []).forEach((se: any, seIdx: number) => {
     const posted = se.PostedDate;
     const order = se.AmazonOrderId;
-    if (!posted) continue;
-    for (const si of se.ShipmentItemList ?? []) {
+    if (!posted) return;
+    (se.ShipmentItemList ?? []).forEach((si: any, siIdx: number) => {
       const sku = si.SellerSKU ?? "";
-      flattenComponents(out, "Shipment", "ItemCharge", posted, order, sku, si.ItemChargeList, "ChargeType", "ChargeAmount");
-      flattenComponents(out, "Shipment", "ItemFee", posted, order, sku, si.ItemFeeList, "FeeType", "FeeAmount");
-      flattenComponents(out, "Shipment", "Promotion", posted, order, sku, si.PromotionList, "PromotionType", "PromotionAmount");
-    }
-  }
+      const pk = `e${seIdx}i${siIdx}`;
+      flattenComponents(out, "Shipment", "ItemCharge", posted, order, sku, pk, si.ItemChargeList, "ChargeType", "ChargeAmount");
+      flattenComponents(out, "Shipment", "ItemFee", posted, order, sku, pk, si.ItemFeeList, "FeeType", "FeeAmount");
+      flattenComponents(out, "Shipment", "Promotion", posted, order, sku, pk, si.PromotionList, "PromotionType", "PromotionAmount");
+    });
+  });
 
-  for (const re of fe.RefundEventList ?? []) {
+  (fe.RefundEventList ?? []).forEach((re: any, reIdx: number) => {
     const posted = re.PostedDate;
     const order = re.AmazonOrderId;
-    if (!posted) continue;
-    for (const si of re.ShipmentItemAdjustmentList ?? []) {
+    if (!posted) return;
+    (re.ShipmentItemAdjustmentList ?? []).forEach((si: any, siIdx: number) => {
       const sku = si.SellerSKU ?? "";
-      flattenComponents(out, "Refund", "ItemChargeAdj", posted, order, sku, si.ItemChargeAdjustmentList, "ChargeType", "ChargeAmount");
-      flattenComponents(out, "Refund", "ItemFeeAdj", posted, order, sku, si.ItemFeeAdjustmentList, "FeeType", "FeeAmount");
-      flattenComponents(out, "Refund", "PromotionAdj", posted, order, sku, si.PromotionAdjustmentList, "PromotionType", "PromotionAmount");
-    }
-  }
+      const pk = `r${reIdx}i${siIdx}`;
+      flattenComponents(out, "Refund", "ItemChargeAdj", posted, order, sku, pk, si.ItemChargeAdjustmentList, "ChargeType", "ChargeAmount");
+      flattenComponents(out, "Refund", "ItemFeeAdj", posted, order, sku, pk, si.ItemFeeAdjustmentList, "FeeType", "FeeAmount");
+      flattenComponents(out, "Refund", "PromotionAdj", posted, order, sku, pk, si.PromotionAdjustmentList, "PromotionType", "PromotionAmount");
+    });
+  });
 
   // Scope: ORDER-LINKED economics only (Shipment + Refund). Storage fees and ad
   // spend (ServiceFeeEventList / ProductAdsPaymentEventList) are intentionally
