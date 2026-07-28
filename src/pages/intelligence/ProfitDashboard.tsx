@@ -167,7 +167,7 @@ const ProfitDashboard = () => {
       while (true) {
         const { data, error } = await (supabase as any)
           .from("order_economics_all")
-          .select("mintsoft_order_id, line_index, sku, product_name, channel, qty, price, order_value, cost_each, courier_cost, channel_fee, profit, por_pct, good_dirt, missing_cost, courier, fee_rule_name, order_date")
+          .select("mintsoft_order_id, line_index, sku, product_name, channel, qty, price, order_value, cost_each, courier_cost, channel_fee, profit, por_pct, good_dirt, missing_cost, courier, fee_rule_name, order_date, postage_paid, order_value_incl_postage, profit_incl_postage, por_pct_incl_postage")
           .eq("iso_year", year)
           .eq("iso_week", week)
           // Sort by indexed order_date (+ id tiebreaker for stable pagination).
@@ -184,7 +184,18 @@ const ProfitDashboard = () => {
         from += pageSize;
         if (from > 50000) break; // safety
       }
-      return all;
+      // Show postage-INCLUSIVE economics so the table matches the KPIs and bands
+      // (which come from get_profit_week / _week_breakdown, both postage-inclusive).
+      // Keep the product-only figures under *_product for reference/tooltips.
+      return all.map((r) => ({
+        ...r,
+        profit_product: r.profit,
+        order_value_product: r.order_value,
+        por_pct_product: r.por_pct,
+        order_value: r.order_value_incl_postage ?? r.order_value,
+        profit: r.profit_incl_postage ?? r.profit,
+        por_pct: r.por_pct_incl_postage ?? r.por_pct,
+      }));
     },
   });
 
@@ -757,6 +768,7 @@ const ProfitDashboard = () => {
                       <SortableHead label="Cost" col="cost_each" align="right" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
                       <SortableHead label="Courier" col="courier_cost" align="right" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
                       <SortableHead label="Fee" col="channel_fee" align="right" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
+                      <SortableHead label="Postage" col="postage_paid" align="right" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
                       <SortableHead label="Profit" col="profit" align="right" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
                       <SortableHead label="POR" col="por_pct" align="right" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
                       <TableHead>Flags</TableHead>
@@ -806,7 +818,11 @@ const ProfitDashboard = () => {
                         <TableCell className="text-right">{fmtGBP(l.cost_each)}</TableCell>
                         <TableCell className="text-right">{fmtGBP(l.courier_cost)}</TableCell>
                         <TableCell className="text-right">{fmtGBP(l.channel_fee)}</TableCell>
-                        <TableCell className={`text-right font-semibold ${Number(l.profit) < 0 ? "text-destructive" : "text-foreground"}`}>
+                        <TableCell className="text-right text-emerald-600" title="Customer-paid postage credited to this line (eBay)">
+                          {Number(l.postage_paid) > 0 ? `+${fmtGBP(l.postage_paid)}` : "—"}
+                        </TableCell>
+                        <TableCell className={`text-right font-semibold ${Number(l.profit) < 0 ? "text-destructive" : "text-foreground"}`}
+                          title={l.postage_paid > 0 ? `Incl. +${fmtGBP(l.postage_paid)} postage · product-only ${fmtGBP(l.profit_product)}` : undefined}>
                           {fmtGBP(l.profit)}
                         </TableCell>
                         <TableCell className="text-right">{fmtPct(l.por_pct)}</TableCell>
