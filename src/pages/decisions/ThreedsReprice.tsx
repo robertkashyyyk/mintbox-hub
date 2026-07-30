@@ -258,12 +258,17 @@ export default function ThreedsReprice() {
     queryKey: ["threeds_pending", storeId],
     enabled: !!storeId,
     queryFn: async () => {
+      // Only load rows queuedMap actually uses: still-pending, or applied within the
+      // last 14 days. Without this filter the row cap fills with thousands of stale
+      // 'applied' rows (which sort first) and truncates the live 'pending' rows, so
+      // just-pushed items fail to drop off the list ("some go, some don't").
+      const since14 = new Date(Date.now() - 14 * 86_400_000).toISOString();
       let q = supabase
         .from("threeds_reprice_pending" as any)
         .select("store_id, sku, price, status, queued_at, applied_at, verified_price")
-        .order("status", { ascending: true })
+        .or(`status.eq.pending,and(status.eq.applied,applied_at.gte.${since14})`)
         .order("queued_at", { ascending: false })
-        .limit(2000);
+        .limit(5000);
       // Single store → filter to it; All stores → every enabled store's queue.
       q = isAll ? q.in("store_id", enabledStores.map((s) => s.id)) : q.eq("store_id", storeId!);
       const { data, error } = await q;
