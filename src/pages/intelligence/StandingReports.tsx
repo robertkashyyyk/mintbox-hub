@@ -211,6 +211,7 @@ function TopSellers() {
     },
   });
   const [month, setMonth] = useState<string | undefined>();
+  const [view, setView] = useState<"all" | "oos" | "low">("all");
   const selMonth = month ?? months?.[0]?.period_month;
 
   const { data: rows, isLoading } = useQuery({
@@ -239,8 +240,16 @@ function TopSellers() {
       falling: r.filter((x) => x.status === "falling").length,
       isNew: r.filter((x) => x.status === "new").length,
       returning: r.filter((x) => x.status === "returning").length,
+      oos: r.filter((x) => x.stock === 0).length,
+      low: r.filter((x) => x.aws > 0 && x.stock / x.aws < 2).length,
     };
   }, [rows]);
+
+  const filtered = useMemo(() => (rows ?? []).filter((r) => {
+    if (view === "oos") return r.stock === 0;
+    if (view === "low") return r.aws > 0 && r.stock / r.aws < 2;
+    return true;
+  }), [rows, view]);
 
   if (isLoading && !rows) return <PageLoader rows={10} columns={[40, 150, 200, 70, 90, 60, 60, 90]} label="Loading top sellers" />;
 
@@ -255,6 +264,14 @@ function TopSellers() {
               {(months ?? []).map((m) => (
                 <SelectItem key={m.period_month} value={m.period_month}>{MONTH_LABEL(m.period_month)}</SelectItem>
               ))}
+            </SelectContent>
+          </Select>
+          <Select value={view} onValueChange={(v) => setView(v as "all" | "oos" | "low")}>
+            <SelectTrigger className="w-[190px] h-8"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All</SelectItem>
+              <SelectItem value="oos">Out of stock only ({summary.oos})</SelectItem>
+              <SelectItem value="low">Coverage low &lt; 2wk ({summary.low})</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -285,7 +302,10 @@ function TopSellers() {
               <TableHead>Status</TableHead>
             </TableRow></TableHeader>
             <TableBody>
-              {(rows ?? []).map((r) => {
+              {filtered.length === 0 && (
+                <TableRow><TableCell colSpan={8} className="text-center text-sm text-muted-foreground py-8">No SKUs match this filter for {selMonth ? MONTH_LABEL(selMonth) : "this month"}.</TableCell></TableRow>
+              )}
+              {filtered.map((r) => {
                 const cover = r.aws > 0 ? r.stock / r.aws : null;
                 const low = cover != null && cover < 2;
                 return (
