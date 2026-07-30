@@ -349,23 +349,40 @@ Deno.serve(async (req) => {
       }
     }
 
-    const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'x-api-key': ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({
-        model,
-        max_tokens: maxTokens,
-        system: systemPrompt,
-        messages: [{ role: 'user', content: userContent }],
-      }),
-    })
-    if (!aiRes.ok) {
-      const t = await aiRes.text()
-      return json({ error: `Anthropic ${aiRes.status}: ${t.slice(0, 300)}` }, 502)
+    // Retry the model call: a single transient blip (429/529/5xx or a network
+    // wobble) must not drop the whole report + its email, as happened 2026-07-30.
+    let aiRes: Response | null = null
+    let lastErr = ''
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        aiRes = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'x-api-key': ANTHROPIC_API_KEY,
+            'anthropic-version': '2023-06-01',
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({
+            model,
+            max_tokens: maxTokens,
+            system: systemPrompt,
+            messages: [{ role: 'user', content: userContent }],
+          }),
+        })
+        if (aiRes.ok) break
+        // 4xx other than 429 won't fix themselves — fail fast.
+        if (aiRes.status !== 429 && aiRes.status < 500) {
+          lastErr = `Anthropic ${aiRes.status}: ${(await aiRes.text()).slice(0, 300)}`
+          break
+        }
+        lastErr = `Anthropic ${aiRes.status}`
+      } catch (e: any) {
+        lastErr = `Anthropic fetch: ${e?.message ?? String(e)}`
+      }
+      if (attempt < 3) await new Promise((r) => setTimeout(r, attempt * 2000)) // 2s, 4s
+    }
+    if (!aiRes || !aiRes.ok) {
+      return json({ error: lastErr || 'Anthropic call failed after retries' }, 502)
     }
     const aiJson = await aiRes.json()
     const narrative = (aiJson?.content ?? []).map((b: any) => b?.text ?? '').join('').trim()
