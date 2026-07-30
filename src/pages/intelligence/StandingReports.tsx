@@ -461,6 +461,148 @@ function TopSellers() {
   );
 }
 
+// ── Floor Watch ────────────────────────────────────────────────────────────
+// Two panels off get_floor_watch_latest() (nightly snapshot):
+//   A) realised_loss — Amazon listings that ACTUALLY sold at a net loss (trailing 56d)
+//   B) floor_landmine — active-repricer listings whose min_price floor sits below
+//      fee-aware break-even, so the repricer is permitted to sell at a loss.
+interface FloorRow {
+  kind: "realised_loss" | "floor_landmine";
+  sku: string; product: string | null; fba: boolean; mode: string | null; units: number | null;
+  our_price: number | null; floor_price: number | null; breakeven_price: number | null;
+  cost: number | null; net_gbp: number | null; por_pct: number | null; live_below_be: boolean | null;
+  snapshot_date: string;
+}
+
+function ChanBadge({ fba }: { fba: boolean }) {
+  return fba
+    ? <Badge variant="outline" className="text-[10px] bg-indigo-500/15 text-indigo-600 border-indigo-500/30">FBA</Badge>
+    : <Badge variant="outline" className="text-[10px] bg-muted text-foreground/60 border-border">FBM</Badge>;
+}
+
+function FloorWatch() {
+  const { data: rows, isLoading, isError } = useQuery({
+    queryKey: ["floor-watch-latest"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc("get_floor_watch_latest");
+      if (error) throw error;
+      return (data ?? []) as FloorRow[];
+    },
+  });
+
+  const realised = useMemo(() => (rows ?? []).filter((r) => r.kind === "realised_loss"), [rows]);
+  const landmines = useMemo(() => (rows ?? []).filter((r) => r.kind === "floor_landmine"), [rows]);
+  const totalBled = useMemo(() => realised.reduce((s, r) => s + (r.net_gbp ?? 0), 0), [realised]);
+  const liveMarginal = useMemo(() => landmines.filter((r) => r.live_below_be).length, [landmines]);
+  const snapDate = rows?.[0]?.snapshot_date;
+
+  if (isLoading) return <PageLoader rows={8} columns={[140, 220, 60, 70, 70, 90]} label="Loading floor watch" />;
+  if (isError) return <div className="py-10 text-center text-sm text-muted-foreground">Couldn't load Floor Watch.</div>;
+  if ((rows?.length ?? 0) === 0) return <div className="py-10 text-center text-sm text-muted-foreground">First snapshot builds tonight (04:40 UTC).</div>;
+
+  return (
+    <div className="space-y-4">
+      <p className="text-xs text-muted-foreground">
+        Trailing 56 days · snapshot {snapDate ? new Date(snapDate).toLocaleDateString("en-GB", { dateStyle: "medium" }) : "—"}.
+        Fees are estimates (FBA fulfil ~£4.31, referral 15.3%); treat break-even as a guide, not a penny-exact figure.
+      </p>
+
+      {/* Headline cards */}
+      <div className="grid gap-3 md:grid-cols-3">
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Realised bleed (56d)</CardTitle></CardHeader>
+          <CardContent><div className="text-2xl font-bold text-destructive">{gbp(totalBled)}</div>
+            <div className="text-xs text-muted-foreground">across {realised.length} Amazon listings that actually sold at a loss</div></CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Floor landmines</CardTitle></CardHeader>
+          <CardContent><div className="text-2xl font-bold">{landmines.length}</div>
+            <div className="text-xs text-muted-foreground">active-repricer floors below break-even</div></CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Marginal right now</CardTitle></CardHeader>
+          <CardContent><div className={`text-2xl font-bold ${liveMarginal > 0 ? "text-amber-600" : ""}`}>{liveMarginal}</div>
+            <div className="text-xs text-muted-foreground">landmines whose <em>current</em> price is already under break-even</div></CardContent>
+        </Card>
+      </div>
+
+      {/* Panel A — realised losses */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Actually bled — Amazon net-loss listings (56d)</CardTitle>
+          <p className="text-xs text-muted-foreground">Realised profit from the finance data, pack-aware. Ranked by £ lost.</p>
+        </CardHeader>
+        <CardContent className="overflow-x-auto">
+          <Table>
+            <TableHeader><TableRow>
+              <TableHead>SKU</TableHead><TableHead>Product</TableHead>
+              <TableHead>Chan</TableHead>
+              <TableHead className="text-right">Units</TableHead>
+              <TableHead className="text-right">Avg price</TableHead>
+              <TableHead className="text-right">Cost</TableHead>
+              <TableHead className="text-right">Net 56d</TableHead>
+              <TableHead className="text-right">POR</TableHead>
+            </TableRow></TableHeader>
+            <TableBody>
+              {realised.map((r) => (
+                <TableRow key={`${r.sku}-r`}>
+                  <TableCell className="font-medium whitespace-nowrap">{r.sku}</TableCell>
+                  <TableCell className="text-xs text-foreground/70 max-w-[280px] truncate">{r.product ?? "—"}</TableCell>
+                  <TableCell><ChanBadge fba={r.fba} /></TableCell>
+                  <TableCell className="text-right">{r.units}</TableCell>
+                  <TableCell className="text-right">{gbp(r.our_price)}</TableCell>
+                  <TableCell className="text-right text-muted-foreground">{gbp(r.cost)}</TableCell>
+                  <TableCell className="text-right font-semibold text-destructive">{gbp(r.net_gbp)}</TableCell>
+                  <TableCell className="text-right text-destructive">{r.por_pct != null ? `${r.por_pct}%` : "—"}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {/* Panel B — floor landmines */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Floor landmines — repricer allowed to sell at a loss</CardTitle>
+          <p className="text-xs text-muted-foreground">Active (OPTIMIZATION / BUY_BOX) listings whose floor sits below break-even. Raising the floor caps the downside.</p>
+        </CardHeader>
+        <CardContent className="overflow-x-auto">
+          <Table>
+            <TableHeader><TableRow>
+              <TableHead>SKU</TableHead><TableHead>Product</TableHead>
+              <TableHead>Chan</TableHead>
+              <TableHead className="text-right">Units 56d</TableHead>
+              <TableHead className="text-right">Live</TableHead>
+              <TableHead className="text-right">Floor</TableHead>
+              <TableHead className="text-right">Break-even</TableHead>
+              <TableHead></TableHead>
+            </TableRow></TableHeader>
+            <TableBody>
+              {landmines.map((r) => (
+                <TableRow key={`${r.sku}-${r.fba ? "f" : "m"}-l`}>
+                  <TableCell className="font-medium whitespace-nowrap">{r.sku}</TableCell>
+                  <TableCell className="text-xs text-foreground/70 max-w-[260px] truncate">{r.product ?? "—"}</TableCell>
+                  <TableCell><ChanBadge fba={r.fba} /></TableCell>
+                  <TableCell className="text-right">{r.units}</TableCell>
+                  <TableCell className="text-right">{gbp(r.our_price)}</TableCell>
+                  <TableCell className="text-right text-amber-600 font-medium">{gbp(r.floor_price)}</TableCell>
+                  <TableCell className="text-right text-muted-foreground">{gbp(r.breakeven_price)}</TableCell>
+                  <TableCell className="text-right">
+                    {r.live_below_be
+                      ? <Badge variant="outline" className="text-[10px] bg-destructive/15 text-destructive border-destructive/30">live &lt; break-even</Badge>
+                      : <Badge variant="outline" className="text-[10px] bg-amber-500/15 text-amber-600 border-amber-500/30">floor &lt; break-even</Badge>}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 export default function StandingReports() {
   return (
     <div className="space-y-6">
@@ -471,11 +613,13 @@ export default function StandingReports() {
           <TabsTrigger value="b">80:20 Profit</TabsTrigger>
           <TabsTrigger value="c">Clearance</TabsTrigger>
           <TabsTrigger value="top">Top Sellers</TabsTrigger>
+          <TabsTrigger value="floor">Floor Watch</TabsTrigger>
         </TabsList>
         <TabsContent value="payoff" className="mt-4"><RepricingPayoff /></TabsContent>
         <TabsContent value="b" className="mt-4"><Profit8020Report /></TabsContent>
         <TabsContent value="c" className="mt-4"><ClearanceReport /></TabsContent>
         <TabsContent value="top" className="mt-4"><TopSellers /></TabsContent>
+        <TabsContent value="floor" className="mt-4"><FloorWatch /></TabsContent>
       </Tabs>
     </div>
   );
