@@ -232,6 +232,16 @@ function TopSellers() {
       return (data ?? []) as any[];
     },
   });
+  const { data: conc } = useQuery({
+    queryKey: ["top-sellers-conc", selMonth],
+    enabled: !!selMonth,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).from("sku_rank_month_summary").select("*").eq("period_month", selMonth).maybeSingle();
+      if (error) throw error;
+      return data as { top_units: number; total_units: number; top_profit: number; total_profit: number } | null;
+    },
+  });
+  const pct = (a?: number, b?: number) => (a != null && b) ? Math.round((a / b) * 1000) / 10 : null;
 
   const summary = useMemo(() => {
     const r = rows ?? [];
@@ -283,9 +293,30 @@ function TopSellers() {
         </div>
       </div>
 
+      {conc && (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Card>
+            <CardContent className="pt-4">
+              <div className="text-xs text-muted-foreground">Top 100 share of units</div>
+              <div className="text-2xl font-bold text-pd-accent">{pct(conc.top_units, conc.total_units)}%</div>
+              <div className="text-xs text-muted-foreground">{conc.top_units?.toLocaleString()} of {conc.total_units?.toLocaleString()} units sold this month</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-4">
+              <div className="text-xs text-muted-foreground">Top 100 share of profit</div>
+              <div className="text-2xl font-bold">{pct(conc.top_profit, conc.total_profit)}%</div>
+              <div className="text-xs text-muted-foreground">{gbp(conc.top_profit)} of {gbp(conc.total_profit)} profit this month</div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       <p className="text-[11px] text-muted-foreground">
         Top 100 SKUs by units for the month, all channels, on corrected economics. <strong>AWS</strong> = average weekly sales
         (units ÷ weeks elapsed). <strong>Cover</strong> = weeks of stock at that rate (red under 2 weeks). YoY lights up once we have a prior year.
+        The two cards show how much of the month's total <em>units</em> and <em>profit</em> these 100 SKUs represent — units concentration is
+        typically far higher than profit, since the top sellers are high-volume, low-margin lines.
       </p>
 
       <Card>
