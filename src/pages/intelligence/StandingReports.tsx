@@ -261,6 +261,40 @@ function TopSellers() {
     return true;
   }), [rows, view]);
 
+  const [sort, setSort] = useState<{ col: string; dir: "asc" | "desc" }>({ col: "rank", dir: "asc" });
+  const toggleSort = (col: string) =>
+    setSort((s) => s.col === col
+      ? { col, dir: s.dir === "asc" ? "desc" : "asc" }
+      : { col, dir: ["rank", "sku", "product", "status"].includes(col) ? "asc" : "desc" });
+  const sorted = useMemo(() => {
+    const key = (r: any) => {
+      switch (sort.col) {
+        case "sku": return r.sku ?? "";
+        case "product": return r.product ?? "";
+        case "aws": return r.aws ?? 0;
+        case "delta": return r.rank_delta ?? -9999;
+        case "stock": return r.stock ?? 0;
+        case "cover": return r.aws > 0 ? r.stock / r.aws : Number.POSITIVE_INFINITY;
+        case "status": return r.status ?? "";
+        default: return r.rank;
+      }
+    };
+    return [...filtered].sort((a, b) => {
+      const ka = key(a), kb = key(b);
+      const c = ka < kb ? -1 : ka > kb ? 1 : 0;
+      return sort.dir === "asc" ? c : -c;
+    });
+  }, [filtered, sort]);
+
+  const SortHead = ({ col, label, align }: { col: string; label: string; align?: "right" }) => (
+    <TableHead
+      onClick={() => toggleSort(col)}
+      className={`cursor-pointer select-none hover:text-foreground ${align === "right" ? "text-right" : ""}`}
+    >
+      {label}{sort.col === col ? (sort.dir === "asc" ? " ▲" : " ▼") : ""}
+    </TableHead>
+  );
+
   if (isLoading && !rows) return <PageLoader rows={10} columns={[40, 150, 200, 70, 90, 60, 60, 90]} label="Loading top sellers" />;
 
   return (
@@ -320,23 +354,25 @@ function TopSellers() {
       </p>
 
       <Card>
-        <CardContent className="overflow-x-auto pt-4">
+        <CardContent className="p-0">
+          <div className="max-h-[72vh] overflow-auto">
           <Table>
-            <TableHeader><TableRow>
-              <TableHead className="w-10">#</TableHead>
-              <TableHead>SKU</TableHead>
-              <TableHead>Product</TableHead>
-              <TableHead className="text-right">AWS</TableHead>
-              <TableHead className="text-right">vs last mo</TableHead>
-              <TableHead className="text-right">Stock</TableHead>
-              <TableHead className="text-right">Cover</TableHead>
-              <TableHead>Status</TableHead>
+            <TableHeader className="sticky top-0 z-10 bg-card [&_th]:bg-card">
+              <TableRow>
+              <SortHead col="rank" label="#" />
+              <SortHead col="sku" label="SKU" />
+              <SortHead col="product" label="Product" />
+              <SortHead col="aws" label="AWS" align="right" />
+              <SortHead col="delta" label="vs last mo" align="right" />
+              <SortHead col="stock" label="Stock" align="right" />
+              <SortHead col="cover" label="Cover" align="right" />
+              <SortHead col="status" label="Status" />
             </TableRow></TableHeader>
             <TableBody>
-              {filtered.length === 0 && (
+              {sorted.length === 0 && (
                 <TableRow><TableCell colSpan={8} className="text-center text-sm text-muted-foreground py-8">No SKUs match this filter for {selMonth ? MONTH_LABEL(selMonth) : "this month"}.</TableCell></TableRow>
               )}
-              {filtered.map((r) => {
+              {sorted.map((r) => {
                 const cover = r.aws > 0 ? r.stock / r.aws : null;
                 const low = cover != null && cover < 2;
                 return (
@@ -360,6 +396,7 @@ function TopSellers() {
               })}
             </TableBody>
           </Table>
+          </div>
         </CardContent>
       </Card>
 
