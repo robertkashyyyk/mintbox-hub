@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import ModuleHeader from "@/components/ModuleHeader";
 import Profit8020Report from "@/pages/intelligence/Profit8020Report";
 import ClearanceReport from "@/pages/intelligence/ClearanceReport";
@@ -186,6 +187,158 @@ function Placeholder({ name }: { name: string }) {
   return <div className="py-16 text-center text-sm text-muted-foreground">{name} — coming soon.</div>;
 }
 
+const MONTH_LABEL = (d: string) => new Date(d).toLocaleDateString("en-GB", { month: "long", year: "numeric" });
+
+function StatusBadge({ status }: { status: string }) {
+  const map: Record<string, { label: string; cls: string }> = {
+    climbing:  { label: "▲ Climbing", cls: "bg-emerald-500/15 text-emerald-600 border-emerald-500/30" },
+    falling:   { label: "▼ Falling", cls: "bg-destructive/15 text-destructive border-destructive/30" },
+    steady:    { label: "Steady", cls: "bg-muted text-foreground/60 border-border" },
+    new:       { label: "★ New", cls: "bg-pd-accent/15 text-pd-accent border-pd-accent/30" },
+    returning: { label: "Returning", cls: "bg-amber-500/15 text-amber-600 border-amber-500/30" },
+  };
+  const m = map[status] ?? map.steady;
+  return <Badge variant="outline" className={`text-[10px] ${m.cls}`}>{m.label}</Badge>;
+}
+
+function TopSellers() {
+  const { data: months } = useQuery({
+    queryKey: ["top-sellers-months"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc("get_top_sellers_months");
+      if (error) throw error;
+      return (data ?? []) as { period_month: string; skus: number }[];
+    },
+  });
+  const [month, setMonth] = useState<string | undefined>();
+  const selMonth = month ?? months?.[0]?.period_month;
+
+  const { data: rows, isLoading } = useQuery({
+    queryKey: ["top-sellers", selMonth],
+    enabled: !!selMonth,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc("get_top_sellers_report", { p_month: selMonth });
+      if (error) throw error;
+      return (data ?? []) as any[];
+    },
+  });
+  const { data: dropped } = useQuery({
+    queryKey: ["top-sellers-dropped", selMonth],
+    enabled: !!selMonth,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc("get_top_sellers_dropped", { p_month: selMonth });
+      if (error) throw error;
+      return (data ?? []) as any[];
+    },
+  });
+
+  const summary = useMemo(() => {
+    const r = rows ?? [];
+    return {
+      climbing: r.filter((x) => x.status === "climbing").length,
+      falling: r.filter((x) => x.status === "falling").length,
+      isNew: r.filter((x) => x.status === "new").length,
+      returning: r.filter((x) => x.status === "returning").length,
+    };
+  }, [rows]);
+
+  if (isLoading && !rows) return <PageLoader rows={10} columns={[40, 150, 200, 70, 90, 60, 60, 90]} label="Loading top sellers" />;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Month</span>
+          <Select value={selMonth} onValueChange={setMonth}>
+            <SelectTrigger className="w-[180px] h-8"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {(months ?? []).map((m) => (
+                <SelectItem key={m.period_month} value={m.period_month}>{MONTH_LABEL(m.period_month)}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex gap-2 text-xs flex-wrap">
+          <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/30">▲ {summary.climbing} climbing</Badge>
+          <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/30">▼ {summary.falling} falling</Badge>
+          <Badge variant="outline" className="bg-pd-accent/10 text-pd-accent border-pd-accent/30">★ {summary.isNew} new</Badge>
+          <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/30">{summary.returning} returning</Badge>
+        </div>
+      </div>
+
+      <p className="text-[11px] text-muted-foreground">
+        Top 100 SKUs by units for the month, all channels, on corrected economics. <strong>AWS</strong> = average weekly sales
+        (units ÷ weeks elapsed). <strong>Cover</strong> = weeks of stock at that rate (red under 2 weeks). YoY lights up once we have a prior year.
+      </p>
+
+      <Card>
+        <CardContent className="overflow-x-auto pt-4">
+          <Table>
+            <TableHeader><TableRow>
+              <TableHead className="w-10">#</TableHead>
+              <TableHead>SKU</TableHead>
+              <TableHead>Product</TableHead>
+              <TableHead className="text-right">AWS</TableHead>
+              <TableHead className="text-right">vs last mo</TableHead>
+              <TableHead className="text-right">Stock</TableHead>
+              <TableHead className="text-right">Cover</TableHead>
+              <TableHead>Status</TableHead>
+            </TableRow></TableHeader>
+            <TableBody>
+              {(rows ?? []).map((r) => {
+                const cover = r.aws > 0 ? r.stock / r.aws : null;
+                const low = cover != null && cover < 2;
+                return (
+                  <TableRow key={r.sku}>
+                    <TableCell className="text-muted-foreground">{r.rank}</TableCell>
+                    <TableCell className="font-medium">{r.sku}</TableCell>
+                    <TableCell className="text-xs text-foreground/70 max-w-[280px] truncate">{r.product}</TableCell>
+                    <TableCell className="text-right font-semibold">{r.aws?.toFixed(1)}</TableCell>
+                    <TableCell className="text-right text-xs whitespace-nowrap">
+                      {r.rank_delta == null ? <span className="text-muted-foreground">—</span> :
+                        r.rank_delta > 0 ? <span className="text-emerald-600">▲{r.rank_delta}</span> :
+                        r.rank_delta < 0 ? <span className="text-destructive">▼{Math.abs(r.rank_delta)}</span> :
+                        <span className="text-muted-foreground">–</span>}
+                      {r.aws_pct_delta != null && <span className={`ml-1 ${r.aws_pct_delta >= 0 ? "text-emerald-600" : "text-destructive"}`}>{r.aws_pct_delta > 0 ? "+" : ""}{r.aws_pct_delta}%</span>}
+                    </TableCell>
+                    <TableCell className={`text-right ${low ? "text-destructive font-semibold" : ""}`}>{r.stock}</TableCell>
+                    <TableCell className={`text-right ${low ? "text-destructive font-semibold" : "text-muted-foreground"}`}>{cover == null ? "—" : `${cover.toFixed(1)}w`}</TableCell>
+                    <TableCell><StatusBadge status={r.status} /></TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {(dropped?.length ?? 0) > 0 && (
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="text-base">Dropped out of the top 100 (vs last month)</CardTitle></CardHeader>
+          <CardContent className="overflow-x-auto">
+            <Table>
+              <TableHeader><TableRow>
+                <TableHead>SKU</TableHead><TableHead>Product</TableHead>
+                <TableHead className="text-right">Was #</TableHead><TableHead className="text-right">Now #</TableHead>
+              </TableRow></TableHeader>
+              <TableBody>
+                {(dropped ?? []).map((d) => (
+                  <TableRow key={d.sku}>
+                    <TableCell className="font-medium">{d.sku}</TableCell>
+                    <TableCell className="text-xs text-foreground/70 max-w-[320px] truncate">{d.product}</TableCell>
+                    <TableCell className="text-right text-muted-foreground">{d.prev_rank}</TableCell>
+                    <TableCell className="text-right">{d.now_rank ?? "off list"}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
 export default function StandingReports() {
   return (
     <div className="space-y-6">
@@ -195,10 +348,12 @@ export default function StandingReports() {
           <TabsTrigger value="payoff">Repricing Payoff</TabsTrigger>
           <TabsTrigger value="b">80:20 Profit</TabsTrigger>
           <TabsTrigger value="c">Clearance</TabsTrigger>
+          <TabsTrigger value="top">Top Sellers</TabsTrigger>
         </TabsList>
         <TabsContent value="payoff" className="mt-4"><RepricingPayoff /></TabsContent>
         <TabsContent value="b" className="mt-4"><Profit8020Report /></TabsContent>
         <TabsContent value="c" className="mt-4"><ClearanceReport /></TabsContent>
+        <TabsContent value="top" className="mt-4"><TopSellers /></TabsContent>
       </Tabs>
     </div>
   );
