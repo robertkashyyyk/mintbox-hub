@@ -245,11 +245,15 @@ function TopSellers() {
 
   const summary = useMemo(() => {
     const r = rows ?? [];
+    const grp = (field: string) => ({
+      climbing: r.filter((x) => x[field] === "climbing").length,
+      falling: r.filter((x) => x[field] === "falling").length,
+      isNew: r.filter((x) => x[field] === "new").length,
+      returning: r.filter((x) => x[field] === "returning").length,
+    });
     return {
-      climbing: r.filter((x) => x.status === "climbing").length,
-      falling: r.filter((x) => x.status === "falling").length,
-      isNew: r.filter((x) => x.status === "new").length,
-      returning: r.filter((x) => x.status === "returning").length,
+      aws: grp("status"),
+      profit: grp("profit_status"),
       oos: r.filter((x) => x.stock === 0).length,
       low: r.filter((x) => x.aws > 0 && x.stock / x.aws < 2).length,
     };
@@ -291,6 +295,15 @@ function TopSellers() {
     });
   }, [filtered, sort]);
 
+  const Chips = ({ s }: { s: { climbing: number; falling: number; isNew: number; returning: number } }) => (
+    <>
+      <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/30">▲ {s.climbing} climbing</Badge>
+      <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/30">▼ {s.falling} falling</Badge>
+      <Badge variant="outline" className="bg-pd-accent/10 text-pd-accent border-pd-accent/30">★ {s.isNew} new</Badge>
+      <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/30">{s.returning} returning</Badge>
+    </>
+  );
+
   const SortHead = ({ col, label, align }: { col: string; label: string; align?: "right" }) => (
     <TableHead
       onClick={() => toggleSort(col)}
@@ -324,11 +337,15 @@ function TopSellers() {
             </SelectContent>
           </Select>
         </div>
-        <div className="flex gap-2 text-xs flex-wrap">
-          <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/30">▲ {summary.climbing} climbing</Badge>
-          <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/30">▼ {summary.falling} falling</Badge>
-          <Badge variant="outline" className="bg-pd-accent/10 text-pd-accent border-pd-accent/30">★ {summary.isNew} new</Badge>
-          <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/30">{summary.returning} returning</Badge>
+        <div className="flex flex-col gap-1 text-xs">
+          <div className="flex gap-2 items-center flex-wrap">
+            <span className="text-muted-foreground w-12 shrink-0">AWS</span>
+            <Chips s={summary.aws} />
+          </div>
+          <div className="flex gap-2 items-center flex-wrap">
+            <span className="text-muted-foreground w-12 shrink-0">Profit</span>
+            <Chips s={summary.profit} />
+          </div>
         </div>
       </div>
 
