@@ -189,6 +189,10 @@ Deno.serve(async (req) => {
     let inputSnapshot: any
     // KPI tiles for the email (hub card style), built from the structured data per cadence.
     let cards: Array<{ label: string; value: string; sub: string; accent: string }> = []
+    // Reorder shortlist (DAILY only): profitable fast-movers about to run dry, inbound netted,
+    // ranked by 4-week £-at-risk. Appended DETERMINISTICALLY to the email (never LLM-narrated,
+    // so the numbers can't drift). Empty for weekly/monthly.
+    let shortlist: any[] = []
     const gbp = (n: any) => '£' + Number(n).toLocaleString('en-GB', { maximumFractionDigits: 0 })
 
     if (cadence === 'daily') {
@@ -200,6 +204,9 @@ Deno.serve(async (req) => {
       // Retry: a cold get_target_pace (now FBA-union) can miss the first call at 6am.
       const { data: pace } = await rpcRetry(read, 'get_target_pace', { p_grain: 'day', p_asof: d.day })
       inputSnapshot = { day: d, targets: pace ?? [] }
+      // Reorder shortlist for the footer (top 6 by £-at-risk). Never fatal — a miss just omits it.
+      const { data: sl } = await rpcRetry(read, 'get_reorder_shortlist', { p_limit: 6, p_horizon_weeks: 4 })
+      shortlist = Array.isArray(sl) ? sl : []
       periodKey = String(d.day)
       systemPrompt = DAILY_SYSTEM_PROMPT
       maxTokens = 450
@@ -430,7 +437,7 @@ Deno.serve(async (req) => {
       if (RESEND_API_KEY && recipients.length > 0 && (testTo || cadences.includes(cadence))) {
         // Prepend the note as a blockquote banner (styled via .orin-body blockquote) for the email only.
         const emailBody = note ? `> ${note}\n\n${narrative}` : narrative
-        const html = renderEmailHtml(emailBody, cadence, periodKey, cards)
+        const html = renderEmailHtml(emailBody, cadence, periodKey, cards, shortlist)
         const r = await fetch('https://api.resend.com/emails', {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
@@ -470,9 +477,35 @@ function derivePeriodKey(cadence: string, scorecard: any[]): string {
 const BRAND = { charcoal: '#0F172A', teal: '#2A9D8F', tealDark: '#1f7a70', slate: '#94a3b8', ink: '#1a1a1a' }
 const LOGO_URL = 'https://partsdochub.com/email/partsdoc-logo-white.png'
 
+function renderReorderHtml(rows: any[], sans: string): string {
+  if (!rows || rows.length === 0) return ''
+  const gbp0 = (n: any) => '£' + Number(n).toLocaleString('en-GB', { maximumFractionDigits: 0 })
+  const head = ['SKU', 'Product', 'Stock+In', 'Cover', '£/unit', '£ at risk']
+  const th = head.map((h, i) =>
+    `<th style="text-align:${i >= 2 ? 'right' : 'left'};background:#f1f5f9;color:#0F172A;border:1px solid #e2e8f0;padding:6px 9px;font-size:12px">${h}</th>`).join('')
+  const body = rows.map((r) => {
+    const cover = r.days_cover === 0 ? '<span style="color:#dc2626;font-weight:700">out</span>' : `${r.days_cover}d`
+    const cells = [
+      `<td style="border:1px solid #e2e8f0;padding:6px 9px;font-size:12px;font-weight:600;white-space:nowrap">${r.sku}</td>`,
+      `<td style="border:1px solid #e2e8f0;padding:6px 9px;font-size:12px;color:#475569;max-width:230px;overflow:hidden;text-overflow:ellipsis">${(r.product ?? '').slice(0, 46)}${r.supplier ? ` <span style="color:#94a3b8">· ${r.supplier}</span>` : ''}</td>`,
+      `<td style="border:1px solid #e2e8f0;padding:6px 9px;font-size:12px;text-align:right">${r.net_avail}${Number(r.inbound) > 0 ? ` <span style="color:#2A9D8F">(+${r.inbound})</span>` : ''}</td>`,
+      `<td style="border:1px solid #e2e8f0;padding:6px 9px;font-size:12px;text-align:right">${cover}</td>`,
+      `<td style="border:1px solid #e2e8f0;padding:6px 9px;font-size:12px;text-align:right">${gbp0(r.unit_profit)}</td>`,
+      `<td style="border:1px solid #e2e8f0;padding:6px 9px;font-size:12px;text-align:right;font-weight:700;color:#0F172A">${gbp0(r.gbp_at_risk)}</td>`,
+    ]
+    return `<tr>${cells.join('')}</tr>`
+  }).join('')
+  return `<div style="margin-top:22px;border-top:1px solid #e2e8f0;padding-top:16px">
+    <div style="font-size:13px;font-weight:700;color:#0F172A;font-family:${sans};margin-bottom:3px">Reorder shortlist — profitable sellers running low</div>
+    <div style="font-size:11px;color:#94a3b8;font-family:${sans};margin-bottom:9px">Top ${rows.length} by profit-at-risk over the next 4 weeks · stock shown net of inbound · restockable lines only</div>
+    <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%;font-family:${sans}"><thead><tr>${th}</tr></thead><tbody>${body}</tbody></table>
+  </div>`
+}
+
 function renderEmailHtml(
   narrative: string, cadence: string, periodKey: string,
   cards: Array<{ label: string; value: string; sub: string; accent: string }> = [],
+  shortlist: any[] = [],
 ): string {
   const bodyHtml = marked.parse(narrative, { async: false }) as string
   const title = cadence === 'daily' ? 'Daily Brief' : cadence === 'weekly' ? 'Weekly Report' : 'Monthly Review'
@@ -515,7 +548,7 @@ function renderEmailHtml(
       </div>
     </div>
     ${cardsHtml ? `<div style="padding:18px 19px 4px">${cardsHtml}</div>` : ''}
-    <div class="orin-body" style="padding:${cardsHtml ? '8px' : '26px'} 28px 26px">${bodyHtml}</div>
+    <div class="orin-body" style="padding:${cardsHtml ? '8px' : '26px'} 28px 26px">${bodyHtml}${renderReorderHtml(shortlist, sans)}</div>
     <div style="padding:16px 28px;background:#f8fafc;border-top:1px solid #e2e8f0;color:${BRAND.slate};font-size:11px;font-family:${sans}">
       Automated ${cadence} report by <span style="color:${BRAND.tealDark};font-weight:600">Orin</span> &middot; figures from the PartsDocHub scorecard
     </div>
