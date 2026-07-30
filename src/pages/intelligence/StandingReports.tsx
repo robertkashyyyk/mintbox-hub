@@ -276,6 +276,11 @@ function TopSellers() {
         case "stock": return r.stock ?? 0;
         case "cover": return r.aws > 0 ? r.stock / r.aws : Number.POSITIVE_INFINITY;
         case "status": return r.status ?? "";
+        case "units_pct": return r.units_pct ?? 0;
+        case "profit": return r.profit ?? -1e12;
+        case "profit_pct": return r.profit_pct ?? -1e12;
+        case "pdelta": return r.profit_delta_pct ?? -1e12;
+        case "pstatus": return r.profit_status ?? "";
         default: return r.rank;
       }
     };
@@ -354,23 +359,28 @@ function TopSellers() {
       </p>
 
       <Card>
-        <CardContent className="p-0">
-          <div className="max-h-[72vh] overflow-auto">
+        <CardContent className="p-0 [&>div]:max-h-[72vh]">
           <Table>
-            <TableHeader className="sticky top-0 z-10 bg-card [&_th]:bg-card">
+            <TableHeader className="sticky top-0 z-20 [&_th]:bg-card [&_th]:shadow-[inset_0_-1px_0_hsl(var(--border))]">
               <TableRow>
-              <SortHead col="rank" label="#" />
-              <SortHead col="sku" label="SKU" />
-              <SortHead col="product" label="Product" />
-              <SortHead col="aws" label="AWS" align="right" />
-              <SortHead col="delta" label="vs last mo" align="right" />
-              <SortHead col="stock" label="Stock" align="right" />
-              <SortHead col="cover" label="Cover" align="right" />
-              <SortHead col="status" label="Status" />
-            </TableRow></TableHeader>
+                <SortHead col="rank" label="#" />
+                <SortHead col="sku" label="SKU" />
+                <SortHead col="product" label="Product" />
+                <SortHead col="aws" label="AWS" align="right" />
+                <SortHead col="units_pct" label="AWS %" align="right" />
+                <SortHead col="delta" label="vs last mo" align="right" />
+                <SortHead col="profit" label="Profit" align="right" />
+                <SortHead col="profit_pct" label="Profit %" align="right" />
+                <SortHead col="pdelta" label="vs last mo" align="right" />
+                <SortHead col="stock" label="Stock" align="right" />
+                <SortHead col="cover" label="Cover" align="right" />
+                <SortHead col="status" label="AWS status" />
+                <SortHead col="pstatus" label="Profit status" />
+              </TableRow>
+            </TableHeader>
             <TableBody>
               {sorted.length === 0 && (
-                <TableRow><TableCell colSpan={8} className="text-center text-sm text-muted-foreground py-8">No SKUs match this filter for {selMonth ? MONTH_LABEL(selMonth) : "this month"}.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={13} className="text-center text-sm text-muted-foreground py-8">No SKUs match this filter for {selMonth ? MONTH_LABEL(selMonth) : "this month"}.</TableCell></TableRow>
               )}
               {sorted.map((r) => {
                 const cover = r.aws > 0 ? r.stock / r.aws : null;
@@ -378,9 +388,10 @@ function TopSellers() {
                 return (
                   <TableRow key={r.sku}>
                     <TableCell className="text-muted-foreground">{r.rank}</TableCell>
-                    <TableCell className="font-medium">{r.sku}</TableCell>
-                    <TableCell className="text-xs text-foreground/70 max-w-[280px] truncate">{r.product}</TableCell>
+                    <TableCell className="font-medium whitespace-nowrap">{r.sku}</TableCell>
+                    <TableCell className="text-xs text-foreground/70 max-w-[220px] truncate">{r.product}</TableCell>
                     <TableCell className="text-right font-semibold">{r.aws?.toFixed(1)}</TableCell>
+                    <TableCell className="text-right text-xs text-muted-foreground">{r.units_pct != null ? `${r.units_pct}%` : "—"}</TableCell>
                     <TableCell className="text-right text-xs whitespace-nowrap">
                       {r.rank_delta == null ? <span className="text-muted-foreground">—</span> :
                         r.rank_delta > 0 ? <span className="text-emerald-600">▲{r.rank_delta}</span> :
@@ -388,15 +399,21 @@ function TopSellers() {
                         <span className="text-muted-foreground">–</span>}
                       {r.aws_pct_delta != null && <span className={`ml-1 ${r.aws_pct_delta >= 0 ? "text-emerald-600" : "text-destructive"}`}>{r.aws_pct_delta > 0 ? "+" : ""}{r.aws_pct_delta}%</span>}
                     </TableCell>
+                    <TableCell className={`text-right font-semibold whitespace-nowrap ${r.profit < 0 ? "text-destructive" : ""}`}>{gbp(r.profit)}</TableCell>
+                    <TableCell className="text-right text-xs text-muted-foreground">{r.profit_pct != null ? `${r.profit_pct}%` : "—"}</TableCell>
+                    <TableCell className="text-right text-xs whitespace-nowrap">
+                      {r.profit_delta_pct == null ? <span className="text-muted-foreground">—</span> :
+                        <span className={r.profit_delta_pct >= 0 ? "text-emerald-600" : "text-destructive"}>{r.profit_delta_pct > 0 ? "+" : ""}{r.profit_delta_pct}%</span>}
+                    </TableCell>
                     <TableCell className={`text-right ${low ? "text-destructive font-semibold" : ""}`}>{r.stock}</TableCell>
                     <TableCell className={`text-right ${low ? "text-destructive font-semibold" : "text-muted-foreground"}`}>{cover == null ? "—" : `${cover.toFixed(1)}w`}</TableCell>
                     <TableCell><StatusBadge status={r.status} /></TableCell>
+                    <TableCell><StatusBadge status={r.profit_status} /></TableCell>
                   </TableRow>
                 );
               })}
             </TableBody>
           </Table>
-          </div>
         </CardContent>
       </Card>
 
