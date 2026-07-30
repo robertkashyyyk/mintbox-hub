@@ -169,8 +169,13 @@ Deno.serve(async (req) => {
     const dryRun: boolean = !!body?.dry_run
     const lookback: number = Number(body?.lookback_weeks ?? (cadence === 'monthly' ? 12 : 8))
 
-    // READ-ONLY client — only ever used to call get_scorecard().
-    const read = createClient(SUPA_URL, ANON_KEY)
+    // READ client — only ever calls the read-only reporting RPCs (get_scorecard /
+    // get_profit_day / get_target_pace / get_work_completed / get_aov_now). These are
+    // SECURITY DEFINER and granted to authenticated + service_role but NOT anon (the anon
+    // key is public in the frontend, so exposing profit data to it is undesirable). This is
+    // a backend cron function, so it reads with the service role. (2026-07-30: an overnight
+    // revoke of anon's EXECUTE silently killed the daily — this makes Orin independent of it.)
+    const read = createClient(SUPA_URL, SERVICE_KEY)
 
     // model config (tunable)
     const { data: modelRow } = await read.from('app_settings').select('value').eq('key', 'scorecard.orin_models').maybeSingle()
