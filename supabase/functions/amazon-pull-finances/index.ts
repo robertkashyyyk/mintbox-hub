@@ -73,20 +73,22 @@ function flattenComponents(
   postedDate: string,
   orderId: string,
   sku: string,
-  // Position of the enclosing ShipmentEvent + ShipmentItem (e.g. "e0i1"). Without
-  // it, a multi-shipment/-item order posts identical (order,sku,subtype,idx)
-  // charges that collide on the event_hash unique key and get DROPPED — losing
-  // per-unit revenue while keeping the fees (fabricated FBA losses). Fix 2026-07.
-  pathKey: string,
   list: any[] | undefined,
   typeKey: string,
   amountKey: string,
 ) {
   if (!Array.isArray(list)) return;
-  list.forEach((comp, idx) => {
+  list.forEach((comp) => {
     const amt = comp?.[amountKey]?.CurrencyAmount;
     if (amt === undefined || amt === null || Number(amt) === 0) return;
     const subtype = String(comp?.[typeKey] ?? listName);
+    // Stable identity of the economic event — NO array positions. The occurrence
+    // index (for genuinely-repeated identical charges, e.g. two equal-value split
+    // shipments) is stamped in a post-pass in flattenFinancialEvents so it is
+    // deterministic across re-pulls. Including the AMOUNT keeps different-value
+    // split shipments distinct without needing positional keys.
+    // 2026-08: replaces the old array-position pathKey, which changed every pull
+    // and so DUPLICATED every re-pulled order's revenue+fees.
     out.push({
       event_type: eventType,
       event_subtype: subtype,
@@ -97,7 +99,7 @@ function flattenComponents(
       original_amount: Number(amt),
       currency_code: comp?.[amountKey]?.CurrencyCode ?? "GBP",
       fee_description: subtype,
-      event_hash: `${eventType}|${orderId ?? ""}|${sku ?? ""}|${pathKey}|${listName}|${subtype}|${postedDate}|${idx}`,
+      _base: `${eventType}|${orderId ?? ""}|${sku ?? ""}|${listName}|${subtype}|${postedDate}|${Number(amt)}`,
     });
   });
 }
@@ -106,31 +108,43 @@ function flattenFinancialEvents(fe: any): any[] {
   const out: any[] = [];
   if (!fe) return out;
 
-  (fe.ShipmentEventList ?? []).forEach((se: any, seIdx: number) => {
+  (fe.ShipmentEventList ?? []).forEach((se: any) => {
     const posted = se.PostedDate;
     const order = se.AmazonOrderId;
     if (!posted) return;
-    (se.ShipmentItemList ?? []).forEach((si: any, siIdx: number) => {
+    (se.ShipmentItemList ?? []).forEach((si: any) => {
       const sku = si.SellerSKU ?? "";
-      const pk = `e${seIdx}i${siIdx}`;
-      flattenComponents(out, "Shipment", "ItemCharge", posted, order, sku, pk, si.ItemChargeList, "ChargeType", "ChargeAmount");
-      flattenComponents(out, "Shipment", "ItemFee", posted, order, sku, pk, si.ItemFeeList, "FeeType", "FeeAmount");
-      flattenComponents(out, "Shipment", "Promotion", posted, order, sku, pk, si.PromotionList, "PromotionType", "PromotionAmount");
+      flattenComponents(out, "Shipment", "ItemCharge", posted, order, sku, si.ItemChargeList, "ChargeType", "ChargeAmount");
+      flattenComponents(out, "Shipment", "ItemFee", posted, order, sku, si.ItemFeeList, "FeeType", "FeeAmount");
+      flattenComponents(out, "Shipment", "Promotion", posted, order, sku, si.PromotionList, "PromotionType", "PromotionAmount");
     });
   });
 
-  (fe.RefundEventList ?? []).forEach((re: any, reIdx: number) => {
+  (fe.RefundEventList ?? []).forEach((re: any) => {
     const posted = re.PostedDate;
     const order = re.AmazonOrderId;
     if (!posted) return;
-    (re.ShipmentItemAdjustmentList ?? []).forEach((si: any, siIdx: number) => {
+    (re.ShipmentItemAdjustmentList ?? []).forEach((si: any) => {
       const sku = si.SellerSKU ?? "";
-      const pk = `r${reIdx}i${siIdx}`;
-      flattenComponents(out, "Refund", "ItemChargeAdj", posted, order, sku, pk, si.ItemChargeAdjustmentList, "ChargeType", "ChargeAmount");
-      flattenComponents(out, "Refund", "ItemFeeAdj", posted, order, sku, pk, si.ItemFeeAdjustmentList, "FeeType", "FeeAmount");
-      flattenComponents(out, "Refund", "PromotionAdj", posted, order, sku, pk, si.PromotionAdjustmentList, "PromotionType", "PromotionAmount");
+      flattenComponents(out, "Refund", "ItemChargeAdj", posted, order, sku, si.ItemChargeAdjustmentList, "ChargeType", "ChargeAmount");
+      flattenComponents(out, "Refund", "ItemFeeAdj", posted, order, sku, si.ItemFeeAdjustmentList, "FeeType", "FeeAmount");
+      flattenComponents(out, "Refund", "PromotionAdj", posted, order, sku, si.PromotionAdjustmentList, "PromotionType", "PromotionAmount");
     });
   });
+
+  // Stamp a deterministic occurrence index onto each event's hash: within one pull,
+  // rows sharing the SAME stable identity (order|sku|listName|subtype|postedDate|amount)
+  // are numbered 0,1,2… so genuinely-repeated identical charges are kept, while a
+  // re-pull of the same window reproduces the exact same hashes → idempotent ingest,
+  // no duplication. (Order within a group is irrelevant since the rows are identical.)
+  const occ = new Map<string, number>();
+  for (const row of out) {
+    const k = row._base as string;
+    const n = occ.get(k) ?? 0;
+    occ.set(k, n + 1);
+    row.event_hash = `${k}|${n}`;
+    delete row._base;
+  }
 
   // Scope: ORDER-LINKED economics only (Shipment + Refund). Storage fees and ad
   // spend (ServiceFeeEventList / ProductAdsPaymentEventList) are intentionally
