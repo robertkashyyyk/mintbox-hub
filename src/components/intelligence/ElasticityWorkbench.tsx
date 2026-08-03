@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -11,21 +11,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { snapPrice } from "@/lib/charmSnap";
-import { Search, ArrowUpDown, ArrowUp, ArrowDown, ArrowRight, Info, FlaskConical, Loader2, RotateCcw, TrendingUp } from "lucide-react";
+import { Search, ArrowUpDown, ArrowUp, ArrowDown, ArrowRight, Info, FlaskConical, Loader2, RotateCcw, ChevronRight, ChevronDown, Layers } from "lucide-react";
 import { ElasticityProposals } from "@/components/intelligence/ElasticityProposals";
 
 const gbp = (n: number | null | undefined) => (n == null ? "—" : new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(n));
 const num = (v: any) => (typeof v === "number" ? v : parseFloat(String(v ?? 0))) || 0;
+const brandCodeOf = (sku: string) => (sku.split("-")[0] || "").toUpperCase();
 
-// POR tiers (mirror the profit bands). Value = the tier's FLOOR POR fraction — we
-// target just squeaking into the tier and let the charm snap pop it in healthy.
-const TIERS = ["loss", "breakeven", "poor", "average", "good", "great", "amazing", "stellar"] as const;
-type Tier = typeof TIERS[number];
-const TIER_TARGET: Record<Tier, number | null> = {
-  loss: null, breakeven: null, poor: 0.02, average: 0.10, good: 0.20, great: 0.25, amazing: 0.30, stellar: 0.50,
-};
-const tierIdx = (t: string) => TIERS.indexOf(t as Tier);
+const TIER_OPTS = ["poor", "average", "good", "great", "amazing", "stellar"] as const;
 const tierTone = (t: string) =>
   t === "stellar" || t === "amazing" ? "border-band-good/50 bg-band-good/10 text-band-good"
   : t === "great" || t === "good" ? "border-band-average/50 bg-band-average/10 text-band-average"
@@ -33,23 +26,15 @@ const tierTone = (t: string) =>
   : t === "poor" ? "border-band-poor/50 bg-band-poor/10 text-band-poor"
   : "border-band-loss/50 bg-band-loss/10 text-band-loss";
 
-// Inc-VAT price to just reach a target POR, given per-unit cost/courier + fee rate.
-// price_ex*(1 - 1.2*(fee+target)) = cost + courier ; retail = price_ex*1.2
-function priceForTarget(costUnit: number, courierUnit: number, feeRate: number, target: number): number | null {
-  const denom = 1 - 1.2 * (feeRate + target);
-  if (denom <= 0) return null;
-  return ((costUnit + courierUnit) / denom) * 1.2;
-}
-
 interface Seller {
-  sku: string; brand_name: string | null; stores: number;
-  units: number; units_per_wk: number;
+  sku: string; brand_name: string | null; stores: number; units: number; units_per_wk: number;
   revenue_ex: number; cost_total: number; courier_total: number; fees_total: number; profit: number;
-  cur_por: number; tier: string;
-  avg_price_inc: number; min_price_inc: number; max_price_inc: number;
-  cost_unit: number; courier_unit: number; fee_rate: number; current_stock: number | null;
+  cur_por: number; tier: string; avg_price_inc: number; min_price_inc: number; max_price_inc: number;
+  cost_unit: number; courier_unit: number; fee_rate: number; current_stock: number | null; pack_count: number;
 }
-type SortKey = "units_per_wk" | "cur_por" | "avg_price_inc" | "stores" | "sku" | "brand_name" | "current_stock";
+interface RuleGroup { id: string; name: string; single_tier: string; pack_tier: string; }
+interface FamilyRow { tier_sku: string; pack_size: number; target_tier: string; price: number; per_unit: number; profit: number; por: number; }
+type SortKey = "units_per_wk" | "cur_por" | "avg_price_inc" | "pack_count" | "sku" | "brand_name" | "current_stock";
 
 export function ElasticityWorkbench() {
   return (
@@ -73,7 +58,8 @@ function SellersTab() {
   const [topN, setTopN] = useState("100");
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" }>({ key: "units_per_wk", dir: "desc" });
-  const [target, setTarget] = useState<Record<string, Tier>>({}); // sku -> target tier
+  const [override, setOverride] = useState<Record<string, { single?: string; pack?: string }>>({});
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   const { data: sellers, isLoading } = useQuery({
     queryKey: ["elasticity_sellers"],
@@ -83,7 +69,6 @@ function SellersTab() {
       return (data ?? []) as Seller[];
     },
   });
-
   const { data: ebayStores } = useQuery({
     queryKey: ["ebay-stores-enabled"],
     queryFn: async () => {
@@ -92,9 +77,32 @@ function SellersTab() {
       return (data ?? []).filter((s: any) => (s.mintsoft_channel ?? "").toLowerCase().startsWith("ebay"));
     },
   });
+  const { data: groups } = useQuery({
+    queryKey: ["elasticity_rule_groups"],
+    queryFn: async () => {
+      const [g, m] = await Promise.all([
+        (supabase as any).from("elasticity_rule_groups").select("*"),
+        (supabase as any).from("brand_rule_group").select("brand_code, group_id"),
+      ]);
+      const byId: Record<string, RuleGroup> = {};
+      (g.data ?? []).forEach((x: RuleGroup) => (byId[x.id] = x));
+      const brandToGroup: Record<string, string> = {};
+      (m.data ?? []).forEach((x: any) => (brandToGroup[x.brand_code] = x.group_id));
+      return { byId, brandToGroup };
+    },
+  });
+
+  // Effective tiers for a row: user override → brand's rule group → default good/good.
+  const tiersFor = (s: Seller): { single: string; pack: string; groupName: string } => {
+    const g = groups?.byId[groups?.brandToGroup[brandCodeOf(s.sku)] ?? ""] ?? null;
+    return {
+      single: override[s.sku]?.single ?? g?.single_tier ?? "good",
+      pack: override[s.sku]?.pack ?? g?.pack_tier ?? "good",
+      groupName: g?.name ?? "default",
+    };
+  };
 
   const brands = useMemo(() => Array.from(new Set((sellers ?? []).map((s) => s.brand_name).filter(Boolean) as string[])).sort(), [sellers]);
-
   const toggleSort = (key: SortKey) => setSort((s) => (s.key === key ? { key, dir: s.dir === "desc" ? "asc" : "desc" } : { key, dir: key === "sku" || key === "brand_name" ? "asc" : "desc" }));
 
   const rows = useMemo(() => {
@@ -112,45 +120,36 @@ function SellersTab() {
   }, [sellers, brand, search, sort]);
   const shown = topN === "all" ? rows : rows.slice(0, parseInt(topN, 10));
 
-  // Test price for a row given its selected target tier.
-  const testPriceFor = (s: Seller): { price: number | null; tier: Tier | null } => {
-    const t = target[s.sku];
-    if (!t) return { price: null, tier: null };
-    const raw = priceForTarget(num(s.cost_unit), num(s.courier_unit), num(s.fee_rate), TIER_TARGET[t] ?? 0);
-    if (raw == null) return { price: null, tier: t };
-    const snapped = snapPrice(raw, "charm", 0).listPrice;
-    return { price: snapped ?? raw, tier: t };
-  };
-
   const testMutation = useMutation({
     mutationFn: async (s: Seller) => {
-      const { price, tier } = testPriceFor(s);
-      if (price == null || tier == null) throw new Error("Pick a target tier first");
-      if (price <= s.avg_price_inc) throw new Error("Test price isn't a raise — pick a higher tier");
+      const { single, pack } = tiersFor(s);
       const stores = ebayStores ?? [];
       if (stores.length === 0) throw new Error("No eBay stores found");
+      const { data: family, error: fErr } = await (supabase as any).rpc("get_elasticity_family", { p_sku: s.sku, p_single_tier: single, p_pack_tier: pack });
+      if (fErr) throw new Error(fErr.message);
+      const fam = (family ?? []) as FamilyRow[];
+      if (fam.length === 0) throw new Error("Nothing to price for this SKU");
+      const { data: base } = await (supabase as any).rpc("get_family_baseline", { p_sku: s.sku, p_days: 30 });
+      const baseline = (base ?? [])[0] ?? { units_wk: s.units_per_wk, profit_wk: null };
+      const pushRows = fam.map((f) => ({ sku: f.tier_sku, new_price: Number(num(f.price).toFixed(2)) }));
       let pushed = 0; const failures: string[] = [];
       for (const st of stores) {
-        const { data, error } = await supabase.functions.invoke("threeds-reprice-push", {
-          body: { store_id: st.id, source: "elasticity", rows: [{ sku: s.sku, new_price: Number(price.toFixed(2)) }] },
-        });
-        if (error || (data as any)?.error) failures.push(st.store_name);
-        else pushed++;
+        const { data, error } = await supabase.functions.invoke("threeds-reprice-push", { body: { store_id: st.id, source: "elasticity", rows: pushRows } });
+        if (error || (data as any)?.error) failures.push(st.store_name); else pushed++;
       }
       if (pushed === 0) throw new Error(`Push failed on all stores: ${failures.join(", ")}`);
+      const atom = fam.find((f) => f.tier_sku === s.sku) ?? fam[0];
       const { error: insErr } = await (supabase as any).from("elasticity_tests").insert({
-        sku: s.sku, brand_name: s.brand_name, target_tier: tier,
-        baseline_price_inc: Number(num(s.avg_price_inc).toFixed(2)), test_price_inc: Number(price.toFixed(2)),
-        stores_pushed: pushed, baseline_units_wk: num(s.units_per_wk),
-        baseline_profit_wk: Math.round(num(s.profit) / (30 / 7) * 100) / 100,
+        sku: s.sku, brand_name: s.brand_name, target_tier: `${single}/${pack}`, single_tier: single, pack_tier: pack,
+        baseline_price_inc: Number(num(s.avg_price_inc).toFixed(2)), test_price_inc: Number(num(atom.price).toFixed(2)),
+        stores_pushed: pushed, baseline_units_wk: num(baseline.units_wk), baseline_profit_wk: baseline.profit_wk == null ? null : num(baseline.profit_wk),
       });
       if (insErr) throw new Error(insErr.message);
-      return { sku: s.sku, price, pushed, failures };
+      return { sku: s.sku, tiers: fam.length, pushed, stores: stores.length, failures };
     },
     onSuccess: (d) => {
-      toast({ title: "Test started", description: `${d.sku} → ${gbp(d.price)} pushed to ${d.pushed} eBay store${d.pushed === 1 ? "" : "s"}${d.failures.length ? ` (failed: ${d.failures.join(", ")})` : ""}. Watch it on Live tests.` });
+      toast({ title: "Family test started", description: `${d.sku}: ${d.tiers} price${d.tiers === 1 ? "" : "s"} (single + packs) pushed to ${d.pushed}/${d.stores} eBay stores${d.failures.length ? ` (failed: ${d.failures.join(", ")})` : ""}. Watch it on Live tests.` });
       qc.invalidateQueries({ queryKey: ["elasticity_tests_tracking"] });
-      qc.invalidateQueries({ queryKey: ["elasticity_sellers"] });
     },
     onError: (e: Error) => toast({ title: "Couldn’t start test", description: e.message, variant: "destructive" }),
   });
@@ -168,21 +167,17 @@ function SellersTab() {
     <div className="space-y-4">
       <Alert>
         <Info className="h-4 w-4" />
-        <AlertTitle>Elasticity sellers — one price across all eBay stores</AlertTitle>
+        <AlertTitle>Elasticity sellers — price the whole family across all eBay stores</AlertTitle>
         <AlertDescription>
-          Your top eBay sellers, aggregated across all {ebayStores?.length ?? 5} stores (last 30 days, ≥4 units/wk). Pick a
-          target tier to test — it computes the price to just clear that tier and the charm-snapper pops it to a clean rung.
-          <strong> Test &amp; Track pushes that one price to every eBay store at once</strong> (so the cheapest store can’t
-          absorb the demand) and opens a live combined-velocity test.
+          Each atom rolls up across all {ebayStores?.length ?? 5} stores. Two tiers per line — <strong>Single</strong> and{" "}
+          <strong>Packs</strong> — pre-filled from the brand’s rule group. Each tier is priced to its POR and the shared
+          large-letter postage auto-ladders the packs (bigger pack = lower per-unit). <strong>Test &amp; Track</strong>{" "}
+          derives the atom + every −Q, snaps to charm, and pushes them all to every store at once.
         </AlertDescription>
       </Alert>
 
       <Card>
         <CardHeader className="gap-3 pb-3">
-          <div>
-            <CardTitle className="text-base">Sellers</CardTitle>
-            <CardDescription>Click a column to sort. Showing {shown.length.toLocaleString()} of {rows.length.toLocaleString()}. Current price is the blended average; the spread shows how far apart the stores are today.</CardDescription>
-          </div>
           <div className="flex items-center gap-2 flex-wrap">
             <Select value={brand} onValueChange={setBrand}>
               <SelectTrigger className="w-[170px] h-9"><SelectValue placeholder="Brand" /></SelectTrigger>
@@ -193,6 +188,7 @@ function SellersTab() {
               <SelectContent>{["50", "100", "200", "all"].map((t) => <SelectItem key={t} value={t}>{t === "all" ? "All" : `Top ${t}`}</SelectItem>)}</SelectContent>
             </Select>
             <div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input placeholder="Search SKU / brand…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9 w-[180px] h-9" /></div>
+            <span className="text-xs text-muted-foreground ml-auto">{shown.length} of {rows.length}</span>
           </div>
         </CardHeader>
         <CardContent className="p-0">
@@ -203,60 +199,63 @@ function SellersTab() {
               <Table>
                 <TableHeader className="sticky top-0 z-20 bg-card shadow-[0_1px_0_0_hsl(var(--border))]">
                   <TableRow>
+                    <TableHead className="w-6"></TableHead>
                     <SortHead k="sku" label="SKU" />
                     <SortHead k="brand_name" label="Brand" />
                     <SortHead k="units_per_wk" label="Units /wk" align="right" />
-                    <SortHead k="avg_price_inc" label="Current (inc)" align="right" />
+                    <SortHead k="avg_price_inc" label="Current" align="right" />
                     <SortHead k="cur_por" label="Tier" align="right" />
-                    <SortHead k="current_stock" label="Stock" align="right" />
-                    <TableHead>Test to tier</TableHead>
-                    <TableHead className="text-right">Test price</TableHead>
+                    <SortHead k="pack_count" label="Packs" align="right" />
+                    <TableHead>Single →</TableHead>
+                    <TableHead>Packs →</TableHead>
                     <TableHead className="text-right">Action</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {shown.map((s) => {
-                    const { price } = testPriceFor(s);
-                    const isRaise = price != null && price > s.avg_price_inc;
-                    const options = TIERS.filter((t) => TIER_TARGET[t] != null && tierIdx(t) > tierIdx(s.tier));
+                    const eff = tiersFor(s);
+                    const isOpen = !!expanded[s.sku];
                     return (
-                      <TableRow key={s.sku}>
-                        <TableCell className="font-mono text-xs">{s.sku}</TableCell>
-                        <TableCell className="text-xs text-muted-foreground">{s.brand_name ?? "—"}</TableCell>
-                        <TableCell className="text-right tabular-nums">{num(s.units_per_wk).toFixed(1)}</TableCell>
-                        <TableCell className="text-right tabular-nums whitespace-nowrap">
-                          {gbp(s.avg_price_inc)}
-                          {num(s.max_price_inc) - num(s.min_price_inc) > 0.05 && (
-                            <div className="text-[10px] text-muted-foreground">{s.stores} stores · {gbp(s.min_price_inc)}–{gbp(s.max_price_inc)}</div>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Badge variant="outline" className={`${tierTone(s.tier)} text-[11px] capitalize`}>{s.tier} · {num(s.cur_por).toFixed(0)}%</Badge>
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums text-xs text-muted-foreground">{s.current_stock ?? "—"}</TableCell>
-                        <TableCell>
-                          <Select value={target[s.sku] ?? ""} onValueChange={(v) => setTarget((t) => ({ ...t, [s.sku]: v as Tier }))}>
-                            <SelectTrigger className="h-8 w-[130px] text-xs"><SelectValue placeholder="Pick tier…" /></SelectTrigger>
-                            <SelectContent>
-                              {options.length === 0 ? <SelectItem value="__none" disabled>Already top tier</SelectItem>
-                                : options.map((t) => <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>)}
-                            </SelectContent>
-                          </Select>
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums whitespace-nowrap">
-                          {price == null ? <span className="text-muted-foreground text-xs">—</span> : (
-                            <span className={isRaise ? "" : "text-band-loss"}>
-                              {gbp(s.avg_price_inc)} <ArrowRight className="inline h-3 w-3 text-muted-foreground" /> <span className="font-medium">{gbp(price)}</span>
-                            </span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button size="sm" variant="outline" disabled={!isRaise || busySku === s.sku}
-                            onClick={() => testMutation.mutate(s)} title="Push this price to all eBay stores and start tracking">
-                            {busySku === s.sku ? <Loader2 className="h-3 w-3 animate-spin" /> : <><FlaskConical className="h-3 w-3 mr-1" /> Test &amp; Track</>}
-                          </Button>
-                        </TableCell>
-                      </TableRow>
+                      <Fragment key={s.sku}>
+                        <TableRow>
+                          <TableCell className="p-0 pl-2">
+                            {s.pack_count > 0 && (
+                              <button onClick={() => setExpanded((e) => ({ ...e, [s.sku]: !e[s.sku] }))} className="text-muted-foreground hover:text-foreground">
+                                {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                              </button>
+                            )}
+                          </TableCell>
+                          <TableCell className="font-mono text-xs">{s.sku}</TableCell>
+                          <TableCell className="text-xs text-muted-foreground">{s.brand_name ?? "—"}<div className="text-[10px] opacity-70">{eff.groupName}</div></TableCell>
+                          <TableCell className="text-right tabular-nums">{num(s.units_per_wk).toFixed(1)}</TableCell>
+                          <TableCell className="text-right tabular-nums whitespace-nowrap">
+                            {gbp(s.avg_price_inc)}
+                            {num(s.max_price_inc) - num(s.min_price_inc) > 0.05 && <div className="text-[10px] text-muted-foreground">{s.stores}× · {gbp(s.min_price_inc)}–{gbp(s.max_price_inc)}</div>}
+                          </TableCell>
+                          <TableCell className="text-right"><Badge variant="outline" className={`${tierTone(s.tier)} text-[11px] capitalize`}>{s.tier} · {num(s.cur_por).toFixed(0)}%</Badge></TableCell>
+                          <TableCell className="text-right tabular-nums text-xs">{s.pack_count > 0 ? <span className="inline-flex items-center gap-1 text-muted-foreground"><Layers className="h-3 w-3" />{s.pack_count}</span> : <span className="text-muted-foreground">—</span>}</TableCell>
+                          <TableCell>
+                            <Select value={eff.single} onValueChange={(v) => setOverride((o) => ({ ...o, [s.sku]: { ...o[s.sku], single: v } }))}>
+                              <SelectTrigger className="h-8 w-[110px] text-xs capitalize"><SelectValue /></SelectTrigger>
+                              <SelectContent>{TIER_OPTS.map((t) => <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>)}</SelectContent>
+                            </Select>
+                          </TableCell>
+                          <TableCell>
+                            {s.pack_count > 0 ? (
+                              <Select value={eff.pack} onValueChange={(v) => setOverride((o) => ({ ...o, [s.sku]: { ...o[s.sku], pack: v } }))}>
+                                <SelectTrigger className="h-8 w-[110px] text-xs capitalize"><SelectValue /></SelectTrigger>
+                                <SelectContent>{TIER_OPTS.map((t) => <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>)}</SelectContent>
+                              </Select>
+                            ) : <span className="text-xs text-muted-foreground">no packs</span>}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button size="sm" variant="outline" disabled={busySku === s.sku} onClick={() => testMutation.mutate(s)} title="Derive the family, snap to charm, push atom + all −Q to every eBay store, and track">
+                              {busySku === s.sku ? <Loader2 className="h-3 w-3 animate-spin" /> : <><FlaskConical className="h-3 w-3 mr-1" /> Test &amp; Track</>}
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                        {isOpen && <FamilyPreview sku={s.sku} single={eff.single} pack={eff.pack} />}
+                      </Fragment>
                     );
                   })}
                 </TableBody>
@@ -269,6 +268,36 @@ function SellersTab() {
   );
 }
 
+function FamilyPreview({ sku, single, pack }: { sku: string; single: string; pack: string }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ["elasticity_family", sku, single, pack],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc("get_elasticity_family", { p_sku: sku, p_single_tier: single, p_pack_tier: pack });
+      if (error) throw error;
+      return (data ?? []) as FamilyRow[];
+    },
+  });
+  return (
+    <TableRow>
+      <TableCell colSpan={10} className="bg-muted/30 p-0">
+        <div className="px-10 py-3">
+          <div className="text-xs text-muted-foreground mb-2">Derived family — single → <span className="capitalize font-medium">{single}</span>, packs → <span className="capitalize font-medium">{pack}</span> (snapped to charm)</div>
+          {isLoading ? <Skeleton className="h-16 w-full" /> : (
+            <div className="flex flex-wrap gap-2">
+              {(data ?? []).map((f) => (
+                <div key={f.tier_sku} className="rounded border bg-card px-2.5 py-1.5 text-xs">
+                  <div className="font-mono text-[11px]">{f.tier_sku}</div>
+                  <div className="tabular-nums"><span className="font-medium">{gbp(f.price)}</span> <span className="text-muted-foreground">· {gbp(f.per_unit)}/u · {num(f.por).toFixed(0)}%</span></div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </TableCell>
+    </TableRow>
+  );
+}
+
 interface TestRow {
   id: string; sku: string; brand_name: string | null; target_tier: string;
   baseline_price_inc: number; test_price_inc: number; change_pct: number | null; stores_pushed: number;
@@ -276,7 +305,6 @@ interface TestRow {
   baseline_units_wk: number | null; recent_units_wk: number; units_change_pct: number | null;
   baseline_profit_wk: number | null; recent_profit_wk: number; profit_change_pct: number | null;
   complete_weeks: number; maturity: string; disrupted: boolean;
-  series: { iso_week: number; units: number; avg_price: number; profit: number }[];
 }
 
 function TestsTab() {
@@ -290,7 +318,6 @@ function TestsTab() {
       return (data ?? []) as TestRow[];
     },
   });
-
   const { data: ebayStores } = useQuery({
     queryKey: ["ebay-stores-enabled"],
     queryFn: async () => {
@@ -303,9 +330,7 @@ function TestsTab() {
     mutationFn: async ({ t, status }: { t: TestRow; status: "kept" | "reverted" }) => {
       if (status === "reverted") {
         for (const st of ebayStores ?? []) {
-          await supabase.functions.invoke("threeds-reprice-push", {
-            body: { store_id: st.id, source: "elasticity", rows: [{ sku: t.sku, new_price: Number(num(t.baseline_price_inc).toFixed(2)) }] },
-          });
+          await supabase.functions.invoke("threeds-reprice-push", { body: { store_id: st.id, source: "elasticity", rows: [{ sku: t.sku, new_price: Number(num(t.baseline_price_inc).toFixed(2)) }] } });
         }
       }
       const patch: Record<string, unknown> = { status };
@@ -315,7 +340,7 @@ function TestsTab() {
       return { t, status };
     },
     onSuccess: ({ t, status }) => {
-      toast({ title: status === "reverted" ? "Reverted" : "Kept", description: status === "reverted" ? `${t.sku} queued back to ${gbp(t.baseline_price_inc)} across all eBay stores.` : `${t.sku} kept at ${gbp(t.test_price_inc)} — stopped tracking.` });
+      toast({ title: status === "reverted" ? "Reverted" : "Kept", description: status === "reverted" ? `${t.sku} atom queued back to ${gbp(t.baseline_price_inc)} across all eBay stores.` : `${t.sku} kept — stopped tracking.` });
       qc.invalidateQueries({ queryKey: ["elasticity_tests_tracking"] });
     },
     onError: (e: Error) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
@@ -323,13 +348,12 @@ function TestsTab() {
   const busy = setStatus.isPending;
   const rows = data ?? [];
 
-  const deltaCell = (was: number | null, now: number, pct: number | null, goodUp: boolean, money = false) => {
+  const deltaCell = (was: number | null, now: number, pct: number | null, money = false) => {
     if (was == null) return <span className="text-muted-foreground text-xs">—</span>;
-    const good = goodUp ? (pct ?? 0) >= 0 : (pct ?? 0) >= 0;
     return (
       <span className="whitespace-nowrap tabular-nums">
         {money ? gbp(was) : was.toFixed(1)} <span className="text-muted-foreground">→</span> {money ? gbp(now) : now.toFixed(1)}
-        {pct != null && <span className={`ml-1 text-xs ${good ? "text-band-good" : "text-warning"}`}>{pct >= 0 ? "+" : ""}{pct}%</span>}
+        {pct != null && <span className={`ml-1 text-xs ${pct >= 0 ? "text-band-good" : "text-warning"}`}>{pct >= 0 ? "+" : ""}{pct}%</span>}
       </span>
     );
   };
@@ -339,9 +363,9 @@ function TestsTab() {
       <CardHeader>
         <CardTitle className="text-base">Live elasticity tests</CardTitle>
         <CardDescription>
-          Combined weekly units &amp; profit across all eBay stores since each test went live. Measurement starts the first
-          full week; the ⚠ flag holds off until 2 full weeks. <strong>Profit /wk</strong> is the verdict — a raise wins if
-          profit holds even on fewer units. Revert queues the old price back to every store.
+          Combined weekly units (atom-equivalent — a −Q04 sale counts as 4) &amp; profit across all eBay stores and the whole
+          family since each test went live. Measurement starts the first full week; ⚠ holds off until 2 weeks.
+          <strong> Profit /wk</strong> is the verdict. Revert queues the atom’s old price back to every store.
         </CardDescription>
       </CardHeader>
       <CardContent className="overflow-x-auto">
@@ -352,8 +376,8 @@ function TestsTab() {
             <TableHeader>
               <TableRow>
                 <TableHead>SKU</TableHead>
-                <TableHead>Target</TableHead>
-                <TableHead className="text-right">Baseline → Test</TableHead>
+                <TableHead>Single / Pack</TableHead>
+                <TableHead className="text-right">Atom baseline → test</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Units /wk</TableHead>
                 <TableHead className="text-right">Profit /wk</TableHead>
@@ -367,7 +391,6 @@ function TestsTab() {
                   <TableCell><Badge variant="outline" className="text-[11px] capitalize">{t.target_tier}</Badge></TableCell>
                   <TableCell className="text-right whitespace-nowrap tabular-nums">
                     {gbp(t.baseline_price_inc)} <ArrowRight className="inline h-3 w-3 text-muted-foreground" /> <span className="font-medium">{gbp(t.test_price_inc)}</span>
-                    {t.change_pct != null && <span className="ml-1 text-xs text-band-good">+{t.change_pct}%</span>}
                     <div className="text-[10px] text-muted-foreground">{t.stores_pushed} stores</div>
                   </TableCell>
                   <TableCell>
@@ -376,8 +399,8 @@ function TestsTab() {
                       : t.maturity === "early" ? <Badge variant="secondary" className="text-[11px]">wk 1 · early</Badge>
                       : <Badge variant="secondary" className="border-band-good/40 bg-band-good/10 text-band-good text-[11px]">measuring · {t.complete_weeks}w</Badge>}
                   </TableCell>
-                  <TableCell className="text-right">{deltaCell(t.baseline_units_wk, t.recent_units_wk, t.units_change_pct, false)}</TableCell>
-                  <TableCell className="text-right">{deltaCell(t.baseline_profit_wk, t.recent_profit_wk, t.profit_change_pct, true, true)}</TableCell>
+                  <TableCell className="text-right">{deltaCell(t.baseline_units_wk, t.recent_units_wk, t.units_change_pct)}</TableCell>
+                  <TableCell className="text-right">{deltaCell(t.baseline_profit_wk, t.recent_profit_wk, t.profit_change_pct, true)}</TableCell>
                   <TableCell className="text-right whitespace-nowrap">
                     <Button size="sm" variant="ghost" className="mr-1" disabled={busy} onClick={() => setStatus.mutate({ t, status: "kept" })}>Keep</Button>
                     <Button size="sm" variant={t.disrupted ? "default" : "outline"} disabled={busy} onClick={() => setStatus.mutate({ t, status: "reverted" })}>
