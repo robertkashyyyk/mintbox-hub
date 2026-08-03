@@ -11,8 +11,37 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Search, ArrowUpDown, ArrowUp, ArrowDown, ArrowRight, Info, FlaskConical, Loader2, RotateCcw, ChevronRight, ChevronDown, Layers } from "lucide-react";
+import { Search, ArrowUpDown, ArrowUp, ArrowDown, ArrowRight, Info, FlaskConical, Loader2, RotateCcw, ChevronRight, ChevronDown, Layers, Lock, CalendarClock, Save } from "lucide-react";
 import { ElasticityProposals } from "@/components/intelligence/ElasticityProposals";
+
+const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+interface WindowCfg { day: number; start_hour: number; duration_hours: number; open_until?: string | null }
+
+// Sellers launch window (default Fridays). One-time open_until override wins while future.
+function useSellersWindow() {
+  const { data: cfg } = useQuery({
+    queryKey: ["elasticity_sellers_window"],
+    queryFn: async () => {
+      const { data } = await (supabase as any).from("app_settings").select("value").eq("key", "elasticity.sellers_window").maybeSingle();
+      return (data?.value ?? { day: 5, start_hour: 9, duration_hours: 24 }) as WindowCfg;
+    },
+  });
+  return useMemo(() => {
+    if (!cfg) return { open: false, message: "Loading…", cfg: null as WindowCfg | null };
+    const now = new Date();
+    if (cfg.open_until && now < new Date(cfg.open_until)) {
+      const until = new Date(cfg.open_until).toLocaleString("en-GB", { timeZone: "Europe/London", weekday: "short", hour: "2-digit", minute: "2-digit" });
+      return { open: true, message: `One-off window — open until ${until}`, cfg };
+    }
+    const parts = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", weekday: "long", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(now);
+    const wdIdx = DAYS.indexOf(parts.find((p) => p.type === "weekday")?.value ?? "");
+    const minsNow = parseInt(parts.find((p) => p.type === "hour")?.value ?? "0", 10) * 60 + parseInt(parts.find((p) => p.type === "minute")?.value ?? "0", 10);
+    const minsSinceOpen = ((wdIdx - cfg.day + 7) % 7) * 1440 + minsNow - cfg.start_hour * 60;
+    const open = minsSinceOpen >= 0 && minsSinceOpen < cfg.duration_hours * 60;
+    const hh = String(cfg.start_hour).padStart(2, "0");
+    return { open, message: open ? `Open until +${cfg.duration_hours}h` : `Opens ${DAYS[cfg.day]} ${hh}:00 (UK)`, cfg };
+  }, [cfg]);
+}
 
 const gbp = (n: number | null | undefined) => (n == null ? "—" : new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(n));
 const num = (v: any) => (typeof v === "number" ? v : parseFloat(String(v ?? 0))) || 0;
@@ -43,10 +72,12 @@ export function ElasticityWorkbench() {
         <TabsTrigger value="sellers">Sellers</TabsTrigger>
         <TabsTrigger value="tests">Live tests</TabsTrigger>
         <TabsTrigger value="engine">Engine picks</TabsTrigger>
+        <TabsTrigger value="rules">Rules</TabsTrigger>
       </TabsList>
       <TabsContent value="sellers"><SellersTab /></TabsContent>
       <TabsContent value="tests"><TestsTab /></TabsContent>
       <TabsContent value="engine"><ElasticityProposals /></TabsContent>
+      <TabsContent value="rules"><ElasticityRules /></TabsContent>
     </Tabs>
   );
 }
@@ -54,6 +85,7 @@ export function ElasticityWorkbench() {
 function SellersTab() {
   const { toast } = useToast();
   const qc = useQueryClient();
+  const win = useSellersWindow();
   const [brand, setBrand] = useState("all");
   const [topN, setTopN] = useState("100");
   const [search, setSearch] = useState("");
@@ -63,6 +95,7 @@ function SellersTab() {
 
   const { data: sellers, isLoading } = useQuery({
     queryKey: ["elasticity_sellers"],
+    enabled: win.open,
     queryFn: async () => {
       const { data, error } = await (supabase as any).rpc("get_elasticity_sellers", { p_days: 30, p_min_units: 4 });
       if (error) throw error;
@@ -172,6 +205,22 @@ function SellersTab() {
       </button>
     </TableHead>
   );
+
+  if (!win.open) {
+    return (
+      <Card>
+        <CardContent className="py-16 flex flex-col items-center text-center gap-3">
+          <div className="rounded-full bg-muted p-3"><Lock className="h-6 w-6 text-muted-foreground" /></div>
+          <div className="text-lg font-semibold">Sellers is closed</div>
+          <div className="text-sm text-muted-foreground max-w-md">
+            To keep reads clean, new tests only launch in a weekly window. <strong>{win.message}.</strong> This way every
+            test gets a full, undisturbed week before the next decision — no acting on sales still sitting at the old price.
+          </div>
+          <div className="text-xs text-muted-foreground flex items-center gap-1"><CalendarClock className="h-3 w-3" /> Live tests stay viewable any day. Adjust the window on the Rules tab.</div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -305,6 +354,143 @@ function FamilyPreview({ sku, single, pack }: { sku: string; single: string; pac
         </div>
       </TableCell>
     </TableRow>
+  );
+}
+
+function ElasticityRules() {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [winDraft, setWinDraft] = useState<WindowCfg | null>(null);
+
+  const { data: groups } = useQuery({
+    queryKey: ["rules_groups_edit"],
+    queryFn: async () => {
+      const { data } = await (supabase as any).from("elasticity_rule_groups").select("*").order("sort_order");
+      return (data ?? []) as (RuleGroup & { sort_order: number })[];
+    },
+  });
+  const { data: brandRows } = useQuery({
+    queryKey: ["rules_brand_density"],
+    queryFn: async () => {
+      const { data } = await (supabase as any).rpc("get_brand_q_density");
+      return (data ?? []) as { brand_code: string; q_listings: number; atom_listings: number; q_pct: number; group_id: string | null }[];
+    },
+  });
+  const { data: windowCfg } = useQuery({
+    queryKey: ["rules_window"],
+    queryFn: async () => {
+      const { data } = await (supabase as any).from("app_settings").select("value").eq("key", "elasticity.sellers_window").maybeSingle();
+      return (data?.value ?? { day: 5, start_hour: 9, duration_hours: 24 }) as WindowCfg;
+    },
+  });
+
+  const saveGroup = useMutation({
+    mutationFn: async ({ id, field, value }: { id: string; field: "single_tier" | "pack_tier"; value: string }) => {
+      const { error } = await (supabase as any).from("elasticity_rule_groups").update({ [field]: value }).eq("id", id);
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["rules_groups_edit"] }); qc.invalidateQueries({ queryKey: ["elasticity_rule_groups"] }); },
+    onError: (e: Error) => toast({ title: "Save failed", description: e.message, variant: "destructive" }),
+  });
+  const saveBrand = useMutation({
+    mutationFn: async ({ brand_code, group_id }: { brand_code: string; group_id: string }) => {
+      const { error } = await (supabase as any).from("brand_rule_group").upsert({ brand_code, group_id }, { onConflict: "brand_code" });
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["rules_brand_density"] }),
+    onError: (e: Error) => toast({ title: "Save failed", description: e.message, variant: "destructive" }),
+  });
+  const saveWindow = useMutation({
+    mutationFn: async (cfg: WindowCfg) => {
+      const { error } = await (supabase as any).from("app_settings").update({ value: { day: cfg.day, start_hour: cfg.start_hour, duration_hours: cfg.duration_hours, open_until: cfg.open_until ?? null } }).eq("key", "elasticity.sellers_window");
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => { toast({ title: "Window saved" }); qc.invalidateQueries({ queryKey: ["rules_window"] }); qc.invalidateQueries({ queryKey: ["elasticity_sellers_window"] }); setWinDraft(null); },
+    onError: (e: Error) => toast({ title: "Save failed", description: e.message, variant: "destructive" }),
+  });
+
+  const w = winDraft ?? windowCfg ?? { day: 5, start_hour: 9, duration_hours: 24 };
+  const setW = (patch: Partial<WindowCfg>) => setWinDraft({ ...(winDraft ?? windowCfg ?? { day: 5, start_hour: 9, duration_hours: 24 }), ...patch });
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader className="pb-2"><CardTitle className="text-base">Rule groups</CardTitle><CardDescription>The Single and Pack tier each group aims for. Editing here moves every brand in the group at once, and pre-fills the Sellers dropdowns.</CardDescription></CardHeader>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader><TableRow><TableHead>Group</TableHead><TableHead>Single →</TableHead><TableHead>Packs →</TableHead></TableRow></TableHeader>
+            <TableBody>
+              {(groups ?? []).map((g) => (
+                <TableRow key={g.id}>
+                  <TableCell className="font-medium">{g.name}</TableCell>
+                  <TableCell>
+                    <Select value={g.single_tier} onValueChange={(v) => saveGroup.mutate({ id: g.id, field: "single_tier", value: v })}>
+                      <SelectTrigger className="h-8 w-[120px] text-xs capitalize"><SelectValue /></SelectTrigger>
+                      <SelectContent>{TIER_OPTS.map((t) => <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </TableCell>
+                  <TableCell>
+                    <Select value={g.pack_tier} onValueChange={(v) => saveGroup.mutate({ id: g.id, field: "pack_tier", value: v })}>
+                      <SelectTrigger className="h-8 w-[120px] text-xs capitalize"><SelectValue /></SelectTrigger>
+                      <SelectContent>{TIER_OPTS.map((t) => <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2"><CalendarClock className="h-4 w-4" /> Sellers launch window</CardTitle><CardDescription>When new tests can be launched (UK time). Live tests stay viewable any day.</CardDescription></CardHeader>
+        <CardContent className="flex items-end gap-3 flex-wrap">
+          <div className="flex flex-col gap-1"><span className="text-xs text-muted-foreground">Day</span>
+            <Select value={String(w.day)} onValueChange={(v) => setW({ day: Number(v) })}>
+              <SelectTrigger className="h-9 w-[130px]"><SelectValue /></SelectTrigger>
+              <SelectContent>{DAYS.map((d, i) => <SelectItem key={i} value={String(i)}>{d}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-1"><span className="text-xs text-muted-foreground">Opens (hour)</span><Input type="number" min={0} max={23} value={w.start_hour} onChange={(e) => setW({ start_hour: Number(e.target.value) })} className="h-9 w-20" /></div>
+          <div className="flex flex-col gap-1"><span className="text-xs text-muted-foreground">Open for (hours)</span><Input type="number" min={1} max={168} value={w.duration_hours} onChange={(e) => setW({ duration_hours: Number(e.target.value) })} className="h-9 w-20" /></div>
+          <Button size="sm" disabled={!winDraft || saveWindow.isPending} onClick={() => saveWindow.mutate(w)}><Save className="h-3 w-3 mr-1" /> Save</Button>
+          {windowCfg?.open_until && new Date() < new Date(windowCfg.open_until) && (
+            <div className="text-xs text-muted-foreground ml-auto flex items-center gap-2">
+              One-off open until {new Date(windowCfg.open_until).toLocaleString("en-GB", { timeZone: "Europe/London", weekday: "short", hour: "2-digit", minute: "2-digit" })}
+              <button className="underline" onClick={() => saveWindow.mutate({ ...w, open_until: null })}>clear</button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-2"><CardTitle className="text-base">Brand assignments</CardTitle><CardDescription>Every brand with Q-codes, its listing density, and its group. Assign the ones that matter — unassigned brands default to “Some Q”.</CardDescription></CardHeader>
+        <CardContent className="p-0">
+          <div className="rounded-md border-t [&>div]:max-h-[60vh] [&>div]:overflow-auto">
+            <Table>
+              <TableHeader className="sticky top-0 z-20 bg-card shadow-[0_1px_0_0_hsl(var(--border))]">
+                <TableRow><TableHead>Brand</TableHead><TableHead className="text-right">Q listings</TableHead><TableHead className="text-right">% Q</TableHead><TableHead>Group</TableHead></TableRow>
+              </TableHeader>
+              <TableBody>
+                {(brandRows ?? []).map((b) => (
+                  <TableRow key={b.brand_code}>
+                    <TableCell className="font-mono text-xs">{b.brand_code}</TableCell>
+                    <TableCell className="text-right tabular-nums text-xs">{b.q_listings}</TableCell>
+                    <TableCell className="text-right tabular-nums text-xs">{num(b.q_pct).toFixed(0)}%</TableCell>
+                    <TableCell>
+                      <Select value={b.group_id ?? ""} onValueChange={(v) => saveBrand.mutate({ brand_code: b.brand_code, group_id: v })}>
+                        <SelectTrigger className="h-8 w-[150px] text-xs"><SelectValue placeholder="— unassigned —" /></SelectTrigger>
+                        <SelectContent>{(groups ?? []).map((g) => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 
