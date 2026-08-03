@@ -15,11 +15,25 @@ interface Row {
   dirt_sku: string; true_sku: string; store_name: string | null; external_item_id: string | null;
   units_90d: number; revenue_90d: number | null; last_sold: string | null;
   true_name: string | null; true_cost: number | null; true_stock: number | null; needs_review: boolean;
+  pushable: boolean; hold_reason: string | null; status: "auto" | "pack" | "nocost" | "other";
 }
 
 const gbp = (n: number | null) => (n == null ? "—" : new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(n));
 const PAGE_OPTIONS = [25, 50, 100, 250];
 type SortKey = "revenue_90d" | "units_90d" | "last_sold" | "dirt_sku";
+type StatusFilter = "all" | "auto" | "pack" | "nocost";
+const STATUS_META: Record<string, { label: string; cls: string }> = {
+  auto:   { label: "Auto-cleaning", cls: "text-success border-success/40" },
+  pack:   { label: "Needs -Q SKU",  cls: "text-warning border-warning/40" },
+  nocost: { label: "No live cost",  cls: "text-destructive border-destructive/40" },
+  other:  { label: "Held",          cls: "text-muted-foreground border-border" },
+};
+const FILTER_TABS: { key: StatusFilter; label: string }[] = [
+  { key: "all", label: "All" },
+  { key: "auto", label: "Auto-cleaning" },
+  { key: "pack", label: "Held · needs -Q SKU" },
+  { key: "nocost", label: "Held · no live cost" },
+];
 
 export default function DirtListings() {
   const [search, setSearch] = useState("");
@@ -27,6 +41,7 @@ export default function DirtListings() {
   const [pageSize, setPageSize] = useState(50);
   const [sortKey, setSortKey] = useState<SortKey>("revenue_90d");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
 
   const { data: rows, isLoading } = useQuery({
     queryKey: ["dirt-listings"],
@@ -37,11 +52,18 @@ export default function DirtListings() {
     },
   });
 
+  const counts = useMemo(() => {
+    const c: Record<string, number> = { all: 0, auto: 0, pack: 0, nocost: 0, other: 0 };
+    for (const r of rows ?? []) { c.all++; c[r.status] = (c[r.status] ?? 0) + 1; }
+    return c;
+  }, [rows]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     let r = (rows ?? []).filter((x) =>
-      !q || x.dirt_sku.toLowerCase().includes(q) || x.true_sku.toLowerCase().includes(q) ||
-      (x.true_name ?? "").toLowerCase().includes(q) || (x.store_name ?? "").toLowerCase().includes(q));
+      (statusFilter === "all" || x.status === statusFilter) &&
+      (!q || x.dirt_sku.toLowerCase().includes(q) || x.true_sku.toLowerCase().includes(q) ||
+      (x.true_name ?? "").toLowerCase().includes(q) || (x.store_name ?? "").toLowerCase().includes(q)));
     const dir = sortDir === "asc" ? 1 : -1;
     r = [...r].sort((a, b) => {
       const av = a[sortKey], bv = b[sortKey];
@@ -50,7 +72,7 @@ export default function DirtListings() {
       return dir * (Number(av) - Number(bv));
     });
     return r;
-  }, [rows, search, sortKey, sortDir]);
+  }, [rows, search, statusFilter, sortKey, sortDir]);
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
   const pageRows = filtered.slice((page - 1) * pageSize, page * pageSize);
@@ -61,11 +83,12 @@ export default function DirtListings() {
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
     a.download = name; a.click();
   }
-  // Full report (analysis).
+  // Full report (analysis) — respects the current status filter.
   function exportCsv() {
-    download(`dirt-listings-${new Date().toISOString().slice(0, 10)}.csv`, [
-      ["eBayItemId", "CurrentDirtSKU", "TrueSKU", "Store", "Units90d", "Revenue90d", "LastSold", "TrueName", "TrueCost"],
-      ...filtered.map((r) => [r.external_item_id ?? "", r.dirt_sku, r.true_sku, r.store_name ?? "", String(r.units_90d),
+    download(`dirt-listings-${statusFilter}-${new Date().toISOString().slice(0, 10)}.csv`, [
+      ["eBayItemId", "CurrentDirtSKU", "TrueSKU", "Store", "Status", "HoldReason", "Units90d", "Revenue90d", "LastSold", "TrueName", "TrueCost"],
+      ...filtered.map((r) => [r.external_item_id ?? "", r.dirt_sku, r.true_sku, r.store_name ?? "",
+        STATUS_META[r.status]?.label ?? r.status, r.hold_reason ?? "", String(r.units_90d),
         String(r.revenue_90d ?? ""), r.last_sold ? r.last_sold.slice(0, 10) : "", r.true_name ?? "", String(r.true_cost ?? "")]),
     ]);
   }
@@ -85,11 +108,12 @@ export default function DirtListings() {
 
   return (
     <div className="space-y-4">
-      <ModuleHeader title="Dirt SKUs on eBay" description="Live eBay listings whose custom label is an old 'dirt' code. Mintsoft maps them to the true SKU on arrival (so stock/picking works), but the listing label was never updated — which hid them from the repricer. The cost/repricing side is already auto-resolved; this is the list to clean at source." icon={Tag} />
+      <ModuleHeader title="Dirt SKUs on eBay" description="Live eBay listings whose custom label is an old 'dirt' code. Most now auto-clean weekly (the true SKU is pushed to eBay via 3D Sellers every Tuesday). The rest are held back and need a person: genuine multipacks need their -Q variant SKU created first, and a few have no live cost. Use the tabs to work each group." icon={Tag} />
       <Card>
-        <CardHeader className="pb-3 flex flex-row items-center justify-between flex-wrap gap-3">
+        <CardHeader className="pb-3 space-y-3">
+          <div className="flex flex-row items-center justify-between flex-wrap gap-3">
           <CardTitle className="text-base">
-            {isLoading ? "…" : <><strong>{filtered.length}</strong> dirt listings · <span className="text-muted-foreground font-normal">{gbp(totalRevenue)} sold in last 90d</span></>}
+            {isLoading ? "…" : <><strong>{filtered.length}</strong> {statusFilter === "all" ? "dirt listings" : STATUS_META[statusFilter]?.label.toLowerCase()} · <span className="text-muted-foreground font-normal">{gbp(totalRevenue)} sold in last 90d</span></>}
           </CardTitle>
           <div className="flex items-center gap-2">
             <Input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder="Search dirt/true SKU, name, store" className="w-[260px]" />
@@ -104,10 +128,24 @@ export default function DirtListings() {
               <Download className="h-4 w-4 mr-2" />3D update CSV
             </Button>
           </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {FILTER_TABS.map((t) => {
+              const n = counts[t.key] ?? 0;
+              const active = statusFilter === t.key;
+              return (
+                <button key={t.key} onClick={() => { setStatusFilter(t.key); setPage(1); }}
+                  className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs transition-colors ${active ? "border-pd-accent bg-pd-accent/10 text-foreground" : "border-border text-muted-foreground hover:text-foreground hover:border-foreground/30"}`}>
+                  {t.label}
+                  <span className={`rounded-full px-1.5 text-[10px] ${active ? "bg-pd-accent/20" : "bg-muted"}`}>{isLoading ? "…" : n}</span>
+                </button>
+              );
+            })}
+          </div>
         </CardHeader>
         <CardContent className="overflow-x-auto">
           {isLoading ? (
-            <PageLoader rows={10} columns={[160, 160, 110, 70, 90, 100, 80, 70]} label="Loading dirt listings" />
+            <PageLoader rows={10} columns={[160, 160, 110, 110, 70, 90, 100, 80, 70]} label="Loading dirt listings" />
           ) : filtered.length === 0 ? (
             <div className="py-12 text-center text-sm text-muted-foreground">No dirt SKUs detected. 🎉</div>
           ) : (
@@ -117,6 +155,7 @@ export default function DirtListings() {
                   <TableRow>
                     <TableHead><Sort k="dirt_sku" label="Dirt SKU (on eBay)" /></TableHead>
                     <TableHead>True SKU</TableHead>
+                    <TableHead>Status</TableHead>
                     <TableHead>Store</TableHead>
                     <TableHead className="text-right"><Sort k="units_90d" label="Units 90d" /></TableHead>
                     <TableHead className="text-right"><Sort k="revenue_90d" label="Revenue 90d" /></TableHead>
@@ -133,6 +172,12 @@ export default function DirtListings() {
                         {r.needs_review && <Badge variant="outline" className="ml-2 text-[10px] text-warning border-warning/40"><AlertTriangle className="h-3 w-3 mr-0.5" />review</Badge>}
                       </TableCell>
                       <TableCell className="font-mono text-xs text-pd-accent">{r.true_sku}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={`text-[10px] ${STATUS_META[r.status]?.cls ?? ""}`}
+                          title={r.hold_reason ?? "Pushed to eBay automatically on the next weekly run"}>
+                          {STATUS_META[r.status]?.label ?? r.status}
+                        </Badge>
+                      </TableCell>
                       <TableCell className="text-xs">{r.store_name ?? "—"}</TableCell>
                       <TableCell className="text-right">{r.units_90d}</TableCell>
                       <TableCell className="text-right">{gbp(r.revenue_90d)}</TableCell>
