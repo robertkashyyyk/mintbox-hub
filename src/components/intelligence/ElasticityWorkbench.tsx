@@ -77,6 +77,14 @@ function SellersTab() {
       return (data ?? []).filter((s: any) => (s.mintsoft_channel ?? "").toLowerCase().startsWith("ebay"));
     },
   });
+  // SKUs with a live test — hide them from Sellers so they can't be re-tested.
+  const { data: activeTestSkus } = useQuery({
+    queryKey: ["elasticity_active_test_skus"],
+    queryFn: async () => {
+      const { data } = await (supabase as any).from("elasticity_tests").select("sku").eq("status", "active");
+      return new Set((data ?? []).map((r: any) => r.sku as string));
+    },
+  });
   const { data: groups } = useQuery({
     queryKey: ["elasticity_rule_groups"],
     queryFn: async () => {
@@ -107,6 +115,7 @@ function SellersTab() {
 
   const rows = useMemo(() => {
     let r = [...(sellers ?? [])];
+    r = r.filter((s) => !activeTestSkus?.has(s.sku)); // hide lines already under test
     if (brand !== "all") r = r.filter((s) => (s.brand_name ?? "") === brand);
     const q = search.trim().toLowerCase();
     if (q) r = r.filter((s) => s.sku.toLowerCase().includes(q) || (s.brand_name ?? "").toLowerCase().includes(q));
@@ -117,7 +126,7 @@ function SellersTab() {
       return (num(av) - num(bv)) * mul;
     });
     return r;
-  }, [sellers, brand, search, sort]);
+  }, [sellers, brand, search, sort, activeTestSkus]);
   const shown = topN === "all" ? rows : rows.slice(0, parseInt(topN, 10));
 
   const testMutation = useMutation({
@@ -150,6 +159,7 @@ function SellersTab() {
     onSuccess: (d) => {
       toast({ title: "Family test started", description: `${d.sku}: ${d.tiers} price${d.tiers === 1 ? "" : "s"} (single + packs) pushed to ${d.pushed}/${d.stores} eBay stores${d.failures.length ? ` (failed: ${d.failures.join(", ")})` : ""}. Watch it on Live tests.` });
       qc.invalidateQueries({ queryKey: ["elasticity_tests_tracking"] });
+      qc.invalidateQueries({ queryKey: ["elasticity_active_test_skus"] }); // drop the line from Sellers now
     },
     onError: (e: Error) => toast({ title: "Couldn’t start test", description: e.message, variant: "destructive" }),
   });
@@ -342,6 +352,7 @@ function TestsTab() {
     onSuccess: ({ t, status }) => {
       toast({ title: status === "reverted" ? "Reverted" : "Kept", description: status === "reverted" ? `${t.sku} atom queued back to ${gbp(t.baseline_price_inc)} across all eBay stores.` : `${t.sku} kept — stopped tracking.` });
       qc.invalidateQueries({ queryKey: ["elasticity_tests_tracking"] });
+      qc.invalidateQueries({ queryKey: ["elasticity_active_test_skus"] }); // line returns to Sellers
     },
     onError: (e: Error) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
   });
