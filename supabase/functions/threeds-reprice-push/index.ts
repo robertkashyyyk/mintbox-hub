@@ -65,7 +65,7 @@ Deno.serve(async (req) => {
   // "repricer" (profit) unless a recognised non-payoff source: "liquidation"
   // (clearance) or "charm_snap" (charm-price tidy). Both are excluded from the
   // Repricing Payoff report so they don't count as repricing value.
-  const source = (body.source === "liquidation" || body.source === "charm_snap")
+  const source = (body.source === "liquidation" || body.source === "charm_snap" || body.source === "elasticity")
     ? body.source
     : "repricer";
   const rows = (body.rows ?? []).filter(

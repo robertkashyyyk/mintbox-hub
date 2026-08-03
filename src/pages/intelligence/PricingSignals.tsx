@@ -15,7 +15,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { TrendingUp, Send, Calculator, Search, AlertTriangle, TrendingDown } from "lucide-react";
 import ModuleHeader from "@/components/ModuleHeader";
 import { useToast } from "@/hooks/use-toast";
-import { ElasticityProposals } from "@/components/intelligence/ElasticityProposals";
+import { ElasticityWorkbench } from "@/components/intelligence/ElasticityWorkbench";
 
 // ---------- helpers ----------
 const fmtGBP = (n: number) =>
@@ -632,7 +632,7 @@ const PricingSignals = () => {
         </TabsContent>
 
         <TabsContent value="elasticity" className="mt-4">
-          <ElasticityProposals />
+          <ElasticityWorkbench />
         </TabsContent>
 
         <TabsContent value="dynamic" className="mt-4">
