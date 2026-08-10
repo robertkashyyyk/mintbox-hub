@@ -196,17 +196,20 @@ Deno.serve(async (req) => {
     const gbp = (n: any) => '£' + Number(n).toLocaleString('en-GB', { maximumFractionDigits: 0 })
 
     if (cadence === 'daily') {
-      const { data: dayRows, error: dErr } = await rpcRetry(read, 'get_profit_day', {})
-      if (dErr) return json({ error: `get_profit_day: ${dErr.message}` }, 500)
-      const d: any = Array.isArray(dayRows) ? dayRows[0] : dayRows
+      // Fetch the daily inputs CONCURRENTLY (they're independent) — sequentially they cold-stacked
+      // at 6am and could tip past the edge wall-clock limit. p_date pins the same day across all three.
+      const yday = new Date(Date.now() - 86400000).toISOString().slice(0, 10)
+      const [dayRes, paceRes, slRes] = await Promise.all([
+        rpcRetry(read, 'get_profit_day', { p_date: yday }),
+        rpcRetry(read, 'get_target_pace', { p_grain: 'day', p_asof: yday }),
+        rpcRetry(read, 'get_reorder_shortlist', { p_limit: 6, p_horizon_weeks: 4 }),
+      ])
+      if (dayRes.error) return json({ error: `get_profit_day: ${dayRes.error.message}` }, 500)
+      const d: any = Array.isArray(dayRes.data) ? dayRes.data[0] : dayRes.data
       if (!d) return json({ error: 'no daily data' }, 500)
-      // Yesterday vs the daily targets (Primary/Stretch/Ultimate) — single day, not tiered.
-      // Retry: a cold get_target_pace (now FBA-union) can miss the first call at 6am.
-      const { data: pace } = await rpcRetry(read, 'get_target_pace', { p_grain: 'day', p_asof: d.day })
+      const pace = paceRes.data
       inputSnapshot = { day: d, targets: pace ?? [] }
-      // Reorder shortlist for the footer (top 6 by £-at-risk). Never fatal — a miss just omits it.
-      const { data: sl } = await rpcRetry(read, 'get_reorder_shortlist', { p_limit: 6, p_horizon_weeks: 4 })
-      shortlist = Array.isArray(sl) ? sl : []
+      shortlist = Array.isArray(slRes.data) ? slRes.data : []
       periodKey = String(d.day)
       systemPrompt = DAILY_SYSTEM_PROMPT
       maxTokens = 450
@@ -243,25 +246,30 @@ Deno.serve(async (req) => {
         `Write the short daily note now — LEAD with how yesterday landed vs the Primary daily target, and ` +
         `include one line on AOV (the figure and whether it is ahead/behind target).`
     } else {
-      const { data: scorecard, error: scErr } = await rpcRetry(read, 'get_scorecard', { p_lookback_weeks: lookback })
-      if (scErr) return json({ error: `get_scorecard: ${scErr.message}` }, 500)
-      if (!scorecard || (scorecard as any[]).length === 0) return json({ error: 'scorecard empty' }, 500)
-      // Target pace vs Primary/Stretch/Ultimate — the WEEK for the weekly story, YTD for the monthly.
-      // A weekly report is about the week, not month-to-date. asof=yesterday so the Monday cron's
-      // 'week' grain resolves to the just-completed Mon–Sun week (not a ragged rolling 7 days).
+      // Fetch all report inputs CONCURRENTLY. Run sequentially they stacked to ~37s of RPC time
+      // (scorecard ~16s + pace ~11s + work ~7s + aov ~4s) which, with the ~38s model call, pushed
+      // the weekly past the edge wall-clock limit (75s → 500). Parallel = bounded by the slowest.
+      // Pace: the just-completed WEEK for weekly (asof=yesterday → clean Mon–Sun on the Monday cron),
+      // NOT month-to-date; YTD for monthly. get_aov_now = live current-week AOV (a ratio, so a partial
+      // week is representative; the scorecard's aov_gbp carries COMPLETED weeks only).
       const paceGrain = cadence === 'monthly' ? 'ytd' : 'week'
       const paceArgs: any = { p_grain: paceGrain }
       if (cadence === 'weekly') paceArgs.p_asof = new Date(Date.now() - 86400000).toISOString().slice(0, 10)
-      const { data: pace } = await rpcRetry(read, 'get_target_pace', paceArgs)
-      // Work-completed / data-hygiene graft over the recent window (read-only: activity_log +
-      // dirt + reprice + FBA backlog). Trailing 30d for monthly, 7d for weekly. Never fatal.
       const wcDays = cadence === 'monthly' ? 30 : 7
       const wcTo = new Date().toISOString().slice(0, 10)
       const wcFrom = new Date(Date.now() - (wcDays - 1) * 86400000).toISOString().slice(0, 10)
-      const { data: work } = await read.rpc('get_work_completed', { p_from: wcFrom, p_to: wcTo })
-      // Live current-week AOV (a ratio, so a partial week is representative) — the scorecard's
-      // aov_gbp only carries COMPLETED weeks, so without this Orin narrates a week-stale figure.
-      const { data: aovNow } = await read.rpc('get_aov_now')
+      const [scRes, paceRes, workRes, aovRes] = await Promise.all([
+        rpcRetry(read, 'get_scorecard', { p_lookback_weeks: lookback }),
+        rpcRetry(read, 'get_target_pace', paceArgs),
+        read.rpc('get_work_completed', { p_from: wcFrom, p_to: wcTo }),
+        read.rpc('get_aov_now'),
+      ])
+      const scorecard = scRes.data
+      if (scRes.error) return json({ error: `get_scorecard: ${scRes.error.message}` }, 500)
+      if (!scorecard || (scorecard as any[]).length === 0) return json({ error: 'scorecard empty' }, 500)
+      const pace = paceRes.data
+      const work = workRes.data
+      const aovNow = aovRes.data
       // AOV leverage — a priority lever. Each +£1 of AOV drops through at high incremental margin
       // (~£0.68/order, the team's rule of thumb). Annualise at the current weekly order run-rate
       // (orders = weekly revenue / AOV, both from the scorecard) so Orin can state the stake precisely.
