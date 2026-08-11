@@ -18,23 +18,25 @@ interface Row {
   dirt_sku: string; true_sku: string; store_name: string | null; external_item_id: string | null;
   units_90d: number; revenue_90d: number | null; last_sold: string | null;
   true_name: string | null; true_cost: number | null; true_stock: number | null; needs_review: boolean;
-  pushable: boolean; hold_reason: string | null; status: "auto" | "pack" | "nocost" | "other";
+  pushable: boolean; hold_reason: string | null; status: "auto" | "pack" | "nocost" | "other" | "cleaned";
   pack_override: number | null;
 }
 
 const gbp = (n: number | null) => (n == null ? "—" : new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(n));
 const PAGE_OPTIONS = [25, 50, 100, 250];
 type SortKey = "revenue_90d" | "units_90d" | "last_sold" | "dirt_sku";
-type StatusFilter = "all" | "auto" | "pack" | "nocost";
+type StatusFilter = "all" | "auto" | "cleaned" | "pack" | "nocost";
 const STATUS_META: Record<string, { label: string; cls: string }> = {
-  auto:   { label: "Auto-cleaning", cls: "text-success border-success/40" },
-  pack:   { label: "Needs -Q SKU",  cls: "text-warning border-warning/40" },
-  nocost: { label: "No live cost",  cls: "text-destructive border-destructive/40" },
-  other:  { label: "Held",          cls: "text-muted-foreground border-border" },
+  auto:    { label: "Auto-cleaning", cls: "text-warning border-warning/40" },
+  cleaned: { label: "Cleaned ✓",     cls: "text-success border-success/40" },
+  pack:    { label: "Needs -Q SKU",  cls: "text-warning border-warning/40" },
+  nocost:  { label: "No live cost",  cls: "text-destructive border-destructive/40" },
+  other:   { label: "Held",          cls: "text-muted-foreground border-border" },
 };
 const FILTER_TABS: { key: StatusFilter; label: string }[] = [
   { key: "all", label: "All" },
   { key: "auto", label: "Auto-cleaning" },
+  { key: "cleaned", label: "Cleaned ✓" },
   { key: "pack", label: "Held · needs -Q SKU" },
   { key: "nocost", label: "Held · no live cost" },
 ];
@@ -79,7 +81,7 @@ export default function DirtListings() {
   });
 
   const counts = useMemo(() => {
-    const c: Record<string, number> = { all: 0, auto: 0, pack: 0, nocost: 0, other: 0 };
+    const c: Record<string, number> = { all: 0, auto: 0, cleaned: 0, pack: 0, nocost: 0, other: 0 };
     for (const r of rows ?? []) { c.all++; c[r.status] = (c[r.status] ?? 0) + 1; }
     return c;
   }, [rows]);
@@ -134,7 +136,7 @@ export default function DirtListings() {
 
   return (
     <div className="space-y-4">
-      <ModuleHeader title="Dirt SKUs on eBay" description="Live eBay listings whose custom label is an old 'dirt' code. Most now auto-clean weekly (the true SKU is pushed to eBay via 3D Sellers every Tuesday). The rest are held back and need a person: genuine multipacks need their -Q variant SKU created first, and a few have no live cost. Use the tabs to work each group." icon={Tag} />
+      <ModuleHeader title="Dirt SKUs on eBay" description="Live eBay listings whose custom label is an old 'dirt' code. Lifecycle: Auto-cleaning (fix pushed to eBay via 3D Sellers every Tuesday) → Cleaned ✓ (confirmed relabelled — it sold under the clean SKU, or 14 quiet days passed). Held rows need a person: hit Resolve on a multipack to set its pack size. Use the tabs to work each group." icon={Tag} />
       <Card>
         <CardHeader className="pb-3 space-y-3">
           <div className="flex flex-row items-center justify-between flex-wrap gap-3">
