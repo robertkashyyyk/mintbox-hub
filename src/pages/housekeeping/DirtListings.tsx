@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageLoader } from "@/components/ui/PageLoader";
@@ -8,7 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tag, ChevronLeft, ChevronRight, ExternalLink, ArrowUpDown, AlertTriangle, Download } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Tag, ChevronLeft, ChevronRight, ExternalLink, ArrowUpDown, AlertTriangle, Download, Wrench } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 import ModuleHeader from "@/components/ModuleHeader";
 
 interface Row {
@@ -16,6 +19,7 @@ interface Row {
   units_90d: number; revenue_90d: number | null; last_sold: string | null;
   true_name: string | null; true_cost: number | null; true_stock: number | null; needs_review: boolean;
   pushable: boolean; hold_reason: string | null; status: "auto" | "pack" | "nocost" | "other";
+  pack_override: number | null;
 }
 
 const gbp = (n: number | null) => (n == null ? "—" : new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(n));
@@ -42,6 +46,28 @@ export default function DirtListings() {
   const [sortKey, setSortKey] = useState<SortKey>("revenue_90d");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [resolveRow, setResolveRow] = useState<Row | null>(null);
+  const [packN, setPackN] = useState("");
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const openResolve = (r: Row) => { setResolveRow(r); setPackN(r.pack_override && r.pack_override >= 2 ? String(r.pack_override) : ""); };
+  const baseSku = (sku: string) => sku.replace(/-Q\d{2}$/, "");
+
+  const resolveMutation = useMutation({
+    mutationFn: async ({ dirt, size }: { dirt: string; size: number | null }) => {
+      const { data, error } = await (supabase as any).rpc("set_dirt_pack_override", { p_dirt_sku: dirt, p_size: size });
+      if (error) throw error;
+      return data as Row;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["dirt-listings"] });
+      if (data?.status === "auto") toast({ title: "Sent for cleaning ✓", description: `${data.dirt_sku} → ${data.true_sku}` });
+      else toast({ title: "Updated", description: data?.hold_reason ?? "Held" });
+      setResolveRow(null);
+    },
+    onError: (e: any) => toast({ title: "Couldn't update", description: String(e?.message ?? e), variant: "destructive" }),
+  });
 
   const { data: rows, isLoading } = useQuery({
     queryKey: ["dirt-listings"],
@@ -173,10 +199,17 @@ export default function DirtListings() {
                       </TableCell>
                       <TableCell className="font-mono text-xs text-pd-accent">{r.true_sku}</TableCell>
                       <TableCell>
-                        <Badge variant="outline" className={`text-[10px] ${STATUS_META[r.status]?.cls ?? ""}`}
-                          title={r.hold_reason ?? "Pushed to eBay automatically on the next weekly run"}>
-                          {STATUS_META[r.status]?.label ?? r.status}
-                        </Badge>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className={`text-[10px] ${STATUS_META[r.status]?.cls ?? ""}`}
+                            title={r.hold_reason ?? "Pushed to eBay automatically on the next weekly run"}>
+                            {STATUS_META[r.status]?.label ?? r.status}
+                          </Badge>
+                          {(r.status === "pack" || r.status === "nocost" || r.pack_override != null) && (
+                            <button onClick={() => openResolve(r)} className="inline-flex items-center gap-0.5 text-[10px] text-pd-accent hover:underline">
+                              <Wrench className="h-3 w-3" />Resolve
+                            </button>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell className="text-xs">{r.store_name ?? "—"}</TableCell>
                       <TableCell className="text-right">{r.units_90d}</TableCell>
@@ -205,6 +238,58 @@ export default function DirtListings() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={!!resolveRow} onOpenChange={(o) => !o && setResolveRow(null)}>
+        <DialogContent className="max-w-md">
+          {resolveRow && (
+            <>
+              <DialogHeader>
+                <DialogTitle>Resolve held listing</DialogTitle>
+                <DialogDescription className="font-mono text-xs break-all">{resolveRow.dirt_sku}</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 text-sm">
+                <p className="text-muted-foreground text-xs">{resolveRow.true_name ?? "—"}</p>
+
+                <div className="rounded-lg border p-3">
+                  <div className="font-medium mb-1">It's a single — or the mapped SKU is already the pack</div>
+                  <p className="text-xs text-muted-foreground mb-2">Cleans the eBay label to <span className="font-mono">{baseSku(resolveRow.true_sku)}</span> as-is.</p>
+                  <Button size="sm" variant="secondary" disabled={resolveMutation.isPending}
+                    onClick={() => resolveMutation.mutate({ dirt: resolveRow.dirt_sku, size: 1 })}>
+                    Mark correct → send for cleaning
+                  </Button>
+                </div>
+
+                <div className="rounded-lg border p-3">
+                  <div className="font-medium mb-1">It's a multipack</div>
+                  <p className="text-xs text-muted-foreground mb-2">Type the pack size — the label becomes the <span className="font-mono">-Q</span> variant and is pushed now. If that SKU isn't in Mintsoft yet, the next sale flags it for creation.</p>
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="packN" className="text-xs">Pack of</Label>
+                    <Input id="packN" value={packN} onChange={(e) => setPackN(e.target.value.replace(/[^0-9]/g, "").slice(0, 2))}
+                      inputMode="numeric" placeholder="12" className="w-16 h-8" />
+                    {packN && Number(packN) >= 2 && (
+                      <span className="font-mono text-xs text-pd-accent">→ {baseSku(resolveRow.true_sku)}-Q{packN.padStart(2, "0")}</span>
+                    )}
+                  </div>
+                  <Button size="sm" className="mt-2" disabled={resolveMutation.isPending || !packN || Number(packN) < 2}
+                    onClick={() => resolveMutation.mutate({ dirt: resolveRow.dirt_sku, size: Number(packN) })}>
+                    Send pack for cleaning
+                  </Button>
+                </div>
+
+                {resolveRow.pack_override != null && (
+                  <button className="text-xs text-muted-foreground hover:underline" disabled={resolveMutation.isPending}
+                    onClick={() => resolveMutation.mutate({ dirt: resolveRow.dirt_sku, size: null })}>
+                    Reset to auto-detect
+                  </button>
+                )}
+              </div>
+              <DialogFooter>
+                <Button variant="ghost" size="sm" onClick={() => setResolveRow(null)}>Cancel</Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
