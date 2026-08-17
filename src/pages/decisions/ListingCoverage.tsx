@@ -250,13 +250,16 @@ const SNOOZE_DURATIONS: [string, number | null][] = [["1 week", 7], ["4 weeks", 
 
 function SnoozeDialog({ sku, onClose, onDone }: { sku: string | null; onClose: () => void; onDone: () => void }) {
   const [reason, setReason] = useState(SNOOZE_REASONS[0]);
+  const [note, setNote] = useState("");
   const [durIdx, setDurIdx] = useState("0");
   const save = useMutation({
     mutationFn: async () => {
       const days = SNOOZE_DURATIONS[Number(durIdx)][1];
       const until = days == null ? null : new Date(Date.now() + days * 86_400_000).toISOString();
+      // Combine the reason category with the optional free-text note (e.g. name the bundle).
+      const fullReason = note.trim() ? `${reason} — ${note.trim()}` : reason;
       const { data: { user } } = await supabase.auth.getUser();
-      const { error } = await (supabase as any).from("coverage_snoozes").upsert({ sku, reason, snooze_until: until, snoozed_by: user?.id ?? null, snoozed_at: new Date().toISOString() }, { onConflict: "sku" });
+      const { error } = await (supabase as any).from("coverage_snoozes").upsert({ sku, reason: fullReason, snooze_until: until, snoozed_by: user?.id ?? null, snoozed_at: new Date().toISOString() }, { onConflict: "sku" });
       if (error) throw error;
     },
     onSuccess: () => { toast.success("Snoozed"); onDone(); },
@@ -270,6 +273,9 @@ function SnoozeDialog({ sku, onClose, onDone }: { sku: string | null; onClose: (
           <div className="space-y-1.5"><Label className="text-xs">Reason</Label>
             <Select value={reason} onValueChange={setReason}><SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
               <SelectContent>{SNOOZE_REASONS.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent></Select>
+          </div>
+          <div className="space-y-1.5"><Label className="text-xs">Details (optional)</Label>
+            <Input value={note} onChange={e => setNote(e.target.value)} placeholder="e.g. part of NBA-4840932040-SET" className="h-9" />
           </div>
           <div className="space-y-1.5"><Label className="text-xs">For how long</Label>
             <Select value={durIdx} onValueChange={setDurIdx}><SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
