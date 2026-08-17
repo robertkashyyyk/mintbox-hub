@@ -70,20 +70,33 @@ function targetForState(state: string): number | null {
   if (s === "CRITICAL") return 1;
   return null;                                    // unknown state → ignore row
 }
-function parseXlsx(bytes: Uint8Array): { part: string; target: number }[] {
+const _norm = (s: unknown) => String(s ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+const _isPartHdr = (h: string) => h === "partnumber" || /^part\s*(number|no|nr|nummer)?$/.test(h);
+const _isStockHdr = (h: string) => (h.includes("stock") && (h.includes("avail") || h.includes("status"))) || h === "availability";
+function sheetGrids(bytes: Uint8Array): { name: string; rows: unknown[][] }[] {
   const wb = XLSX.read(bytes, { type: "array" });
-  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(wb.Sheets[wb.SheetNames[0]], { defval: "" });
-  const keyOf = (row: Record<string, unknown>, want: string) =>
-    Object.keys(row).find((k) => k.trim().toLowerCase() === want);
-  const out: { part: string; target: number }[] = [];
-  for (const row of rows) {
-    const pk = keyOf(row, "partnumber"); const sk = keyOf(row, "stock availability");
-    if (!pk || !sk) continue;
-    const part = String(row[pk] ?? "").trim(); if (!part) continue;
-    const t = targetForState(String(row[sk] ?? "")); if (t === null) continue;
-    out.push({ part, target: t });
+  return wb.SheetNames.map((name) => ({ name, rows: XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[name], { header: 1, defval: "" }) }));
+}
+// Robust: scan every sheet, locate the header row (may sit under a title row) by
+// finding a part-number column + a stock-availability column with tolerant matching.
+function parseXlsx(bytes: Uint8Array): { part: string; target: number }[] {
+  for (const { rows } of sheetGrids(bytes)) {
+    for (let r = 0; r < Math.min(rows.length, 20); r++) {
+      const cells = (rows[r] ?? []).map(_norm);
+      const pIdx = cells.findIndex(_isPartHdr);
+      const sIdx = cells.findIndex(_isStockHdr);
+      if (pIdx >= 0 && sIdx >= 0) {
+        const out: { part: string; target: number }[] = [];
+        for (let i = r + 1; i < rows.length; i++) {
+          const part = String((rows[i] ?? [])[pIdx] ?? "").trim();
+          const t = targetForState(String((rows[i] ?? [])[sIdx] ?? ""));
+          if (part && t !== null) out.push({ part, target: t });
+        }
+        return out;
+      }
+    }
   }
-  return out;
+  return [];
 }
 const resolveSku = (part: string) => `KKH-${part.replace(/-/g, "")}`;
 
@@ -116,6 +129,8 @@ Deno.serve(async (req) => {
   const startedAt = new Date();
   try {
     if (req.method === "OPTIONS") return new Response("ok");
+    let body: any = {};
+    try { body = await req.json(); } catch { /* no body — scheduled fire */ }
     const supabase = createClient(env("SUPABASE_URL")!, env("SUPABASE_SERVICE_ROLE_KEY")!);
     const setting = async (k: string, dflt: unknown) => {
       const { data } = await supabase.from("app_settings").select("value").eq("key", k).maybeSingle();
@@ -150,6 +165,12 @@ Deno.serve(async (req) => {
     const part = findXlsxPart(msg.payload);
     if (!part) throw new Error(`message ${msgId} has no .xlsx attachment`);
     const att = await gapi(tok, `messages/${msgId}/attachments/${part.attachmentId}`);
+    if (body?.debug) {
+      const grids = sheetGrids(b64urlToBytes(att.data));
+      return new Response(JSON.stringify({ debug: true, filename: part.filename,
+        sheets: grids.map((g) => ({ name: g.name, rowCount: g.rows.length, first6: g.rows.slice(0, 6) })) }, null, 2),
+        { headers: { "Content-Type": "application/json" } });
+    }
     const feedRows = parseXlsx(b64urlToBytes(att.data));
     if (feedRows.length < 1000) throw new Error(`parsed only ${feedRows.length} rows from ${part.filename} — suspicious, aborting`);
 
