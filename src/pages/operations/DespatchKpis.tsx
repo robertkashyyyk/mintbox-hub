@@ -22,7 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Link as LinkIcon, Truck, Activity, TrendingUp, TrendingDown, AlertTriangle, ExternalLink, Package } from "lucide-react";
+import { Link as LinkIcon, Truck, Activity, TrendingUp, TrendingDown, AlertTriangle, ExternalLink, Package, Download } from "lucide-react";
 import ModuleHeader from "@/components/ModuleHeader";
 import { PageLoader } from "@/components/ui/PageLoader";
 import {
@@ -303,6 +303,17 @@ function LateSkusTab() {
     },
   });
 
+  function downloadCsv() {
+    const header = ["SKU", "Product", "Brand", "LateOrders", "AvgHours", "WorstHours"];
+    const esc = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const body = data.map(r => [r.sku, r.product_name ?? "", r.brand_name ?? "", r.late_orders, r.avg_hours, r.worst_hours].map(esc).join(","));
+    const blob = new Blob([[header.join(","), ...body].join("\n")], { type: "text/csv" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `late-skus-over${sla}h-${days}d-${fmtDate(new Date())}.csv`;
+    a.click();
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -327,6 +338,9 @@ function LateSkusTab() {
               <SelectItem value="90">Last 90 days</SelectItem>
             </SelectContent>
           </Select>
+          <Button variant="outline" size="sm" onClick={downloadCsv} disabled={isLoading || data.length === 0}>
+            <Download className="h-4 w-4 mr-2" />Download
+          </Button>
         </div>
       </div>
 
