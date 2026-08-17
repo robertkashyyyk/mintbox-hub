@@ -95,6 +95,14 @@ const TIER_CELL: Record<Tier, string> = {
 const TIER_LABEL: Record<Tier, string> = {
   great: "Great", good: "Good", target: "On track", warn: "Needs work", critical: "Critical!", none: "—",
 };
+// Hex equivalents for SVG (TIER_CELL is Tailwind classes).
+const TIER_HEX: Record<Tier, string> = {
+  great: "#10b981", good: "#22d3ee", target: "#eab308", warn: "#f59e0b", critical: "#ef4444", none: "#94a3b8",
+};
+// Direction colours for a week-over-week LDR segment (lower LDR = better).
+const DIR_IMPROVE = "#10b981"; // fell → green
+const DIR_WORSEN = "#ef4444";  // rose → red
+const DIR_FLAT = "#94a3b8";    // unchanged → grey
 
 function TierCell({ value, tier, suffix = "%" }: { value: number | null; tier: Tier; suffix?: string }) {
   if (value == null) return <span className="text-muted-foreground">—</span>;
@@ -809,6 +817,42 @@ function linReg(points: { x: number; y: number | null }[]) {
   return { slope, intercept };
 }
 
+// Segment-coloured LDR sparkline: each week-to-week segment is green (LDR fell /
+// improved), red (rose / regressed) or grey (flat); dots are tier-coloured; the
+// eBay 3% limit is a dashed reference line.
+function LdrSparkline({ points }: { points: { label: string; value: number | null }[] }) {
+  const W = 300, H = 76, padX = 10, padTop = 10, padBot = 16;
+  const nums = points.map(p => p.value).filter((v): v is number => v != null);
+  const maxV = Math.max(4, ...nums) * 1.08; // headroom above the 3% line / peak
+  const n = points.length;
+  const x = (i: number) => padX + (n <= 1 ? 0 : (i * (W - 2 * padX)) / (n - 1));
+  const y = (v: number) => padTop + (1 - v / maxV) * (H - padTop - padBot);
+  const pts = points
+    .map((p, i) => (p.value != null ? { i, v: p.value, x: x(i), y: y(p.value) } : null))
+    .filter((p): p is { i: number; v: number; x: number; y: number } => p != null);
+  const segs = pts.slice(1).map((b, k) => {
+    const a = pts[k];
+    const col = b.v < a.v - 1e-6 ? DIR_IMPROVE : b.v > a.v + 1e-6 ? DIR_WORSEN : DIR_FLAT;
+    return { a, b, col };
+  });
+  const thrY = y(3);
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-[76px]" preserveAspectRatio="none">
+      {thrY > padTop && thrY < H - padBot && (
+        <>
+          <line x1={padX} x2={W - padX} y1={thrY} y2={thrY} stroke={DIR_WORSEN} strokeOpacity={0.45} strokeDasharray="4 3" strokeWidth={1} />
+          <text x={W - padX} y={thrY - 3} textAnchor="end" fontSize={9} fill={DIR_WORSEN} fillOpacity={0.8}>3% limit</text>
+        </>
+      )}
+      {pts.length === 0 && <text x={W / 2} y={H / 2} textAnchor="middle" fontSize={10} fill="#94a3b8">no data</text>}
+      {segs.map((s, idx) => (
+        <line key={idx} x1={s.a.x} y1={s.a.y} x2={s.b.x} y2={s.b.y} stroke={s.col} strokeWidth={2.5} strokeLinecap="round" />
+      ))}
+      {pts.map((p, idx) => <circle key={idx} cx={p.x} cy={p.y} r={2.6} fill={TIER_HEX[ldrTier(p.v)]} />)}
+    </svg>
+  );
+}
+
 function GraphsTab() {
   const [metric, setMetric] = useState<"tdr" | "ldr">("tdr");
 
@@ -922,6 +966,33 @@ function GraphsTab() {
     return base;
   }, [rt]);
 
+  // ── Per-account LDR% weekly series (last 16 weeks) for the segment-coloured view ──
+  const ldrByAccount = useMemo(() => {
+    const weekKeys: { key: string; year: number; week: number }[] = [];
+    const seen = new Set<string>();
+    for (const r of odr) {
+      const key = `${r.year}-W${String(r.week_number).padStart(2, "0")}`;
+      if (!seen.has(key)) { seen.add(key); weekKeys.push({ key, year: r.year, week: r.week_number }); }
+    }
+    const recentWeeks = weekKeys.slice(-16); // odr is ordered ascending
+    return accounts.map(a => {
+      const points = recentWeeks.map(wk => {
+        const m = odr.find(r => r.year === wk.year && r.week_number === wk.week && r.ebay_accounts?.code === a.code);
+        return { label: wk.key.replace(/^\d+-/, ""), value: m?.ldr_pct != null ? Number(m.ldr_pct) : null };
+      });
+      const nn = points.filter(p => p.value != null) as { label: string; value: number }[];
+      const latest = nn.length ? nn[nn.length - 1].value : null;
+      const prev = nn.length > 1 ? nn[nn.length - 2].value : null;
+      const delta = latest != null && prev != null ? Number((latest - prev).toFixed(2)) : null;
+      const first = points.find(p => p.value != null)?.label ?? "";
+      const last = nn.length ? nn[nn.length - 1].label : "";
+      return { code: a.code, points, latest, delta, first, last };
+    });
+  }, [odr, accounts]);
+
+  const ldrImproving = ldrByAccount.filter(a => a.delta != null && a.delta < 0).length;
+  const ldrWorsening = ldrByAccount.filter(a => a.delta != null && a.delta > 0).length;
+
   const threshold = metric === "tdr" ? 0.5 : 3;
   const colorFor = (code: string, i: number) => ACCOUNT_COLORS[code] ?? FALLBACK_COLORS[i % FALLBACK_COLORS.length];
 
@@ -929,6 +1000,59 @@ function GraphsTab() {
 
   return (
     <div className="space-y-6">
+      {/* LDR% weekly progression — segment-coloured, per account */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <TrendingUp className="h-5 w-5 text-pd-accent" />
+                LDR% — weekly progression by account
+              </CardTitle>
+              <CardDescription>
+                Line colour = week-on-week direction: <span className="text-emerald-400 font-medium">green improved</span> (LDR fell) ·
+                <span className="text-red-400 font-medium"> red regressed</span> (LDR rose). Dot colour = tier. Dashed = 3% eBay limit.
+              </CardDescription>
+            </div>
+            {(ldrImproving > 0 || ldrWorsening > 0) && (
+              <div className="text-xs flex items-center gap-3">
+                <span className="text-emerald-400">▼ {ldrImproving} improving</span>
+                <span className="text-red-400">▲ {ldrWorsening} worsening</span>
+              </div>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {ldrByAccount.every(a => a.latest == null) ? (
+            <p className="text-center text-muted-foreground py-12">No LDR data yet — enter weekly ODR data.</p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {ldrByAccount.map(a => (
+                <div key={a.code} className="rounded-lg border border-border/60 p-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-mono font-bold text-sm">{a.code}</span>
+                    <div className="flex items-center gap-2">
+                      {a.latest != null && (
+                        <span className={`text-xs px-1.5 py-0.5 rounded ${TIER_CELL[ldrTier(a.latest)]}`}>{a.latest}%</span>
+                      )}
+                      {a.delta != null && a.delta !== 0 && (
+                        <span className={`text-[11px] inline-flex items-center gap-0.5 ${a.delta < 0 ? "text-emerald-400" : "text-red-400"}`}>
+                          {a.delta < 0 ? "▼" : "▲"}{Math.abs(a.delta).toFixed(2)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <LdrSparkline points={a.points} />
+                  <div className="flex justify-between text-[10px] text-muted-foreground mt-0.5">
+                    <span>{a.first}</span><span>{a.last}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* ODR trend */}
       <Card>
         <CardHeader>
