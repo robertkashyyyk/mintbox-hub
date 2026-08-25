@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,9 +10,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { TrendingUp, ChevronLeft, ChevronRight, AlertTriangle, RefreshCw, ArrowUp, ArrowDown, ArrowUpDown, LineChart as LineChartIcon, CheckCircle2, Clock } from "lucide-react";
+import { TrendingUp, ChevronLeft, ChevronRight, AlertTriangle, ArrowUp, ArrowDown, ArrowUpDown, CheckCircle2, Clock } from "lucide-react";
 import ModuleHeader from "@/components/ModuleHeader";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
 import OrderLineDetailSheet, { type SelectedLine } from "@/components/intelligence/OrderLineDetailSheet";
 
@@ -85,9 +85,6 @@ function classifyBand(
   if (por <= t.amazing_max) return "amazing";
   return "stellar";
 }
-// Hazard-tape style for unknown: diagonal yellow/black stripes via inline gradient (semantic warning + foreground tokens)
-const HAZARD_STRIPES =
-  "[background-image:repeating-linear-gradient(45deg,hsl(var(--warning))_0_10px,hsl(var(--background))_10px_20px)]";
 const BAND_BADGE: Record<ProfitBand, { label: string; className: string }> = {
   clearance: { label: "clearance", className: "border-foreground/30 bg-muted/60 text-foreground/80 font-medium" },
   unknown:   { label: "⚠ unknown", className: "border-warning/80 bg-warning/20 text-warning font-semibold" },
@@ -106,9 +103,11 @@ const ProfitDashboard = () => {
   const initial = isoWeekOf(today);
   const [{ year, week }, setWeek] = useState(initial);
   const [refetchKey, setRefetchKey] = useState(0);
-  // Tabs: the heavy per-line pull only runs on the "Order lines" tab (see `enabled` below),
-  // so the landing Overview isn't blocked by the ~5s order_economics_all scan.
+  // Tabs: the heavy per-line pull is load-on-demand (see `enabled` below), so neither the
+  // landing Overview nor opening the Order lines tab auto-fires the ~5s order_economics_all scan.
   const [tab, setTab] = useState<"overview" | "lines" | "history">("overview");
+  const [loadLines, setLoadLines] = useState(false); // user must click "Load" (or a band) to pull lines
+  const navigate = useNavigate();
 
   const weekKey = `${year}-W${String(week).padStart(2, "0")}`;
 
@@ -201,9 +200,13 @@ const ProfitDashboard = () => {
         por_pct: r.por_pct_incl_postage ?? r.por_pct,
       }));
     },
-    // Defer this ~5s all-lines scan until the user opens the Order lines tab.
-    enabled: tab === "lines",
+    // Load-on-demand: only pull once the user clicks "Load" (or a segmentation band).
+    enabled: loadLines,
   });
+
+  // Changing week clears the loaded lines so the heavy scan never re-fires silently —
+  // the user re-clicks Load for the new week.
+  useEffect(() => { setLoadLines(false); }, [year, week]);
 
   // Reprice recency per (sku, channel) — drives the "Repriced" column icon.
   // NOTE: repricing only runs on eBay (the 3D Sellers pipeline), so other channels
@@ -375,6 +378,27 @@ const ProfitDashboard = () => {
   const safePage = Math.min(page, totalPages);
   const pagedLines = filteredLines.slice((safePage - 1) * pageSize, safePage * pageSize);
 
+  // Export the currently-filtered lines (not just the visible page) to CSV.
+  const downloadCsv = () => {
+    const rows = filteredLines as any[];
+    const headers = ["order_id","sku","product","channel","qty","price","order_value","cost_each","courier_cost","channel_fee","profit","por_pct","band","order_date"];
+    const esc = (v: any) => { const s = v == null ? "" : String(v); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+    const out = [headers.join(",")];
+    for (const r of rows) {
+      const band = classifyBand(r.profit, r.order_value, r.cost_each) ?? "";
+      out.push([
+        r.mintsoft_order_id, r.sku, r.product_name, r.channel, r.qty, r.price, r.order_value,
+        r.cost_each, r.courier_cost, r.channel_fee, r.profit,
+        r.por_pct != null ? (Number(r.por_pct) * 100).toFixed(1) : "", band, r.order_date,
+      ].map(esc).join(","));
+    }
+    const blob = new Blob([out.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `profit-lines-${weekKey}.csv`; a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const toggleSort = (key: string) => {
     if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc");
     else { setSortKey(key); setSortDir("asc"); }
@@ -383,19 +407,6 @@ const ProfitDashboard = () => {
 
 
   const isThisWeek = useMemo(() => year === initial.year && week === initial.week, [year, week, initial]);
-
-  const handleBackfill = async () => {
-    toast({ title: "Backfill started", description: "Fetching the most recent 4 weeks of order economics from Mintsoft." });
-    const { data, error } = await supabase.functions.invoke("backfill-order-economics", {
-      body: { weeks: 4 },
-    });
-    if (error) {
-      toast({ title: "Backfill failed", description: String(error.message ?? error), variant: "destructive" });
-      return;
-    }
-    toast({ title: "Backfill chunk done", description: `Updated ${data?.updated ?? 0} order lines.` });
-    setRefetchKey((k) => k + 1);
-  };
 
   return (
     <div className="space-y-6">
@@ -406,16 +417,6 @@ const ProfitDashboard = () => {
           icon={TrendingUp}
         />
         <div className="flex-shrink-0 pt-1 flex items-center gap-2">
-          <Button asChild variant="outline" size="sm">
-            <Link to="/intelligence/profit/graphs">
-              <LineChartIcon className="h-4 w-4 mr-2" />
-              Graphs
-            </Link>
-          </Button>
-          <Button variant="outline" size="sm" onClick={handleBackfill}>
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Backfill 4 weeks
-          </Button>
           <Button asChild variant="outline" size="sm">
             <Link to="/admin/profit-rules">Edit rules</Link>
           </Button>
@@ -453,17 +454,21 @@ const ProfitDashboard = () => {
         </CardContent>
       </Card>
 
-      <Tabs value={tab} onValueChange={(v) => setTab(v as "overview" | "lines" | "history")} className="space-y-6">
+      <Tabs value={tab} onValueChange={(v) => { if (v === "graphs") { navigate("/intelligence/profit/graphs"); return; } setTab(v as "overview" | "lines" | "history"); }} className="space-y-4">
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="lines">Order lines</TabsTrigger>
           <TabsTrigger value="history">History</TabsTrigger>
+          <TabsTrigger value="graphs">Graphs</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="overview" className="space-y-6 mt-4">
+        <TabsContent value="overview" className="mt-4">
+          <div className="grid lg:grid-cols-3 gap-4 items-start">
+            {/* Left: KPIs + summaries */}
+            <div className="lg:col-span-2 space-y-4">
 
       {/* KPI grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <KpiCard label="Revenue (ex VAT)" value={fmtGBP(kpis?.revenue)} loading={kpisLoading} />
         <KpiCard label="Profit" value={fmtGBP(kpis?.profit)} loading={kpisLoading}
           accent={kpis?.profit != null && Number(kpis.profit) < 0 ? "destructive" : "good"} />
@@ -588,9 +593,12 @@ const ProfitDashboard = () => {
         />
       </div>
 
+            </div>
+            {/* Right: profitability segmentation (click a band → Order lines tab) */}
+            <div className="lg:col-span-1">
       {/* Loss / Profit segmentation */}
       <Card>
-        <CardHeader>
+        <CardHeader className="pb-2">
           <CardTitle className="text-base flex items-center justify-between gap-2 flex-wrap">
             <span>Profitability segmentation (per line, by POR %)</span>
             {bandFilter !== "all" && (
@@ -605,12 +613,12 @@ const ProfitDashboard = () => {
         </CardHeader>
         <CardContent>
           {bandsLoading ? (
-            <div className="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-9 gap-2">
+            <div className="grid grid-cols-1 gap-1.5">
               {[...Array(9)].map((_, i) => <Skeleton key={i} className="h-20 w-full" />)}
             </div>
           ) : (
             <div className="space-y-2">
-            <div className="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-9 gap-2">
+            <div className="grid grid-cols-1 gap-1.5">
              {(["unknown","loss","breakeven","poor","average","good","great","amazing","stellar"] as const).map((b) => {
                 // The breakdown is the single source for every bucket (clearance,
                 // unknown, loss..stellar), so the denominator is just their sum.
@@ -620,7 +628,7 @@ const ProfitDashboard = () => {
                 const profitTotal: number | null = b === "unknown" ? null : (row?.profit_total ?? 0);
                 const pctOfLines = denominator > 0 ? (lineCount / denominator) * 100 : 0;
                 const meta: Record<string, { label: string; tone: string }> = {
-                  unknown:   { label: "Unknown",   tone: `border-warning/70 ${HAZARD_STRIPES}` },
+                  unknown:   { label: "Unknown",   tone: "border-warning/70 bg-warning/15" },
                   loss:      { label: "Loss",      tone: "border-band-loss/60 bg-band-loss/15" },
                   breakeven: { label: "Breakeven", tone: "border-band-breakeven/60 bg-band-breakeven/15" },
                   poor:      { label: "Poor",      tone: "border-band-poor/60 bg-band-poor/15" },
@@ -637,16 +645,17 @@ const ProfitDashboard = () => {
                   <button
                     key={b}
                     type="button"
-                    onClick={() => { setBandFilter(isActive ? "all" : b); setPage(1); }}
-                    className={`text-left rounded-md border-2 p-2 transition hover:brightness-125 focus:outline-none focus:ring-2 focus:ring-pd-accent ${m.tone} ${isActive ? "ring-2 ring-pd-accent" : ""}`}
+                    onClick={() => { setBandFilter(isActive ? "all" : b); setPage(1); setTab("lines"); setLoadLines(true); }}
+                    title="Click to view these lines in the Order lines tab"
+                    className={`text-left rounded-md border-2 px-2.5 py-1.5 transition hover:brightness-125 focus:outline-none focus:ring-2 focus:ring-pd-accent ${m.tone} ${isActive ? "ring-2 ring-pd-accent" : ""}`}
                   >
-                    <div className={`text-xs uppercase tracking-wide ${isUnknown ? "text-warning font-bold bg-background/80 px-1 rounded inline-block" : "text-foreground/60"}`}>
-                      {isUnknown ? "⚠ " : ""}{m.label}
+                    <div className="flex items-center justify-between gap-2">
+                      <span className={`text-xs uppercase tracking-wide font-medium ${isUnknown ? "text-warning" : "text-foreground/70"}`}>{isUnknown ? "⚠ " : ""}{m.label}</span>
+                      <span className="text-base font-bold text-foreground">{fmtNum(lineCount)}</span>
                     </div>
-                    <div className={`text-lg font-bold mt-0.5 ${isUnknown ? "text-foreground bg-background/80 px-1 rounded inline-block" : "text-foreground"}`}>{fmtNum(lineCount)}</div>
-                    <div className={`text-xs mt-0.5 ${isUnknown ? "text-foreground bg-background/80 px-1 rounded inline-block" : "text-foreground/70"}`}>{pctOfLines.toFixed(1)}% of lines</div>
-                    <div className={`text-xs font-mono mt-1 ${isUnknown ? "text-foreground bg-background/80 px-1 rounded inline-block" : "text-foreground/80"}`}>
-                      {isUnknown ? "no cost data" : fmtGBP(profitTotal ?? 0)}
+                    <div className="flex items-center justify-between gap-2 text-xs mt-0.5 text-foreground/70">
+                      <span>{pctOfLines.toFixed(1)}% of lines</span>
+                      <span className="font-mono">{isUnknown ? "no cost" : fmtGBP(profitTotal ?? 0)}</span>
                     </div>
                   </button>
                 );
@@ -663,7 +672,7 @@ const ProfitDashboard = () => {
               const isActive = bandFilter === "clearance";
               return (
                 <button type="button"
-                  onClick={() => { setBandFilter(isActive ? "all" : "clearance"); setPage(1); }}
+                  onClick={() => { setBandFilter(isActive ? "all" : "clearance"); setPage(1); setTab("lines"); setLoadLines(true); }}
                   className={`w-full text-left rounded-md border-2 border-foreground/25 bg-muted/50 p-2 transition hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-pd-accent ${isActive ? "ring-2 ring-pd-accent" : ""}`}>
                   <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
                     <span className="text-xs uppercase tracking-wide text-foreground/70 font-medium">Clearance</span>
@@ -680,6 +689,8 @@ const ProfitDashboard = () => {
           )}
         </CardContent>
       </Card>
+            </div>
+          </div>
 
         </TabsContent>
 
@@ -762,12 +773,20 @@ const ProfitDashboard = () => {
                 {[25, 50, 100, 200, 500].map((n) => <SelectItem key={n} value={String(n)}>{n} / page</SelectItem>)}
               </SelectContent>
             </Select>
-            <div className="text-xs text-foreground/60 ml-auto">
-              {fmtNum(totalRows)} lines • Page {safePage} of {totalPages}
+            <div className="ml-auto flex items-center gap-2">
+              {loadLines && (
+                <Button variant="outline" size="sm" onClick={downloadCsv} disabled={totalRows === 0}>Download CSV</Button>
+              )}
+              <span className="text-xs text-foreground/60">{fmtNum(totalRows)} lines • Page {safePage} of {totalPages}</span>
             </div>
           </div>
 
-          {linesLoading ? (
+          {!loadLines ? (
+            <div className="py-10 text-center space-y-3">
+              <p className="text-sm text-foreground/60">Set your filters above, then load this week's order lines. This pull is heavy (a few seconds), so it only runs when you ask.</p>
+              <Button onClick={() => setLoadLines(true)}>Load order lines for {weekKey}</Button>
+            </div>
+          ) : linesLoading ? (
             <PageLoader rows={8} columns={[100, 130, 90, 60, 60, 70, 70, 70, 70, 80, 60, 80]} label="Loading order lines" />
           ) : totalRows === 0 ? (
             <div className="text-sm text-foreground/60 py-6 text-center">
@@ -963,7 +982,7 @@ const ProfitDashboard = () => {
 
 const KpiCard = ({ label, value, loading, accent, sub }: { label: string; value: string; loading?: boolean; accent?: "good" | "destructive"; sub?: string }) => (
   <Card>
-    <CardContent className="p-4">
+    <CardContent className="p-3">
       <div className="text-xs uppercase tracking-wide text-foreground/60">{label}</div>
       {loading ? (
         <Skeleton className="h-7 w-24 mt-2" />
@@ -983,7 +1002,7 @@ const FlagCard = ({ label, value, accent, loading, link }: { label: string; valu
   const color = accent === "destructive" ? "text-destructive" : accent === "warning" ? "text-warning" : "text-pd-accent";
   return (
     <Card>
-      <CardContent className="p-4 flex items-center justify-between">
+      <CardContent className="p-3 flex items-center justify-between">
         <div>
           <div className="text-xs uppercase tracking-wide text-foreground/60">{label}</div>
           {loading ? <Skeleton className="h-7 w-16 mt-2" /> : <div className={`text-2xl font-bold mt-1 ${color}`}>{value}</div>}
