@@ -565,7 +565,7 @@ const Brands = () => {
 
       {/* Add Brand Dialog */}
       <Dialog open={isAddingBrand} onOpenChange={setIsAddingBrand}>
-        <DialogContent>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Add New Brand</DialogTitle>
             <DialogDescription>
@@ -573,6 +573,7 @@ const Brands = () => {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
             <div className="space-y-2">
               <Label htmlFor="add-name">Brand Name *</Label>
               <Input
@@ -658,6 +659,7 @@ const Brands = () => {
                 }
               />
             </div>
+            </div>
             <div className="flex items-center justify-between rounded-md border border-border p-3">
               <div>
                 <Label className="text-sm font-medium">PartsDoc Own Brand</Label>
@@ -687,7 +689,7 @@ const Brands = () => {
 
       {/* Edit Brand Dialog */}
       <Dialog open={!!editingBrand} onOpenChange={() => setEditingBrand(null)}>
-        <DialogContent>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Brand</DialogTitle>
             <DialogDescription>
@@ -695,6 +697,7 @@ const Brands = () => {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
             <div className="space-y-2">
               <Label htmlFor="name">Brand Name</Label>
               <Input
@@ -800,7 +803,9 @@ const Brands = () => {
                 The rotator runs every 15 minutes and refreshes brands whose data is older than this interval.
               </p>
             </div>
+            </div>
 
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
             <div className="flex items-center justify-between rounded-md border border-border p-3">
               <div>
                 <Label className="text-sm font-medium">PartsDoc Own Brand</Label>
@@ -868,6 +873,7 @@ const Brands = () => {
                     : <><Zap className="h-4 w-4 mr-2" />Run Auto LSA Update Now</>}
                 </Button>
               )}
+            </div>
             </div>
 
             <div className="rounded-md border border-border p-3 space-y-3">
