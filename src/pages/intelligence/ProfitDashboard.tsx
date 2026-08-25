@@ -9,6 +9,7 @@ import { PageLoader } from "@/components/ui/PageLoader";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TrendingUp, ChevronLeft, ChevronRight, AlertTriangle, RefreshCw, ArrowUp, ArrowDown, ArrowUpDown, LineChart as LineChartIcon, CheckCircle2, Clock } from "lucide-react";
 import ModuleHeader from "@/components/ModuleHeader";
 import { Link } from "react-router-dom";
@@ -105,6 +106,9 @@ const ProfitDashboard = () => {
   const initial = isoWeekOf(today);
   const [{ year, week }, setWeek] = useState(initial);
   const [refetchKey, setRefetchKey] = useState(0);
+  // Tabs: the heavy per-line pull only runs on the "Order lines" tab (see `enabled` below),
+  // so the landing Overview isn't blocked by the ~5s order_economics_all scan.
+  const [tab, setTab] = useState<"overview" | "lines" | "history">("overview");
 
   const weekKey = `${year}-W${String(week).padStart(2, "0")}`;
 
@@ -197,6 +201,8 @@ const ProfitDashboard = () => {
         por_pct: r.por_pct_incl_postage ?? r.por_pct,
       }));
     },
+    // Defer this ~5s all-lines scan until the user opens the Order lines tab.
+    enabled: tab === "lines",
   });
 
   // Reprice recency per (sku, channel) — drives the "Repriced" column icon.
@@ -447,6 +453,15 @@ const ProfitDashboard = () => {
         </CardContent>
       </Card>
 
+      <Tabs value={tab} onValueChange={(v) => setTab(v as "overview" | "lines" | "history")} className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="lines">Order lines</TabsTrigger>
+          <TabsTrigger value="history">History</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="overview" className="space-y-6 mt-4">
+
       {/* KPI grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard label="Revenue (ex VAT)" value={fmtGBP(kpis?.revenue)} loading={kpisLoading} />
@@ -513,36 +528,7 @@ const ProfitDashboard = () => {
         </Card>
       )}
 
-      {/* Per-channel comparison — click a channel to filter the table below */}
-      {byChannel.length > 1 && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">By channel</CardTitle>
-            <CardDescription>Revenue, net profit, POR and fee load per channel this week. Click a channel to filter the lines below.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-              {byChannel.map((c) => {
-                const active = channelFilter === c.channel;
-                return (
-                  <button
-                    key={c.channel}
-                    onClick={() => setChannelFilter(active ? "all" : c.channel)}
-                    className={`text-left rounded-lg border p-3 transition ${active ? "border-primary ring-1 ring-primary bg-primary/5" : "hover:bg-muted/50"}`}
-                  >
-                    <div className="text-xs font-medium truncate" title={c.channel}>{c.channel}</div>
-                    <div className="text-lg font-bold">{fmtGBP(c.rev)}</div>
-                    <div className={`text-sm ${c.profit < 0 ? "text-destructive" : "text-success"}`}>{fmtGBP(c.profit)} net</div>
-                    <div className="text-xs text-muted-foreground">
-                      {c.por != null ? c.por.toFixed(1) : "—"}% POR · {c.feeLoad != null ? c.feeLoad.toFixed(0) : "—"}% fees · {fmtNum(c.units)}u
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* Per-channel comparison lives in the Order lines tab (it is derived from the deferred lines pull). */}
 
       {/* All sales recognised — including deliberate loss-makers (clearance) */}
       <Card className="border-pd-accent/20 bg-pd-accent/5">
@@ -694,6 +680,40 @@ const ProfitDashboard = () => {
           )}
         </CardContent>
       </Card>
+
+        </TabsContent>
+
+        <TabsContent value="lines" className="space-y-6 mt-4">
+      {/* Per-channel comparison — click a channel to filter the table below */}
+      {byChannel.length > 1 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">By channel</CardTitle>
+            <CardDescription>Revenue, net profit, POR and fee load per channel this week. Click a channel to filter the lines below.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+              {byChannel.map((c) => {
+                const active = channelFilter === c.channel;
+                return (
+                  <button
+                    key={c.channel}
+                    onClick={() => setChannelFilter(active ? "all" : c.channel)}
+                    className={`text-left rounded-lg border p-3 transition ${active ? "border-primary ring-1 ring-primary bg-primary/5" : "hover:bg-muted/50"}`}
+                  >
+                    <div className="text-xs font-medium truncate" title={c.channel}>{c.channel}</div>
+                    <div className="text-lg font-bold">{fmtGBP(c.rev)}</div>
+                    <div className={`text-sm ${c.profit < 0 ? "text-destructive" : "text-success"}`}>{fmtGBP(c.profit)} net</div>
+                    <div className="text-xs text-muted-foreground">
+                      {c.por != null ? c.por.toFixed(1) : "—"}% POR · {c.feeLoad != null ? c.feeLoad.toFixed(0) : "—"}% fees · {fmtNum(c.units)}u
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Order lines — {weekKey}</CardTitle>
@@ -867,6 +887,9 @@ const ProfitDashboard = () => {
       </Card>
 
 
+        </TabsContent>
+
+        <TabsContent value="history" className="space-y-6 mt-4">
       {/* Snapshot history */}
       <Card>
         <CardHeader>
@@ -925,6 +948,9 @@ const ProfitDashboard = () => {
           )}
         </CardContent>
       </Card>
+
+        </TabsContent>
+      </Tabs>
 
       <OrderLineDetailSheet
         line={selectedLine}
