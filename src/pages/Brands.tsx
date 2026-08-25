@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useState } from "react";
-import { Pencil, Trash2, Plus, Loader2, Zap, Tag } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Pencil, Trash2, Plus, Loader2, Zap, Tag, Send, CalendarClock } from "lucide-react";
 import ModuleHeader from "@/components/ModuleHeader";
 import {
   Table,
@@ -53,6 +53,44 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { logActivity, LOG_ACTIONS } from "@/lib/activityLog";
 
+// ---- Order-reminder schedule helpers -------------------------------------
+// day_of_week uses JS/Postgres getDay()/extract(dow): 0=Sun .. 6=Sat.
+const DOW = [
+  { v: 1, label: "Monday" }, { v: 2, label: "Tuesday" }, { v: 3, label: "Wednesday" },
+  { v: 4, label: "Thursday" }, { v: 5, label: "Friday" }, { v: 6, label: "Saturday" }, { v: 0, label: "Sunday" },
+];
+const CADENCE_EVERY: Record<string, string> = { weekly: "week", fortnightly: "2 weeks", monthly: "month", quarterly: "quarter" };
+type Cadence = "weekly" | "fortnightly" | "monthly" | "quarterly";
+
+const clampDom = (y: number, m: number, dom: number) => {
+  const last = new Date(y, m + 1, 0).getDate();
+  return new Date(y, m, Math.min(Math.max(dom, 1), last));
+};
+const nextDow = (from: Date, dow: number) => {
+  const d = new Date(from);
+  let add = ((dow - d.getDay()) % 7 + 7) % 7;
+  if (add === 0) add = 7;
+  d.setDate(d.getDate() + add);
+  return d;
+};
+const nextDom = (from: Date, dom: number) => {
+  const y = from.getFullYear(), m = from.getMonth();
+  const t = clampDom(y, m, dom);
+  return t > from ? t : clampDom(y, m + 1, dom);
+};
+// First upcoming due date for a schedule — mirrors public.seed_order_due().
+const computeNextDue = (cadence: Cadence, dow: number, dom: number) => {
+  const from = new Date(); from.setHours(0, 0, 0, 0);
+  return cadence === "weekly" || cadence === "fortnightly" ? nextDow(from, dow) : nextDom(from, dom);
+};
+const toISODate = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const fmtDue = (iso: string | null) => {
+  if (!iso) return "—";
+  try { return new Date(iso + "T00:00:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" }); }
+  catch { return iso; }
+};
+
 const Brands = () => {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -82,6 +120,14 @@ const Brands = () => {
     is_own_brand: false,
   });
 
+  const [scheduleForm, setScheduleForm] = useState({
+    enabled: false,
+    cadence: "weekly" as Cadence,
+    day_of_week: 1,
+    day_of_month: 1,
+  });
+  const [sendingTestBrandId, setSendingTestBrandId] = useState<string | null>(null);
+
   const { data: brands, isLoading } = useQuery({
     queryKey: ["brands-with-count"],
     queryFn: async () => {
@@ -90,6 +136,22 @@ const Brands = () => {
       return data as any[];
     },
   });
+
+  const { data: schedules } = useQuery({
+    queryKey: ["brand-order-schedules"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("brand_order_schedule")
+        .select("brand_id, cadence, day_of_week, day_of_month, next_due_date, enabled, last_sent_at");
+      if (error) throw error;
+      return data as any[];
+    },
+  });
+  const scheduleMap = useMemo(() => {
+    const m = new Map<string, any>();
+    (schedules ?? []).forEach((s) => m.set(s.brand_id, s));
+    return m;
+  }, [schedules]);
 
   const createBrandMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -190,8 +252,65 @@ const Brands = () => {
     },
   });
 
+  const saveScheduleMutation = useMutation({
+    mutationFn: async (payload: { brand_id: string }) => {
+      const existing = scheduleMap.get(payload.brand_id);
+      // Nothing to persist if there was never a schedule and the user left it off.
+      if (!scheduleForm.enabled && !existing) return;
+      const isWeekly = scheduleForm.cadence === "weekly" || scheduleForm.cadence === "fortnightly";
+      const next_due_date = toISODate(
+        computeNextDue(scheduleForm.cadence, scheduleForm.day_of_week, scheduleForm.day_of_month),
+      );
+      const row = {
+        brand_id: payload.brand_id,
+        cadence: scheduleForm.cadence,
+        day_of_week: isWeekly ? scheduleForm.day_of_week : null,
+        day_of_month: isWeekly ? null : scheduleForm.day_of_month,
+        next_due_date,
+        enabled: scheduleForm.enabled,
+        updated_at: new Date().toISOString(),
+      };
+      const { error } = await (supabase as any)
+        .from("brand_order_schedule")
+        .upsert(row, { onConflict: "brand_id" });
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["brand-order-schedules"] }),
+    onError: (error: any) =>
+      toast({ title: "Schedule not saved", description: error.message, variant: "destructive" }),
+  });
+
+  const sendScheduleTest = async (brandId: string) => {
+    setSendingTestBrandId(brandId);
+    const { data, error } = await supabase.functions.invoke("brand-order-due-email", {
+      body: { test: true, brand_id: brandId },
+    });
+    setSendingTestBrandId(null);
+    if (error) {
+      toast({ title: "Test failed", description: error.message, variant: "destructive" });
+      return;
+    }
+    const r = (data as any)?.results?.[0];
+    toast(
+      r
+        ? { title: `Test sent — ${r.rows} SKU${r.rows === 1 ? "" : "s"}`, description: `${r.brand}: ${r.total_units} units. Sent to you only.` }
+        : { title: "Save the schedule first", description: "There's no saved schedule for this brand yet — hit Save Changes, then send a test." },
+    );
+  };
+
   const handleEdit = (brand: any) => {
     setEditingBrand(brand);
+    const sched = scheduleMap.get(brand.id);
+    setScheduleForm(
+      sched
+        ? {
+            enabled: !!sched.enabled,
+            cadence: (sched.cadence ?? "weekly") as Cadence,
+            day_of_week: sched.day_of_week ?? 1,
+            day_of_month: sched.day_of_month ?? 1,
+          }
+        : { enabled: false, cadence: "weekly", day_of_week: 1, day_of_month: 1 },
+    );
     setEditFormData({
       name: brand.name || "",
       prefix: brand.prefix || "",
@@ -231,11 +350,13 @@ const Brands = () => {
       is_own_brand: editFormData.is_own_brand,
     };
     
+    const brandId = editingBrand.id;
     updateBrandMutation.mutate({
-      id: editingBrand.id,
+      id: brandId,
       updates,
       prevAutoLsa: !!editingBrand.auto_update_lsa,
     });
+    saveScheduleMutation.mutate({ brand_id: brandId });
   };
 
   const handleDelete = () => {
@@ -298,7 +419,7 @@ const Brands = () => {
           {isLoading ? (
             <PageLoader
               rows={10}
-              columns={[180, 80, 100, 120, 80, 120, 80, 80, 80, 100]}
+              columns={[180, 80, 100, 120, 80, 120, 80, 80, 140, 80, 100, 80]}
               label="Loading brands"
             />
           ) : (
@@ -313,6 +434,7 @@ const Brands = () => {
                   <TableHead>Base Multiplier</TableHead>
                   <TableHead>Auto LSA</TableHead>
                   <TableHead>Stock Sync</TableHead>
+                  <TableHead>Order Reminder</TableHead>
                   <TableHead>Applied</TableHead>
                   <TableHead className="text-right">Product Count</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -360,6 +482,20 @@ const Brands = () => {
                       <span className="text-xs text-muted-foreground">
                         every {brand.stock_sync_interval_hours ?? 24}h
                       </span>
+                    </TableCell>
+                    <TableCell>
+                      {(() => {
+                        const s = scheduleMap.get(brand.id);
+                        if (!s || !s.enabled) return <span className="text-muted-foreground text-xs">—</span>;
+                        return (
+                          <div className="flex items-center gap-1.5">
+                            <Badge variant="outline" className="capitalize">{s.cadence}</Badge>
+                            <span className="text-xs text-muted-foreground whitespace-nowrap">
+                              next {fmtDue(s.next_due_date)}
+                            </span>
+                          </div>
+                        );
+                      })()}
                     </TableCell>
                     <TableCell>
                       <TooltipProvider>
@@ -731,6 +867,105 @@ const Brands = () => {
                     ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Running…</>
                     : <><Zap className="h-4 w-4 mr-2" />Run Auto LSA Update Now</>}
                 </Button>
+              )}
+            </div>
+
+            <div className="rounded-md border border-border p-3 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="text-sm font-medium flex items-center gap-1.5">
+                    <CalendarClock className="h-4 w-4" /> Order Reminder
+                  </Label>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Email Steven &amp; Clive this brand's current buy list on a recurring schedule.
+                  </p>
+                </div>
+                <Switch
+                  checked={scheduleForm.enabled}
+                  onCheckedChange={(v) => setScheduleForm({ ...scheduleForm, enabled: v })}
+                />
+              </div>
+
+              {scheduleForm.enabled && (
+                <>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Cadence</Label>
+                      <Select
+                        value={scheduleForm.cadence}
+                        onValueChange={(v: Cadence) => setScheduleForm({ ...scheduleForm, cadence: v })}
+                      >
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="weekly">Weekly</SelectItem>
+                          <SelectItem value="fortnightly">Fortnightly</SelectItem>
+                          <SelectItem value="monthly">Monthly</SelectItem>
+                          <SelectItem value="quarterly">Quarterly</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      {scheduleForm.cadence === "weekly" || scheduleForm.cadence === "fortnightly" ? (
+                        <>
+                          <Label className="text-xs">Day of week</Label>
+                          <Select
+                            value={String(scheduleForm.day_of_week)}
+                            onValueChange={(v) => setScheduleForm({ ...scheduleForm, day_of_week: Number(v) })}
+                          >
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              {DOW.map((d) => (
+                                <SelectItem key={d.v} value={String(d.v)}>{d.label}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </>
+                      ) : (
+                        <>
+                          <Label className="text-xs">Day of month</Label>
+                          <Select
+                            value={String(scheduleForm.day_of_month)}
+                            onValueChange={(v) => setScheduleForm({ ...scheduleForm, day_of_month: Number(v) })}
+                          >
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent className="max-h-64">
+                              {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
+                                <SelectItem key={d} value={String(d)}>{d}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-muted-foreground">
+                    Next due:{" "}
+                    <strong>
+                      {fmtDue(toISODate(computeNextDue(scheduleForm.cadence, scheduleForm.day_of_week, scheduleForm.day_of_month)))}
+                    </strong>
+                    , then every {CADENCE_EVERY[scheduleForm.cadence]}. Sends ~8am to steven@ &amp; clive@.
+                    {(scheduleForm.cadence === "monthly" || scheduleForm.cadence === "quarterly") && scheduleForm.day_of_month > 28
+                      ? " In shorter months this falls to the last day."
+                      : ""}
+                  </p>
+
+                  {editingBrand && scheduleMap.get(editingBrand.id) ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={sendingTestBrandId === editingBrand.id}
+                      onClick={() => sendScheduleTest(editingBrand.id)}
+                    >
+                      {sendingTestBrandId === editingBrand.id
+                        ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Sending…</>
+                        : <><Send className="h-4 w-4 mr-2" />Send test to me</>}
+                    </Button>
+                  ) : (
+                    <p className="text-xs text-muted-foreground italic">Save changes first to enable a test send.</p>
+                  )}
+                </>
               )}
             </div>
           </div>
