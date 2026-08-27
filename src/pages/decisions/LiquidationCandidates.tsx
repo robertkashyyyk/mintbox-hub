@@ -82,6 +82,19 @@ async function pushPerStore(rows: { store_id: string; listing_sku: string; price
   return { pushed, failed };
 }
 
+// Revert ONE campaign: push the original prices back to each store, restore the
+// Amazon floor, and mark it reverted. Shared by the single-row and bulk actions.
+async function revertCampaign(campaignId: string): Promise<{ pushed: number; failed: number; amzRestored: number }> {
+  const { data: listings } = await (supabase as any).from("price_campaign_listings").select("listing_sku, store_id, original_price").eq("campaign_id", campaignId);
+  const rows = (listings ?? []).filter((l: any) => l.store_id && l.original_price != null).map((l: any) => ({ store_id: l.store_id, listing_sku: l.listing_sku, price: Number(l.original_price) }));
+  let res = { pushed: 0, failed: 0 };
+  if (rows.length) res = await pushPerStore(rows);
+  const amz = await revertAmazonClearance([campaignId]);
+  await (supabase as any).from("price_campaigns").update({ status: "reverted", outcome: "reverted", reverted_at: new Date().toISOString(), end_date: new Date().toISOString().slice(0, 10) }).eq("id", campaignId);
+  await (supabase as any).from("price_campaign_listings").update({ reverted_at: new Date().toISOString() }).eq("campaign_id", campaignId);
+  return { ...res, amzRestored: amz.restored };
+}
+
 // Shared: create a campaign + listing snapshots, clear stale pending, push.
 // `type` distinguishes a time-boxed Sale (restored at end_date via the review
 // loop) from a clear-and-forget Liquidation. saleWeeks sets the Sale's end_date.
@@ -287,16 +300,7 @@ export default function LiquidationCandidates() {
   };
 
   const revertMutation = useMutation({
-    mutationFn: async (campaign: Campaign) => {
-      const { data: listings } = await (supabase as any).from("price_campaign_listings").select("listing_sku, store_id, original_price").eq("campaign_id", campaign.id);
-      const rows = (listings ?? []).filter((l: any) => l.store_id && l.original_price != null).map((l: any) => ({ store_id: l.store_id, listing_sku: l.listing_sku, price: Number(l.original_price) }));
-      let res = { pushed: 0, failed: 0 };
-      if (rows.length) res = await pushPerStore(rows);
-      const amz = await revertAmazonClearance([campaign.id]);
-      await (supabase as any).from("price_campaigns").update({ status: "reverted", outcome: "reverted", reverted_at: new Date().toISOString(), end_date: new Date().toISOString().slice(0, 10) }).eq("id", campaign.id);
-      await (supabase as any).from("price_campaign_listings").update({ reverted_at: new Date().toISOString() }).eq("campaign_id", campaign.id);
-      return { ...res, amzRestored: amz.restored };
-    },
+    mutationFn: async (campaign: Campaign) => revertCampaign(campaign.id),
     onSuccess: (res) => { toast.success(`Reverted — ${res.pushed} eBay price(s) pushed back${res.amzRestored ? `, ${res.amzRestored} Amazon floor(s) restored` : ""}${res.failed ? `, ${res.failed} failed` : ""}`); invalidate(); },
     onError: (e: any) => toast.error(e.message),
   });
@@ -373,8 +377,8 @@ export default function LiquidationCandidates() {
         ))}
       </div>
 
-      {view === "onsale" && <ActiveCampaignsTable kind="sale" perf={perf} onEnd={(id) => endMutation.mutate(id)} onRevert={(c) => revertMutation.mutate(c)} reverting={revertMutation.isPending} />}
-      {view === "liquidation" && <ActiveCampaignsTable kind="liquidation" perf={perf} onEnd={(id) => endMutation.mutate(id)} onRevert={(c) => revertMutation.mutate(c)} reverting={revertMutation.isPending} />}
+      {view === "onsale" && <ActiveCampaignsTable kind="sale" perf={perf} onEnd={(id) => endMutation.mutate(id)} onRevert={(c) => revertMutation.mutate(c)} reverting={revertMutation.isPending} onChanged={invalidate} />}
+      {view === "liquidation" && <ActiveCampaignsTable kind="liquidation" perf={perf} onEnd={(id) => endMutation.mutate(id)} onRevert={(c) => revertMutation.mutate(c)} reverting={revertMutation.isPending} onChanged={invalidate} />}
       {view === "brands" && <BrandsTab maxVelocity={maxVelocity} minCapital={minCapital} setMaxVelocity={setMaxVelocity} setMinCapital={setMinCapital} />}
       {view === "graphs" && <GraphsTab />}
 
@@ -765,9 +769,9 @@ const STATUS_META: Record<CampPerf["status_flag"], { label: string; cls: string;
   stalled: { label: "Stalled", cls: "bg-red-500/15 text-red-400 border-red-500/30",           Icon: PauseCircle },
 };
 
-function ActiveCampaignsTable({ kind, perf, onEnd, onRevert, reverting }: {
+function ActiveCampaignsTable({ kind, perf, onEnd, onRevert, reverting, onChanged }: {
   kind: "sale" | "liquidation"; perf: ClearancePerf | null;
-  onEnd: (id: string) => void; onRevert: (c: Campaign) => void; reverting: boolean;
+  onEnd: (id: string) => void; onRevert: (c: Campaign) => void; reverting: boolean; onChanged: () => void;
 }) {
   const [brand, setBrand] = useState("all");
   const [statusF, setStatusF] = useState<"all" | CampPerf["status_flag"]>("all");
@@ -775,6 +779,9 @@ function ActiveCampaignsTable({ kind, perf, onEnd, onRevert, reverting }: {
   const [sortKey, setSortKey] = useState<PerfSortKey>("units_since");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [page, setPage] = useState(1);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [confirm, setConfirm] = useState<"end" | "revert" | null>(null);
+  const [bulk, setBulk] = useState<{ done: number; total: number; failed: number } | null>(null);
   const PAGE = 50;
   const gbp = (n: number) => `£${Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
   const isSale = kind === "sale";
@@ -794,7 +801,7 @@ function ActiveCampaignsTable({ kind, perf, onEnd, onRevert, reverting }: {
   );
 
   const toggleSort = (k: PerfSortKey) => { if (sortKey === k) setSortDir(d => d === "asc" ? "desc" : "asc"); else { setSortKey(k); setSortDir("desc"); } };
-  useEffect(() => { setPage(1); }, [brand, statusF, q, sortKey, sortDir, kind]);
+  useEffect(() => { setPage(1); setSelected(new Set()); }, [brand, statusF, q, sortKey, sortDir, kind]);
 
   const filtered = useMemo(() => {
     let r = rows;
@@ -828,6 +835,39 @@ function ActiveCampaignsTable({ kind, perf, onEnd, onRevert, reverting }: {
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE));
   const pageRows = filtered.slice((page - 1) * PAGE, page * PAGE);
+
+  // Selection spans the whole FILTERED set (not just the visible page), so a
+  // filter → "select all" → bulk action hits everything that matched.
+  const selectedRows = useMemo(() => filtered.filter(r => selected.has(r.id)), [filtered, selected]);
+  const allFilteredSelected = filtered.length > 0 && filtered.every(r => selected.has(r.id));
+  const toggleAll = (v: boolean) => setSelected(v ? new Set(filtered.map(r => r.id)) : new Set());
+  const toggleOne = (id: string, v: boolean) => setSelected(prev => { const n = new Set(prev); v ? n.add(id) : n.delete(id); return n; });
+
+  async function runBulk(action: "end" | "revert") {
+    const ids = selectedRows.map(r => r.id);
+    setConfirm(null);
+    if (ids.length === 0) return;
+    if (action === "end") {
+      setBulk({ done: 0, total: ids.length, failed: 0 });
+      const { error } = await (supabase as any).from("price_campaigns")
+        .update({ status: "ended", end_date: new Date().toISOString().slice(0, 10) }).in("id", ids);
+      setBulk(null);
+      if (error) { toast.error(error.message); return; }
+      toast.success(`Ended ${ids.length} campaign${ids.length === 1 ? "" : "s"} — prices kept`);
+      setSelected(new Set()); onChanged();
+      return;
+    }
+    // Revert: each campaign restores its own per-store prices, so loop (with progress).
+    let pushed = 0, failed = 0;
+    for (let i = 0; i < ids.length; i++) {
+      try { const r = await revertCampaign(ids[i]); pushed += r.pushed; failed += r.failed; }
+      catch { failed++; }
+      setBulk({ done: i + 1, total: ids.length, failed });
+    }
+    setBulk(null);
+    toast.success(`Reverted ${ids.length} — ${pushed} price(s) pushed back${failed ? `, ${failed} failed` : ""}`);
+    setSelected(new Set()); onChanged();
+  }
 
   const StatusChip = ({ f }: { f: CampPerf["status_flag"] }) => {
     const m = STATUS_META[f]; const Icon = m.Icon;
@@ -887,6 +927,13 @@ function ActiveCampaignsTable({ kind, perf, onEnd, onRevert, reverting }: {
             {(brand !== "all" || statusF !== "all" || q) && (
               <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => { setBrand("all"); setStatusF("all"); setQ(""); }}>Clear</Button>
             )}
+            {selected.size > 0 && (
+              <div className="ml-auto flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">{selected.size} selected</span>
+                <Button size="sm" variant="outline" className="h-8 text-xs" disabled={!!bulk} onClick={() => setConfirm("end")}><CheckCircle2 className="h-3.5 w-3.5 mr-1" />End {selected.size}</Button>
+                <Button size="sm" variant="outline" className="h-8 text-xs text-amber-400 border-amber-500/30 hover:bg-amber-500/10" disabled={!!bulk} onClick={() => setConfirm("revert")}><RotateCcw className="h-3.5 w-3.5 mr-1" />Revert {selected.size}</Button>
+              </div>
+            )}
           </div>
         </CardHeader>
         <CardContent className="p-0">
@@ -896,6 +943,7 @@ function ActiveCampaignsTable({ kind, perf, onEnd, onRevert, reverting }: {
             <Table containerClassName="max-h-[calc(100vh-360px)]">
               <TableHeader className="sticky top-0 z-10 bg-background shadow-[0_1px_0_0_hsl(var(--border))]">
                 <TableRow>
+                  <TableHead className="w-8"><Checkbox checked={allFilteredSelected} onCheckedChange={(v) => toggleAll(!!v)} title="Select all in view" /></TableHead>
                   <TableHead>SKU</TableHead>
                   <TableHead>Product</TableHead>
                   <TableHead>Brand</TableHead>
@@ -912,12 +960,13 @@ function ActiveCampaignsTable({ kind, perf, onEnd, onRevert, reverting }: {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtered.length === 0 && <TableRow><TableCell colSpan={13} className="text-center text-muted-foreground py-8">No campaigns match this filter.</TableCell></TableRow>}
+                {filtered.length === 0 && <TableRow><TableCell colSpan={14} className="text-center text-muted-foreground py-8">No campaigns match this filter.</TableCell></TableRow>}
                 {pageRows.map(c => {
                   const contribNeg = Number(c.contribution_since) < 0;
                   const st = c.sell_through_pct == null ? 0 : Number(c.sell_through_pct);
                   return (
-                    <TableRow key={c.id}>
+                    <TableRow key={c.id} data-state={selected.has(c.id) ? "selected" : undefined}>
+                      <TableCell><Checkbox checked={selected.has(c.id)} onCheckedChange={(v) => toggleOne(c.id, !!v)} /></TableCell>
                       <TableCell><Link to={`/discovery/products?search=${encodeURIComponent(c.sku)}`} className="font-mono text-xs text-pd-accent hover:underline whitespace-nowrap">{c.sku}</Link></TableCell>
                       <TableCell className="text-sm max-w-[180px] truncate" title={c.product_name ?? undefined}>{c.product_name ?? "—"}</TableCell>
                       <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{c.brand_name ?? "—"}</TableCell>
@@ -959,6 +1008,41 @@ function ActiveCampaignsTable({ kind, perf, onEnd, onRevert, reverting }: {
           )}
         </CardContent>
       </Card>
+
+      {/* Bulk End / Revert confirm + progress */}
+      <Dialog open={!!confirm} onOpenChange={(o) => { if (!o && !bulk) setConfirm(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{confirm === "revert" ? "Revert" : "End"} {selectedRows.length} campaign{selectedRows.length === 1 ? "" : "s"}?</DialogTitle>
+            <DialogDescription>
+              {confirm === "revert"
+                ? "Pushes each SKU's original pre-sale price back to every store and restores the Amazon floor. This is a live channel action."
+                : "Keeps the current sale price and hands each item back to the repricer. No prices change now."}
+            </DialogDescription>
+          </DialogHeader>
+          {bulk
+            ? <div className="py-2 text-sm text-muted-foreground flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />{confirm === "revert" ? "Reverting" : "Ending"} {bulk.done}/{bulk.total}{bulk.failed ? ` · ${bulk.failed} failed` : ""}…</div>
+            : (
+              <div className="rounded-lg bg-muted/30 border border-border/50 p-3 text-xs space-y-1 max-h-40 overflow-y-auto">
+                {selectedRows.slice(0, 30).map(r => (
+                  <div key={r.id} className="flex justify-between gap-2"><span className="font-mono">{r.sku}</span><span className="text-muted-foreground truncate">{r.product_name ?? ""}</span></div>
+                ))}
+                {selectedRows.length > 30 && <div className="text-muted-foreground">+ {selectedRows.length - 30} more…</div>}
+              </div>
+            )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirm(null)} disabled={!!bulk}>Cancel</Button>
+            <Button
+              disabled={!!bulk || selectedRows.length === 0}
+              className={confirm === "revert" ? "bg-amber-500 hover:bg-amber-600 text-white" : ""}
+              onClick={() => confirm && runBulk(confirm)}
+            >
+              {bulk ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : confirm === "revert" ? <RotateCcw className="h-4 w-4 mr-2" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
+              {confirm === "revert" ? "Revert" : "End"} {selectedRows.length}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
