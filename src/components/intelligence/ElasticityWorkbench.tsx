@@ -560,9 +560,9 @@ function TestsTab() {
       <CardHeader>
         <CardTitle className="text-base">Live elasticity tests</CardTitle>
         <CardDescription>
-          Combined weekly units (atom-equivalent — a −Q04 sale counts as 4) &amp; profit across all eBay stores and the whole
+          Combined weekly units (atom-equivalent — a −Q04 sale counts as 4) &amp; contribution across all eBay stores and the whole
           family since each test went live. Measurement starts the first full week; ⚠ holds off until 2 weeks.
-          <strong> Profit /wk</strong> is the verdict. Revert queues the atom’s old price back to every store.
+          <strong> Contribution /wk</strong> is the verdict. Revert queues the atom’s old price back to every store.
         </CardDescription>
       </CardHeader>
       <CardContent className="overflow-x-auto">
@@ -577,7 +577,7 @@ function TestsTab() {
                 <TableHead className="text-right">Atom baseline → test</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Units /wk</TableHead>
-                <TableHead className="text-right">Profit /wk</TableHead>
+                <TableHead className="text-right">Contribution /wk</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>

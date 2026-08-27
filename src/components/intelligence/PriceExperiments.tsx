@@ -89,7 +89,7 @@ export function PriceExperiments() {
         <CardDescription>
           Deliberate price changes and their weekly result since. Baseline = the price before the move — the number to
           revert to. Measurement starts the first full week at the new price (dead weeks count as zero); the ⚠ flag holds
-          off until there are 2 full weeks. <strong>Profit /wk</strong> is the real verdict — a rise wins if profit holds
+          off until there are 2 full weeks. <strong>Contribution /wk</strong> is the real verdict — a rise wins if contribution holds
           even on fewer units.
         </CardDescription>
       </CardHeader>
@@ -109,7 +109,7 @@ export function PriceExperiments() {
                 <TableHead className="text-right">Baseline → New</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Sales /wk</TableHead>
-                <TableHead className="text-right">Profit /wk</TableHead>
+                <TableHead className="text-right">Contribution /wk</TableHead>
                 <TableHead>Weeks @ new price</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>

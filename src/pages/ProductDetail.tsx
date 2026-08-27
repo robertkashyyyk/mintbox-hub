@@ -336,7 +336,7 @@ export default function ProductDetail() {
     };
     return (
       <div className="flex justify-between items-center gap-2">
-        <span className="text-muted-foreground text-sm" title="Pushes to Mintsoft + the Hub and marks it manual. Order profit recomputes on the next economics refresh.">Cost Price</span>
+        <span className="text-muted-foreground text-sm" title="Pushes to Mintsoft + the Hub and marks it manual. Order contribution recomputes on the next economics refresh.">Cost Price</span>
         <div className="flex items-center gap-1">
           <span className="text-xs text-muted-foreground">£</span>
           <Input type="number" min={0} step="0.01" value={val} onChange={(e) => setVal(e.target.value)}

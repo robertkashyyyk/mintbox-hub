@@ -131,7 +131,7 @@ export default function OrderLineDetailSheet({
           <SummaryStat label="Lines" value={String(orderLines?.length ?? 0)} />
           <SummaryStat label="Order value (net)" value={money(orderTotal)} />
           <SummaryStat
-            label="Order profit"
+            label="Order contribution"
             value={money(orderProfit)}
             className={orderProfit < 0 ? "text-destructive" : ""}
           />
@@ -153,7 +153,7 @@ export default function OrderLineDetailSheet({
                     <TableHead className="text-right">Cost</TableHead>
                     <TableHead className="text-right">Courier</TableHead>
                     <TableHead className="text-right">Fee</TableHead>
-                    <TableHead className="text-right">Profit</TableHead>
+                    <TableHead className="text-right">Contribution</TableHead>
                     <TableHead className="text-right">POR</TableHead>
                     <TableHead>Flags</TableHead>
                   </TableRow>

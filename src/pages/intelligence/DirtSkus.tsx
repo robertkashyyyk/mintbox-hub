@@ -160,7 +160,7 @@ const DirtSkus = () => {
     <div className="space-y-6">
       <ModuleHeader
         title="Dirt SKUs"
-        description="SKUs that don't match a known brand prefix style. These slip past brand-routing rules and skew profit/ownership reports."
+        description="SKUs that don't match a known brand prefix style. These slip past brand-routing rules and skew contribution/ownership reports."
         icon={AlertTriangle}
       />
 
@@ -217,7 +217,7 @@ const DirtSkus = () => {
                     <SortHead k="lines" numeric>Lines</SortHead>
                     <SortHead k="qty" numeric>Qty</SortHead>
                     <SortHead k="revenue" numeric>Revenue</SortHead>
-                    <SortHead k="profit" numeric>Profit</SortHead>
+                    <SortHead k="profit" numeric>Contribution</SortHead>
                     <SortHead k="last_seen">Last seen</SortHead>
                     <TableHead></TableHead>
                     <TableHead></TableHead>

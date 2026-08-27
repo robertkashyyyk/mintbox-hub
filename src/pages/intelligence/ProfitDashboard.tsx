@@ -412,7 +412,7 @@ const ProfitDashboard = () => {
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
         <ModuleHeader
-          title="Profit Intelligence"
+          title="Contribution Intelligence"
           description="Weekly revenue, costs, channel fees, courier spend and POR — calculated from live order lines."
           icon={TrendingUp}
         />
@@ -470,9 +470,9 @@ const ProfitDashboard = () => {
       {/* KPI grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <KpiCard label="Revenue (ex VAT)" value={fmtGBP(kpis?.revenue)} loading={kpisLoading} />
-        <KpiCard label="Profit" value={fmtGBP(kpis?.profit)} loading={kpisLoading}
+        <KpiCard label="Contribution" value={fmtGBP(kpis?.profit)} loading={kpisLoading}
           accent={kpis?.profit != null && Number(kpis.profit) < 0 ? "destructive" : "good"} />
-        <KpiCard label="POR (profit / GMV inc VAT)" value={fmtPct(kpis?.por_pct)} loading={kpisLoading}
+        <KpiCard label="POR (contribution / GMV inc VAT)" value={fmtPct(kpis?.por_pct)} loading={kpisLoading}
           sub={kpis?.por_pct != null ? `GM ${fmtPct(Number(kpis.por_pct) * 1.2)} (profit / ex-VAT)` : undefined} />
         <KpiCard label="Orders" value={fmtNum(kpis?.order_count)} loading={kpisLoading} />
         <KpiCard label="Cost of goods" value={fmtGBP(kpis?.cost_total)} loading={kpisLoading} />
@@ -552,7 +552,7 @@ const ProfitDashboard = () => {
               <div className="text-lg font-bold">{fmtGBP(kpis?.revenue != null ? Number(kpis.revenue) * 1.2 : undefined)}</div>
             </div>
             <div>
-              <div className="text-xs text-muted-foreground">Net profit (all-in)</div>
+              <div className="text-xs text-muted-foreground">Contribution (all-in)</div>
               <div className={`text-lg font-bold ${kpis?.profit != null && Number(kpis.profit) < 0 ? "text-destructive" : "text-success"}`}>{fmtGBP(kpis?.profit)}</div>
             </div>
             <div>
@@ -569,7 +569,7 @@ const ProfitDashboard = () => {
             </div>
           </div>
           <p className="text-xs text-muted-foreground mt-3">
-"Loss-making lines" shows <strong>all / to review</strong>: the first is every line under £0; the second strips out deliberate clearance, missing-cost (unknown) and tiny ±1% lines — the actionable "loss" band. "Loss absorbed" is the combined negative profit on all loss-making lines this week. Revenue and orders from these are fully counted above.
+"Loss-making lines" shows <strong>all / to review</strong>: the first is every line under £0; the second strips out deliberate clearance, missing-cost (unknown) and tiny ±1% lines — the actionable "loss" band. "Loss absorbed" is the combined negative contribution on all loss-making lines this week. Revenue and orders from these are fully counted above.
           </p>
         </CardContent>
       </Card>
@@ -600,7 +600,7 @@ const ProfitDashboard = () => {
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-base flex items-center justify-between gap-2 flex-wrap">
-            <span>Profitability segmentation (per line, by POR %)</span>
+            <span>Contribution segmentation (per line, by POR %)</span>
             {bandFilter !== "all" && (
               <Button variant="ghost" size="sm" onClick={() => { setBandFilter("all"); setPage(1); }}>
                 Clear band filter ({bandFilter})
@@ -608,7 +608,7 @@ const ProfitDashboard = () => {
             )}
           </CardTitle>
           <CardDescription>
-            Order lines bucketed by their POR % (profit ÷ GMV inc VAT). Click a card to filter the table below. Thresholds editable in <Link to="/admin/profit-rules" className="underline text-pd-accent">Profit Rules</Link>.
+            Order lines bucketed by their POR % (contribution ÷ GMV inc VAT). Click a card to filter the table below. Thresholds editable in <Link to="/admin/profit-rules" className="underline text-pd-accent">Contribution Rules</Link>.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -700,7 +700,7 @@ const ProfitDashboard = () => {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base">By channel</CardTitle>
-            <CardDescription>Revenue, net profit, POR and fee load per channel this week. Click a channel to filter the lines below.</CardDescription>
+            <CardDescription>Revenue, contribution, POR and fee load per channel this week. Click a channel to filter the lines below.</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
@@ -759,7 +759,7 @@ const ProfitDashboard = () => {
               </SelectContent>
             </Select>
             <Select value={bandFilter} onValueChange={(v) => { setBandFilter(v); setPage(1); }}>
-              <SelectTrigger className="w-[180px]"><SelectValue placeholder="Profit segment" /></SelectTrigger>
+              <SelectTrigger className="w-[180px]"><SelectValue placeholder="Contribution segment" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All segments</SelectItem>
                 {(["clearance","unknown","loss","breakeven","poor","average","good","great","amazing","stellar"] as const).map((b) => (
@@ -808,7 +808,7 @@ const ProfitDashboard = () => {
                       <SortableHead label="Courier" col="courier_cost" align="right" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
                       <SortableHead label="Fee" col="channel_fee" align="right" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
                       <SortableHead label="Postage" col="postage_paid" align="right" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
-                      <SortableHead label="Profit" col="profit" align="right" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
+                      <SortableHead label="Contribution" col="profit" align="right" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
                       <SortableHead label="POR" col="por_pct" align="right" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
                       <TableHead>Flags</TableHead>
                     </TableRow>
@@ -933,7 +933,7 @@ const ProfitDashboard = () => {
                     <TableHead>Week</TableHead>
                     <TableHead>Range</TableHead>
                     <TableHead className="text-right">Revenue</TableHead>
-                    <TableHead className="text-right">Profit</TableHead>
+                    <TableHead className="text-right">Contribution</TableHead>
                     <TableHead className="text-right">POR</TableHead>
                     <TableHead className="text-right">Orders</TableHead>
                     <TableHead className="text-right">Missing cost</TableHead>

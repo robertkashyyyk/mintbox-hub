@@ -712,7 +712,7 @@ const BuyRecommendations = () => {
               variant="outlineDark"
               size="sm"
               onClick={() => setRaiseOpen(true)}
-              title="Reprice each to a target profit tier (evening eBay push), reset LSA to 2, and set a minimal re-order qty — so the item proves itself at the right price"
+              title="Reprice each to a target contribution tier (evening eBay push), reset LSA to 2, and set a minimal re-order qty — so the item proves itself at the right price"
             >
               <TrendingUp className="h-4 w-4 mr-2" />
               Raise &amp; re-order ({selectionSummary.count})
@@ -835,7 +835,7 @@ const BuyRecommendations = () => {
                     <SortTH label="SKU" k="sku" sortKey={sortKey} sortDir={sortDir} onSort={(k) => toggleSort(k as any)} />
                     <SortTH label="Product" k="product" sortKey={sortKey} sortDir={sortDir} onSort={(k) => toggleSort(k as any)} />
                     <SortTH label="Brand" k="brand" sortKey={sortKey} sortDir={sortDir} onSort={(k) => toggleSort(k as any)} />
-                    <SortTH label="Margin" k="tier" sortKey={sortKey} sortDir={sortDir} onSort={(k) => toggleSort(k as any)} title="Last-known profit tier — blended POR over recent costed sales, all channels" />
+                    <SortTH label="Margin" k="tier" sortKey={sortKey} sortDir={sortDir} onSort={(k) => toggleSort(k as any)} title="Last-known contribution tier — blended POR over recent costed sales, all channels" />
                     <SortTH label="Status" k="status" sortKey={sortKey} sortDir={sortDir} onSort={(k) => toggleSort(k as any)} />
                     <SortTH label="Stock" k="stock" sortKey={sortKey} sortDir={sortDir} onSort={(k) => toggleSort(k as any)} align="right" />
                     <SortTH label="LSA" k="lsa" sortKey={sortKey} sortDir={sortDir} onSort={(k) => toggleSort(k as any)} align="right" />

@@ -75,7 +75,7 @@ function RepricingPayoff() {
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Value created</CardTitle></CardHeader>
           <CardContent><div className="text-2xl font-bold text-pd-accent">{gbp(t.value)}</div>
-            <div className="text-xs text-muted-foreground">profit now vs no repricer (same period)</div></CardContent>
+            <div className="text-xs text-muted-foreground">contribution now vs no repricer (same period)</div></CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Since prices went live</CardTitle></CardHeader>
@@ -144,7 +144,7 @@ function RepricingPayoff() {
           <Table>
             <TableHeader><TableRow>
               <TableHead>Account</TableHead>
-              <TableHead className="text-right">Sold (u)</TableHead><TableHead className="text-right">Profit now</TableHead>
+              <TableHead className="text-right">Sold (u)</TableHead><TableHead className="text-right">Contribution now</TableHead>
               <TableHead className="text-right">Usual (u)</TableHead><TableHead className="text-right">Would've made</TableHead>
               <TableHead className="text-right">Value</TableHead>
             </TableRow></TableHeader>
@@ -173,7 +173,7 @@ function RepricingPayoff() {
       </Card>
 
       <p className="text-[11px] text-muted-foreground">
-        <strong>Value created</strong> = profit on the sales we actually made since each item's price went live, minus what those products
+        <strong>Value created</strong> = contribution on the sales we actually made since each item's price went live, minus what those products
         would have done at their old prices over the same period — using each item's <em>usual</em> pre-reprice sales rate (so an item that
         sold at a loss and now sells less still counts the avoided loss). Real eBay fee + buyer postage per sale; courier est. {gbp(data.assumptions.courier_per_unit)}/unit.
         ⚠️ Early days: a few days of actual sales vs a {data.assumptions.baseline_days}-day rate is noisy and tends to <em>overstate</em> — it
@@ -343,7 +343,7 @@ function TopSellers() {
             <Chips s={summary.aws} />
           </div>
           <div className="flex gap-2 items-center flex-wrap">
-            <span className="text-muted-foreground w-12 shrink-0">Profit</span>
+            <span className="text-muted-foreground w-12 shrink-0">Contribution</span>
             <Chips s={summary.profit} />
           </div>
         </div>
@@ -360,9 +360,9 @@ function TopSellers() {
           </Card>
           <Card>
             <CardContent className="pt-4">
-              <div className="text-xs text-muted-foreground">Top 100 share of profit</div>
+              <div className="text-xs text-muted-foreground">Top 100 share of contribution</div>
               <div className="text-2xl font-bold">{pct(conc.top_profit, conc.total_profit)}%</div>
-              <div className="text-xs text-muted-foreground">{gbp(conc.top_profit)} of {gbp(conc.total_profit)} profit this month</div>
+              <div className="text-xs text-muted-foreground">{gbp(conc.top_profit)} of {gbp(conc.total_profit)} contribution this month</div>
             </CardContent>
           </Card>
         </div>
@@ -371,8 +371,8 @@ function TopSellers() {
       <p className="text-[11px] text-muted-foreground">
         Top 100 SKUs by units for the month, all channels, on corrected economics. <strong>AWS</strong> = average weekly sales
         (units ÷ weeks elapsed). <strong>Cover</strong> = weeks of stock at that rate (red under 2 weeks). YoY lights up once we have a prior year.
-        The two cards show how much of the month's total <em>units</em> and <em>profit</em> these 100 SKUs represent — units concentration is
-        typically far higher than profit, since the top sellers are high-volume, low-margin lines.
+        The two cards show how much of the month's total <em>units</em> and <em>contribution</em> these 100 SKUs represent — units concentration is
+        typically far higher than contribution, since the top sellers are high-volume, low-margin lines.
       </p>
 
       <Card>
@@ -386,13 +386,13 @@ function TopSellers() {
                 <SortHead col="aws" label="AWS" align="right" />
                 <SortHead col="units_pct" label="AWS %" align="right" />
                 <SortHead col="delta" label="vs last mo" align="right" />
-                <SortHead col="profit" label="Profit" align="right" />
-                <SortHead col="profit_pct" label="Profit %" align="right" />
+                <SortHead col="profit" label="Contribution" align="right" />
+                <SortHead col="profit_pct" label="Contribution %" align="right" />
                 <SortHead col="pdelta" label="vs last mo" align="right" />
                 <SortHead col="stock" label="Stock" align="right" />
                 <SortHead col="cover" label="Cover" align="right" />
                 <SortHead col="status" label="AWS status" />
-                <SortHead col="pstatus" label="Profit status" />
+                <SortHead col="pstatus" label="Contribution status" />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -530,7 +530,7 @@ function FloorWatch() {
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Actually bled — Amazon net-loss listings (56d)</CardTitle>
-          <p className="text-xs text-muted-foreground">Realised profit from the finance data, pack-aware. Ranked by £ lost.</p>
+          <p className="text-xs text-muted-foreground">Realised contribution from the finance data, pack-aware. Ranked by £ lost.</p>
         </CardHeader>
         <CardContent className="overflow-x-auto">
           <Table>
@@ -610,7 +610,7 @@ export default function StandingReports() {
       <Tabs defaultValue="payoff" className="w-full">
         <TabsList>
           <TabsTrigger value="payoff">Repricing Payoff</TabsTrigger>
-          <TabsTrigger value="b">80:20 Profit</TabsTrigger>
+          <TabsTrigger value="b">80:20 Contribution</TabsTrigger>
           <TabsTrigger value="c">Clearance</TabsTrigger>
           <TabsTrigger value="top">Top Sellers</TabsTrigger>
           <TabsTrigger value="floor">Floor Watch</TabsTrigger>

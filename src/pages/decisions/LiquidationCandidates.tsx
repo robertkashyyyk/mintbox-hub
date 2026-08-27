@@ -748,7 +748,7 @@ function ActiveCampaignsTable({ kind, campaigns, perf, onEnd, onRevert, revertin
       <Stat label="Capital on sale" value={gbp(perf.on_sale_capital)} className="text-pd-accent" icon={PoundSterling} />
       <Stat label="Units sold (since launch)" value={String(perf.on_sale_units)} icon={Send} />
       <Stat label="Revenue (since launch)" value={gbp(perf.on_sale_revenue)} className="text-emerald-400" icon={PoundSterling} />
-      <Stat label="Net profit (since launch)" value={gbp(perf.on_sale_profit)} className={perf.on_sale_profit >= 0 ? "text-emerald-400" : "text-destructive"} icon={PoundSterling} />
+      <Stat label="Contribution (since launch)" value={gbp(perf.on_sale_profit)} className={perf.on_sale_profit >= 0 ? "text-emerald-400" : "text-destructive"} icon={PoundSterling} />
       <Stat label="Uplift vs baseline" value={`${uplift >= 0 ? "+" : ""}${uplift} units`} className={uplift > 0 ? "text-emerald-400" : "text-muted-foreground"} icon={TrendingUp} />
       <Stat label="Awaiting review" value={String(perf.awaiting_review)} className={perf.awaiting_review > 0 ? "text-amber-400" : ""} icon={History} />
     </div>
@@ -758,7 +758,7 @@ function ActiveCampaignsTable({ kind, campaigns, perf, onEnd, onRevert, revertin
       <Stat label="Capital in liquidation" value={gbp(perf.liq_capital)} className="text-orange-400" icon={PoundSterling} />
       <Stat label="Units cleared" value={String(perf.liq_units)} icon={Send} />
       <Stat label="Cash recovered" value={gbp(perf.liq_revenue)} className="text-emerald-400" icon={PoundSterling} />
-      <Stat label="Net profit" value={gbp(perf.liq_profit)} className={perf.liq_profit >= 0 ? "text-emerald-400" : "text-destructive"} icon={PoundSterling} />
+      <Stat label="Contribution" value={gbp(perf.liq_profit)} className={perf.liq_profit >= 0 ? "text-emerald-400" : "text-destructive"} icon={PoundSterling} />
       <Stat label="Avg depth" value={`${Number(perf.liq_avg_discount || 0)}%`} icon={TrendingDown} />
     </div>
   ));

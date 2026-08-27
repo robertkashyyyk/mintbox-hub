@@ -330,7 +330,7 @@ const PricingSignals = () => {
     <div className="space-y-6">
       <ModuleHeader
         title="Pricing Signals"
-        description="Repricing tools driven by last week's profit data."
+        description="Repricing tools driven by last week's contribution data."
         icon={TrendingDown}
       />
 
@@ -465,9 +465,9 @@ const PricingSignals = () => {
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <Stat label="Current profit" value={fmtGBP(projection.currentProfit)}
+                <Stat label="Current contribution" value={fmtGBP(projection.currentProfit)}
                   tone={projection.currentProfit < 0 ? "destructive" : "muted"} />
-                <Stat label="Projected profit" value={fmtGBP(projection.projectedProfit)}
+                <Stat label="Projected contribution" value={fmtGBP(projection.projectedProfit)}
                   tone={projection.projectedProfit > projection.currentProfit ? "good" : "muted"} />
                 <Stat label="Delta" value={`${projection.delta >= 0 ? "+" : ""}${fmtGBP(projection.delta)}`}
                   tone={projection.delta >= 0 ? "good" : "destructive"} />

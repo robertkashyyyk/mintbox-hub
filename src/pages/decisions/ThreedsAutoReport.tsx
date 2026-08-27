@@ -518,7 +518,7 @@ export default function ThreedsAutoReport() {
                       <SortHead k="store_name" label="Account" />
                       <TableHead className="text-center">Pack</TableHead>
                       <SortHead k="units_sold" label="Units" align="right" />
-                      <SortHead k="profit" label="Profit" align="right" />
+                      <SortHead k="profit" label="Contribution" align="right" />
                       <SortHead k="por_pct" label="PoR%" align="right" />
                       <SortHead k="costUnit" label="Cost ea" align="right" />
                       <SortHead k="feePctUsed" label="Fee" align="right" />

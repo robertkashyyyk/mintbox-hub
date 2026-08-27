@@ -180,7 +180,7 @@ export default function Profit8020Report() {
 
       {/* Filter-aware headline cards */}
       <div className="grid gap-3 md:grid-cols-4">
-        <MiniCard label={`Profit (last ${weeks}w)`} value={gbp(totals.profit)} hint="costed sales only" accent />
+        <MiniCard label={`Contribution (last ${weeks}w)`} value={gbp(totals.profit)} hint="costed sales only" accent />
         <MiniCard label="Capital tied up" value={gbp(totals.capital)} hint="on-hand × landed cost" />
         <MiniCard label="Trapped capital" value={gbp(totals.trapped)} hint="over target holding" warn={totals.trapped > 0} />
         <MiniCard label="Earners at risk" value={String(totals.atRisk)} hint="< 7 days cover" warn={totals.atRisk > 0} />
@@ -239,11 +239,11 @@ function ThesisView({ pareto }: { pareto: { pts: { x: number; cumPct: number }[]
           <LineChart margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
             <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
             <XAxis type="number" dataKey="x" domain={[0, 100]} tickFormatter={(v) => `${Math.round(v)}%`}
-              fontSize={11} label={{ value: "% of SKUs (ranked by profit)", position: "insideBottom", offset: -4, fontSize: 11 }} />
+              fontSize={11} label={{ value: "% of SKUs (ranked by contribution)", position: "insideBottom", offset: -4, fontSize: 11 }} />
             <YAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} fontSize={11} width={44}
-              label={{ value: "cumulative % profit", angle: -90, position: "insideLeft", fontSize: 11 }} />
+              label={{ value: "cumulative % contribution", angle: -90, position: "insideLeft", fontSize: 11 }} />
             <Tooltip formatter={(v: number) => `${v.toFixed(1)}%`} labelFormatter={(v: number) => `${Number(v).toFixed(1)}% of SKUs`} />
-            <ReferenceLine y={80} stroke="hsl(var(--pd-accent))" strokeDasharray="4 4" label={{ value: "80% profit", fontSize: 10, fill: "hsl(var(--pd-accent))" }} />
+            <ReferenceLine y={80} stroke="hsl(var(--pd-accent))" strokeDasharray="4 4" label={{ value: "80% contribution", fontSize: 10, fill: "hsl(var(--pd-accent))" }} />
             <ReferenceLine x={pareto.pct80} stroke="hsl(var(--pd-accent))" strokeDasharray="4 4" label={{ value: `${pareto.pct80.toFixed(0)}%`, fontSize: 10, fill: "hsl(var(--pd-accent))", position: "top" }} />
             <Line data={diag} dataKey="even" stroke="hsl(var(--muted-foreground))" strokeDasharray="2 4" dot={false} strokeWidth={1} name="even" isAnimationActive={false} />
             <Line data={pareto.pts} dataKey="cumPct" stroke="hsl(var(--pd-accent))" dot={false} strokeWidth={2.5} name="cumulative" isAnimationActive={false} />
@@ -301,7 +301,7 @@ function ProtectList({ rows, weeks }: { rows: Row[]; weeks: number }) {
 
     createTask.mutate({
       title,
-      description: `${r.product_name ?? r.base_sku}\nProfit ${gbp2(r.profit_per_week)}/wk · ${gbp(r.capital)} capital · on hand ${num(r.on_hand)} · cover ${r.stock_cover_days ?? "—"}d.\n${why}`,
+      description: `${r.product_name ?? r.base_sku}\nContribution ${gbp2(r.profit_per_week)}/wk · ${gbp(r.capital)} capital · on hand ${num(r.on_hand)} · cover ${r.stock_cover_days ?? "—"}d.\n${why}`,
       priority_level: isReorder ? 2 : 3,
       user_urgency_flag: isReorder,
       linked_entity_type: "sku",
@@ -326,7 +326,7 @@ function ProtectList({ rows, weeks }: { rows: Row[]; weeks: number }) {
               <TableHead className="w-6"></TableHead>
               <TableHead>SKU / name</TableHead>
               <TableHead className="text-right">u/wk</TableHead>
-              <SortHead k="profit_per_week" className="text-right">Profit/wk</SortHead>
+              <SortHead k="profit_per_week" className="text-right">Contribution/wk</SortHead>
               <TableHead>Tier</TableHead>
               <SortHead k="on_hand" className="text-right">Stock</SortHead>
               <SortHead k="stock_cover_days" className="text-right">Coverage</SortHead>
@@ -429,7 +429,7 @@ function TriageView({ rows }: { rows: Row[] }) {
       <ViewIntro
         what="The same earners plotted so trouble jumps out visually."
         read="Each dot is a product: height = profit per week, bubble size = capital tied up. In 'Stock cover' mode the shaded red strip on the left is the protect-now zone (earners about to run out). Switch to 'Capital' to find winners we're over-invested in — they sit far to the right."
-        action="In cover mode, work the top-left first (high profit, low cover) — biggest earners closest to selling out. In capital mode, look top-right for winners holding too much cash you could redeploy."
+        action="In cover mode, work the top-left first (high contribution, low cover) — biggest earners closest to selling out. In capital mode, look top-right for winners holding too much cash you could redeploy."
       />
     <Card>
       <CardHeader className="pb-2 flex-row items-center justify-between space-y-0">
@@ -449,7 +449,7 @@ function TriageView({ rows }: { rows: Row[] }) {
               tickFormatter={(v) => axis === "cover" ? `${v}d` : `£${Math.round(v / 1000)}k`} fontSize={11}
               label={{ value: axis === "cover" ? "stock cover (days, capped 60)" : "capital tied up", position: "insideBottom", offset: -6, fontSize: 11 }} />
             <YAxis type="number" dataKey="y" name="profit/wk" tickFormatter={(v) => `£${v}`} fontSize={11} width={50}
-              label={{ value: "profit £/wk", angle: -90, position: "insideLeft", fontSize: 11 }} />
+              label={{ value: "contribution £/wk", angle: -90, position: "insideLeft", fontSize: 11 }} />
             <ZAxis type="number" dataKey="z" range={[30, 400]} />
             <Tooltip cursor={{ strokeDasharray: "3 3" }} content={({ active, payload }: any) => {
               if (!active || !payload?.length) return null;
@@ -458,7 +458,7 @@ function TriageView({ rows }: { rows: Row[] }) {
                 <div className="rounded border bg-background p-2 text-xs shadow">
                   <div className="font-mono text-pd-accent">{p.sku}</div>
                   <div className="text-muted-foreground max-w-[200px] truncate">{p.name}</div>
-                  <div>Profit {gbp2(p.y)}/wk</div>
+                  <div>Contribution {gbp2(p.y)}/wk</div>
                   <div>{axis === "cover" ? `Cover ${p.x}d` : `Capital ${gbp(p.x)}`}</div>
                 </div>
               );
@@ -504,7 +504,7 @@ function ShadowList({ rows }: { rows: Row[] }) {
           <TableHeader className="sticky top-0 z-10 bg-background shadow-[0_1px_0_0_hsl(var(--border))]">
             <TableRow>
               <TableHead>SKU / name</TableHead>
-              <TableHead className="text-right">Profit/wk</TableHead>
+              <TableHead className="text-right">Contribution/wk</TableHead>
               <TableHead>Tier</TableHead>
               <TableHead className="text-right">Capital tied up</TableHead>
               <TableHead className="text-right">On hand</TableHead>

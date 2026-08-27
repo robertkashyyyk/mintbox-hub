@@ -160,8 +160,8 @@ const ProfitGraphs = () => {
             <Link to="/intelligence/profit"><ArrowLeft className="h-4 w-4 mr-1" />Back</Link>
           </Button>
           <ModuleHeader
-            title="Profit — Graphs"
-            description="Weekly revenue, profit, and cost trends over time."
+            title="Contribution — Graphs"
+            description="Weekly revenue, contribution, and cost trends over time."
             icon={BarChart2}
           />
         </div>
@@ -178,7 +178,7 @@ const ProfitGraphs = () => {
       </div>
 
       <p className="text-sm text-muted-foreground">
-        Computed live from order economics each load, so every week matches the Profit week page exactly. Weekly
+        Computed live from order economics each load, so every week matches the Contribution week page exactly. Weekly
         snapshots are still recorded (Sundays 23:59 UTC) for an audit trail, but no longer drive this chart.
       </p>
 
@@ -192,7 +192,7 @@ const ProfitGraphs = () => {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {[
                 { label: "Revenue", value: gbp(latest.revenue), d: delta(latest.revenue, previous?.revenue) },
-                { label: "Profit", value: gbp(latest.profit), d: delta(latest.profit, previous?.profit) },
+                { label: "Contribution", value: gbp(latest.profit), d: delta(latest.profit, previous?.profit) },
                 { label: "POR %", value: pct(latest.por_pct), d: delta(latest.por_pct, previous?.por_pct) },
                 { label: "Orders", value: num(latest.order_count), d: delta(latest.order_count, previous?.order_count) },
               ].map((t) => (
@@ -214,9 +214,9 @@ const ProfitGraphs = () => {
             <CardHeader>
               <div className="flex items-center gap-2">
                 <TrendingUp className="h-5 w-5 text-pd-accent" />
-                <CardTitle>Revenue & profit</CardTitle>
+                <CardTitle>Revenue & contribution</CardTitle>
               </div>
-              <CardDescription>Weekly revenue with profit and POR % overlaid</CardDescription>
+              <CardDescription>Weekly revenue with contribution and POR % overlaid</CardDescription>
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={320}>
@@ -231,7 +231,7 @@ const ProfitGraphs = () => {
                   />
                   <Legend />
                   <Bar yAxisId="left" dataKey="revenue" fill="hsl(217 90% 60%)" name="Revenue" />
-                  <Bar yAxisId="left" dataKey="profit" fill="hsl(var(--pd-accent))" name="Profit" />
+                  <Bar yAxisId="left" dataKey="profit" fill="hsl(var(--pd-accent))" name="Contribution" />
                   <Line yAxisId="right" type="monotone" dataKey="por_pct" stroke="hsl(41 90% 56%)" strokeWidth={2} dot={false} name="POR %" />
                 </ComposedChart>
               </ResponsiveContainer>
@@ -242,8 +242,8 @@ const ProfitGraphs = () => {
           {channels.length > 1 && (
             <Card>
               <CardHeader>
-                <CardTitle>Profit by channel</CardTitle>
-                <CardDescription>Weekly net profit per channel (Amazon FBA vs eBay vs FBM), from W12.</CardDescription>
+                <CardTitle>Contribution by channel</CardTitle>
+                <CardDescription>Weekly contribution per channel (Amazon FBA vs eBay vs FBM), from W12.</CardDescription>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={320}>
@@ -289,7 +289,7 @@ const ProfitGraphs = () => {
             <CardHeader>
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <CardTitle>Profitability mix by week</CardTitle>
+                  <CardTitle>Contribution mix by week</CardTitle>
                   <CardDescription>
                     Sales lines split across POR bands each week — watch loss/poor shrink and good/great/amazing grow as repricing lands.
                   </CardDescription>

@@ -251,7 +251,7 @@ export default function CourierMargin() {
     <div className="space-y-6">
       <ModuleHeader
         title="Courier Margin"
-        description="Where the courier fee is eating the profit, and where a cheaper format would do."
+        description="Where the courier fee is eating the contribution, and where a cheaper format would do."
         icon={Truck}
       />
 

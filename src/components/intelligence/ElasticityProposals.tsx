@@ -131,7 +131,7 @@ export function ElasticityProposals() {
     <div className="space-y-4">
       <Alert>
         <Info className="h-4 w-4" />
-        <AlertTitle>Elasticity — up-only nudges toward peak profit</AlertTitle>
+        <AlertTitle>Elasticity — up-only nudges toward peak contribution</AlertTitle>
         <AlertDescription>
           For profitable, in-stock, uncontested sellers moving ≥4 units/week, the engine proposes a single up-step to the
           next charm rung — bounded by a drift cap and a POR ceiling (Stellar). It <strong>proposes only</strong> for now;
@@ -153,7 +153,7 @@ export function ElasticityProposals() {
             <div>
               <CardTitle className="text-base">Proposed up-steps</CardTitle>
               <CardDescription>
-                Click any column to sort. “Proj profit /wk” assumes units hold at the higher price — the real test is the
+                Click any column to sort. “Proj contribution /wk” assumes units hold at the higher price — the real test is the
                 Tracked tab once it&apos;s live. Showing {shown.length.toLocaleString()} of {rows.length.toLocaleString()}.
               </CardDescription>
             </div>
@@ -205,7 +205,7 @@ export function ElasticityProposals() {
                     <SortHead k="projected_por_pct" label="Proj POR" align="right" />
                     <SortHead k="weekly_units" label="Units /wk" align="right" />
                     <SortHead k="baseline_profit_wk" label="Baseline /wk" align="right" />
-                    <SortHead k="projected_profit_wk" label="Proj profit /wk" align="right" />
+                    <SortHead k="projected_profit_wk" label="Proj contribution /wk" align="right" />
                     <SortHead k="uplift" label="Uplift /wk" align="right" />
                   </TableRow>
                 </TableHeader>

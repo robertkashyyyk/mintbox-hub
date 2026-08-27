@@ -99,7 +99,7 @@ export function AppSidebar() {
       icon: TrendingUp,
       items: [
         { title: "Scorecard", url: "/intelligence/scorecard", icon: LayoutDashboard },
-        { title: "Profit Intelligence", url: "/intelligence/profit", icon: DollarSign },
+        { title: "Contribution Intelligence", url: "/intelligence/profit", icon: DollarSign },
         { title: "Standing Reports", url: "/intelligence/standing-reports", icon: FileBarChart2 },
         { title: "Velocity & Coverage", url: "/intelligence/velocity", icon: TrendingUp },
         { title: "Stock Health", url: "/intelligence/stock-health", icon: Activity },
@@ -173,7 +173,7 @@ export function AppSidebar() {
         { title: "Logs / Diagnostics", url: "/admin/logs", icon: FileText },
         { title: "System Settings", url: "/admin/settings", icon: Settings },
         { title: "Integrations", url: "/admin/integrations", icon: Plug },
-        { title: "Profit Rules", url: "/admin/profit-rules", icon: Sliders },
+        { title: "Contribution Rules", url: "/admin/profit-rules", icon: Sliders },
         { title: "Suppliers", url: "/admin/suppliers", icon: Truck },
         { title: "SKU Transformations", url: "/admin/sku-transformations", icon: ArrowUpDown },
       ],

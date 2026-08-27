@@ -197,7 +197,7 @@ const WarRoom = () => {
                     {(["gross", "revenue", "orders"] as const).map((metric) => {
                       const r = rows?.[metric];
                       if (!r) return null;
-                      const title = metric === "gross" ? "Profit" : metric === "revenue" ? "Revenue" : "Orders";
+                      const title = metric === "gross" ? "Contribution" : metric === "revenue" ? "Revenue" : "Orders";
                       const val = metric === "orders" ? num(r.actual) : gbp(r.actual);
                       const primary = metric === "orders" ? num(r.exp_primary) : gbp(r.exp_primary);
                       const vpp = r.variance_vs_primary_pct;
@@ -226,7 +226,7 @@ const WarRoom = () => {
           </div>
         )}
         {partialCost && (
-          <p className="text-[11px] text-muted-foreground">* Profit is partial pending the missing-cost backlog.</p>
+          <p className="text-[11px] text-muted-foreground">* Contribution is partial pending the missing-cost backlog.</p>
         )}
       </div>
     </div>

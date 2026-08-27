@@ -107,8 +107,8 @@ const ProfitRules = () => {
   return (
     <div className="space-y-6">
       <ModuleHeader
-        title="Profit Rules"
-        description="Channel fee formulas and courier costs used by the Profit Intelligence dashboard."
+        title="Contribution Rules"
+        description="Channel fee formulas and courier costs used by the Contribution Intelligence dashboard."
         icon={Percent}
       />
 
@@ -243,9 +243,9 @@ const LossBandsCard = () => {
     <Card>
       <CardHeader className="flex flex-row items-start justify-between">
         <div>
-          <CardTitle className="text-base">Profitability bands (POR %)</CardTitle>
+          <CardTitle className="text-base">Contribution bands (POR %)</CardTitle>
           <CardDescription>
-            Per-line POR % thresholds used by the segmentation card on the Profit dashboard. Bands: <strong>Loss</strong> &lt; loss_max · <strong>Breakeven</strong> ≤ breakeven_max · <strong>Poor</strong> ≤ poor_max · <strong>Average</strong> ≤ average_max · <strong>Good</strong> ≤ good_max · <strong>Great</strong> ≤ great_max · <strong>Amazing</strong> ≤ amazing_max · otherwise <strong>Stellar</strong>. Values are percentages (e.g. 9.99 = 9.99%).
+            Per-line POR % thresholds used by the segmentation card on the Contribution dashboard. Bands: <strong>Loss</strong> &lt; loss_max · <strong>Breakeven</strong> ≤ breakeven_max · <strong>Poor</strong> ≤ poor_max · <strong>Average</strong> ≤ average_max · <strong>Good</strong> ≤ good_max · <strong>Great</strong> ≤ great_max · <strong>Amazing</strong> ≤ amazing_max · otherwise <strong>Stellar</strong>. Values are percentages (e.g. 9.99 = 9.99%).
           </CardDescription>
         </div>
         <Button size="sm" disabled={!dirty} onClick={save}><Save className="h-4 w-4 mr-1" />Save</Button>

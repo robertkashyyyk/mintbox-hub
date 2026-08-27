@@ -254,7 +254,7 @@ const MissingCosts = () => {
     <div className="space-y-6">
       <ModuleHeader
         title="Missing Cost Prices"
-        description="Without a cost price we cannot compute profit. Pick a brand, edit cost inline, and push back to Mintsoft."
+        description="Without a cost price we cannot compute contribution. Pick a brand, edit cost inline, and push back to Mintsoft."
         icon={AlertCircle}
       />
 
@@ -267,7 +267,7 @@ const MissingCosts = () => {
             <span className="text-foreground/60"> ({totals.units.toLocaleString()} units)</span> — start with the brands that are actually selling.
           </div>
           <Button asChild variant="outline" size="sm">
-            <Link to="/intelligence/profit">Open Profit dashboard</Link>
+            <Link to="/intelligence/profit">Open Contribution dashboard</Link>
           </Button>
         </CardContent>
       </Card>

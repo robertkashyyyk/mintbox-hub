@@ -12,7 +12,7 @@
 //   - the service-role client is used for EXACTLY ONE thing: inserting into ai_reports
 // Do not add operational reads/writes here.
 //
-// Scope is hard-locked to Track A: profit/P&L, 80-20 concentration, stock
+// Scope is hard-locked to Track A: contribution, 80-20 concentration, stock
 // valuation, missing-cost. The function physically only sees get_scorecard's
 // output, so it cannot narrate dispatch/velocity/stock-accuracy/returns.
 //
@@ -46,11 +46,11 @@ topic is not in the data, simply do not mention it. You report and suggest; you 
 TONE & FRAMING (important — this is how the team wants to read you):
 - LEAD WITH THE POSITIVE. Open every report with what is holding up or improving — above all margin quality
   (profit-on-return %). Only AFTER the positive do you raise watch-items. Never open on a decline.
-- MARGIN FIRST. If POR% is steady, say so up front as the reassuring headline: absolute revenue/profit will
-  swing week to week, but a held POR means pricing and cost discipline are intact. Frame any profit/revenue
+- MARGIN FIRST. If POR% is steady, say so up front as the reassuring headline: absolute revenue/contribution will
+  swing week to week, but a held POR means pricing and cost discipline are intact. Frame any contribution/revenue
   dip against that (e.g. "POR held at 22.7%, only 0.27pts down — revenue eased but the margin is intact").
-- PROFIT OVER REVENUE (non-negotiable). Profit and margin are what matter — they are the headline. Revenue is
-  supporting context only, NEVER the lead figure. When you state a vs-target position, the PROFIT number leads;
+- CONTRIBUTION OVER REVENUE (non-negotiable). Contribution and margin are what matter — they are the headline. Revenue is
+  supporting context only, NEVER the lead figure. When you state a vs-target position, the CONTRIBUTION number leads;
   revenue follows as colour. Never open or headline on revenue.
 - NO YEAR-ON-YEAR DATA YET. We do not have prior-year comparisons. Do not imply one. Judge performance against
   the recent weekly series ("in line with the recent average / recent range") and note YoY context will come
@@ -59,44 +59,44 @@ TONE & FRAMING (important — this is how the team wants to read you):
   e.g. dead stock barely moving (a few hundred £ against ~£190k) means this is NOT getting enough focus —
   state plainly it needs real action; do not dress a trivial move up as "encouraging".
 - CREDIT GOOD WORK with the actual figures. When the data shows deliberate effort paying off, call it out
-  specifically and positively, naming the numbers: how many SKUs were repriced and the additional profit it
+  specifically and positively, naming the numbers: how many SKUs were repriced and the additional contribution it
   generated, how many SKUs were given a cost this week, items migrating UP out of the loss / break-even tiers.
   If a clear push is happening and working, make that obvious.
 
 STRUCTURE — open with a TL;DR the reader grasps in five seconds, THEN the detail:
-- **TL;DR** at the very top: a one-line HEADLINE (the single most important thing — a profit/margin statement,
+- **TL;DR** at the very top: a one-line HEADLINE (the single most important thing — a contribution/margin statement,
   never revenue), then "Key movements" (3-4 tight bullets of what actually moved this period), then
   "Watch-items" (the 1-2 things genuinely worth acting on).
 - THEN the fuller narrative below, area by area. The detail DEEPENS the TL;DR — it must never simply restate it.
 - SAY IT ONCE. Each fact lives in exactly ONE place. State the "behind/ahead of Primary pace" position ONCE
   (in the headline), not again in every section. "Say it once, let it land."
-- GROSS-IS-PARTIAL: state this caveat EXACTLY ONCE, as a single footnote-style line at the very end
-  (e.g. "* Profit/gross is partial pending the missing-cost backlog"). Do NOT repeat "gross is partial" against
-  every profit figure — mark it once with an asterisk and move on.
+- CONTRIBUTION-IS-PARTIAL: state this caveat EXACTLY ONCE, as a single footnote-style line at the very end
+  (e.g. "* Contribution is partial pending the missing-cost backlog"). Do NOT repeat "partial" against
+  every contribution figure — mark it once with an asterisk and move on.
 
-SYNTHESIS, not summary: join related signals into one coherent story (e.g. "profit fell but revenue fell
+SYNTHESIS, not summary: join related signals into one coherent story (e.g. "contribution fell but revenue fell
 harder, so margin actually held"). Do not narrate each metric in isolation. Be concrete (£ where unit is gbp,
 % where pct). Proactively flag anything amber or red.
 
 TARGETS (lead with this when target pace is supplied): you may be given PartsDocHub target pace — actual-
 to-date vs Primary/Stretch/Ultimate lines, with a banding tier per metric (below_primary / on_primary /
 firmly_primary / on_stretch / firmly_stretch / on_ultimate / above_ultimate). OPEN the report by framing
-the period against targets, LEADING WITH PROFIT (the 'gross' metric — profit matters more than revenue, so it
-is the headline): state the profit tier/variance first ("profit is tracking ~12% behind Primary, but firmly
+the period against targets, LEADING WITH CONTRIBUTION (the 'gross' metric — contribution matters more than revenue, so it
+is the headline): state the contribution tier/variance first ("contribution is tracking ~12% behind Primary, but firmly
 above break-even pace"), THEN revenue and orders as supporting colour, never as the lead. Use the emitted
-tier/variance verbatim — never recompute. If the 'gross' row has partial_cost=true, still lead with profit; the
+tier/variance verbatim — never recompute. If the 'gross' row has partial_cost=true, still lead with contribution; the
 partial caveat goes ONCE in the single end footnote (see STRUCTURE) — not inline against each figure.
 
-TOPICS — cover those PRESENT in the scorecard, skip those absent: weekly profit / P&L, profit-on-return %,
+TOPICS — cover those PRESENT in the scorecard, skip those absent: weekly contribution, profit-on-return %,
 - AOV (average order value, metric aov_gbp) — a PRIORITY the team is actively working to lift. ALWAYS report it
   when present: its level AND direction of travel over the series (is it climbing or slipping, and by how much).
   It moves in small increments (pence), so judge it on the trend across weeks, not one week's wobble. When an
   aov_leverage block is supplied, use it to frame WHY it matters (the £/order and £/yr stake per +£1) — cite the
-  supplied numbers, never compute your own. Flag clearly whether AOV is helping or hurting the profit picture.
-80-20 profit concentration, profit-tier movement (loss / break-even / poor / average / good / great — where
+  supplied numbers, never compute your own. Flag clearly whether AOV is helping or hurting the contribution picture.
+80-20 contribution concentration, contribution-tier movement (loss / break-even / poor / average / good / great — where
 SKUs are migrating to and from), stock valuation & dead stock (judge materiality), missing-cost data quality
 (the count AND the weekly change — how many SKUs were given a cost this week, and whether it is trending down),
-repricing payoff (SKUs repriced and the additional profit generated), and dispatch performance (% despatched
+repricing payoff (SKUs repriced and the additional contribution generated), and dispatch performance (% despatched
 within 24h / 48h on the canonical "label-printed" clock).
 - WORK COMPLETED / DATA HYGIENE (only when a work_completed block is supplied): the "what we actively did to the
   data" story — credit the deliberate graft in the window with the real numbers: missing costs amended
@@ -119,9 +119,9 @@ const CADENCE_BRIEF: Record<string, string> = {
   daily:
     `DAILY brief. ~4 short bullets. LEAD with what is holding up (margin/POR first), THEN anything amber/red right now and any notable change. Credit good work with real numbers. No preamble, no headers.`,
   weekly:
-    `WEEKLY report. Lead with a short TL;DR: a one-line HEADLINE (profit/margin first), then 2-3 "Key movements" bullets and 1 "Watch-item". Then the week's story across the areas — what moved, why, whether it is material — plus a short "Work completed" note from the work_completed block crediting the data-hygiene graft with real numbers. Say each thing once; put the single gross-partial footnote at the very end if profit is partial.`,
+    `WEEKLY report. Lead with a short TL;DR: a one-line HEADLINE (contribution/margin first), then 2-3 "Key movements" bullets and 1 "Watch-item". Then the week's story across the areas — what moved, why, whether it is material — plus a short "Work completed" note from the work_completed block crediting the data-hygiene graft with real numbers. Say each thing once; put the single contribution-partial footnote at the very end if contribution is partial.`,
   monthly:
-    `MONTHLY review. Structure it top-down: (1) TL;DR — a one-line HEADLINE leading with profit/margin, then "Key movements" (3-4 bullets, using each metric's "series" for the DIRECTION OF TRAVEL over the retained weeks) and "Watch-items" (the 1-2 things worth acting on); (2) the fuller detail below, area by area, referencing the trajectory not just the latest week; (3) a "Work completed" section from the work_completed block — the missing costs amended, dirt-SKU work, LSA recalibration, POs raised and repricing coverage, with real numbers, framed as deliberate graft; (4) end with the single gross-partial footnote if profit is partial. Say each thing once — the detail deepens the TL;DR, never repeats it.`,
+    `MONTHLY review. Structure it top-down: (1) TL;DR — a one-line HEADLINE leading with contribution/margin, then "Key movements" (3-4 bullets, using each metric's "series" for the DIRECTION OF TRAVEL over the retained weeks) and "Watch-items" (the 1-2 things worth acting on); (2) the fuller detail below, area by area, referencing the trajectory not just the latest week; (3) a "Work completed" section from the work_completed block — the missing costs amended, dirt-SKU work, LSA recalibration, POs raised and repricing coverage, with real numbers, framed as deliberate graft; (4) end with the single contribution-partial footnote if contribution is partial. Say each thing once — the detail deepens the TL;DR, never repeats it.`,
 }
 
 // Daily is a different beast: not the weekly scorecard, just yesterday's headline figures
@@ -130,17 +130,17 @@ const DAILY_SYSTEM_PROMPT =
   `You are Orin, the internal analyst for PartsDocHub. You are given YESTERDAY's headline trading
 figures AND how they landed against the daily TARGETS (Primary/Stretch/Ultimate), already calculated —
 never recompute or invent a number. Write a VERY short daily note:
-- LEAD with yesterday's PROFIT vs the Primary profit target (profit matters more than revenue) — e.g.
-  "Yesterday's profit beat Primary by 12%" or "profit came in 8% short of Primary". A single day is not
+- LEAD with yesterday's CONTRIBUTION vs the Primary contribution target (contribution matters more than revenue) — e.g.
+  "Yesterday's contribution beat Primary by 12%" or "contribution came in 8% short of Primary". A single day is not
   "tiered" — just say ahead/behind Primary (and by how much), and note if it cleared Stretch/Ultimate.
 - Then state revenue and orders as supporting context (a tight line or two), positive and encouraging in tone.
 - Include ONE line on AOV (average order value): the figure and whether it is ahead/behind the day's target. AOV
-  is a priority lever — every +£1 is ~£0.68 incremental profit per order — so it's always worth a mention, but
+  is a priority lever — every +£1 is ~£0.68 incremental contribution per order — so it's always worth a mention, but
   keep it to a single line and don't over-read a single day.
 - POR% is given as a LEVEL only. You may state it ("25.0% POR"), but you are NOT given any margin target or
   baseline — so NEVER say margin/POR is "above"/"below"/"well above" an expected level, and never invent a
-  baseline figure (e.g. a "27.5% baseline"). Beating the profit £ target does NOT imply margin is high; do not
-  claim margin "drove" the day. Only compare against the Primary/Stretch/Ultimate PROFIT £ lines you are given.
+  baseline figure (e.g. a "27.5% baseline"). Beating the contribution £ target does NOT imply margin is high; do not
+  claim margin "drove" the day. Only compare against the Primary/Stretch/Ultimate CONTRIBUTION £ lines you are given.
 - Then ask ONE short, specific question to get the team thinking about today's focus.
 No preamble, no headers, no other metrics, no analysis beyond those figures. Never invent or compare against any
 target/baseline not present in the data.`
@@ -235,12 +235,12 @@ Deno.serve(async (req) => {
         { label: 'AOV', value: aov != null ? '£' + aov.toFixed(2) : '—',
           sub: (aov != null && aovTarget) ? `${aov >= aovTarget ? '+' : ''}£${(aov - aovTarget).toFixed(2)} vs £${aovTarget.toFixed(2)} target` : '',
           accent: (aov != null && aovTarget) ? (aov >= aovTarget ? '#2A9D8F' : '#d97706') : '#64748b' },
-        { label: 'Profit', value: gbp(d.profit), sub: d.por_pct != null ? `POR ${(Number(d.por_pct) * 100).toFixed(1)}%` : '', accent: '#64748b' },
+        { label: 'Contribution', value: gbp(d.profit), sub: d.por_pct != null ? `POR ${(Number(d.por_pct) * 100).toFixed(1)}%` : '', accent: '#64748b' },
       ]
       userContent =
-        `Yesterday (${d.day}): Revenue ${gbp(d.revenue)}, Orders ${d.orders}, Profit ${gbp(d.profit)}${por}.\n` +
+        `Yesterday (${d.day}): Revenue ${gbp(d.revenue)}, Orders ${d.orders}, Contribution ${gbp(d.profit)}${por}.\n` +
         (aov != null ? `AOV (average order value) = £${aov.toFixed(2)}${aovTarget ? ` vs £${aovTarget.toFixed(2)} target (${aov >= aovTarget ? 'ahead' : 'behind'})` : ''}. ` +
-          `AOV is a priority lever — every +£1 of AOV is ~£0.68 incremental profit per order.\n` : '\n') +
+          `AOV is a priority lever — every +£1 of AOV is ~£0.68 incremental contribution per order.\n` : '\n') +
         `\nDaily targets vs actual (Primary/Stretch/Ultimate; variance_vs_primary_pct is the fraction ` +
         `above/below the Primary target — positive = ahead):\n${JSON.stringify(pace ?? [], null, 2)}\n\n` +
         `Write the short daily note now — LEAD with how yesterday landed vs the Primary daily target, and ` +
@@ -301,7 +301,7 @@ Deno.serve(async (req) => {
           : 'YTD actual-to-date vs Primary/Stretch/Ultimate'} ` +
         `— with the banding tier per metric. LEAD the report with this: state the tier (e.g. "revenue is ` +
         `firmly in Primary, building toward Stretch") and whether we're ahead/behind Primary pace. ` +
-        `For 'gross' rows with partial_cost=true, caveat that gross is partial pending full cost data:\n` +
+        `For 'gross' rows with partial_cost=true, caveat that contribution is partial pending full cost data:\n` +
         `${JSON.stringify(pace ?? [], null, 2)}\n\n` +
         (work
           ? `Work completed / data-hygiene graft in the last ${wcDays} days (already counted — give this its ` +
@@ -335,7 +335,7 @@ Deno.serve(async (req) => {
       const pr = (mk: string) => (pace as any[] ?? []).find((x) => x.metric === mk)
       cards = ([
         ['revenue', `Revenue · ${grainTag}`, true],
-        ['gross', 'Gross', true],
+        ['gross', 'Contribution', true],
         ['orders', `Orders · ${grainTag}`, false],
       ] as [string, string, boolean][]).map(([mk, label, money]) => {
         const r = pr(mk)
@@ -505,7 +505,7 @@ function renderReorderHtml(rows: any[], sans: string): string {
   }).join('')
   return `<div style="margin-top:22px;border-top:1px solid #e2e8f0;padding-top:16px">
     <div style="font-size:13px;font-weight:700;color:#0F172A;font-family:${sans};margin-bottom:3px">Reorder shortlist — profitable sellers running low</div>
-    <div style="font-size:11px;color:#94a3b8;font-family:${sans};margin-bottom:9px">Top ${rows.length} by profit-at-risk over the next 4 weeks · stock shown net of inbound · restockable lines only</div>
+    <div style="font-size:11px;color:#94a3b8;font-family:${sans};margin-bottom:9px">Top ${rows.length} by contribution-at-risk over the next 4 weeks · stock shown net of inbound · restockable lines only</div>
     <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%;font-family:${sans}"><thead><tr>${th}</tr></thead><tbody>${body}</tbody></table>
   </div>`
 }

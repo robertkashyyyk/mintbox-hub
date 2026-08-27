@@ -108,7 +108,7 @@ export default function ClearanceReport() {
             <div className="grid gap-3 md:grid-cols-4">
               <div><div className="text-xs text-muted-foreground">Capital cleared</div><div className="text-2xl font-bold text-pd-accent">{gbp(payoff.total_capital_cleared)}</div><div className="text-[11px] text-muted-foreground">frozen stock released</div></div>
               <div><div className="text-xs text-muted-foreground">Revenue in</div><div className="text-2xl font-bold text-emerald-400">{gbp(payoff.total_revenue)}</div><div className="text-[11px] text-muted-foreground">{payoff.total_units} units shifted</div></div>
-              <div><div className="text-xs text-muted-foreground">Net profit</div><div className={`text-2xl font-bold ${payoff.total_profit >= 0 ? "text-emerald-400" : "text-destructive"}`}>{gbp(payoff.total_profit)}</div><div className="text-[11px] text-muted-foreground">revenue − cost − fees</div></div>
+              <div><div className="text-xs text-muted-foreground">Contribution</div><div className={`text-2xl font-bold ${payoff.total_profit >= 0 ? "text-emerald-400" : "text-destructive"}`}>{gbp(payoff.total_profit)}</div><div className="text-[11px] text-muted-foreground">revenue − cost − fees</div></div>
               <div><div className="text-xs text-muted-foreground">Effective cost to free capital</div><div className="text-2xl font-bold">{payoff.total_profit < 0 ? gbp(-payoff.total_profit) : "£0"}</div><div className="text-[11px] text-muted-foreground">the write-down we accepted</div></div>
             </div>
           </CardContent>
