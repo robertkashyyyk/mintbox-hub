@@ -23,7 +23,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
-import { Flame, Loader2, PoundSterling, Boxes, AlertTriangle, RotateCcw, CheckCircle2, Plus, Trash2, Send, Download, ArrowUpDown, EyeOff, Eye, Wand2, List as ListIcon, LayoutGrid, LineChart as LineChartIcon, Tag, Clock, TrendingDown, TrendingUp, History } from "lucide-react";
+import { Flame, Loader2, PoundSterling, Boxes, AlertTriangle, RotateCcw, CheckCircle2, Plus, Trash2, Send, Download, ArrowUpDown, EyeOff, Eye, Wand2, List as ListIcon, LayoutGrid, LineChart as LineChartIcon, Tag, Clock, TrendingDown, TrendingUp, History, Search, Zap, PauseCircle } from "lucide-react";
 import ModuleHeader from "@/components/ModuleHeader";
 import { PageLoader } from "@/components/ui/PageLoader";
 import { logisticsBreakevenFloor, bandRecoveryTarget } from "@/lib/reprice";
@@ -281,6 +281,7 @@ export default function LiquidationCandidates() {
     qc.invalidateQueries({ queryKey: ["liquidation-candidates"] });
     qc.invalidateQueries({ queryKey: ["clearance-breakdown"] });
     qc.invalidateQueries({ queryKey: ["clearance-performance"] });
+    qc.invalidateQueries({ queryKey: ["active-clearance-perf"] });
     qc.invalidateQueries({ queryKey: ["liquidation-count"] });
     qc.invalidateQueries({ queryKey: ["sale-reviews"] });
   };
@@ -372,8 +373,8 @@ export default function LiquidationCandidates() {
         ))}
       </div>
 
-      {view === "onsale" && <ActiveCampaignsTable kind="sale" campaigns={activeSales} perf={perf} onEnd={(id) => endMutation.mutate(id)} onRevert={(c) => revertMutation.mutate(c)} reverting={revertMutation.isPending} />}
-      {view === "liquidation" && <ActiveCampaignsTable kind="liquidation" campaigns={activeLiq} perf={perf} onEnd={(id) => endMutation.mutate(id)} onRevert={(c) => revertMutation.mutate(c)} reverting={revertMutation.isPending} />}
+      {view === "onsale" && <ActiveCampaignsTable kind="sale" perf={perf} onEnd={(id) => endMutation.mutate(id)} onRevert={(c) => revertMutation.mutate(c)} reverting={revertMutation.isPending} />}
+      {view === "liquidation" && <ActiveCampaignsTable kind="liquidation" perf={perf} onEnd={(id) => endMutation.mutate(id)} onRevert={(c) => revertMutation.mutate(c)} reverting={revertMutation.isPending} />}
       {view === "brands" && <BrandsTab maxVelocity={maxVelocity} minCapital={minCapital} setMaxVelocity={setMaxVelocity} setMinCapital={setMinCapital} />}
       {view === "graphs" && <GraphsTab />}
 
@@ -728,105 +729,236 @@ function SaleReviewCard({ stores: _stores, onChanged }: { stores: Store[]; onCha
   );
 }
 
-// ── Active campaigns (paginated) — On Sale / In Liquidation tabs ────
-function ActiveCampaignsTable({ kind, campaigns, perf, onEnd, onRevert, reverting }: {
-  kind: "sale" | "liquidation"; campaigns: Campaign[]; perf: ClearancePerf | null;
+// ── Active campaigns — On Sale / In Liquidation tabs ────────────────
+// Per-campaign performance: is each sale actually shifting stock since it went
+// live? Sold units / revenue / contribution / sell-through / weeks-to-clear,
+// plus a Working / Slow / Stalled verdict — filterable, sortable, sticky.
+interface CampPerf {
+  id: string; sku: string; product_name: string | null; brand_name: string | null;
+  type: string; stage: string | null; discount_pct: number | null;
+  original_price: number | null; campaign_price: number | null;
+  start_date: string; end_date: string | null; pushed: boolean; channels: string[] | null;
+  current_stock: number | null; cost_price: number | null; capital_now: number;
+  days_live: number; weeks_live: number;
+  units_since: number; revenue_since: number; contribution_since: number;
+  baseline_velocity: number | null; expected_units: number; uplift_units: number;
+  current_velocity: number | null; sell_through_pct: number | null; weeks_to_clear: number | null;
+  status_flag: "working" | "slow" | "stalled";
+}
+type PerfSortKey = "days_live" | "units_since" | "revenue_since" | "contribution_since" | "sell_through_pct" | "weeks_to_clear" | "capital_now" | "discount_pct";
+
+function PerfHead({ label, k, sortKey, sortDir, onSort, title }: {
+  label: string; k: PerfSortKey; sortKey: PerfSortKey; sortDir: "asc" | "desc"; onSort: (k: PerfSortKey) => void; title?: string;
+}) {
+  return (
+    <TableHead className="text-right whitespace-nowrap" title={title}>
+      <button onClick={() => onSort(k)} className="inline-flex items-center gap-1 hover:text-foreground">
+        {label}<ArrowUpDown className={`h-3 w-3 ${sortKey === k ? "text-pd-accent" : "text-muted-foreground/40"}`} />
+      </button>
+    </TableHead>
+  );
+}
+
+const STATUS_META: Record<CampPerf["status_flag"], { label: string; cls: string; Icon: any }> = {
+  working: { label: "Selling", cls: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30", Icon: Zap },
+  slow:    { label: "Slow",    cls: "bg-amber-500/15 text-amber-400 border-amber-500/30",     Icon: TrendingDown },
+  stalled: { label: "Stalled", cls: "bg-red-500/15 text-red-400 border-red-500/30",           Icon: PauseCircle },
+};
+
+function ActiveCampaignsTable({ kind, perf, onEnd, onRevert, reverting }: {
+  kind: "sale" | "liquidation"; perf: ClearancePerf | null;
   onEnd: (id: string) => void; onRevert: (c: Campaign) => void; reverting: boolean;
 }) {
+  const [brand, setBrand] = useState("all");
+  const [statusF, setStatusF] = useState<"all" | CampPerf["status_flag"]>("all");
+  const [q, setQ] = useState("");
+  const [sortKey, setSortKey] = useState<PerfSortKey>("units_since");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [page, setPage] = useState(1);
-  const PAGE = 25;
-  useEffect(() => { setPage(1); }, [campaigns.length, kind]);
-  const pageCount = Math.max(1, Math.ceil(campaigns.length / PAGE));
-  const rows = campaigns.slice((page - 1) * PAGE, page * PAGE);
-
+  const PAGE = 50;
   const gbp = (n: number) => `£${Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
-  const uplift = perf ? Math.round(perf.on_sale_units - perf.on_sale_baseline_units) : 0;
+  const isSale = kind === "sale";
 
-  const cards = perf && (kind === "sale" ? (
-    <div className="grid grid-cols-2 md:grid-cols-7 gap-3">
-      <Stat label="Active sales" value={String(perf.on_sale_count)} icon={Tag} />
-      <Stat label="Capital on sale" value={gbp(perf.on_sale_capital)} className="text-pd-accent" icon={PoundSterling} />
-      <Stat label="Units sold (since launch)" value={String(perf.on_sale_units)} icon={Send} />
-      <Stat label="Revenue (since launch)" value={gbp(perf.on_sale_revenue)} className="text-emerald-400" icon={PoundSterling} />
-      <Stat label="Contribution (since launch)" value={gbp(perf.on_sale_profit)} className={perf.on_sale_profit >= 0 ? "text-emerald-400" : "text-destructive"} icon={PoundSterling} />
-      <Stat label="Uplift vs baseline" value={`${uplift >= 0 ? "+" : ""}${uplift} units`} className={uplift > 0 ? "text-emerald-400" : "text-muted-foreground"} icon={TrendingUp} />
-      <Stat label="Awaiting review" value={String(perf.awaiting_review)} className={perf.awaiting_review > 0 ? "text-amber-400" : ""} icon={History} />
-    </div>
-  ) : (
-    <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
-      <Stat label="Active liquidations" value={String(perf.liq_count)} icon={Flame} />
-      <Stat label="Capital in liquidation" value={gbp(perf.liq_capital)} className="text-orange-400" icon={PoundSterling} />
-      <Stat label="Units cleared" value={String(perf.liq_units)} icon={Send} />
-      <Stat label="Cash recovered" value={gbp(perf.liq_revenue)} className="text-emerald-400" icon={PoundSterling} />
-      <Stat label="Contribution" value={gbp(perf.liq_profit)} className={perf.liq_profit >= 0 ? "text-emerald-400" : "text-destructive"} icon={PoundSterling} />
-      <Stat label="Avg depth" value={`${Number(perf.liq_avg_discount || 0)}%`} icon={TrendingDown} />
-    </div>
-  ));
+  const { data: rows = [], isLoading } = useQuery({
+    queryKey: ["active-clearance-perf", kind],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc("get_active_clearance_campaigns", { p_type: kind, p_brand: null });
+      if (error) throw error;
+      return data as CampPerf[];
+    },
+  });
 
-  if (campaigns.length === 0) {
-    return (
-      <div className="space-y-4">
-        {cards}
-        <Card><CardContent className="py-12 text-center text-sm text-muted-foreground">No {kind === "sale" ? "active sales" : "active liquidations"} right now.</CardContent></Card>
-      </div>
-    );
-  }
+  const brandOptions = useMemo(
+    () => Array.from(new Set(rows.map(r => r.brand_name).filter(Boolean) as string[])).sort(),
+    [rows],
+  );
+
+  const toggleSort = (k: PerfSortKey) => { if (sortKey === k) setSortDir(d => d === "asc" ? "desc" : "asc"); else { setSortKey(k); setSortDir("desc"); } };
+  useEffect(() => { setPage(1); }, [brand, statusF, q, sortKey, sortDir, kind]);
+
+  const filtered = useMemo(() => {
+    let r = rows;
+    if (brand !== "all") r = r.filter(x => (x.brand_name ?? "—") === brand);
+    if (statusF !== "all") r = r.filter(x => x.status_flag === statusF);
+    if (q.trim()) { const s = q.toLowerCase(); r = r.filter(x => x.sku.toLowerCase().includes(s) || (x.product_name ?? "").toLowerCase().includes(s)); }
+    const dir = sortDir === "asc" ? 1 : -1;
+    return [...r].sort((a, b) => {
+      const av = a[sortKey] as number | null, bv = b[sortKey] as number | null;
+      if (av == null) return 1; if (bv == null) return -1;
+      return dir * (Number(av) - Number(bv));
+    });
+  }, [rows, brand, statusF, q, sortKey, sortDir]);
+
+  // Summary reflects the current filter (whole set when unfiltered) — answers "is it working?".
+  const agg = useMemo(() => {
+    const units = filtered.reduce((s, r) => s + r.units_since, 0);
+    const stock = filtered.reduce((s, r) => s + Number(r.current_stock ?? 0), 0);
+    return {
+      count: filtered.length,
+      units,
+      revenue: filtered.reduce((s, r) => s + Number(r.revenue_since), 0),
+      contribution: filtered.reduce((s, r) => s + Number(r.contribution_since), 0),
+      capital: filtered.reduce((s, r) => s + Number(r.capital_now), 0),
+      sellThrough: units + stock > 0 ? (100 * units) / (units + stock) : 0,
+      working: filtered.filter(r => r.status_flag === "working").length,
+      slow: filtered.filter(r => r.status_flag === "slow").length,
+      stalled: filtered.filter(r => r.status_flag === "stalled").length,
+    };
+  }, [filtered]);
+
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE));
+  const pageRows = filtered.slice((page - 1) * PAGE, page * PAGE);
+
+  const StatusChip = ({ f }: { f: CampPerf["status_flag"] }) => {
+    const m = STATUS_META[f]; const Icon = m.Icon;
+    return <Badge variant="outline" className={`text-xs ${m.cls}`}><Icon className="h-3 w-3 mr-1" />{m.label}</Badge>;
+  };
 
   return (
     <div className="space-y-4">
-      {cards}
-    <Card className={kind === "sale" ? "border-pd-accent/30" : "border-orange-500/30"}>
-      <CardHeader className="pb-3">
-        <CardTitle className="text-base flex items-center gap-2">
-          {kind === "sale" ? <Tag className="h-4 w-4 text-pd-accent" /> : <Flame className="h-4 w-4 text-orange-500" />}
-          {kind === "sale" ? "On Sale" : "In Liquidation"} ({campaigns.length})
-        </CardTitle>
-        <CardDescription>Ring-fenced from the repricer. End keeps the current price; Revert pushes the original back.</CardDescription>
-      </CardHeader>
-      <CardContent className="p-0">
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader><TableRow>
-              <TableHead>SKU</TableHead><TableHead>Type</TableHead><TableHead className="text-right">Discount</TableHead>
-              <TableHead className="text-right">Orig → Sale</TableHead><TableHead>Started</TableHead><TableHead>{kind === "sale" ? "Reviews" : ""}</TableHead><TableHead>State</TableHead><TableHead className="text-right">Action</TableHead>
-            </TableRow></TableHeader>
-            <TableBody>
-              {rows.map(c => (
-                <TableRow key={c.id}>
-                  <TableCell className="font-mono text-xs">{c.sku}</TableCell>
-                  <TableCell>{c.stage === "recovering"
-                    ? <Badge variant="outline" className="text-xs text-emerald-400 border-emerald-500/30"><TrendingUp className="h-3 w-3 mr-1" />Recovering</Badge>
-                    : c.type === "sale"
-                    ? <Badge variant="outline" className="text-xs"><Tag className="h-3 w-3 mr-1" />Sale</Badge>
-                    : <Badge variant="outline" className="text-xs text-orange-400 border-orange-500/30"><Flame className="h-3 w-3 mr-1" />Liq</Badge>}</TableCell>
-                  <TableCell className="text-right text-sm">{c.discount_pct != null ? `${c.discount_pct}%` : "—"}</TableCell>
-                  <TableCell className="text-right text-sm">{c.original_price != null ? `£${Number(c.original_price).toFixed(2)}` : "—"}<span className="text-orange-400"> → {c.campaign_price != null ? `£${Number(c.campaign_price).toFixed(2)}` : "—"}</span></TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{c.start_date}</TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{c.stage === "recovering" ? `step ${c.recovery_step ?? 0}/${c.recovery_weeks ?? "—"}` : c.type === "sale" ? (c.end_date ?? "—") : <span className="opacity-50">—</span>}</TableCell>
-                  <TableCell className="text-xs">{c.pushed_at ? <Badge variant="outline" className="bg-emerald-500/15 text-emerald-400 text-xs">Pushed</Badge> : <Badge variant="outline" className="text-xs">Record only</Badge>}</TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex gap-1 justify-end">
-                      <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => onEnd(c.id)}><CheckCircle2 className="h-3 w-3 mr-1" />End</Button>
-                      <Button size="sm" variant="ghost" className="h-7 text-xs text-amber-400" onClick={() => onRevert(c)} disabled={reverting}>{reverting ? <Loader2 className="h-3 w-3 animate-spin" /> : <><RotateCcw className="h-3 w-3 mr-1" />Revert</>}</Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+      {/* KPI cards — derived from the rows in view, so they always match the table */}
+      <div className="grid grid-cols-2 md:grid-cols-7 gap-3">
+        <Stat label={isSale ? "Active sales" : "Active liquidations"} value={String(agg.count)} icon={isSale ? Tag : Flame} />
+        <Stat label="Units sold" value={agg.units.toLocaleString()} icon={Send} />
+        <Stat label={isSale ? "Revenue in" : "Cash recovered"} value={gbp(agg.revenue)} className="text-emerald-400" icon={PoundSterling} />
+        <Stat label="Contribution" value={gbp(agg.contribution)} className={agg.contribution >= 0 ? "text-emerald-400" : "text-destructive"} icon={PoundSterling} />
+        <Stat label="Sell-through" value={`${agg.sellThrough.toFixed(0)}%`} className="text-pd-accent" icon={TrendingUp} />
+        <Stat label="Selling" value={String(agg.working)} className="text-emerald-400" icon={Zap} />
+        <Stat label="Stalled" value={String(agg.stalled)} className={agg.stalled > 0 ? "text-red-400" : "text-muted-foreground"} icon={PauseCircle} />
+      </div>
+
+      {/* "Is it working?" one-liner */}
+      {agg.count > 0 && (
+        <div className="text-sm text-muted-foreground">
+          <span className="text-foreground font-medium">{agg.working}</span> of {agg.count} {isSale ? "sales" : "liquidations"} are shifting stock
+          {agg.stalled > 0 && <> · <button className="text-red-400 hover:underline font-medium" onClick={() => setStatusF(statusF === "stalled" ? "all" : "stalled")}>{agg.stalled} stalled</button> (no sales since launch — cut deeper or revert)</>}
+          {" "}· <span className={agg.contribution >= 0 ? "text-emerald-400" : "text-destructive"}>{gbp(agg.contribution)} contribution</span> to free {gbp(agg.capital)} of capital.
+          {perf && isSale && perf.awaiting_review > 0 && <> · <span className="text-amber-400">{perf.awaiting_review} awaiting review</span> above.</>}
         </div>
-        {pageCount > 1 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-border text-sm text-muted-foreground">
-            <span>Showing {(page - 1) * PAGE + 1}–{Math.min(page * PAGE, campaigns.length)} of {campaigns.length}</span>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>Previous</Button>
-              <span className="self-center text-xs">Page {page} / {pageCount}</span>
-              <Button variant="outline" size="sm" disabled={page === pageCount} onClick={() => setPage(p => p + 1)}>Next</Button>
+      )}
+
+      <Card className={isSale ? "border-pd-accent/30" : "border-orange-500/30"}>
+        <CardHeader className="pb-3 gap-3">
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div>
+              <CardTitle className="text-base flex items-center gap-2">
+                {isSale ? <Tag className="h-4 w-4 text-pd-accent" /> : <Flame className="h-4 w-4 text-orange-500" />}
+                {isSale ? "On Sale" : "In Liquidation"} ({rows.length})
+              </CardTitle>
+              <CardDescription>Ring-fenced from the repricer. End keeps the current price; Revert pushes the original back.</CardDescription>
             </div>
           </div>
-        )}
-      </CardContent>
-    </Card>
+          {/* Toolbar: search, brand, status quick-filters */}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative">
+              <Search className="h-3.5 w-3.5 absolute left-2.5 top-2.5 text-muted-foreground" />
+              <Input value={q} onChange={e => setQ(e.target.value)} placeholder="Search SKU or product" className="h-9 w-56 pl-8" />
+            </div>
+            <Select value={brand} onValueChange={setBrand}>
+              <SelectTrigger className="w-40 h-9"><SelectValue placeholder="Brand" /></SelectTrigger>
+              <SelectContent><SelectItem value="all">All brands</SelectItem>{brandOptions.map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}</SelectContent>
+            </Select>
+            <div className="inline-flex rounded-md border border-border overflow-hidden">
+              {([["all", "All"], ["working", "Selling"], ["slow", "Slow"], ["stalled", "Stalled"]] as const).map(([v, l]) => (
+                <button key={v} onClick={() => setStatusF(v)}
+                  className={`px-2.5 py-1.5 text-xs font-medium transition-colors ${statusF === v ? "bg-pd-accent text-white" : "text-muted-foreground hover:text-foreground"}`}>{l}</button>
+              ))}
+            </div>
+            {(brand !== "all" || statusF !== "all" || q) && (
+              <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => { setBrand("all"); setStatusF("all"); setQ(""); }}>Clear</Button>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          {isLoading ? <PageLoader rows={10} columns={[110, 160, 80, 60, 60, 70, 80, 90, 60, 70, 80, 90]} label="Loading campaigns" /> : rows.length === 0 ? (
+            <div className="py-12 text-center text-sm text-muted-foreground">No {isSale ? "active sales" : "active liquidations"} right now.</div>
+          ) : (
+            <Table containerClassName="max-h-[calc(100vh-360px)]">
+              <TableHeader className="sticky top-0 z-10 bg-background shadow-[0_1px_0_0_hsl(var(--border))]">
+                <TableRow>
+                  <TableHead>SKU</TableHead>
+                  <TableHead>Product</TableHead>
+                  <TableHead>Brand</TableHead>
+                  <PerfHead label="Disc" k="discount_pct" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+                  <TableHead className="text-right whitespace-nowrap">Orig → Sale</TableHead>
+                  <PerfHead label="Days" k="days_live" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} title="Days live on sale" />
+                  <PerfHead label="Sold" k="units_since" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} title="Units sold since it went on sale" />
+                  <PerfHead label="Revenue" k="revenue_since" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} title="Revenue since launch" />
+                  <PerfHead label="Contribution" k="contribution_since" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} title="Contribution since launch (price − cost − fees − courier)" />
+                  <PerfHead label="Sold-thru" k="sell_through_pct" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} title="Units sold ÷ (sold + stock left)" />
+                  <PerfHead label="~Clear" k="weeks_to_clear" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} title="Weeks to clear remaining stock at the current pace" />
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filtered.length === 0 && <TableRow><TableCell colSpan={13} className="text-center text-muted-foreground py-8">No campaigns match this filter.</TableCell></TableRow>}
+                {pageRows.map(c => {
+                  const contribNeg = Number(c.contribution_since) < 0;
+                  const st = c.sell_through_pct == null ? 0 : Number(c.sell_through_pct);
+                  return (
+                    <TableRow key={c.id}>
+                      <TableCell><Link to={`/discovery/products?search=${encodeURIComponent(c.sku)}`} className="font-mono text-xs text-pd-accent hover:underline whitespace-nowrap">{c.sku}</Link></TableCell>
+                      <TableCell className="text-sm max-w-[180px] truncate" title={c.product_name ?? undefined}>{c.product_name ?? "—"}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{c.brand_name ?? "—"}</TableCell>
+                      <TableCell className="text-right text-sm">{c.discount_pct != null ? `${c.discount_pct}%` : "—"}</TableCell>
+                      <TableCell className="text-right text-xs whitespace-nowrap">{c.original_price != null ? `£${Number(c.original_price).toFixed(2)}` : "—"}<span className="text-orange-400"> → {c.campaign_price != null ? `£${Number(c.campaign_price).toFixed(2)}` : "—"}</span></TableCell>
+                      <TableCell className="text-right text-xs text-muted-foreground">{c.days_live}d</TableCell>
+                      <TableCell className="text-right text-sm font-semibold">{c.units_since}</TableCell>
+                      <TableCell className="text-right text-sm text-emerald-400">{gbp(Number(c.revenue_since))}</TableCell>
+                      <TableCell className={`text-right text-sm ${contribNeg ? "text-destructive" : "text-emerald-400"}`}>{gbp(Number(c.contribution_since))}</TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center gap-1.5 justify-end">
+                          <span className="text-xs tabular-nums">{c.sell_through_pct == null ? "—" : `${st.toFixed(0)}%`}</span>
+                          <div className="w-10 h-1.5 rounded bg-muted overflow-hidden"><div className="h-full bg-pd-accent" style={{ width: `${Math.min(100, st)}%` }} /></div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right text-xs text-muted-foreground whitespace-nowrap">{Number(c.current_stock ?? 0) <= 0 ? <span className="text-emerald-400">cleared</span> : c.weeks_to_clear == null ? "—" : `${Number(c.weeks_to_clear).toFixed(0)}w`}</TableCell>
+                      <TableCell>{c.stage === "recovering" ? <Badge variant="outline" className="text-xs text-emerald-400 border-emerald-500/30"><TrendingUp className="h-3 w-3 mr-1" />Recovering</Badge> : <StatusChip f={c.status_flag} />}</TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex gap-1 justify-end">
+                          <Button size="sm" variant="ghost" className="h-7 text-xs" title="End — keep the current price, hand back to the repricer" onClick={() => onEnd(c.id)}><CheckCircle2 className="h-3 w-3 mr-1" />End</Button>
+                          <Button size="sm" variant="ghost" className="h-7 text-xs text-amber-400" title="Revert — push the original price back" onClick={() => onRevert(c as unknown as Campaign)} disabled={reverting}>{reverting ? <Loader2 className="h-3 w-3 animate-spin" /> : <><RotateCcw className="h-3 w-3 mr-1" />Revert</>}</Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          )}
+          {filtered.length > PAGE && (
+            <div className="flex items-center justify-between px-4 py-3 border-t border-border text-sm text-muted-foreground">
+              <span>Showing {(page - 1) * PAGE + 1}–{Math.min(page * PAGE, filtered.length)} of {filtered.length}</span>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>Previous</Button>
+                <span className="self-center text-xs">Page {page} / {pageCount}</span>
+                <Button variant="outline" size="sm" disabled={page === pageCount} onClick={() => setPage(p => p + 1)}>Next</Button>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
