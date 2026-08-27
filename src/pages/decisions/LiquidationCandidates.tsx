@@ -836,11 +836,14 @@ function ActiveCampaignsTable({ kind, perf, onEnd, onRevert, reverting, onChange
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE));
   const pageRows = filtered.slice((page - 1) * PAGE, page * PAGE);
 
-  // Selection spans the whole FILTERED set (not just the visible page), so a
-  // filter → "select all" → bulk action hits everything that matched.
+  // Bulk acts on whatever is selected; the header checkbox selects the current
+  // PAGE only (least surprising), with a banner to opt into all filtered rows.
   const selectedRows = useMemo(() => filtered.filter(r => selected.has(r.id)), [filtered, selected]);
   const allFilteredSelected = filtered.length > 0 && filtered.every(r => selected.has(r.id));
-  const toggleAll = (v: boolean) => setSelected(v ? new Set(filtered.map(r => r.id)) : new Set());
+  const allPageSelected = pageRows.length > 0 && pageRows.every(r => selected.has(r.id));
+  const somePageSelected = pageRows.some(r => selected.has(r.id));
+  const togglePage = (v: boolean) => setSelected(prev => { const n = new Set(prev); pageRows.forEach(r => v ? n.add(r.id) : n.delete(r.id)); return n; });
+  const selectAllFiltered = () => setSelected(new Set(filtered.map(r => r.id)));
   const toggleOne = (id: string, v: boolean) => setSelected(prev => { const n = new Set(prev); v ? n.add(id) : n.delete(id); return n; });
 
   async function runBulk(action: "end" | "revert") {
@@ -940,10 +943,18 @@ function ActiveCampaignsTable({ kind, perf, onEnd, onRevert, reverting, onChange
           {isLoading ? <PageLoader rows={10} columns={[110, 160, 80, 60, 60, 70, 80, 90, 60, 70, 80, 90]} label="Loading campaigns" /> : rows.length === 0 ? (
             <div className="py-12 text-center text-sm text-muted-foreground">No {isSale ? "active sales" : "active liquidations"} right now.</div>
           ) : (
+            <>
+            {allPageSelected && filtered.length > pageRows.length && (
+              <div className="px-4 py-2 text-xs text-center bg-muted/40 border-b border-border">
+                {allFilteredSelected
+                  ? <>All <strong>{filtered.length}</strong> {isSale ? "sales" : "liquidations"} selected. <button className="text-pd-accent hover:underline font-medium" onClick={() => setSelected(new Set())}>Clear selection</button></>
+                  : <>All <strong>{pageRows.length}</strong> on this page selected. <button className="text-pd-accent hover:underline font-medium" onClick={selectAllFiltered}>Select all {filtered.length}</button></>}
+              </div>
+            )}
             <Table containerClassName="max-h-[calc(100vh-360px)]">
               <TableHeader className="sticky top-0 z-10 bg-background shadow-[0_1px_0_0_hsl(var(--border))]">
                 <TableRow>
-                  <TableHead className="w-8"><Checkbox checked={allFilteredSelected} onCheckedChange={(v) => toggleAll(!!v)} title="Select all in view" /></TableHead>
+                  <TableHead className="w-8"><Checkbox checked={allPageSelected ? true : somePageSelected ? "indeterminate" : false} onCheckedChange={(v) => togglePage(v === true)} title="Select this page" /></TableHead>
                   <TableHead>SKU</TableHead>
                   <TableHead>Product</TableHead>
                   <TableHead>Brand</TableHead>
@@ -995,6 +1006,7 @@ function ActiveCampaignsTable({ kind, perf, onEnd, onRevert, reverting, onChange
                 })}
               </TableBody>
             </Table>
+            </>
           )}
           {filtered.length > PAGE && (
             <div className="flex items-center justify-between px-4 py-3 border-t border-border text-sm text-muted-foreground">
