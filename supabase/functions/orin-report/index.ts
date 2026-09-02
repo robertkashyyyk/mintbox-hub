@@ -132,18 +132,26 @@ figures AND how they landed against the daily TARGETS (Primary/Stretch/Ultimate)
 never recompute or invent a number. Write a VERY short daily note:
 - LEAD with yesterday's CONTRIBUTION vs the Primary contribution target (contribution matters more than revenue) — e.g.
   "Yesterday's contribution beat Primary by 12%" or "contribution came in 8% short of Primary". A single day is not
-  "tiered" — just say ahead/behind Primary (and by how much), and note if it cleared Stretch/Ultimate.
+  "tiered" — say ahead/behind Primary and by how much.
+- WHETHER IT CLEARED STRETCH/ULTIMATE IS DECIDED BY THE DATA, NOT BY THE % OVER PRIMARY. Use the gross row's
+  nearest_line field — the HIGHEST line the actual reached ('primary' | 'stretch' | 'ultimate'). Only say it cleared
+  Stretch if nearest_line is 'stretch' or 'ultimate'; only Ultimate if nearest_line is 'ultimate'. If nearest_line is
+  'primary', DO NOT mention Stretch or Ultimate at all — beating Primary by a few percent does NOT clear them (those
+  lines can be 30%+ / 100%+ above Primary).
 - Then state revenue and orders as supporting context (a tight line or two), positive and encouraging in tone.
 - Include ONE line on AOV (average order value): the figure and whether it is ahead/behind the day's target. AOV
   is a priority lever — every +£1 is ~£0.68 incremental contribution per order — so it's always worth a mention, but
   keep it to a single line and don't over-read a single day.
-- POR% is given as a LEVEL only. You may state it ("25.0% POR"), but you are NOT given any margin target or
-  baseline — so NEVER say margin/POR is "above"/"below"/"well above" an expected level, and never invent a
-  baseline figure (e.g. a "27.5% baseline"). Beating the contribution £ target does NOT imply margin is high; do not
-  claim margin "drove" the day. Only compare against the Primary/Stretch/Ultimate CONTRIBUTION £ lines you are given.
+- State the day's margin as BOTH figures, supplied and levels-only: POR% (profit-on-return) and GM% (gross margin =
+  contribution ÷ ex-VAT revenue) — e.g. "POR 26.0%, GM 31.2%". You are NOT given any margin target or baseline, so
+  NEVER say margin/POR/GM is "above"/"below"/"well above" an expected level, and never invent a baseline figure.
+  Beating the contribution £ target does NOT imply margin is high; do not claim margin "drove" the day.
 - Then ask ONE short, specific question to get the team thinking about today's focus.
-No preamble, no headers, no other metrics, no analysis beyond those figures. Never invent or compare against any
-target/baseline not present in the data.`
+IF THE TARGETS ARRAY IS EMPTY OR UNAVAILABLE: do NOT refuse and do NOT ask for targets. Still write the note from the
+headline figures you DO have (contribution, revenue, orders, AOV, POR, GM), simply omitting the vs-Primary/Stretch/
+Ultimate comparison, and add a brief note that targets were unavailable for the day. NEVER reply that you cannot write it.
+No preamble, no headers, no other metrics beyond those figures. Never invent or compare against any target/baseline
+not present in the data.`
 
 // get_scorecard / get_profit_day are heavy and sit on the ~8s statement timeout
 // when COLD (cache/plan not warm) — a single cold call fails the report. Retry so
@@ -196,24 +204,26 @@ Deno.serve(async (req) => {
     const gbp = (n: any) => '£' + Number(n).toLocaleString('en-GB', { maximumFractionDigits: 0 })
 
     if (cadence === 'daily') {
-      // Fetch the daily inputs CONCURRENTLY (they're independent) — sequentially they cold-stacked
-      // at 6am and could tip past the edge wall-clock limit. p_date pins the same day across all three.
+      // Fetch the two HEAVY daily inputs concurrently (independent); p_date pins the same day.
       const yday = new Date(Date.now() - 86400000).toISOString().slice(0, 10)
-      const [dayRes, paceRes, slRes] = await Promise.all([
+      const [dayRes, slRes] = await Promise.all([
         rpcRetry(read, 'get_profit_day', { p_date: yday }),
-        rpcRetry(read, 'get_target_pace', { p_grain: 'day', p_asof: yday }),
         rpcRetry(read, 'get_reorder_shortlist', { p_limit: 6, p_horizon_weeks: 4 }),
       ])
       if (dayRes.error) return json({ error: `get_profit_day: ${dayRes.error.message}` }, 500)
       const d: any = Array.isArray(dayRes.data) ? dayRes.data[0] : dayRes.data
       if (!d) return json({ error: 'no daily data' }, 500)
-      const pace = paceRes.data
+      // Pace AFTER the heavy queries (DB warm) so it doesn't lose a cold 3-way race — that race was
+      // returning empty targets and making Orin refuse to write the note. Extra retries (fast RPC).
+      const { data: pace } = await rpcRetry(read, 'get_target_pace', { p_grain: 'day', p_asof: yday }, 5)
       inputSnapshot = { day: d, targets: pace ?? [] }
       shortlist = Array.isArray(slRes.data) ? slRes.data : []
       periodKey = String(d.day)
       systemPrompt = DAILY_SYSTEM_PROMPT
       maxTokens = 450
       const por = d.por_pct != null ? ` (POR ${(Number(d.por_pct) * 100).toFixed(1)}%)` : ''
+      // GM% = gross margin = contribution / ex-VAT revenue (POR divides by GMV incl VAT — a lower figure).
+      const gm = Number(d.revenue) > 0 ? Number(d.profit) / Number(d.revenue) : null
       // KPI cards: yesterday's figures + how each landed vs the Primary daily target.
       const pRow = (mk: string) => (pace as any[] ?? []).find((x) => x.metric === mk)
       const vsP = (mk: string) => {
@@ -235,10 +245,13 @@ Deno.serve(async (req) => {
         { label: 'AOV', value: aov != null ? '£' + aov.toFixed(2) : '—',
           sub: (aov != null && aovTarget) ? `${aov >= aovTarget ? '+' : ''}£${(aov - aovTarget).toFixed(2)} vs £${aovTarget.toFixed(2)} target` : '',
           accent: (aov != null && aovTarget) ? (aov >= aovTarget ? '#2A9D8F' : '#d97706') : '#64748b' },
-        { label: 'Contribution', value: gbp(d.profit), sub: d.por_pct != null ? `POR ${(Number(d.por_pct) * 100).toFixed(1)}%` : '', accent: '#64748b' },
+        { label: 'Contribution', value: gbp(d.profit),
+          sub: [d.por_pct != null ? `POR ${(Number(d.por_pct) * 100).toFixed(1)}%` : '', gm != null ? `GM ${(gm * 100).toFixed(1)}%` : ''].filter(Boolean).join(' · '),
+          accent: '#64748b' },
       ]
       userContent =
-        `Yesterday (${d.day}): Revenue ${gbp(d.revenue)}, Orders ${d.orders}, Contribution ${gbp(d.profit)}${por}.\n` +
+        `Yesterday (${d.day}): Revenue ${gbp(d.revenue)}, Orders ${d.orders}, Contribution ${gbp(d.profit)}${por}` +
+        `${gm != null ? `, GM ${(gm * 100).toFixed(1)}%` : ''}.\n` +
         (aov != null ? `AOV (average order value) = £${aov.toFixed(2)}${aovTarget ? ` vs £${aovTarget.toFixed(2)} target (${aov >= aovTarget ? 'ahead' : 'behind'})` : ''}. ` +
           `AOV is a priority lever — every +£1 of AOV is ~£0.68 incremental contribution per order.\n` : '\n') +
         `\nDaily targets vs actual (Primary/Stretch/Ultimate; variance_vs_primary_pct is the fraction ` +
@@ -301,7 +314,9 @@ Deno.serve(async (req) => {
           : 'YTD actual-to-date vs Primary/Stretch/Ultimate'} ` +
         `— with the banding tier per metric. LEAD the report with this: state the tier (e.g. "revenue is ` +
         `firmly in Primary, building toward Stretch") and whether we're ahead/behind Primary pace. ` +
-        `For 'gross' rows with partial_cost=true, caveat that contribution is partial pending full cost data:\n` +
+        `For 'gross' rows with partial_cost=true, caveat that contribution is partial pending full cost data. ` +
+        `IF this pace array is EMPTY/unavailable, do NOT refuse — lead with the scorecard story instead and just ` +
+        `omit the vs-target framing:\n` +
         `${JSON.stringify(pace ?? [], null, 2)}\n\n` +
         (work
           ? `Work completed / data-hygiene graft in the last ${wcDays} days (already counted — give this its ` +
@@ -518,17 +533,18 @@ function renderEmailHtml(
   const bodyHtml = marked.parse(narrative, { async: false }) as string
   const title = cadence === 'daily' ? 'Daily Brief' : cadence === 'weekly' ? 'Weekly Report' : 'Monthly Review'
   const sans = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif"
-  const cw = cards.length ? Math.floor(100 / cards.length) : 0
+  // Cards wrap 2-up (inline-block @ 50%) rather than a rigid N-column row, so on a phone the last
+  // tile (Contribution) never gets squeezed off — 4 cards render as a clean 2×2 on mobile and desktop.
   const cardsHtml = cards.length
-    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0"><tr>` +
+    ? `<div style="font-size:0;margin:0 -4px">` +
       cards.map((c) =>
-        `<td style="padding:5px;vertical-align:top;width:${cw}%">` +
+        `<div style="display:inline-block;width:50%;box-sizing:border-box;padding:4px;vertical-align:top">` +
         `<div style="border:1px solid #e2e8f0;border-radius:10px;padding:13px 14px;background:#fff">` +
         `<div style="font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;font-family:${sans}">${c.label}</div>` +
         `<div style="font-size:22px;font-weight:700;color:#0f172a;margin-top:5px;font-family:${sans}">${c.value}</div>` +
         (c.sub ? `<div style="font-size:12px;color:${c.accent};margin-top:4px;font-family:${sans};font-weight:600">${c.sub}</div>` : '') +
-        `</div></td>`).join('') +
-      `</tr></table>`
+        `</div></div>`).join('') +
+      `</div>`
     : ''
   return `<!doctype html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
