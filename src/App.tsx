@@ -71,6 +71,7 @@ import ImageScoutBrandProfiles from "./pages/discovery/ImageScoutBrandProfiles";
 import ImageScoutQARun from "./pages/discovery/ImageScoutQARun";
 import ImageScoutCalibration from "./pages/discovery/ImageScoutCalibration";
 import BoxQuantities from "./pages/discovery/BoxQuantities";
+import SubframeCatalogue from "./pages/discovery/SubframeCatalogue";
 import WebSearcherIndex from "./pages/discovery/WebSearcherIndex";
 import DimsWeights from "./pages/discovery/DimsWeights";
 import SupplierFeeds from "./pages/discovery/SupplierFeeds";
@@ -227,6 +228,7 @@ const App = () => (
             <Route path="/discovery/image-scout/qa-run" element={<ImageScoutQARun />} />
             <Route path="/discovery/image-scout/calibration" element={<ImageScoutCalibration />} />
             <Route path="/discovery/box-quantities" element={<BoxQuantities />} />
+            <Route path="/discovery/subframe-catalogue" element={<SubframeCatalogue />} />
             <Route path="/discovery/web-searcher" element={<WebSearcherIndex />} />
             <Route path="/discovery/web-searcher/dims-weights" element={<DimsWeights />} />
             <Route path="/discovery/supplier-feeds" element={<SupplierFeeds />} />

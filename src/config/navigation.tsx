@@ -51,6 +51,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { title: "Supplier Feeds", url: "/discovery/supplier-feeds", icon: RefreshCw, description: "Configure and sync supplier stock/price feeds" },
       { title: "Feed Imports", url: "/discovery/feed-imports", icon: FileText, description: "Upload product data and configure import rules" },
       { title: "Box Quantities", url: "/discovery/box-quantities", icon: PackagePlus, description: "Minimum order multiples — purchases auto-round up to nearest box" },
+      { title: "Subframe Catalogue", url: "/discovery/subframe-catalogue", icon: FileText, description: "ASC subframe & suspension range — searchable catalogue with images, OE numbers and live stock (V4)." },
     ],
   },
   {
