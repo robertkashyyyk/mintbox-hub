@@ -1813,7 +1813,7 @@
   "oe": [
    "6Q0500051AJ"
   ],
-  "internal_sku": null,
+  "internal_sku": "ASC-SUB-125",
   "image": null,
   "supplier": "Klokkerholm",
   "is_new": true
@@ -1829,9 +1829,26 @@
    "421100H010",
    "42110-0H010"
   ],
-  "internal_sku": null,
+  "internal_sku": "ASC-SUB-126",
   "image": null,
   "supplier": "Amity",
+  "is_new": true
+ },
+ {
+  "num": 127,
+  "code": "PD-SUB-127",
+  "cat": "FRONT SUBFRAME",
+  "title": "Front Subframe",
+  "vehicle": "Kia Rio / Hyundai Accent 2011-2017",
+  "ref": "",
+  "oe": [
+   "624001W000",
+   "624001W200",
+   "62400-1R000"
+  ],
+  "internal_sku": "ASC-SUB-127",
+  "image": null,
+  "supplier": "",
   "is_new": true
  }
 ]
