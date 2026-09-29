@@ -246,10 +246,13 @@ Deno.serve(async (req) => {
     const allStatusIds = activeStatusIds.length > 0 ? activeStatusIds : dispatchedStatusIds;
     // Live-tail terminal sweep — always date-floored to last 10 days
     const liveTailTerminalFloor = new Date(); liveTailTerminalFloor.setUTCDate(liveTailTerminalFloor.getUTCDate() - 10);
-    // Terminal/despatch is handled by reconcile-order-ghosts + poll-despatched-today,
-    // so the live-tail no longer sweeps terminal statuses — keeping it lean means the
-    // header phase finishes fast and NEW orders actually get inserted each run.
-    const liveTailTerminalIds: number[] = [];
+    // Restore a bounded terminal/despatched re-fetch (regression fix for 597fc51, which
+    // emptied this and stopped tracking_number ever being filled after despatch — coverage
+    // fell ~96%→~40% on 2026-06-15). This runs LAST in priority order (after hot+cold NEW
+    // inserts) and is hard-floored to the last 10 days (see liveTailTerminalFloor + the
+    // page-cap/time-guard below), so it re-reads recent despatched headers — populating
+    // tracking_number via the existing-order update path — without re-starving NEW inserts.
+    const liveTailTerminalIds: number[] = terminalStatusIds;
 
     // ── PRIORITY ORDERING ───────────────────────────────────────────────────
     // Hot statuses (where today's activity lives) go first — guarantees recent
@@ -314,12 +317,16 @@ Deno.serve(async (req) => {
           const orders: MintsoftOrder[] = await resp.json();
           if (orders.length === 0) break;
           let stopPaging = false;
+          // In live-tail the terminal sweep is floored to the last 10 days; in BACKFILL
+          // mode we instead floor terminal to the backfill window (fromDateObj) so a
+          // historical tracking_number heal (Jun–Sep) can re-read despatched headers.
+          const terminalFloor = isBackfill ? fromDateObj : liveTailTerminalFloor;
           const filtered = orders.filter(o => {
             if (seenOrderIds.has(o.ID)) return false;
             const orderDateObj = new Date(o.OrderDate);
             if (orderDateObj < MIN_DATE) return false;
-            // Terminal sweep: hard 10-day floor (Mintsoft returns newest first)
-            if ((isTerminal || isTerminalSeed) && orderDateObj < liveTailTerminalFloor) { stopPaging = true; return false; }
+            // Terminal sweep: floored (10-day live-tail, or the backfill window)
+            if ((isTerminal || isTerminalSeed) && orderDateObj < terminalFloor) { stopPaging = true; return false; }
             if (!ignoreDateFilter && orderDateObj < fromDateObj) return false;
             seenOrderIds.add(o.ID);
             return true;
