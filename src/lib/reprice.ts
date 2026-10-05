@@ -11,7 +11,9 @@
  *    as profit / (net_revenue * (1 + vat)). So the POR denominator per unit is
  *    the GROSS unit price.
  *  - eBay fee model (channel_fee_rules "Default"): variable fee = fee_pct of the
- *    GROSS price (0.12), plus a fixed fee per line (0.36). vat_rate 0.20.
+ *    GROSS price (0.12), plus a fixed fee per line (0.36). The rule's vat_rate is
+ *    the VAT on the FEE (reclaimable, now 0) — NOT the product VAT. Product/output
+ *    VAT for the net-revenue term is PRODUCT_VAT (0.20), kept separate.
  */
 
 /** POR% band thresholds — mirror app_settings.profit.loss_bands. */
@@ -105,6 +107,18 @@ export interface EffectiveFees {
 export const DEFAULT_FEES: EffectiveFees = { vat: 0.2, feePct: 0.12, fixedFee: 0.36 };
 
 /**
+ * PRODUCT (output) VAT used to turn gross into net revenue in the floor / POR
+ * maths: net = gross / (1 + PRODUCT_VAT). This is the VAT we remit on the SALE
+ * and is DELIBERATELY SEPARATE from channel_fee_rules.vat_rate, which is the VAT
+ * on the FEE — reclaimable, and now 0. They were conflated historically (both
+ * happened to be 0.20); once fee VAT was zeroed, reading vat_rate as product VAT
+ * collapsed the floor's output-VAT term and dropped floors ~17-20%. Keep them
+ * separate. Default 20% (UK standard); the Amazon cost-floor RPC reads
+ * app_settings.product_vat_rate so it can be overridden centrally.
+ */
+export const PRODUCT_VAT = 0.2;
+
+/**
  * Sane bounds for the measured VARIABLE eBay fee rate (referral + promoted),
  * decomposed by the RPC as (Σfvf − Ntxns·fixed) / Σ(item + postage). Outside this
  * band the measurement is noise and we fall back to the modeled channel fee.
@@ -141,11 +155,17 @@ function likeToRegExp(pattern: string): RegExp {
  * Pick the fee rule for a channel: lowest-priority ACTIVE rule whose pattern
  * matches. Falls back to eBay defaults if nothing matches / no rules loaded.
  */
-export function effectiveFeesFor(channel: string, rules: FeeRule[] | null | undefined): EffectiveFees {
+export function effectiveFeesFor(
+  channel: string,
+  rules: FeeRule[] | null | undefined,
+  productVat: number = PRODUCT_VAT,
+): EffectiveFees {
   const active = (rules ?? []).filter((r) => r.active).sort((a, b) => a.priority - b.priority);
   const hit = active.find((r) => likeToRegExp(r.channel_pattern).test(channel));
-  if (!hit) return DEFAULT_FEES;
-  return { vat: hit.vat_rate, feePct: hit.fee_pct, fixedFee: hit.fixed_fee };
+  if (!hit) return { ...DEFAULT_FEES, vat: productVat };
+  // hit.vat_rate is the FEE's VAT (reclaimable, now 0) — NOT the product VAT.
+  // Product VAT comes from productVat so the floor keeps its output-VAT term.
+  return { vat: productVat, feePct: hit.fee_pct, fixedFee: hit.fixed_fee };
 }
 
 /**
