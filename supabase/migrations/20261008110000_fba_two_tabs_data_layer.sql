@@ -24,3 +24,10 @@
 -- classifier auto-declines its delete-stale-rows step).
 -- This file is the canonical DDL record; see the session log for the
 -- statement-by-statement application.
+
+-- Addendum (2026-10-08 pm): Pricing role went live. amazon-pull-fee-estimates
+-- request shape fixed (getMyFeesEstimates batch takes a BARE top-level array;
+-- the FeesEstimateByIdRequestList wrapper 400s — never caught before because
+-- the role was missing). amazon_fee_estimate_sweep v2 targets the candidate
+-- PRE-filter (not is_candidate — chicken-and-egg). 118+ real estimates landed;
+-- fee_source now shows 'api' for estimated never-FBA SKUs.

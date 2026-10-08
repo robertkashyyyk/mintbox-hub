@@ -92,18 +92,21 @@ Deno.serve(async (req) => {
     for (let i = 0; i < items.length; i += 20) {
       if (Date.now() > deadline) break;
       const batch = items.slice(i, i + 20);
-      const reqBody = {
-        FeesEstimateByIdRequestList: batch.map((it) => ({
-          IdType: "ASIN",
-          IdValue: it.asin,
-          FeesEstimateRequest: {
-            MarketplaceId: marketplaceId,
-            IsAmazonFulfilled: true,
-            Identifier: it.asin,
-            PriceToEstimateFees: { ListingPrice: { CurrencyCode: "GBP", Amount: it.price } },
-          },
-        })),
-      };
+      // getMyFeesEstimates (batch) takes a BARE top-level array of
+      // FeesEstimateByIdRequest — the FeesEstimateByIdRequestList wrapper is
+      // the single-ASIN operation's shape and Amazon 400s on it
+      // ("Missing objects [PriceToEstimateFees]"). Found 2026-10-08, the first
+      // day the app had the Pricing role to exercise this at all.
+      const reqBody = batch.map((it) => ({
+        IdType: "ASIN",
+        IdValue: it.asin,
+        FeesEstimateRequest: {
+          MarketplaceId: marketplaceId,
+          IsAmazonFulfilled: true,
+          Identifier: it.asin,
+          PriceToEstimateFees: { ListingPrice: { CurrencyCode: "GBP", Amount: it.price } },
+        },
+      }));
       const res = await spPost(endpoint, token, "/products/fees/v0/feesEstimate", reqBody);
       if (res.status === 429) { await new Promise((r) => setTimeout(r, 2000)); i -= 20; continue; }
       if (!res.ok) return json({ error: "feesEstimate failed", status: res.status, detail: res.body, done: out.length }, 502);
