@@ -33,6 +33,7 @@ interface Row {
   fba_fee_per_unit: number | null;
   net_per_unit: number | null;
   net_margin_pct: number | null;
+  data_as_of: string | null;
 }
 
 const gbp = (v: number | null | undefined) =>
@@ -53,19 +54,22 @@ const FbaReplenishment = () => {
   const [country, setCountry] = useState<string>("all");
   const [sort, setSort] = useState<{ field: SortField; dir: "asc" | "desc" }>({ field: "units_to_order", dir: "desc" });
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ["fba-replenishment"],
     queryFn: async (): Promise<Row[]> => {
       const { data, error } = await (supabase as any)
         .from("v_fba_replenishment")
-        .select("marketplace_id,country_code,base_sku,weekly_velocity,units_7d,units_30d,fba_on_hand,fba_in_transit,target_units,days_of_cover_weeks,units_to_order,replenish_flag,unit_cost,reorder_cost,avg_sell_price,gross_margin_pct,referral_fee_per_unit,fba_fee_per_unit,net_per_unit,net_margin_pct")
+        .select("marketplace_id,country_code,base_sku,weekly_velocity,units_7d,units_30d,fba_on_hand,fba_in_transit,target_units,days_of_cover_weeks,units_to_order,replenish_flag,unit_cost,reorder_cost,avg_sell_price,gross_margin_pct,referral_fee_per_unit,fba_fee_per_unit,net_per_unit,net_margin_pct,data_as_of")
         .limit(5000);
       if (error) throw error;
       return (data ?? []) as Row[];
     },
+    // 57014 = statement timeout: deterministic, retrying just triples the wait.
+    retry: (failureCount, err: any) => err?.code !== "57014" && failureCount < 2,
   });
 
   const rows = data ?? [];
+  const dataAsOf = rows.length > 0 ? rows[0].data_as_of : null;
   const countries = useMemo(
     () => Array.from(new Set(rows.map((r) => r.country_code).filter(Boolean))).sort() as string[],
     [rows],
@@ -131,9 +135,26 @@ const FbaReplenishment = () => {
     <div className="space-y-6">
       <ModuleHeader
         title="FBA Replenishment"
-        description="What to ship into Amazon FBA — demand (Sales & Traffic) vs current FBA stock. Target cover, less on-hand and in-transit, MOQ-rounded. Single-unit (Q-code) normalised."
+        description={`What to ship into Amazon FBA — demand (Sales & Traffic) vs current FBA stock. Target cover, less on-hand and in-transit, MOQ-rounded. Single-unit (Q-code) normalised. Recomputed nightly${dataAsOf ? ` — data as of ${new Date(dataAsOf).toLocaleString()}` : ""}.`}
         icon={Truck}
       />
+
+      {error ? (
+        <Card className="border-destructive/50">
+          <CardHeader className="flex flex-row items-center gap-3">
+            <AlertTriangle className="h-5 w-5 text-destructive shrink-0" />
+            <div>
+              <CardTitle className="text-base">Couldn't load replenishment data</CardTitle>
+              <CardDescription className="mt-1">
+                {(error as any)?.code === "57014"
+                  ? "The database query timed out."
+                  : ((error as any)?.message ?? "Unexpected error.")}{" "}
+                Refresh the page to try again; if it persists, the nightly snapshot may need attention.
+              </CardDescription>
+            </div>
+          </CardHeader>
+        </Card>
+      ) : null}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <Card><CardHeader className="pb-2"><CardDescription>SKUs to reorder</CardDescription>
