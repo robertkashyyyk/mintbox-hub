@@ -57,11 +57,16 @@ Deno.serve(async (req) => {
   const { data: failing, error } = await supa.rpc("amazon_cron_health_failing");
   if (error) return json({ error: "health RPC failed", detail: error.message }, 500);
 
-  if (!failing || failing.length === 0) {
-    return json({ ok: true, failing: 0, emailed: false });
+  // Send-in batches that never showed up at Amazon within 14 days (Part 3.9).
+  const { data: overdueBatches } = await supa.rpc("amazon_fba_send_batches");
+  const overdue = ((overdueBatches ?? []) as Array<Record<string, unknown>>)
+    .filter((b) => b.overdue || b.status === "expired");
+
+  if ((!failing || failing.length === 0) && overdue.length === 0) {
+    return json({ ok: true, failing: 0, overdue_batches: 0, emailed: false });
   }
 
-  const rows = (failing as Array<Record<string, unknown>>)
+  const rows = ((failing ?? []) as Array<Record<string, unknown>>)
     .map(
       (f) => `<tr>
         <td style="padding:6px 10px;border:1px solid #ddd;font-family:monospace">${esc(f.jobname)}</td>
@@ -89,17 +94,26 @@ Deno.serve(async (req) => {
     <p style="color:#666;font-size:12px">Check cron.job_run_details in Supabase for full history.
     This alert repeats daily until the job succeeds again.</p>`;
 
+  const overdueHtml = overdue.length
+    ? `<p style="margin-top:16px"><b>FBA send-in batches not seen at Amazon within 14 days:</b></p><ul>` +
+      overdue.map((b) => `<li>${esc(b.created_at)} — ${esc(b.skus)} SKUs, ${esc(b.units)} units (${esc(b.created_by)}) — status ${esc(b.status)}</li>`).join("") +
+      `</ul><p style="color:#666;font-size:12px">Check the Send-in batches view on FBA Replenishment; chase or cancel them so the units stop counting as in-transit.</p>`
+    : "";
+
   const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
   const sent = await resend.emails.send({
     from: "PartsDoc Hub <hub@partsdochub.com>",
     to: toList,
-    subject: `⚠️ Amazon cron failing ${failing.length > 1 ? `(${failing.length} jobs)` : `: ${(failing[0] as any).jobname}`}`,
-    html,
+    subject: (failing ?? []).length
+      ? `⚠️ Amazon cron failing ${failing.length > 1 ? `(${failing.length} jobs)` : `: ${(failing[0] as any).jobname}`}`
+      : `⚠️ FBA send-in batch overdue (${overdue.length})`,
+    html: ((failing ?? []).length ? html : "") + overdueHtml,
   });
 
   return json({
     ok: !sent.error,
-    failing: failing.length,
+    failing: (failing ?? []).length,
+    overdue_batches: overdue.length,
     emailed: !sent.error,
     resend_id: sent.data?.id ?? null,
     resend_error: sent.error?.message ?? null,

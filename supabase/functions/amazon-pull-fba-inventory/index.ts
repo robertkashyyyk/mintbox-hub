@@ -112,6 +112,11 @@ Deno.serve(async (req) => {
         afn_inbound_working_quantity: String(n(d.inboundWorkingQuantity)),
         afn_inbound_shipped_quantity: String(n(d.inboundShippedQuantity)),
         afn_inbound_receiving_quantity: String(n(d.inboundReceivingQuantity)),
+        // Reserved breakdown (Part 3.7): FC transfer + FC processing count as
+        // on-hand for replenishment; customer-order reserved is already sold.
+        afn_reserved_customer_orders: String(n(d.reservedQuantity?.pendingCustomerOrderQuantity)),
+        afn_reserved_transfer: String(n(d.reservedQuantity?.pendingTransshipmentQuantity)),
+        afn_reserved_fc_processing: String(n(d.reservedQuantity?.fcProcessingQuantity)),
       };
     }).filter((r) => r.sku);
 

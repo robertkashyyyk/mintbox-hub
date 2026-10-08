@@ -1,0 +1,26 @@
+-- FBA Replenishment two-tab data layer (2026-10-08). Consolidated record of
+-- the migrations applied to prod via MCP this session (several individually):
+--   1. KEN phantom fix: amazon.base_sku()/pack_size() bounded Q-codes
+--      (-Q{1-3 digits, value 2..100} = pack; KEN-Q6600 etc are part numbers).
+--   2. fba_inventory_snapshot reserved detail (customer/transfer/fc_processing)
+--      + ingest RPC fields.
+--   3. amazon.inbound_shipment(+_item) mirror + deduped ingest RPC + nightly
+--      cron 02:18 (amazon-pull-inbound-shipments edge fn).
+--   4. amazon.fba_send_batch(+_line), amazon.fba_replenish_snooze, hazmat
+--      keyword config (app_settings 'amazon.hazmat_keywords'), defer/undefer/
+--      deferred-list/snooze-list/create-batch/batches/cancel-batch RPCs.
+--   5. amazon.v_fba_replenishment_base (on-hand includes FC transfer/processing
+--      reserved; inbound components exposed) + snapshot v3 columns + public
+--      view v_fba_replenishment v3 (+fbm_price_gross).
+--   6. mv_profit_band_history rebuilt on the ex-VAT basis mirroring
+--      get_profit_week_breakdown (thresholds from app_settings
+--      'profit.loss_bands', W12-2026 floor) + unique index + re-added
+--      unguarded to amazon_refresh_economics. Verified W38-40 == breakdown.
+--   7. amazon_fba_delay_raise (queue-only repricing proposal; >20% rise held
+--      for Clive; requeue supersedes old pending rows, never lowers) +
+--      amazon_fee_estimate_sweep + cron 03:05.
+-- The refresh function itself lives in supabase/manual/
+-- 20261008_amazon_refresh_fba_replenishment_v3.sql (SQL-editor apply: the MCP
+-- classifier auto-declines its delete-stale-rows step).
+-- This file is the canonical DDL record; see the session log for the
+-- statement-by-statement application.
