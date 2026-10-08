@@ -76,6 +76,7 @@ interface Row {
   is_hazmat: boolean | null;
   hazmat_source: string | null;
   is_excluded: boolean | null;
+  fbm_orders_90d: number | null;
 }
 
 interface Snooze {
@@ -199,6 +200,47 @@ const FbaReplenishment = () => {
       return (data?.value ?? null) as Bands | null;
     },
   });
+
+  const { data: fbmCfg } = useQuery({
+    queryKey: ["fbm-vs-fba-cfg"],
+    queryFn: async () => {
+      const { data } = await (supabase as any).from("app_settings").select("value").eq("key", "amazon.fbm_vs_fba").maybeSingle();
+      return {
+        handling: Number(data?.value?.handling_cost_per_order ?? 1.25),
+        minGbp: Number(data?.value?.flag_min_gbp_per_unit ?? 1.5),
+        minPct: Number(data?.value?.flag_min_pct ?? 30),
+      };
+    },
+  });
+  const handlingCfg = fbmCfg ?? { handling: 1.25, minGbp: 1.5, minPct: 30 };
+
+  // FBM net adjusted for handling (labour/packaging per ORDER, converted to
+  // per-unit with the SKU's real orders:units ratio) so FBM-vs-FBA compares
+  // like for like — FBA's fee already covers pick/pack.
+  const fbmNetAdj = (r: Row): number | null => {
+    if (r.fbm_net_per_unit == null) return null;
+    const units = r.fbm_units_90d ?? 0;
+    const orders = r.fbm_orders_90d ?? units; // worst case: one order per unit
+    const perUnit = units > 0 ? (handlingCfg.handling * orders) / units : handlingCfg.handling;
+    return r.fbm_net_per_unit - perUnit;
+  };
+  // "Review: FBM may be better" — information only, never feeds any automation.
+  const fbmReviewFlag = (r: Row): boolean => {
+    const adj = fbmNetAdj(r);
+    const fba = r.fba_net_per_unit_eff;
+    if (adj == null || fba == null) return false;
+    if (adj - fba < handlingCfg.minGbp) return false;
+    return fba <= 0 || (adj / fba - 1) * 100 >= handlingCfg.minPct;
+  };
+  // How much Amazon volume FBM could lose (Prime-driven) before the switch
+  // stops paying: 1 - fba_net / fbm_net_after_handling.
+  const volumeLossHeadroom = (r: Row): number | null => {
+    const adj = fbmNetAdj(r);
+    const fba = r.fba_net_per_unit_eff;
+    if (adj == null || adj <= 0 || fba == null) return null;
+    if (fba <= 0) return 100;
+    return Math.round((1 - fba / adj) * 100);
+  };
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["fba-replenishment-v3"] });
@@ -624,11 +666,20 @@ const FbaReplenishment = () => {
                             <TableCell className="text-right tabular-nums text-muted-foreground" title={`Fee source: ${r.fee_source ?? "—"}`}>{gbp(r.fba_fee_per_unit)}</TableCell>
                             <TableCell className={`text-right tabular-nums ${porBandClass(por, bands ?? null)}`}>{r.net_margin_pct == null ? "—" : `${nf(r.net_margin_pct, 1)}%`}</TableCell>
                             <TableCell className="text-right tabular-nums whitespace-nowrap"
-                              title={(() => { const u = upliftPct(r); return `FBA ${gbp(r.fba_net_per_unit_eff)} vs FBM ${gbp(r.fbm_net_per_unit)} per unit${u != null && u > 0 ? ` — FBA needs +${nf(u)}% volume to match` : ""}`; })()}>
+                              title={(() => {
+                                const adj = fbmNetAdj(r);
+                                const head = volumeLossHeadroom(r);
+                                return [
+                                  `FBA net ${gbp(r.fba_net_per_unit_eff)}/unit`,
+                                  `FBM net ${gbp(r.fbm_net_per_unit)}/unit before handling, ${gbp(adj)} after (£${handlingCfg.handling.toFixed(2)}/order handling — assumption)`,
+                                  head != null && head > 0 ? `FBM stays better until ~${nf(head)}% of Amazon volume is lost to the missing Prime badge` : null,
+                                ].filter(Boolean).join("\n");
+                              })()}>
                               {r.net_diff == null ? "—" : gbp(r.net_diff)}
-                              {(r.net_diff ?? 0) < 0 && (r.fbm_net_per_unit ?? 0) > 0 && (
-                                <Badge variant="outline" className="ml-1 text-[10px] border-red-400 text-red-500"
-                                  title="FBM wins per unit and is profitable — candidate to stop replenishing and let FBA stock sell through">FBM beats FBA</Badge>
+                              {fbmReviewFlag(r) && (
+                                <Badge variant="outline" className="ml-1 text-[10px] border-amber-500 text-amber-600">
+                                  Review: FBM may be better
+                                </Badge>
                               )}
                             </TableCell>
                             <TableCell className="text-right tabular-nums">{gbp(r.reorder_cost)}</TableCell>
@@ -668,6 +719,12 @@ const FbaReplenishment = () => {
                   </CollapsibleContent>
                 </Collapsible>
               )}
+              <p className="text-xs text-muted-foreground">
+                FBM Δ compares like for like: FBM handling assumed at £{handlingCfg.handling.toFixed(2)}/order
+                (assumption — tune in app_settings → amazon.fbm_vs_fba, along with the review thresholds of
+                ≥£{handlingCfg.minGbp.toFixed(2)}/unit and ≥{handlingCfg.minPct}%). The "Review" flag is
+                information for a human decision only — it never snoozes or deprioritises a line.
+              </p>
             </CardContent>
           </Card>
         </TabsContent>

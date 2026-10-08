@@ -37,3 +37,11 @@
 -- NEW name because the migration channel declines DROP FUNCTION and the
 -- return type changed; v1 remains unused. Candidates tab gains the
 -- "Prime uplift break-even %" lens: test candidates = pre-filter + FBA net > 0.
+
+-- Addendum 3 (2026-10-08 pm): "Review: FBM may be better" rework. Settings
+-- key amazon.fbm_vs_fba {handling_cost_per_order: 1.25 (ASSUMPTION pending
+-- Robert's real figure), flag_min_gbp_per_unit: 1.50, flag_min_pct: 30}.
+-- fbm_orders_90d column + amazon_refresh_fbm_orders() add-on fn chained into
+-- the 03:10 cron (main refresh fn untouched — SQL-editor-applied). Flag fires
+-- only when FBM-after-handling beats FBA by BOTH thresholds; hover shows
+-- before/after handling and the Prime volume-loss headroom; informational only.
