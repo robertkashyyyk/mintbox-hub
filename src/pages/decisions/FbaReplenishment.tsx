@@ -264,7 +264,7 @@ const FbaReplenishment = () => {
   const handlingCfg = fbmCfg ?? { handling: 1.25, minGbp: 1.5, minPct: 30 };
 
   // Drawer-only data (fetched on open).
-  const { data: weekly } = useQuery({
+  const { data: weekly, isError: weeklyError, isLoading: weeklyLoading, refetch: refetchWeekly } = useQuery({
     queryKey: ["fba-sku-weekly", drawerSku],
     enabled: !!drawerSku,
     queryFn: async () => {
@@ -273,14 +273,15 @@ const FbaReplenishment = () => {
       return (data ?? []) as { week_start: string; units: number }[];
     },
   });
-  const { data: queueRows } = useQuery({
+  const { data: queueRows, isError: queueError } = useQuery({
     queryKey: ["fba-sku-queue", drawerSku],
     enabled: !!drawerSku,
     queryFn: async () => {
-      const { data } = await (supabase as any)
+      const { data, error } = await (supabase as any)
         .from("threeds_reprice_pending")
         .select("store_id, price, status, queued_at, source")
         .eq("sku", drawerSku).order("queued_at", { ascending: false }).limit(10);
+      if (error) throw error;
       return (data ?? []) as any[];
     },
   });
@@ -1169,7 +1170,16 @@ const FbaReplenishment = () => {
               <div className="space-y-4 mt-4 text-sm">
                 <div>
                   <div className="text-xs font-medium text-muted-foreground mb-1">12-week sales (units, pack-normalised)</div>
-                  <Sparkline points={(weekly ?? []).map((w) => Number(w.units))} />
+                  {weeklyError ? (
+                    <span className="text-xs text-destructive">
+                      couldn't load sales history{" "}
+                      <button className="underline" onClick={() => refetchWeekly()}>retry</button>
+                    </span>
+                  ) : weeklyLoading ? (
+                    <span className="text-xs text-muted-foreground">loading…</span>
+                  ) : (
+                    <Sparkline points={(weekly ?? []).map((w) => Number(w.units))} />
+                  )}
                   <div className="text-xs text-muted-foreground mt-1">
                     Velocity {nf(drawerRow.weekly_velocity, 1)}/wk · 7d {nf(drawerRow.units_7d)} · 30d {nf(drawerRow.units_30d)}
                   </div>
@@ -1230,6 +1240,9 @@ const FbaReplenishment = () => {
                   </div>
                 )}
 
+                {queueError && (
+                  <div className="text-xs text-destructive">couldn't load reprice queue</div>
+                )}
                 {(queueRows ?? []).length > 0 && (
                   <div>
                     <div className="text-xs font-medium text-muted-foreground mb-1">Reprice queue</div>
