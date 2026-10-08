@@ -260,3 +260,13 @@ end
 $$;
 
 select public.amazon_refresh_fba_replenishment();
+
+-- Re-schedule the nightly refresh (it was paused on 2026-10-08 so the old v2
+-- function body could not overwrite the v3 enrichment before this file is
+-- applied). Applying this file restores it.
+select cron.unschedule(jobid) from cron.job where jobname = 'amazon-nightly-fba-replenishment-snapshot';
+select cron.schedule(
+  'amazon-nightly-fba-replenishment-snapshot',
+  '10 3 * * *',
+  $job$select public.amazon_refresh_fba_replenishment();$job$
+);
