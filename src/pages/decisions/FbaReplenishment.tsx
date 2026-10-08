@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -12,6 +12,8 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
@@ -21,12 +23,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useSidebar } from "@/components/ui/sidebar";
 import { PageLoader } from "@/components/ui/PageLoader";
 import ModuleHeader from "@/components/ModuleHeader";
 import { useToast } from "@/hooks/use-toast";
 import {
   ArrowUpDown, Truck, Download, AlertTriangle, MoreHorizontal, ChevronDown,
-  Flame, PackageX, Clock, TrendingUp, Undo2,
+  Flame, PackageX, Clock, TrendingUp, Undo2, ExternalLink, Columns3, Rows3,
 } from "lucide-react";
 
 interface Row {
@@ -103,6 +106,10 @@ const brandOf = (sku: string) => {
   const m = sku.match(/^([A-Z0-9]{2,4})[-/_]/i);
   return m ? m[1].toUpperCase() : sku.slice(0, 3).toUpperCase();
 };
+const lsGet = (k: string, fallback: string) => {
+  try { return localStorage.getItem(k) ?? fallback; } catch { return fallback; }
+};
+const lsSet = (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* ignore */ } };
 
 type SortField = keyof Row;
 type Bands = Record<string, number>;
@@ -118,10 +125,41 @@ const porBandClass = (por: number | null, bands: Bands | null) => {
   return "text-emerald-700 font-semibold";
 };
 
+/** Tiny cover bar: weeks of cover against the 6-week target. */
+const CoverBar = ({ weeks }: { weeks: number | null }) => {
+  const pct = weeks == null ? 0 : Math.min(100, (weeks / 6) * 100);
+  const color = weeks == null || weeks < 2 ? "bg-red-500" : weeks < 4 ? "bg-amber-500" : "bg-green-500";
+  return (
+    <div className="w-16 h-1.5 rounded bg-muted overflow-hidden" title={`${nf(weeks, 1)} weeks of 6-week target`}>
+      <div className={`h-full ${color}`} style={{ width: `${pct}%` }} />
+    </div>
+  );
+};
+
+/** Inline SVG sparkline for weekly values. */
+const Sparkline = ({ points }: { points: number[] }) => {
+  if (!points.length) return <span className="text-xs text-muted-foreground">no sales data</span>;
+  const max = Math.max(...points, 1);
+  const w = 220, h = 40, step = w / Math.max(points.length - 1, 1);
+  const path = points.map((v, i) => `${i === 0 ? "M" : "L"}${(i * step).toFixed(1)},${(h - (v / max) * (h - 4) - 2).toFixed(1)}`).join(" ");
+  return (
+    <svg width={w} height={h} className="text-primary">
+      <path d={path} fill="none" stroke="currentColor" strokeWidth="1.5" />
+      {points.map((v, i) => (
+        <circle key={i} cx={i * step} cy={h - (v / max) * (h - 4) - 2} r="1.5" fill="currentColor" />
+      ))}
+    </svg>
+  );
+};
+
 const FbaReplenishment = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [params, setParams] = useSearchParams();
+  const sidebar = useSidebar();
+
+  // Collapse the left nav by default on this page (decision screen wants width).
+  useEffect(() => { sidebar.setOpen(false); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
 
   // ---- URL-backed filters ---------------------------------------------------
   const tab = params.get("tab") ?? "replenish";
@@ -132,11 +170,16 @@ const FbaReplenishment = () => {
   const minNet = params.get("minnet") ? Number(params.get("minnet")) : null;
   const hideFading = params.get("fading") !== "show";
   const csnOnly = params.get("csn") === "1";
+  const buyFirstOnly = params.get("buyfirst") === "1";
+  const dgOnly = params.get("dg") === "1";
+  const fbmRevOnly = params.get("fbmrev") === "1";
+  const uplift50Only = params.get("uplift") === "50";
   const setParam = (k: string, v: string | null) => {
     const p = new URLSearchParams(params);
     if (v == null || v === "" || v === "all") p.delete(k); else p.set(k, v);
     setParams(p, { replace: true });
   };
+  const toggleParam = (k: string) => setParam(k, params.get(k) === "1" ? null : "1");
 
   const [sort, setSort] = useState<{ field: SortField; dir: "asc" | "desc" }>({ field: "reorder_cost", dir: "desc" });
   const [selected, setSelected] = useState<Record<string, number>>({}); // base_sku -> qty
@@ -144,6 +187,12 @@ const FbaReplenishment = () => {
   const [deferReason, setDeferReason] = useState("dangerous_goods");
   const [deferNote, setDeferNote] = useState("");
   const [sendDialogOpen, setSendDialogOpen] = useState(false);
+  const [drawerSku, setDrawerSku] = useState<string | null>(null);
+  const [density, setDensityState] = useState<"comfortable" | "compact">(() => (lsGet("fba-density", "comfortable") as any));
+  const [viewMode, setViewModeState] = useState<"grouped" | "classic">(() => (lsGet("fba-columns", "grouped") as any));
+  const setDensity = (d: "comfortable" | "compact") => { setDensityState(d); lsSet("fba-density", d); };
+  const setViewMode = (m: "grouped" | "classic") => { setViewModeState(m); lsSet("fba-columns", m); };
+  const cellPad = density === "compact" ? "py-1" : "py-2.5";
 
   // ---- data -----------------------------------------------------------------
   const { data, isLoading, error } = useQuery({
@@ -214,33 +263,27 @@ const FbaReplenishment = () => {
   });
   const handlingCfg = fbmCfg ?? { handling: 1.25, minGbp: 1.5, minPct: 30 };
 
-  // FBM net adjusted for handling (labour/packaging per ORDER, converted to
-  // per-unit with the SKU's real orders:units ratio) so FBM-vs-FBA compares
-  // like for like — FBA's fee already covers pick/pack.
-  const fbmNetAdj = (r: Row): number | null => {
-    if (r.fbm_net_per_unit == null) return null;
-    const units = r.fbm_units_90d ?? 0;
-    const orders = r.fbm_orders_90d ?? units; // worst case: one order per unit
-    const perUnit = units > 0 ? (handlingCfg.handling * orders) / units : handlingCfg.handling;
-    return r.fbm_net_per_unit - perUnit;
-  };
-  // "Review: FBM may be better" — information only, never feeds any automation.
-  const fbmReviewFlag = (r: Row): boolean => {
-    const adj = fbmNetAdj(r);
-    const fba = r.fba_net_per_unit_eff;
-    if (adj == null || fba == null) return false;
-    if (adj - fba < handlingCfg.minGbp) return false;
-    return fba <= 0 || (adj / fba - 1) * 100 >= handlingCfg.minPct;
-  };
-  // How much Amazon volume FBM could lose (Prime-driven) before the switch
-  // stops paying: 1 - fba_net / fbm_net_after_handling.
-  const volumeLossHeadroom = (r: Row): number | null => {
-    const adj = fbmNetAdj(r);
-    const fba = r.fba_net_per_unit_eff;
-    if (adj == null || adj <= 0 || fba == null) return null;
-    if (fba <= 0) return 100;
-    return Math.round((1 - fba / adj) * 100);
-  };
+  // Drawer-only data (fetched on open).
+  const { data: weekly } = useQuery({
+    queryKey: ["fba-sku-weekly", drawerSku],
+    enabled: !!drawerSku,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc("amazon_fba_sku_weekly", { p_base_sku: drawerSku });
+      if (error) throw error;
+      return (data ?? []) as { week_start: string; units: number }[];
+    },
+  });
+  const { data: queueRows } = useQuery({
+    queryKey: ["fba-sku-queue", drawerSku],
+    enabled: !!drawerSku,
+    queryFn: async () => {
+      const { data } = await (supabase as any)
+        .from("threeds_reprice_pending")
+        .select("store_id, price, status, queued_at, source")
+        .eq("sku", drawerSku).order("queued_at", { ascending: false }).limit(10);
+      return (data ?? []) as any[];
+    },
+  });
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["fba-replenishment-v3"] });
@@ -306,9 +349,11 @@ const FbaReplenishment = () => {
     onSuccess: () => { toast({ title: "Batch cancelled" }); invalidate(); },
   });
 
-  // ---- derived rows ---------------------------------------------------------
+  // ---- derived rows (calculations unchanged) --------------------------------
   const rows = data ?? [];
   const dataAsOf = rows.length > 0 ? rows[0].data_as_of : null;
+  const rowsBySku = useMemo(() => new Map(rows.map((r) => [r.base_sku, r])), [rows]);
+  const drawerRow = drawerSku ? rowsBySku.get(drawerSku) ?? null : null;
   const snoozeMap = useMemo(() => {
     const m = new Map<string, Snooze>();
     (snoozes ?? []).forEach((s) => m.set(s.base_sku, s));
@@ -326,6 +371,43 @@ const FbaReplenishment = () => {
     return !earlyReturn;
   };
 
+  // Break-even Prime uplift: extra FBA volume needed for FBA total contribution
+  // to match FBM at current velocity. Only meaningful when FBA net > 0.
+  const upliftPct = (r: Row): number | null => {
+    const fba = r.fba_net_per_unit_eff, fbm = r.fbm_net_per_unit;
+    if (fba == null || fbm == null || fba <= 0) return null;
+    if ((r.net_diff ?? 0) > 0) return 0; // FBA already wins per unit
+    return Math.round((fbm / fba - 1) * 100);
+  };
+
+  // FBM net adjusted for handling (labour/packaging per ORDER, converted to
+  // per-unit with the SKU's real orders:units ratio) so FBM-vs-FBA compares
+  // like for like — FBA's fee already covers pick/pack.
+  const fbmNetAdj = (r: Row): number | null => {
+    if (r.fbm_net_per_unit == null) return null;
+    const units = r.fbm_units_90d ?? 0;
+    const orders = r.fbm_orders_90d ?? units; // worst case: one order per unit
+    const perUnit = units > 0 ? (handlingCfg.handling * orders) / units : handlingCfg.handling;
+    return r.fbm_net_per_unit - perUnit;
+  };
+  // "Review: FBM may be better" — information only, never feeds any automation.
+  const fbmReviewFlag = (r: Row): boolean => {
+    const adj = fbmNetAdj(r);
+    const fba = r.fba_net_per_unit_eff;
+    if (adj == null || fba == null) return false;
+    if (adj - fba < handlingCfg.minGbp) return false;
+    return fba <= 0 || (adj / fba - 1) * 100 >= handlingCfg.minPct;
+  };
+  // How much Amazon volume FBM could lose (Prime-driven) before the switch
+  // stops paying: 1 - fba_net / fbm_net_after_handling.
+  const volumeLossHeadroom = (r: Row): number | null => {
+    const adj = fbmNetAdj(r);
+    const fba = r.fba_net_per_unit_eff;
+    if (adj == null || adj <= 0 || fba == null) return null;
+    if (fba <= 0) return 100;
+    return Math.round((1 - fba / adj) * 100);
+  };
+
   const applyCommonFilters = (list: Row[]) => {
     let out = list;
     if (brandFilter.length) out = out.filter((r) => brandFilter.includes(brandOf(r.base_sku)));
@@ -333,6 +415,9 @@ const FbaReplenishment = () => {
     if (minVel > 0) out = out.filter((r) => (r.weekly_velocity ?? 0) >= minVel);
     if (minNet != null) out = out.filter((r) => (r.net_margin_pct ?? -999) >= minNet);
     if (csnOnly) out = out.filter((r) => (r.can_send_now ?? 0) > 0);
+    if (buyFirstOnly) out = out.filter((r) => r.buy_first);
+    if (dgOnly) out = out.filter((r) => r.is_hazmat);
+    if (fbmRevOnly) out = out.filter((r) => fbmReviewFlag(r));
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       out = out.filter((r) => r.base_sku.toLowerCase().includes(q) || (r.title ?? "").toLowerCase().includes(q));
@@ -355,7 +440,7 @@ const FbaReplenishment = () => {
   const replenishAll = useMemo(
     () => applyCommonFilters(rows.filter((r) => r.ever_fba && r.replenish_flag && !isHidden(r))),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [rows, snoozeMap, brandFilter.join(","), mkt, minVel, minNet, csnOnly, search],
+    [rows, snoozeMap, brandFilter.join(","), mkt, minVel, minNet, csnOnly, buyFirstOnly, dgOnly, fbmRevOnly, search, fbmCfg],
   );
   const fading = useMemo(() => replenishAll.filter((r) => !r.units_30d), [replenishAll]);
   const replenish = useMemo(
@@ -364,23 +449,11 @@ const FbaReplenishment = () => {
     [replenishAll, hideFading, sort],
   );
 
-  // Break-even Prime uplift: extra FBA volume needed for FBA total contribution
-  // to match FBM at current velocity. Only meaningful when FBA net > 0.
-  const upliftPct = (r: Row): number | null => {
-    const fba = r.fba_net_per_unit_eff, fbm = r.fbm_net_per_unit;
-    if (fba == null || fbm == null || fba <= 0) return null;
-    if ((r.net_diff ?? 0) > 0) return 0; // FBA already wins per unit
-    return Math.round((fbm / fba - 1) * 100);
-  };
-
-  const uplift50Only = params.get("uplift") === "50";
   const candidates = useMemo(
     () => sortRows(applyCommonFilters(rows.filter((r) => {
       if (r.ever_fba || r.is_excluded || isHidden(r)) return false;
       const preFilter = (r.weekly_velocity ?? 0) >= 3 && (r.units_30d ?? 0) >= 8;
       if (!preFilter) return false;
-      // Send candidates (FBA beats FBM) plus TEST candidates (FBA profitable
-      // but behind FBM — worth a Prime-uplift trial, not a send).
       const u = upliftPct(r);
       const testCandidate = u != null && u > 0;
       if (!(r.is_candidate || testCandidate)) return false;
@@ -397,7 +470,7 @@ const FbaReplenishment = () => {
       : r.ever_fba && r.replenish_flag) && !isHidden(r));
     const m = new Map<string, number>();
     src.forEach((r) => m.set(brandOf(r.base_sku), (m.get(brandOf(r.base_sku)) ?? 0) + 1));
-    return [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12);
+    return [...m.entries()].sort((a, b) => b[1] - a[1]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows, tab, snoozeMap]);
 
@@ -405,6 +478,20 @@ const FbaReplenishment = () => {
     () => Array.from(new Set(rows.map((r) => r.country_code).filter(Boolean))).sort() as string[],
     [rows],
   );
+
+  // Summary card stats (over the unfiltered replenish universe so cards act as filters).
+  const cardStats = useMemo(() => {
+    const base = rows.filter((r) => r.ever_fba && r.replenish_flag && !isHidden(r));
+    return {
+      lines: base.length,
+      canSendUnits: base.reduce((a, r) => a + (r.can_send_now ?? 0), 0),
+      reorderGbp: base.reduce((a, r) => a + (r.reorder_cost ?? 0), 0),
+      buyFirst: base.filter((r) => r.buy_first).length,
+      dg: base.filter((r) => r.is_hazmat).length,
+      fbmReview: base.filter((r) => fbmReviewFlag(r)).length,
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, snoozeMap, fbmCfg]);
 
   // ---- selection + send-in --------------------------------------------------
   const visibleList = tab === "candidates" ? candidates : replenish;
@@ -437,7 +524,7 @@ const FbaReplenishment = () => {
       base_sku: r.base_sku, amazon_seller_sku: r.amazon_seller_sku,
       asin: (r.asins ?? "").split(", ")[0] || null, qty: selected[r.base_sku],
     }));
-    const { data, error } = await (supabase as any).rpc("amazon_fba_create_send_batch", {
+    const { error } = await (supabase as any).rpc("amazon_fba_create_send_batch", {
       p_lines: lines, p_note: `Created from FBA Replenishment (${tab})`,
     });
     if (error) { toast({ title: "Send-in failed", description: error.message, variant: "destructive" }); return; }
@@ -459,12 +546,12 @@ const FbaReplenishment = () => {
     setSelected({}); setSendDialogOpen(false); invalidate();
   };
 
-  // ---- small render helpers -------------------------------------------------
+  // ---- render helpers -------------------------------------------------------
   const toggleSort = (field: SortField) =>
     setSort((p) => ({ field, dir: p.field === field && p.dir === "desc" ? "asc" : "desc" }));
   const SortHead = ({ field, label, className }: { field: SortField; label: string; className?: string }) => (
     <TableHead className={className}>
-      <Button variant="ghost" size="sm" onClick={() => toggleSort(field)} className="h-8 px-2 -ml-2 whitespace-nowrap">
+      <Button variant="ghost" size="sm" onClick={() => toggleSort(field)} className="h-7 px-1.5 -ml-1.5 whitespace-nowrap text-xs">
         {label}<ArrowUpDown className="ml-1 h-3 w-3" />
       </Button>
     </TableHead>
@@ -473,14 +560,21 @@ const FbaReplenishment = () => {
   const inTransitTitle = (r: Row) =>
     `Working ${nf(r.fba_inbound_working)} · Shipped ${nf(r.fba_inbound_shipped)} · Receiving ${nf(r.fba_inbound_receiving)} · Pending send ${nf(r.pending_send_units)} · Shipment (not yet in feed) ${nf(r.shipment_extra_units)}`;
 
+  const firstAsin = (r: Row) => (r.asins ?? "").split(", ")[0] || null;
+
   const rowActions = (r: Row) => (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button size="icon" variant="ghost" className="h-7 w-7"><MoreHorizontal className="h-4 w-4" /></Button>
+        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={(e) => e.stopPropagation()}><MoreHorizontal className="h-4 w-4" /></Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
+      <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
         <DropdownMenuLabel className="text-xs">{r.base_sku}</DropdownMenuLabel>
         <DropdownMenuSeparator />
+        {firstAsin(r) && (
+          <DropdownMenuItem onClick={() => window.open(`https://www.amazon.co.uk/dp/${firstAsin(r)}`, "_blank")}>
+            <ExternalLink className="h-3.5 w-3.5 mr-2" />Open on Amazon
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem onClick={() => deferMutation.mutate({ skus: [r.base_sku], kind: "snooze", weeks: 2 })}><Clock className="h-3.5 w-3.5 mr-2" />Snooze 2 weeks</DropdownMenuItem>
         <DropdownMenuItem onClick={() => deferMutation.mutate({ skus: [r.base_sku], kind: "snooze", weeks: 4 })}><Clock className="h-3.5 w-3.5 mr-2" />Snooze 4 weeks</DropdownMenuItem>
         <DropdownMenuItem onClick={() => deferMutation.mutate({ skus: [r.base_sku], kind: "snooze", weeks: 8 })}><Clock className="h-3.5 w-3.5 mr-2" />Snooze 8 weeks</DropdownMenuItem>
@@ -495,82 +589,305 @@ const FbaReplenishment = () => {
     </DropdownMenu>
   );
 
-  const skuCell = (r: Row) => (
-    <TableCell className="font-medium whitespace-nowrap">
-      <div className="flex items-center gap-1.5">
-        <Checkbox checked={r.base_sku in selected} onCheckedChange={(v) => toggleSelect(r, !!v)} />
-        <span title={r.title ?? undefined}>{r.base_sku}</span>
-        {r.country_code && <Badge variant="outline" className="text-[10px]">{r.country_code}</Badge>}
-        {r.is_hazmat && (
-          <Badge variant="outline" className="text-[10px] border-amber-500 text-amber-600 cursor-pointer"
-            title={`Flagged ${r.hazmat_source === "keyword" ? "by title keywords" : "as dangerous goods"} — click to review "Never send"`}
-            onClick={() => { setDeferReason("dangerous_goods"); setDeferDialog({ skus: [r.base_sku], hazmat: true }); }}>
-            <Flame className="h-2.5 w-2.5 mr-0.5" />DG?
-          </Badge>
-        )}
-        {!r.amazon_seller_sku && <Badge variant="outline" className="text-[10px] border-red-400 text-red-500" title="No Amazon seller SKU with FBA history — cannot be put on a send-in file">no FBA SKU</Badge>}
-        {r.buy_first && <Badge variant="outline" className="text-[10px] border-orange-400 text-orange-600" title="Units to order exceed Coleraine availability">buy first</Badge>}
+  const rowBadges = (r: Row, opts?: { fading?: boolean }) => (
+    <span className="inline-flex flex-wrap gap-1 align-middle">
+      {r.buy_first && <Badge variant="outline" className="text-[9px] px-1 border-orange-400 text-orange-600" title="Units to order exceed Coleraine availability">buy first</Badge>}
+      {r.is_hazmat && (
+        <Badge variant="outline" className="text-[9px] px-1 border-amber-500 text-amber-600 cursor-pointer"
+          title={`Flagged ${r.hazmat_source === "keyword" ? "by title keywords" : "as dangerous goods"} — click to review "Never send"`}
+          onClick={(e) => { e.stopPropagation(); setDeferReason("dangerous_goods"); setDeferDialog({ skus: [r.base_sku], hazmat: true }); }}>
+          <Flame className="h-2.5 w-2.5 mr-0.5" />DG?
+        </Badge>
+      )}
+      {fbmReviewFlag(r) && <Badge variant="outline" className="text-[9px] px-1 border-amber-500 text-amber-600">Review: FBM</Badge>}
+      {!r.amazon_seller_sku && <Badge variant="outline" className="text-[9px] px-1 border-red-400 text-red-500" title="No Amazon seller SKU with FBA history — cannot be put on a send-in file">no FBA SKU</Badge>}
+      {opts?.fading && <Badge variant="outline" className="text-[9px] px-1 text-muted-foreground" title="No sales in the last 30 days">fading</Badge>}
+    </span>
+  );
+
+  /** Grouped cell 1: sticky Product cell. */
+  const productCell = (r: Row, opts?: { fading?: boolean }) => (
+    <TableCell className={`sticky left-0 z-10 bg-card ${cellPad} min-w-[230px] max-w-[260px] border-r`}
+      onClick={(e) => e.stopPropagation()}>
+      <div className="flex items-start gap-1.5">
+        <Checkbox className="mt-0.5" checked={r.base_sku in selected} onCheckedChange={(v) => toggleSelect(r, !!v)} />
+        <div className="min-w-0 cursor-pointer" onClick={() => setDrawerSku(r.base_sku)}>
+          <div className="font-medium text-sm leading-tight whitespace-nowrap">
+            {r.base_sku}
+            {r.country_code && r.country_code !== "GB" && <Badge variant="outline" className="ml-1 text-[9px] px-1">{r.country_code}</Badge>}
+          </div>
+          <div className="text-[11px] text-muted-foreground truncate leading-tight">{r.title ?? "—"}</div>
+          {rowBadges(r, opts)}
+        </div>
       </div>
     </TableCell>
   );
 
-  const filterBar = (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-3">
-        <Input placeholder="Search SKU / title…" value={search} onChange={(e) => setParam("q", e.target.value)} className="max-w-xs h-9" />
-        {countries.length > 1 && (
-          <select value={mkt} onChange={(e) => setParam("mkt", e.target.value)}
-            className="h-9 rounded-md border border-input bg-background px-3 text-sm">
-            <option value="all">All marketplaces</option>
-            {countries.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
-        )}
-        <div className="flex items-center gap-1.5 text-sm">
-          <Label htmlFor="minvel" className="text-xs text-muted-foreground">Min vel/wk</Label>
-          <Input id="minvel" type="number" min={0} step={0.5} value={minVel || ""} placeholder="0"
-            onChange={(e) => setParam("minvel", e.target.value)} className="w-16 h-9" />
-        </div>
-        <div className="flex items-center gap-1.5 text-sm">
-          <Label htmlFor="minnet" className="text-xs text-muted-foreground">Min net %</Label>
-          <Input id="minnet" type="number" step={1} value={minNet ?? ""} placeholder="—"
-            onChange={(e) => setParam("minnet", e.target.value)} className="w-16 h-9" />
-        </div>
-        <div className="flex items-center gap-2">
-          <Switch id="csn" checked={csnOnly} onCheckedChange={(v) => setParam("csn", v ? "1" : null)} />
-          <Label htmlFor="csn" className="text-sm">Can send now only</Label>
-        </div>
-        <div className="flex items-center gap-2">
-          <Switch id="fading" checked={!hideFading} onCheckedChange={(v) => setParam("fading", v ? "show" : null)} />
-          <Label htmlFor="fading" className="text-sm">Show fading inline</Label>
-        </div>
-        {tab === "candidates" && (
-          <div className="flex items-center gap-2">
-            <Switch id="uplift50" checked={uplift50Only} onCheckedChange={(v) => setParam("uplift", v ? "50" : null)} />
-            <Label htmlFor="uplift50" className="text-sm">Break-even uplift ≤ 50%</Label>
+  const groupedReplenishRow = (r: Row, opts?: { fading?: boolean }) => {
+    const por = r.avg_sell_price ? ((r.net_per_unit ?? 0) / (r.avg_sell_price * 1.2)) * 100 : null;
+    const adj = fbmNetAdj(r);
+    const head = volumeLossHeadroom(r);
+    return (
+      <TableRow key={r.base_sku} className="cursor-pointer" onClick={() => setDrawerSku(r.base_sku)}>
+        {productCell(r, opts)}
+        <TableCell className={`text-right ${cellPad}`}>
+          <div className="font-semibold tabular-nums">{nf(r.weekly_velocity, 1)}<span className="text-[10px] font-normal text-muted-foreground">/wk</span></div>
+          <div className="text-[11px] text-muted-foreground">30d: {nf(r.units_30d)}</div>
+        </TableCell>
+        <TableCell className={`text-right ${cellPad}`}>
+          <div className="font-semibold tabular-nums">{(r.fba_on_hand ?? 0) === 0 ? <span className="text-red-500">0</span> : nf(r.fba_on_hand)}</div>
+          <div className="text-[11px] text-muted-foreground whitespace-nowrap" title={inTransitTitle(r)}>
+            {(r.fba_reserved ?? 0) > 0 && <>+{nf(r.fba_reserved)} res · </>}+{nf(r.fba_in_transit)} inbound
           </div>
-        )}
-      </div>
-      {brandCounts.length > 1 && (
-        <div className="flex flex-wrap gap-1.5">
-          {brandCounts.map(([b, n]) => (
-            <Badge key={b} variant={brandFilter.includes(b) ? "default" : "outline"} className="cursor-pointer select-none"
-              onClick={() => {
-                const next = brandFilter.includes(b) ? brandFilter.filter((x) => x !== b) : [...brandFilter, b];
-                setParam("brand", next.join(",") || null);
-              }}>
-              {b} <span className="ml-1 opacity-70">{n}</span>
-            </Badge>
-          ))}
-          {brandFilter.length > 0 && (
-            <Badge variant="secondary" className="cursor-pointer" onClick={() => setParam("brand", null)}>clear</Badge>
+        </TableCell>
+        <TableCell className={`${cellPad}`}>
+          <div className="text-sm tabular-nums">{nf(r.days_of_cover_weeks, 1)}w</div>
+          <CoverBar weeks={r.days_of_cover_weeks} />
+        </TableCell>
+        <TableCell className={`text-right ${cellPad}`} onClick={(e) => r.base_sku in selected && e.stopPropagation()}>
+          {r.base_sku in selected ? (
+            <Input type="number" min={0} className="w-16 h-7 text-right inline-block font-semibold"
+              value={selected[r.base_sku]}
+              onClick={(e) => e.stopPropagation()}
+              onChange={(e) => setSelected((p) => ({ ...p, [r.base_sku]: Math.max(0, Number(e.target.value) || 0) }))} />
+          ) : (
+            <div className="font-semibold tabular-nums">{nf(r.can_send_now)}</div>
           )}
+          <div className="text-[11px] text-muted-foreground whitespace-nowrap">
+            of {nf(r.units_to_order)} · Col {r.coleraine_placeholder ? "0*" : nf(r.coleraine_available)}
+          </div>
+        </TableCell>
+        <TableCell className={`text-right ${cellPad}`}
+          title={[
+            `FBA net ${gbp(r.fba_net_per_unit_eff)}/unit (fee source: ${r.fee_source ?? "—"})`,
+            adj != null ? `FBM net ${gbp(r.fbm_net_per_unit)} before handling, ${gbp(adj)} after (£${handlingCfg.handling.toFixed(2)}/order — assumption)` : null,
+            head != null && head > 0 ? `FBM stays better until ~${nf(head)}% of Amazon volume is lost to the missing Prime badge` : null,
+          ].filter(Boolean).join("\n")}>
+          <div className={`font-semibold tabular-nums ${porBandClass(por, bands ?? null)}`}>
+            {gbp(r.net_per_unit)}{por != null && <span className="text-[10px] font-normal ml-1">{nf(por, 0)}%</span>}
+          </div>
+          <div className="text-[11px] text-muted-foreground tabular-nums">FBM Δ {r.net_diff == null ? "—" : gbp(r.net_diff)}</div>
+        </TableCell>
+        <TableCell className={`text-right ${cellPad}`} onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center justify-end gap-1">
+            <div>
+              <div className="font-semibold tabular-nums">{gbp(r.reorder_cost)}</div>
+              <div className="text-[11px] text-muted-foreground">at cost</div>
+            </div>
+            {rowActions(r)}
+          </div>
+        </TableCell>
+      </TableRow>
+    );
+  };
+
+  const groupedHeader = (
+    <TableRow>
+      <TableHead className="sticky left-0 z-20 bg-card border-r min-w-[230px]">Product</TableHead>
+      <SortHead field="weekly_velocity" label="Sales" className="text-right" />
+      <SortHead field="fba_on_hand" label="FBA stock" className="text-right" />
+      <SortHead field="days_of_cover_weeks" label="Cover" />
+      <SortHead field="can_send_now" label="Send" className="text-right" />
+      <SortHead field="net_per_unit" label="Money" className="text-right" />
+      <SortHead field="reorder_cost" label="Value" className="text-right" />
+    </TableRow>
+  );
+
+  const groupedCandidateRow = (r: Row) => {
+    const por = r.fbm_price_gross ? ((r.fba_net_per_unit_eff ?? 0) / r.fbm_price_gross) * 100 : null;
+    const u = upliftPct(r);
+    return (
+      <TableRow key={r.base_sku} className="cursor-pointer" onClick={() => setDrawerSku(r.base_sku)}>
+        {productCell(r)}
+        <TableCell className={`text-right ${cellPad}`}>
+          <div className="font-semibold tabular-nums">{nf(r.weekly_velocity, 1)}<span className="text-[10px] font-normal text-muted-foreground">/wk</span></div>
+          <div className="text-[11px] text-muted-foreground">30d: {nf(r.units_30d)}</div>
+        </TableCell>
+        <TableCell className={`text-right ${cellPad}`}
+          title={`Fee source: ${r.fee_source ?? "—"}${r.fee_source === "modelled" ? " (estimate from observed FBA fees)" : ""}`}>
+          <div className="font-semibold tabular-nums">
+            FBA {gbp(r.fba_net_per_unit_eff)}{r.fee_source === "modelled" ? "*" : ""}
+          </div>
+          <div className="text-[11px] text-muted-foreground tabular-nums">FBM {gbp(r.fbm_net_per_unit)} · Δ {gbp(r.net_diff)}</div>
+        </TableCell>
+        <TableCell className={`${cellPad}`}>
+          <div className="font-semibold tabular-nums">{u == null ? "—" : u === 0 ? "0%" : `+${nf(u)}%`}</div>
+          {r.is_candidate
+            ? <Badge className="bg-green-600 text-[9px] px-1">Send candidate</Badge>
+            : <Badge variant="outline" className="text-[9px] px-1 border-blue-400 text-blue-600" title="FBA is profitable but behind FBM per unit — a Prime-uplift trial, not a send">Test candidate</Badge>}
+        </TableCell>
+        <TableCell className={`text-right ${cellPad}`} onClick={(e) => r.base_sku in selected && e.stopPropagation()}>
+          {r.base_sku in selected ? (
+            <Input type="number" min={0} className="w-16 h-7 text-right inline-block font-semibold"
+              value={selected[r.base_sku]}
+              onClick={(e) => e.stopPropagation()}
+              onChange={(e) => setSelected((p) => ({ ...p, [r.base_sku]: Math.max(0, Number(e.target.value) || 0) }))} />
+          ) : (
+            <div className="font-semibold tabular-nums">{nf(r.suggested_first_send)}</div>
+          )}
+          <div className="text-[11px] text-muted-foreground">first send · Col {r.coleraine_placeholder ? "0*" : nf(r.coleraine_available)}</div>
+        </TableCell>
+        <TableCell className={`text-right ${cellPad}`} title="If volume holds">
+          <div className={`font-semibold tabular-nums ${porBandClass(por, bands ?? null)}`}>
+            {gbp((r.fba_net_per_unit_eff ?? 0) * (r.weekly_velocity ?? 0))}<span className="text-[10px] font-normal">/wk</span>
+          </div>
+          <div className="text-[11px] text-muted-foreground">{por == null ? "—" : `POR ${nf(por, 1)}%`}</div>
+        </TableCell>
+        <TableCell className={`text-right ${cellPad}`} onClick={(e) => e.stopPropagation()}>{rowActions(r)}</TableCell>
+      </TableRow>
+    );
+  };
+
+  // ---- classic (old separate-columns) renderers -----------------------------
+  const classicReplenishRow = (r: Row) => {
+    const por = r.avg_sell_price ? ((r.net_per_unit ?? 0) / (r.avg_sell_price * 1.2)) * 100 : null;
+    const adj = fbmNetAdj(r);
+    const head = volumeLossHeadroom(r);
+    return (
+      <TableRow key={r.base_sku} className="cursor-pointer" onClick={() => setDrawerSku(r.base_sku)}>
+        {productCell(r)}
+        <TableCell className={`text-right font-medium ${cellPad}`}>{nf(r.weekly_velocity, 1)}</TableCell>
+        <TableCell className={`text-right ${cellPad}`}>{nf(r.units_30d)}</TableCell>
+        <TableCell className={`text-right ${cellPad}`}>{(r.fba_on_hand ?? 0) === 0 ? <Badge variant="destructive">0</Badge> : nf(r.fba_on_hand)}</TableCell>
+        <TableCell className={`text-right text-muted-foreground ${cellPad}`}>{nf(r.fba_reserved)}</TableCell>
+        <TableCell className={`text-right ${cellPad}`} title={inTransitTitle(r)}>{nf(r.fba_in_transit)}</TableCell>
+        <TableCell className={`text-right ${cellPad}`}>{nf(r.days_of_cover_weeks, 1)}</TableCell>
+        <TableCell className={`text-right font-semibold tabular-nums ${cellPad}`}>{nf(r.units_to_order)}</TableCell>
+        <TableCell className={`text-right ${cellPad}`}>{r.coleraine_placeholder ? "0*" : nf(r.coleraine_available)}</TableCell>
+        <TableCell className={`text-right ${cellPad}`} onClick={(e) => r.base_sku in selected && e.stopPropagation()}>
+          {r.base_sku in selected ? (
+            <Input type="number" min={0} className="w-16 h-7 text-right inline-block"
+              value={selected[r.base_sku]}
+              onClick={(e) => e.stopPropagation()}
+              onChange={(e) => setSelected((p) => ({ ...p, [r.base_sku]: Math.max(0, Number(e.target.value) || 0) }))} />
+          ) : nf(r.can_send_now)}
+        </TableCell>
+        <TableCell className={`text-right tabular-nums text-muted-foreground ${cellPad}`} title={`Fee source: ${r.fee_source ?? "—"}`}>{gbp(r.fba_fee_per_unit)}</TableCell>
+        <TableCell className={`text-right tabular-nums ${porBandClass(por, bands ?? null)} ${cellPad}`}>{r.net_margin_pct == null ? "—" : `${nf(r.net_margin_pct, 1)}%`}</TableCell>
+        <TableCell className={`text-right tabular-nums whitespace-nowrap ${cellPad}`}
+          title={[
+            `FBA net ${gbp(r.fba_net_per_unit_eff)}/unit`,
+            adj != null ? `FBM net ${gbp(r.fbm_net_per_unit)}/unit before handling, ${gbp(adj)} after (£${handlingCfg.handling.toFixed(2)}/order handling — assumption)` : null,
+            head != null && head > 0 ? `FBM stays better until ~${nf(head)}% of Amazon volume is lost to the missing Prime badge` : null,
+          ].filter(Boolean).join("\n")}>
+          {r.net_diff == null ? "—" : gbp(r.net_diff)}
+        </TableCell>
+        <TableCell className={`text-right tabular-nums ${cellPad}`}>{gbp(r.reorder_cost)}</TableCell>
+        <TableCell className={cellPad} onClick={(e) => e.stopPropagation()}>{rowActions(r)}</TableCell>
+      </TableRow>
+    );
+  };
+
+  const classicHeader = (
+    <TableRow>
+      <TableHead className="sticky left-0 z-20 bg-card border-r min-w-[230px]">Product</TableHead>
+      <SortHead field="weekly_velocity" label="Vel/wk" className="text-right" />
+      <SortHead field="units_30d" label="30d" className="text-right" />
+      <SortHead field="fba_on_hand" label="On-hand" className="text-right" />
+      <SortHead field="fba_reserved" label="Reserved" className="text-right" />
+      <SortHead field="fba_in_transit" label="In-transit" className="text-right" />
+      <SortHead field="days_of_cover_weeks" label="Wks" className="text-right" />
+      <SortHead field="units_to_order" label="To order" className="text-right" />
+      <SortHead field="coleraine_available" label="Coleraine" className="text-right" />
+      <SortHead field="can_send_now" label="Can send" className="text-right" />
+      <SortHead field="fba_fee_per_unit" label="FBA £" className="text-right" />
+      <SortHead field="net_margin_pct" label="Net %" className="text-right" />
+      <SortHead field="net_diff" label="FBM Δ" className="text-right" />
+      <SortHead field="reorder_cost" label="Reorder £" className="text-right" />
+      <TableHead />
+    </TableRow>
+  );
+
+  const filterBar = (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+      <Input placeholder="Search SKU / title…" value={search} onChange={(e) => setParam("q", e.target.value)} className="w-48 h-8 text-sm" />
+      {countries.length > 1 && (
+        <select value={mkt} onChange={(e) => setParam("mkt", e.target.value)}
+          className="h-8 rounded-md border border-input bg-background px-2 text-sm">
+          <option value="all">All marketplaces</option>
+          {countries.map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
+      )}
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button variant="outline" size="sm" className="h-8">
+            Brands{brandFilter.length > 0 && <Badge variant="secondary" className="ml-1.5 text-[10px]">{brandFilter.length}</Badge>}
+            <ChevronDown className="ml-1 h-3 w-3" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-64 max-h-80 overflow-auto p-2" align="start">
+          <div className="flex flex-wrap gap-1.5">
+            {brandCounts.map(([b, n]) => (
+              <Badge key={b} variant={brandFilter.includes(b) ? "default" : "outline"} className="cursor-pointer select-none"
+                onClick={() => {
+                  const next = brandFilter.includes(b) ? brandFilter.filter((x) => x !== b) : [...brandFilter, b];
+                  setParam("brand", next.join(",") || null);
+                }}>
+                {b} <span className="ml-1 opacity-70">{n}</span>
+              </Badge>
+            ))}
+            {brandFilter.length > 0 && (
+              <Badge variant="secondary" className="cursor-pointer" onClick={() => setParam("brand", null)}>clear</Badge>
+            )}
+          </div>
+        </PopoverContent>
+      </Popover>
+      <div className="flex items-center gap-1 text-sm">
+        <Label htmlFor="minvel" className="text-xs text-muted-foreground">Vel ≥</Label>
+        <Input id="minvel" type="number" min={0} step={0.5} value={minVel || ""} placeholder="0"
+          onChange={(e) => setParam("minvel", e.target.value)} className="w-14 h-8" />
+      </div>
+      <div className="flex items-center gap-1 text-sm">
+        <Label htmlFor="minnet" className="text-xs text-muted-foreground">Net% ≥</Label>
+        <Input id="minnet" type="number" step={1} value={minNet ?? ""} placeholder="—"
+          onChange={(e) => setParam("minnet", e.target.value)} className="w-14 h-8" />
+      </div>
+      <div className="flex items-center gap-1.5">
+        <Switch id="csn" checked={csnOnly} onCheckedChange={(v) => setParam("csn", v ? "1" : null)} />
+        <Label htmlFor="csn" className="text-xs">Can send now</Label>
+      </div>
+      <div className="flex items-center gap-1.5">
+        <Switch id="fading" checked={!hideFading} onCheckedChange={(v) => setParam("fading", v ? "show" : null)} />
+        <Label htmlFor="fading" className="text-xs">Fading inline</Label>
+      </div>
+      {tab === "candidates" && (
+        <div className="flex items-center gap-1.5">
+          <Switch id="uplift50" checked={uplift50Only} onCheckedChange={(v) => setParam("uplift", v ? "50" : null)} />
+          <Label htmlFor="uplift50" className="text-xs">BE uplift ≤ 50%</Label>
         </div>
       )}
+      <div className="ml-auto flex items-center gap-1.5">
+        <Button variant="outline" size="sm" className="h-8" title="Density"
+          onClick={() => setDensity(density === "compact" ? "comfortable" : "compact")}>
+          <Rows3 className="h-3.5 w-3.5 mr-1" />{density === "compact" ? "Compact" : "Comfortable"}
+        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="h-8"><Columns3 className="h-3.5 w-3.5 mr-1" />Columns</Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => setViewMode("grouped")}>{viewMode === "grouped" ? "✓ " : ""}Grouped (default)</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setViewMode("classic")}>{viewMode === "classic" ? "✓ " : ""}Classic columns</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <Button variant="outline" size="sm" className="h-8" onClick={selectAllFiltered}>Select all</Button>
+      </div>
     </div>
   );
 
+  const summaryCard = (label: string, value: string, opts?: { filterKey?: string; active?: boolean; tone?: string }) => (
+    <Card key={label}
+      className={`${opts?.filterKey ? "cursor-pointer" : ""} transition-colors ${opts?.active ? "border-primary bg-primary/5" : ""}`}
+      onClick={() => opts?.filterKey && toggleParam(opts.filterKey)}>
+      <CardHeader className="p-3 pb-2">
+        <CardDescription className={`text-xs ${opts?.tone ?? ""}`}>{label}</CardDescription>
+        <CardTitle className="text-xl leading-none">{value}</CardTitle>
+      </CardHeader>
+    </Card>
+  );
+
   return (
-    <div className="space-y-6 pb-24">
+    <div className="space-y-4 pb-24">
       <ModuleHeader
         title="FBA Replenishment"
         description={`Replenish = ever-in-FBA restock list. Candidates = never-FBA decision list, not a send-in list. Recomputed nightly${dataAsOf ? ` — data as of ${new Date(dataAsOf).toLocaleString()}` : ""}.`}
@@ -585,7 +902,7 @@ const FbaReplenishment = () => {
               <CardTitle className="text-base">Couldn't load replenishment data</CardTitle>
               <CardDescription className="mt-1">
                 {(error as any)?.code === "57014" ? "The database query timed out." : ((error as any)?.message ?? "Unexpected error.")}{" "}
-                Refresh to try again; if it persists, the nightly snapshot may need attention.
+                Refresh the page to try again; if it persists, the nightly snapshot may need attention.
               </CardDescription>
             </div>
           </CardHeader>
@@ -601,92 +918,31 @@ const FbaReplenishment = () => {
         </TabsList>
 
         {/* ---------------- Replenish ---------------- */}
-        <TabsContent value="replenish" className="space-y-4">
+        <TabsContent value="replenish" className="space-y-3">
+          <div className="grid grid-cols-3 lg:grid-cols-6 gap-2">
+            {summaryCard("Lines to reorder", nf(cardStats.lines))}
+            {summaryCard("Units can send now", nf(cardStats.canSendUnits), { filterKey: "csn", active: csnOnly })}
+            {summaryCard("Reorder £ at cost", gbp(cardStats.reorderGbp))}
+            {summaryCard("Buy first", nf(cardStats.buyFirst), { filterKey: "buyfirst", active: buyFirstOnly, tone: "text-orange-600" })}
+            {summaryCard("DG flagged", nf(cardStats.dg), { filterKey: "dg", active: dgOnly, tone: "text-amber-600" })}
+            {summaryCard("Review: FBM", nf(cardStats.fbmReview), { filterKey: "fbmrev", active: fbmRevOnly, tone: "text-amber-600" })}
+          </div>
+
           <Card>
-            <CardHeader className="flex flex-row items-start justify-between gap-4">
-              <div>
-                <CardTitle>Replenish — ever-in-FBA restock list</CardTitle>
-                <CardDescription>Target cover less FBA on-hand (incl. FC transfer/processing reserved) and all in-transit. Sorted by Reorder £.</CardDescription>
-              </div>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={selectAllFiltered}>Select all filtered</Button>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="pt-4 space-y-3">
               {filterBar}
               {isLoading ? (
-                <PageLoader rows={12} columns={[180, 70, 70, 70, 70, 70, 70, 70, 70, 70, 70, 70]} label="Loading replenishment" />
+                <PageLoader rows={12} columns={[230, 90, 90, 80, 90, 100, 100]} label="Loading replenishment" />
               ) : (
-                <div className="rounded-md border [&>div]:max-h-[65vh] [&>div]:overflow-auto">
+                <div className="rounded-md border overflow-x-auto [&>div]:max-h-[62vh] [&>div]:overflow-auto">
                   <Table>
                     <TableHeader className="sticky top-0 z-20 bg-card shadow-[0_1px_0_0_hsl(var(--border))]">
-                      <TableRow>
-                        <SortHead field="base_sku" label="SKU" />
-                        <SortHead field="weekly_velocity" label="Vel/wk" className="text-right" />
-                        <SortHead field="units_30d" label="30d" className="text-right" />
-                        <SortHead field="fba_on_hand" label="FBA on-hand" className="text-right" />
-                        <SortHead field="fba_reserved" label="FBA reserved" className="text-right" />
-                        <SortHead field="fba_in_transit" label="FBA in-transit" className="text-right" />
-                        <SortHead field="days_of_cover_weeks" label="Wks cover" className="text-right" />
-                        <SortHead field="units_to_order" label="To order" className="text-right" />
-                        <SortHead field="coleraine_available" label="Coleraine" className="text-right" />
-                        <SortHead field="can_send_now" label="Can send" className="text-right" />
-                        <SortHead field="fba_fee_per_unit" label="FBA £" className="text-right" />
-                        <SortHead field="net_margin_pct" label="Net %" className="text-right" />
-                        <SortHead field="net_diff" label="FBM Δ" className="text-right" />
-                        <SortHead field="reorder_cost" label="Reorder £" className="text-right" />
-                        <TableHead />
-                      </TableRow>
+                      {viewMode === "grouped" ? groupedHeader : classicHeader}
                     </TableHeader>
                     <TableBody>
                       {replenish.length === 0 ? (
                         <TableRow><TableCell colSpan={15} className="text-center py-8 text-muted-foreground">No SKUs match</TableCell></TableRow>
-                      ) : replenish.map((r) => {
-                        const por = r.avg_sell_price ? ((r.net_per_unit ?? 0) / (r.avg_sell_price * 1.2)) * 100 : null;
-                        return (
-                          <TableRow key={r.base_sku}>
-                            {skuCell(r)}
-                            <TableCell className="text-right font-medium">{nf(r.weekly_velocity, 1)}</TableCell>
-                            <TableCell className="text-right">{nf(r.units_30d)}</TableCell>
-                            <TableCell className="text-right">{(r.fba_on_hand ?? 0) === 0 ? <Badge variant="destructive">0</Badge> : nf(r.fba_on_hand)}</TableCell>
-                            <TableCell className="text-right text-muted-foreground" title="FC transfer + FC processing (counted in on-hand); customer-order reserved excluded">{nf(r.fba_reserved)}</TableCell>
-                            <TableCell className="text-right" title={inTransitTitle(r)}>{nf(r.fba_in_transit)}</TableCell>
-                            <TableCell className="text-right">{nf(r.days_of_cover_weeks, 1)}</TableCell>
-                            <TableCell className="text-right font-semibold tabular-nums">{nf(r.units_to_order)}</TableCell>
-                            <TableCell className="text-right" title={r.coleraine_placeholder ? "Remote-feed placeholder (99/999) — treated as 0" : "Coleraine LIVE stock"}>
-                              {r.coleraine_placeholder ? <span className="text-muted-foreground">0*</span> : nf(r.coleraine_available)}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              {r.base_sku in selected ? (
-                                <Input type="number" min={0} className="w-16 h-7 text-right inline-block"
-                                  value={selected[r.base_sku]}
-                                  onChange={(e) => setSelected((p) => ({ ...p, [r.base_sku]: Math.max(0, Number(e.target.value) || 0) }))} />
-                              ) : nf(r.can_send_now)}
-                            </TableCell>
-                            <TableCell className="text-right tabular-nums text-muted-foreground" title={`Fee source: ${r.fee_source ?? "—"}`}>{gbp(r.fba_fee_per_unit)}</TableCell>
-                            <TableCell className={`text-right tabular-nums ${porBandClass(por, bands ?? null)}`}>{r.net_margin_pct == null ? "—" : `${nf(r.net_margin_pct, 1)}%`}</TableCell>
-                            <TableCell className="text-right tabular-nums whitespace-nowrap"
-                              title={(() => {
-                                const adj = fbmNetAdj(r);
-                                const head = volumeLossHeadroom(r);
-                                return [
-                                  `FBA net ${gbp(r.fba_net_per_unit_eff)}/unit`,
-                                  `FBM net ${gbp(r.fbm_net_per_unit)}/unit before handling, ${gbp(adj)} after (£${handlingCfg.handling.toFixed(2)}/order handling — assumption)`,
-                                  head != null && head > 0 ? `FBM stays better until ~${nf(head)}% of Amazon volume is lost to the missing Prime badge` : null,
-                                ].filter(Boolean).join("\n");
-                              })()}>
-                              {r.net_diff == null ? "—" : gbp(r.net_diff)}
-                              {fbmReviewFlag(r) && (
-                                <Badge variant="outline" className="ml-1 text-[10px] border-amber-500 text-amber-600">
-                                  Review: FBM may be better
-                                </Badge>
-                              )}
-                            </TableCell>
-                            <TableCell className="text-right tabular-nums">{gbp(r.reorder_cost)}</TableCell>
-                            <TableCell>{rowActions(r)}</TableCell>
-                          </TableRow>
-                        );
-                      })}
+                      ) : replenish.map((r) => (viewMode === "grouped" ? groupedReplenishRow(r) : classicReplenishRow(r)))}
                     </TableBody>
                   </Table>
                 </div>
@@ -700,19 +956,10 @@ const FbaReplenishment = () => {
                     </Button>
                   </CollapsibleTrigger>
                   <CollapsibleContent>
-                    <div className="rounded-md border mt-2">
+                    <div className="rounded-md border mt-2 overflow-x-auto">
                       <Table>
                         <TableBody>
-                          {fading.map((r) => (
-                            <TableRow key={r.base_sku} className="text-muted-foreground">
-                              {skuCell(r)}
-                              <TableCell className="text-right">{nf(r.weekly_velocity, 1)}/wk</TableCell>
-                              <TableCell className="text-right">30d: {nf(r.units_30d)}</TableCell>
-                              <TableCell className="text-right">to order {nf(r.units_to_order)}</TableCell>
-                              <TableCell className="text-right">{gbp(r.reorder_cost)}</TableCell>
-                              <TableCell>{rowActions(r)}</TableCell>
-                            </TableRow>
-                          ))}
+                          {fading.map((r) => groupedReplenishRow(r, { fading: true }))}
                         </TableBody>
                       </Table>
                     </div>
@@ -730,83 +977,45 @@ const FbaReplenishment = () => {
         </TabsContent>
 
         {/* ---------------- Candidates ---------------- */}
-        <TabsContent value="candidates" className="space-y-4">
+        <TabsContent value="candidates" className="space-y-3">
           <Card>
-            <CardHeader>
-              <CardTitle>FBA Candidates — decision list, not a send-in list</CardTitle>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">FBA Candidates — decision list, not a send-in list</CardTitle>
               <CardDescription>
-                Never been in FBA; velocity ≥ 3/wk, ≥ 8 units/30d, FBA net beats FBM net, not excluded.
+                Never been in FBA; velocity ≥ 3/wk, ≥ 8 units/30d, not excluded. Send candidates beat FBM on
+                real/modelled FBA fees; Test candidates are profitable in FBA but need Prime volume uplift (shown) to match FBM.
                 First send = 4 weeks × velocity × account FBA share, case-rounded, capped at Coleraine.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-3">
               {filterBar}
               {isLoading ? (
-                <PageLoader rows={8} columns={[180, 70, 70, 90, 90, 70, 70, 90, 80]} label="Loading candidates" />
+                <PageLoader rows={8} columns={[230, 90, 110, 90, 100, 100]} label="Loading candidates" />
               ) : (
-                <div className="rounded-md border [&>div]:max-h-[65vh] [&>div]:overflow-auto">
+                <div className="rounded-md border overflow-x-auto [&>div]:max-h-[62vh] [&>div]:overflow-auto">
                   <Table>
                     <TableHeader className="sticky top-0 z-20 bg-card shadow-[0_1px_0_0_hsl(var(--border))]">
                       <TableRow>
-                        <SortHead field="base_sku" label="SKU" />
-                        <SortHead field="weekly_velocity" label="Vel/wk" className="text-right" />
-                        <SortHead field="units_30d" label="30d" className="text-right" />
-                        <SortHead field="fbm_net_per_unit" label="FBM net £/u" className="text-right" />
-                        <SortHead field="fba_net_per_unit_eff" label="FBA net £/u" className="text-right" />
-                        <SortHead field="net_diff" label="Diff" className="text-right" />
-                        <TableHead className="text-right" title="Extra FBA volume needed for FBA total contribution to match FBM at current velocity">BE uplift</TableHead>
-                        <TableHead>Verdict</TableHead>
-                        <TableHead className="text-right">FBA POR%</TableHead>
-                        <TableHead className="text-right">Contrib £/wk*</TableHead>
-                        <SortHead field="coleraine_available" label="Coleraine" className="text-right" />
+                        <TableHead className="sticky left-0 z-20 bg-card border-r min-w-[230px]">Product</TableHead>
+                        <SortHead field="weekly_velocity" label="Sales" className="text-right" />
+                        <SortHead field="net_diff" label="Economics" className="text-right" />
+                        <TableHead title="Extra FBA volume needed for FBA total contribution to match FBM at current velocity">BE uplift</TableHead>
                         <SortHead field="suggested_first_send" label="First send" className="text-right" />
+                        <TableHead className="text-right">Contrib/wk*</TableHead>
                         <TableHead />
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {candidates.length === 0 ? (
-                        <TableRow><TableCell colSpan={13} className="text-center py-8 text-muted-foreground">
-                          No candidates pass the gates{rows.some((r) => r.fee_source == null && !r.ever_fba) ? " (candidate economics need the nightly refresh / fee data)" : ""}
+                        <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                          No candidates pass the gates
                         </TableCell></TableRow>
-                      ) : candidates.map((r) => {
-                        const por = r.fbm_price_gross ? ((r.fba_net_per_unit_eff ?? 0) / r.fbm_price_gross) * 100 : null;
-                        return (
-                          <TableRow key={r.base_sku}>
-                            {skuCell(r)}
-                            <TableCell className="text-right font-medium">{nf(r.weekly_velocity, 1)}</TableCell>
-                            <TableCell className="text-right">{nf(r.units_30d)}</TableCell>
-                            <TableCell className="text-right tabular-nums">{gbp(r.fbm_net_per_unit)}</TableCell>
-                            <TableCell className="text-right tabular-nums" title={`Fee source: ${r.fee_source ?? "—"}${r.fee_source === "modelled" ? " (estimate from observed FBA fees — Fees API pending Pricing role)" : ""}`}>
-                              {gbp(r.fba_net_per_unit_eff)}{r.fee_source === "modelled" ? <span className="text-muted-foreground">*</span> : null}
-                            </TableCell>
-                            <TableCell className={`text-right tabular-nums font-medium ${(r.net_diff ?? 0) > 0 ? "text-green-600" : "text-red-500"}`}>{gbp(r.net_diff)}</TableCell>
-                            <TableCell className="text-right tabular-nums">
-                              {(() => { const u = upliftPct(r); return u == null ? "—" : u === 0 ? "0%" : `+${nf(u)}%`; })()}
-                            </TableCell>
-                            <TableCell>
-                              {r.is_candidate
-                                ? <Badge className="bg-green-600">Send candidate</Badge>
-                                : <Badge variant="outline" className="border-blue-400 text-blue-600" title="FBA is profitable but behind FBM per unit — a Prime-uplift trial, not a send">Test candidate</Badge>}
-                            </TableCell>
-                            <TableCell className={`text-right tabular-nums ${porBandClass(por, bands ?? null)}`}>{por == null ? "—" : `${nf(por, 1)}%`}</TableCell>
-                            <TableCell className="text-right tabular-nums" title="If volume holds">{gbp((r.fba_net_per_unit_eff ?? 0) * (r.weekly_velocity ?? 0))}</TableCell>
-                            <TableCell className="text-right">{r.coleraine_placeholder ? "0*" : nf(r.coleraine_available)}</TableCell>
-                            <TableCell className="text-right font-semibold">
-                              {r.base_sku in selected ? (
-                                <Input type="number" min={0} className="w-16 h-7 text-right inline-block"
-                                  value={selected[r.base_sku]}
-                                  onChange={(e) => setSelected((p) => ({ ...p, [r.base_sku]: Math.max(0, Number(e.target.value) || 0) }))} />
-                              ) : nf(r.suggested_first_send)}
-                            </TableCell>
-                            <TableCell>{rowActions(r)}</TableCell>
-                          </TableRow>
-                        );
-                      })}
+                      ) : candidates.map(groupedCandidateRow)}
                     </TableBody>
                   </Table>
                 </div>
               )}
-              <p className="text-xs text-muted-foreground">* Contribution/wk assumes current velocity holds. FBA net marked * uses a modelled fee until the Fees API (Pricing role) is live.</p>
+              <p className="text-xs text-muted-foreground">* Contribution/wk assumes current velocity holds. FBA net marked * uses a modelled fee.</p>
             </CardContent>
           </Card>
         </TabsContent>
@@ -814,65 +1023,62 @@ const FbaReplenishment = () => {
         {/* ---------------- Deferred ---------------- */}
         <TabsContent value="deferred">
           <Card>
-            <CardHeader>
-              <CardTitle>Deferred</CardTitle>
-              <CardDescription>Never-send exclusions and active snoozes. Snoozed SKUs return automatically on their date — or early if they stock out at FBA while still selling at their original pace.</CardDescription>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Deferred</CardTitle>
+              <CardDescription>Never-send exclusions and active snoozes. Snoozed SKUs return on their date — or early if they stock out at FBA while still selling at their original pace.</CardDescription>
             </CardHeader>
             <CardContent>
               <Table>
-                <TableHeader>
+                <TableHeader className="sticky top-0 z-20 bg-card">
                   <TableRow>
-                    <TableHead>SKU</TableHead><TableHead>ASIN</TableHead><TableHead>Type</TableHead><TableHead>Reason / note</TableHead>
-                    <TableHead className="text-right">Price at defer</TableHead><TableHead className="text-right">Current</TableHead>
-                    <TableHead>Raise status</TableHead>
-                    <TableHead>Who</TableHead><TableHead>When</TableHead><TableHead>Returns</TableHead><TableHead />
+                    <TableHead className="sticky left-0 z-20 bg-card border-r min-w-[230px]">Product</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Prices</TableHead>
+                    <TableHead>Raise</TableHead>
+                    <TableHead>Who / when</TableHead>
+                    <TableHead />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {(deferred ?? []).length === 0 ? (
-                    <TableRow><TableCell colSpan={11} className="text-center py-8 text-muted-foreground">Nothing deferred</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Nothing deferred</TableCell></TableRow>
                   ) : (deferred ?? []).map((d: any) => (
                     <TableRow key={`${d.kind}-${d.base_sku}`} className={d.ready_review ? "bg-amber-500/5" : undefined}>
-                      <TableCell className="font-medium whitespace-nowrap">
-                        {d.base_sku}
-                        {d.ready_review && (
-                          <Badge variant="outline" className="ml-1.5 text-[10px] border-amber-500 text-amber-600"
-                            title={d.raise_status === "applied" ? "The queued price rise has gone live — check whether it held" : "Returns within 7 days"}>
-                            Ready to review
-                          </Badge>
-                        )}
+                      <TableCell className={`sticky left-0 z-10 bg-card border-r min-w-[230px] max-w-[260px] ${cellPad}`}>
+                        <div className="font-medium text-sm whitespace-nowrap">
+                          {d.base_sku}
+                          {d.ready_review && (
+                            <Badge variant="outline" className="ml-1.5 text-[9px] px-1 border-amber-500 text-amber-600"
+                              title={d.raise_status === "applied" ? "The queued price rise has gone live — check whether it held" : "Returns within 7 days"}>
+                              Ready to review
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="text-[11px] text-muted-foreground truncate">
+                          {d.asin ? (
+                            <a href={`https://www.amazon.co.uk/dp/${d.asin}`} target="_blank" rel="noreferrer"
+                              className="text-primary underline-offset-2 hover:underline font-mono">{d.asin}</a>
+                          ) : "no ASIN"}
+                          {d.note ? ` · ${d.note}` : ""}
+                        </div>
                       </TableCell>
-                      <TableCell>
-                        {d.asin ? (
-                          <a href={`https://www.amazon.co.uk/dp/${d.asin}`} target="_blank" rel="noreferrer"
-                            className="text-primary underline-offset-2 hover:underline font-mono text-xs">{d.asin}</a>
-                        ) : <span className="text-muted-foreground">—</span>}
-                      </TableCell>
-                      <TableCell>
+                      <TableCell className={cellPad}>
                         <Badge variant={d.kind === "never" ? "destructive" : "outline"}>
                           {d.kind === "never" ? "Never" : d.kind === "raise_hold" ? "Raise held" : d.kind === "not_now" ? "Not now" : "Snoozed"}
                         </Badge>
+                        <div className="text-[11px] text-muted-foreground mt-0.5">{d.reason ?? ""}{d.until_date ? ` · returns ${new Date(d.until_date).toLocaleDateString()}` : ""}</div>
                       </TableCell>
-                      <TableCell className="max-w-sm">
-                        <div className="text-sm">{d.reason ?? ""}</div>
-                        <div className="text-xs text-muted-foreground">{d.note ?? ""}</div>
-                        {d.kind !== "never" && snoozeMap.get(d.base_sku)?.context?.action?.startsWith("delay_raise") && (
-                          <div className="text-xs mt-1">
-                            {gbp(snoozeMap.get(d.base_sku)?.context?.old_price)} → {gbp(snoozeMap.get(d.base_sku)?.context?.new_price ?? snoozeMap.get(d.base_sku)?.context?.suggested_price)}
-                            {" · "}{nf(snoozeMap.get(d.base_sku)?.context?.units_wk, 1)}/wk · {gbp(snoozeMap.get(d.base_sku)?.context?.profit_wk)}/wk before
-                          </div>
-                        )}
+                      <TableCell className={`text-right tabular-nums ${cellPad}`}>
+                        <div className="font-medium">{gbp(d.current_price)}
+                          {d.price_at_defer != null && d.current_price != null && d.current_price !== d.price_at_defer && (
+                            <span className={`ml-1 text-xs ${d.current_price > d.price_at_defer ? "text-green-600" : "text-red-500"}`}>
+                              ({d.current_price > d.price_at_defer ? "+" : ""}{nf(((d.current_price - d.price_at_defer) / d.price_at_defer) * 100, 0)}%)
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[11px] text-muted-foreground">at defer: {gbp(d.price_at_defer)}</div>
                       </TableCell>
-                      <TableCell className="text-right tabular-nums">{gbp(d.price_at_defer)}</TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {gbp(d.current_price)}
-                        {d.price_at_defer != null && d.current_price != null && d.current_price !== d.price_at_defer && (
-                          <span className={`ml-1 text-xs ${d.current_price > d.price_at_defer ? "text-green-600" : "text-red-500"}`}>
-                            ({d.current_price > d.price_at_defer ? "+" : ""}{nf(((d.current_price - d.price_at_defer) / d.price_at_defer) * 100, 0)}%)
-                          </span>
-                        )}
-                      </TableCell>
-                      <TableCell>
+                      <TableCell className={cellPad}>
                         {d.raise_status ? (
                           <Badge variant={d.raise_status === "applied" ? "default" : "outline"}
                             className={d.raise_status === "held >20%" ? "border-amber-500 text-amber-600" : undefined}>
@@ -880,10 +1086,11 @@ const FbaReplenishment = () => {
                           </Badge>
                         ) : <span className="text-muted-foreground text-xs">—</span>}
                       </TableCell>
-                      <TableCell className="text-sm">{d.set_by ?? "—"}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">{d.set_at ? new Date(d.set_at).toLocaleDateString() : "—"}</TableCell>
-                      <TableCell className="text-sm">{d.until_date ? new Date(d.until_date).toLocaleDateString() : "—"}</TableCell>
-                      <TableCell>
+                      <TableCell className={`text-sm ${cellPad}`}>
+                        <div>{d.set_by ?? "—"}</div>
+                        <div className="text-[11px] text-muted-foreground">{d.set_at ? new Date(d.set_at).toLocaleDateString() : "—"}</div>
+                      </TableCell>
+                      <TableCell className={cellPad}>
                         <Button size="sm" variant="ghost" onClick={() => undeferMutation.mutate(d.base_sku)}>
                           <Undo2 className="h-3.5 w-3.5 mr-1" />Un-defer
                         </Button>
@@ -899,8 +1106,8 @@ const FbaReplenishment = () => {
         {/* ---------------- Batches ---------------- */}
         <TabsContent value="batches">
           <Card>
-            <CardHeader>
-              <CardTitle>Send-in batches</CardTitle>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Send-in batches</CardTitle>
               <CardDescription>pending → seen at Amazon → received. Pending units count as in-transit. Batches not seen within 14 days are flagged (and emailed in the daily health alert).</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -946,6 +1153,112 @@ const FbaReplenishment = () => {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* ---------------- row detail drawer ---------------- */}
+      <Sheet open={!!drawerSku} onOpenChange={(o) => !o && setDrawerSku(null)}>
+        <SheetContent side="right" className="w-[420px] sm:max-w-[420px] overflow-y-auto">
+          {drawerRow && (
+            <>
+              <SheetHeader>
+                <SheetTitle className="flex items-center gap-2 flex-wrap">
+                  {drawerRow.base_sku}
+                  {rowBadges(drawerRow)}
+                </SheetTitle>
+                <SheetDescription>{drawerRow.title ?? "—"}</SheetDescription>
+              </SheetHeader>
+              <div className="space-y-4 mt-4 text-sm">
+                <div>
+                  <div className="text-xs font-medium text-muted-foreground mb-1">12-week sales (units, pack-normalised)</div>
+                  <Sparkline points={(weekly ?? []).map((w) => Number(w.units))} />
+                  <div className="text-xs text-muted-foreground mt-1">
+                    Velocity {nf(drawerRow.weekly_velocity, 1)}/wk · 7d {nf(drawerRow.units_7d)} · 30d {nf(drawerRow.units_30d)}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                  <div className="col-span-2 text-xs font-medium text-muted-foreground">FBA stock</div>
+                  <div>On-hand</div><div className="text-right font-medium tabular-nums">{nf(drawerRow.fba_on_hand)}</div>
+                  <div className="pl-2 text-muted-foreground">of which reserved (FC)</div><div className="text-right tabular-nums">{nf(drawerRow.fba_reserved)}</div>
+                  <div>In-transit</div><div className="text-right font-medium tabular-nums">{nf(drawerRow.fba_in_transit)}</div>
+                  <div className="pl-2 text-muted-foreground">working</div><div className="text-right tabular-nums">{nf(drawerRow.fba_inbound_working)}</div>
+                  <div className="pl-2 text-muted-foreground">shipped</div><div className="text-right tabular-nums">{nf(drawerRow.fba_inbound_shipped)}</div>
+                  <div className="pl-2 text-muted-foreground">receiving</div><div className="text-right tabular-nums">{nf(drawerRow.fba_inbound_receiving)}</div>
+                  <div className="pl-2 text-muted-foreground">pending send</div><div className="text-right tabular-nums">{nf(drawerRow.pending_send_units)}</div>
+                  <div className="pl-2 text-muted-foreground">shipment (not in feed)</div><div className="text-right tabular-nums">{nf(drawerRow.shipment_extra_units)}</div>
+                  <div>Weeks cover</div><div className="text-right font-medium tabular-nums">{nf(drawerRow.days_of_cover_weeks, 1)}</div>
+                  <div>To order / can send</div><div className="text-right font-medium tabular-nums">{nf(drawerRow.units_to_order)} / {nf(drawerRow.can_send_now)}</div>
+                  <div>Coleraine available</div><div className="text-right tabular-nums">{drawerRow.coleraine_placeholder ? "0 (placeholder)" : nf(drawerRow.coleraine_available)}</div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                  <div className="col-span-2 text-xs font-medium text-muted-foreground">Economics (per unit)</div>
+                  <div>FBA net <span className="text-muted-foreground">({drawerRow.fee_source ?? "—"})</span></div>
+                  <div className="text-right font-medium tabular-nums">{gbp(drawerRow.fba_net_per_unit_eff)}</div>
+                  <div>FBM net before handling</div><div className="text-right tabular-nums">{gbp(drawerRow.fbm_net_per_unit)}</div>
+                  <div>FBM net after handling</div><div className="text-right tabular-nums">{gbp(fbmNetAdj(drawerRow))}</div>
+                  <div className="pl-2 text-muted-foreground">handling (£{handlingCfg.handling.toFixed(2)}/order, assumption)</div>
+                  <div className="text-right tabular-nums text-muted-foreground">
+                    {drawerRow.fbm_units_90d ? gbp((handlingCfg.handling * (drawerRow.fbm_orders_90d ?? drawerRow.fbm_units_90d)) / drawerRow.fbm_units_90d) : "—"}
+                  </div>
+                  <div>Prime volume-loss headroom</div>
+                  <div className="text-right tabular-nums">{volumeLossHeadroom(drawerRow) == null ? "—" : `${nf(volumeLossHeadroom(drawerRow))}%`}</div>
+                  <div>FBA fee / referral</div>
+                  <div className="text-right tabular-nums">{gbp(drawerRow.fba_fee_per_unit)} / {gbp(drawerRow.referral_fee_per_unit)}</div>
+                  <div>Cost</div><div className="text-right tabular-nums">{gbp(drawerRow.unit_cost)}</div>
+                </div>
+
+                <div>
+                  <div className="text-xs font-medium text-muted-foreground mb-1">Amazon</div>
+                  {(drawerRow.asins ?? "").split(", ").filter(Boolean).map((a) => (
+                    <a key={a} href={`https://www.amazon.co.uk/dp/${a}`} target="_blank" rel="noreferrer"
+                      className="inline-flex items-center gap-1 mr-3 text-primary hover:underline font-mono text-xs">
+                      {a}<ExternalLink className="h-3 w-3" />
+                    </a>
+                  ))}
+                  <div className="text-xs text-muted-foreground mt-1">Seller SKU: {drawerRow.amazon_seller_sku ?? "—"}</div>
+                </div>
+
+                {(batches ?? []).some((b: any) => b.status === "pending" && (b.lines ?? []).some((l: any) => l.base_sku === drawerRow.base_sku)) && (
+                  <div>
+                    <div className="text-xs font-medium text-muted-foreground mb-1">Open send-in batches</div>
+                    {(batches ?? []).filter((b: any) => b.status === "pending" && (b.lines ?? []).some((l: any) => l.base_sku === drawerRow.base_sku))
+                      .map((b: any) => (
+                        <div key={b.id} className="text-xs">
+                          {new Date(b.created_at).toLocaleDateString()} — ×{(b.lines ?? []).find((l: any) => l.base_sku === drawerRow.base_sku)?.qty} ({b.status})
+                        </div>
+                      ))}
+                  </div>
+                )}
+
+                {(queueRows ?? []).length > 0 && (
+                  <div>
+                    <div className="text-xs font-medium text-muted-foreground mb-1">Reprice queue</div>
+                    {(queueRows ?? []).map((q: any, i: number) => (
+                      <div key={i} className="text-xs">
+                        {gbp(q.price)} — {q.status} · {q.source ?? "manual"} · {new Date(q.queued_at).toLocaleDateString()}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex flex-wrap gap-2 pt-2 border-t">
+                  <Button size="sm" variant="outline" onClick={() => deferMutation.mutate({ skus: [drawerRow.base_sku], kind: "snooze", weeks: 4 })}>
+                    <Clock className="h-3.5 w-3.5 mr-1" />Snooze 4w
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => deferMutation.mutate({ skus: [drawerRow.base_sku], kind: "not_now" })}>Not now</Button>
+                  <Button size="sm" variant="outline" onClick={() => delayRaiseMutation.mutate([drawerRow.base_sku])}>
+                    <TrendingUp className="h-3.5 w-3.5 mr-1" />Delay &amp; raise
+                  </Button>
+                  <Button size="sm" variant="destructive"
+                    onClick={() => { setDeferReason(drawerRow.is_hazmat ? "dangerous_goods" : "other"); setDeferDialog({ skus: [drawerRow.base_sku], hazmat: !!drawerRow.is_hazmat }); }}>
+                    <PackageX className="h-3.5 w-3.5 mr-1" />Never
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
+        </SheetContent>
+      </Sheet>
 
       {/* ---------------- sticky selection bar ---------------- */}
       {selTotals.skus > 0 && (tab === "replenish" || tab === "candidates") && (
