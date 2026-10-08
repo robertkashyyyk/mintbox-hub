@@ -31,3 +31,9 @@
 -- the role was missing). amazon_fee_estimate_sweep v2 targets the candidate
 -- PRE-filter (not is_candidate — chicken-and-egg). 118+ real estimates landed;
 -- fee_source now shows 'api' for estimated never-FBA SKUs.
+
+-- Addendum 2 (2026-10-08 pm): amazon_fba_deferred_list_v2 (ASIN, price at
+-- defer vs current, raise status queued/applied/held, ready_review flag) —
+-- NEW name because the migration channel declines DROP FUNCTION and the
+-- return type changed; v1 remains unused. Candidates tab gains the
+-- "Prime uplift break-even %" lens: test candidates = pre-filter + FBA net > 0.

@@ -177,7 +177,7 @@ const FbaReplenishment = () => {
   const { data: deferred } = useQuery({
     queryKey: ["fba-deferred"],
     queryFn: async () => {
-      const { data, error } = await (supabase as any).rpc("amazon_fba_deferred_list");
+      const { data, error } = await (supabase as any).rpc("amazon_fba_deferred_list_v2");
       if (error) throw error;
       return (data ?? []) as any[];
     },
@@ -322,14 +322,37 @@ const FbaReplenishment = () => {
     [replenishAll, hideFading, sort],
   );
 
+  // Break-even Prime uplift: extra FBA volume needed for FBA total contribution
+  // to match FBM at current velocity. Only meaningful when FBA net > 0.
+  const upliftPct = (r: Row): number | null => {
+    const fba = r.fba_net_per_unit_eff, fbm = r.fbm_net_per_unit;
+    if (fba == null || fbm == null || fba <= 0) return null;
+    if ((r.net_diff ?? 0) > 0) return 0; // FBA already wins per unit
+    return Math.round((fbm / fba - 1) * 100);
+  };
+
+  const uplift50Only = params.get("uplift") === "50";
   const candidates = useMemo(
-    () => sortRows(applyCommonFilters(rows.filter((r) => !r.ever_fba && r.is_candidate && !isHidden(r)))),
+    () => sortRows(applyCommonFilters(rows.filter((r) => {
+      if (r.ever_fba || r.is_excluded || isHidden(r)) return false;
+      const preFilter = (r.weekly_velocity ?? 0) >= 3 && (r.units_30d ?? 0) >= 8;
+      if (!preFilter) return false;
+      // Send candidates (FBA beats FBM) plus TEST candidates (FBA profitable
+      // but behind FBM — worth a Prime-uplift trial, not a send).
+      const u = upliftPct(r);
+      const testCandidate = u != null && u > 0;
+      if (!(r.is_candidate || testCandidate)) return false;
+      if (uplift50Only && (u == null || u > 50)) return false;
+      return true;
+    }))),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [rows, snoozeMap, brandFilter.join(","), mkt, minVel, minNet, csnOnly, search, sort],
+    [rows, snoozeMap, brandFilter.join(","), mkt, minVel, minNet, csnOnly, search, sort, uplift50Only],
   );
 
   const brandCounts = useMemo(() => {
-    const src = rows.filter((r) => (tab === "candidates" ? !r.ever_fba && r.is_candidate : r.ever_fba && r.replenish_flag) && !isHidden(r));
+    const src = rows.filter((r) => (tab === "candidates"
+      ? !r.ever_fba && (r.is_candidate || (upliftPct(r) ?? -1) > 0) && (r.weekly_velocity ?? 0) >= 3 && (r.units_30d ?? 0) >= 8
+      : r.ever_fba && r.replenish_flag) && !isHidden(r));
     const m = new Map<string, number>();
     src.forEach((r) => m.set(brandOf(r.base_sku), (m.get(brandOf(r.base_sku)) ?? 0) + 1));
     return [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12);
@@ -478,6 +501,12 @@ const FbaReplenishment = () => {
           <Switch id="fading" checked={!hideFading} onCheckedChange={(v) => setParam("fading", v ? "show" : null)} />
           <Label htmlFor="fading" className="text-sm">Show fading inline</Label>
         </div>
+        {tab === "candidates" && (
+          <div className="flex items-center gap-2">
+            <Switch id="uplift50" checked={uplift50Only} onCheckedChange={(v) => setParam("uplift", v ? "50" : null)} />
+            <Label htmlFor="uplift50" className="text-sm">Break-even uplift ≤ 50%</Label>
+          </div>
+        )}
       </div>
       {brandCounts.length > 1 && (
         <div className="flex flex-wrap gap-1.5">
@@ -562,13 +591,14 @@ const FbaReplenishment = () => {
                         <SortHead field="can_send_now" label="Can send" className="text-right" />
                         <SortHead field="fba_fee_per_unit" label="FBA £" className="text-right" />
                         <SortHead field="net_margin_pct" label="Net %" className="text-right" />
+                        <SortHead field="net_diff" label="FBM Δ" className="text-right" />
                         <SortHead field="reorder_cost" label="Reorder £" className="text-right" />
                         <TableHead />
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {replenish.length === 0 ? (
-                        <TableRow><TableCell colSpan={14} className="text-center py-8 text-muted-foreground">No SKUs match</TableCell></TableRow>
+                        <TableRow><TableCell colSpan={15} className="text-center py-8 text-muted-foreground">No SKUs match</TableCell></TableRow>
                       ) : replenish.map((r) => {
                         const por = r.avg_sell_price ? ((r.net_per_unit ?? 0) / (r.avg_sell_price * 1.2)) * 100 : null;
                         return (
@@ -593,6 +623,14 @@ const FbaReplenishment = () => {
                             </TableCell>
                             <TableCell className="text-right tabular-nums text-muted-foreground" title={`Fee source: ${r.fee_source ?? "—"}`}>{gbp(r.fba_fee_per_unit)}</TableCell>
                             <TableCell className={`text-right tabular-nums ${porBandClass(por, bands ?? null)}`}>{r.net_margin_pct == null ? "—" : `${nf(r.net_margin_pct, 1)}%`}</TableCell>
+                            <TableCell className="text-right tabular-nums whitespace-nowrap"
+                              title={(() => { const u = upliftPct(r); return `FBA ${gbp(r.fba_net_per_unit_eff)} vs FBM ${gbp(r.fbm_net_per_unit)} per unit${u != null && u > 0 ? ` — FBA needs +${nf(u)}% volume to match` : ""}`; })()}>
+                              {r.net_diff == null ? "—" : gbp(r.net_diff)}
+                              {(r.net_diff ?? 0) < 0 && (r.fbm_net_per_unit ?? 0) > 0 && (
+                                <Badge variant="outline" className="ml-1 text-[10px] border-red-400 text-red-500"
+                                  title="FBM wins per unit and is profitable — candidate to stop replenishing and let FBA stock sell through">FBM beats FBA</Badge>
+                              )}
+                            </TableCell>
                             <TableCell className="text-right tabular-nums">{gbp(r.reorder_cost)}</TableCell>
                             <TableCell>{rowActions(r)}</TableCell>
                           </TableRow>
@@ -659,6 +697,8 @@ const FbaReplenishment = () => {
                         <SortHead field="fbm_net_per_unit" label="FBM net £/u" className="text-right" />
                         <SortHead field="fba_net_per_unit_eff" label="FBA net £/u" className="text-right" />
                         <SortHead field="net_diff" label="Diff" className="text-right" />
+                        <TableHead className="text-right" title="Extra FBA volume needed for FBA total contribution to match FBM at current velocity">BE uplift</TableHead>
+                        <TableHead>Verdict</TableHead>
                         <TableHead className="text-right">FBA POR%</TableHead>
                         <TableHead className="text-right">Contrib £/wk*</TableHead>
                         <SortHead field="coleraine_available" label="Coleraine" className="text-right" />
@@ -668,7 +708,7 @@ const FbaReplenishment = () => {
                     </TableHeader>
                     <TableBody>
                       {candidates.length === 0 ? (
-                        <TableRow><TableCell colSpan={11} className="text-center py-8 text-muted-foreground">
+                        <TableRow><TableCell colSpan={13} className="text-center py-8 text-muted-foreground">
                           No candidates pass the gates{rows.some((r) => r.fee_source == null && !r.ever_fba) ? " (candidate economics need the nightly refresh / fee data)" : ""}
                         </TableCell></TableRow>
                       ) : candidates.map((r) => {
@@ -683,6 +723,14 @@ const FbaReplenishment = () => {
                               {gbp(r.fba_net_per_unit_eff)}{r.fee_source === "modelled" ? <span className="text-muted-foreground">*</span> : null}
                             </TableCell>
                             <TableCell className={`text-right tabular-nums font-medium ${(r.net_diff ?? 0) > 0 ? "text-green-600" : "text-red-500"}`}>{gbp(r.net_diff)}</TableCell>
+                            <TableCell className="text-right tabular-nums">
+                              {(() => { const u = upliftPct(r); return u == null ? "—" : u === 0 ? "0%" : `+${nf(u)}%`; })()}
+                            </TableCell>
+                            <TableCell>
+                              {r.is_candidate
+                                ? <Badge className="bg-green-600">Send candidate</Badge>
+                                : <Badge variant="outline" className="border-blue-400 text-blue-600" title="FBA is profitable but behind FBM per unit — a Prime-uplift trial, not a send">Test candidate</Badge>}
+                            </TableCell>
                             <TableCell className={`text-right tabular-nums ${porBandClass(por, bands ?? null)}`}>{por == null ? "—" : `${nf(por, 1)}%`}</TableCell>
                             <TableCell className="text-right tabular-nums" title="If volume holds">{gbp((r.fba_net_per_unit_eff ?? 0) * (r.weekly_velocity ?? 0))}</TableCell>
                             <TableCell className="text-right">{r.coleraine_placeholder ? "0*" : nf(r.coleraine_available)}</TableCell>
@@ -717,16 +765,32 @@ const FbaReplenishment = () => {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>SKU</TableHead><TableHead>Type</TableHead><TableHead>Reason / note</TableHead>
+                    <TableHead>SKU</TableHead><TableHead>ASIN</TableHead><TableHead>Type</TableHead><TableHead>Reason / note</TableHead>
+                    <TableHead className="text-right">Price at defer</TableHead><TableHead className="text-right">Current</TableHead>
+                    <TableHead>Raise status</TableHead>
                     <TableHead>Who</TableHead><TableHead>When</TableHead><TableHead>Returns</TableHead><TableHead />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {(deferred ?? []).length === 0 ? (
-                    <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Nothing deferred</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={11} className="text-center py-8 text-muted-foreground">Nothing deferred</TableCell></TableRow>
                   ) : (deferred ?? []).map((d: any) => (
-                    <TableRow key={`${d.kind}-${d.base_sku}`}>
-                      <TableCell className="font-medium">{d.base_sku}</TableCell>
+                    <TableRow key={`${d.kind}-${d.base_sku}`} className={d.ready_review ? "bg-amber-500/5" : undefined}>
+                      <TableCell className="font-medium whitespace-nowrap">
+                        {d.base_sku}
+                        {d.ready_review && (
+                          <Badge variant="outline" className="ml-1.5 text-[10px] border-amber-500 text-amber-600"
+                            title={d.raise_status === "applied" ? "The queued price rise has gone live — check whether it held" : "Returns within 7 days"}>
+                            Ready to review
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {d.asin ? (
+                          <a href={`https://www.amazon.co.uk/dp/${d.asin}`} target="_blank" rel="noreferrer"
+                            className="text-primary underline-offset-2 hover:underline font-mono text-xs">{d.asin}</a>
+                        ) : <span className="text-muted-foreground">—</span>}
+                      </TableCell>
                       <TableCell>
                         <Badge variant={d.kind === "never" ? "destructive" : "outline"}>
                           {d.kind === "never" ? "Never" : d.kind === "raise_hold" ? "Raise held" : d.kind === "not_now" ? "Not now" : "Snoozed"}
@@ -741,6 +805,23 @@ const FbaReplenishment = () => {
                             {" · "}{nf(snoozeMap.get(d.base_sku)?.context?.units_wk, 1)}/wk · {gbp(snoozeMap.get(d.base_sku)?.context?.profit_wk)}/wk before
                           </div>
                         )}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">{gbp(d.price_at_defer)}</TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {gbp(d.current_price)}
+                        {d.price_at_defer != null && d.current_price != null && d.current_price !== d.price_at_defer && (
+                          <span className={`ml-1 text-xs ${d.current_price > d.price_at_defer ? "text-green-600" : "text-red-500"}`}>
+                            ({d.current_price > d.price_at_defer ? "+" : ""}{nf(((d.current_price - d.price_at_defer) / d.price_at_defer) * 100, 0)}%)
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {d.raise_status ? (
+                          <Badge variant={d.raise_status === "applied" ? "default" : "outline"}
+                            className={d.raise_status === "held >20%" ? "border-amber-500 text-amber-600" : undefined}>
+                            {d.raise_status}
+                          </Badge>
+                        ) : <span className="text-muted-foreground text-xs">—</span>}
                       </TableCell>
                       <TableCell className="text-sm">{d.set_by ?? "—"}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">{d.set_at ? new Date(d.set_at).toLocaleDateString() : "—"}</TableCell>
