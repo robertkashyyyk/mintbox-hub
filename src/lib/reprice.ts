@@ -11,7 +11,10 @@
  *    as profit / (net_revenue * (1 + vat)). So the POR denominator per unit is
  *    the GROSS unit price.
  *  - eBay fee model (channel_fee_rules "Default"): variable fee = fee_pct of the
- *    GROSS price (0.12), plus a fixed fee per line (0.36). vat_rate 0.20.
+ *    GROSS price (0.12), plus a fixed fee per line (0.36). Fee rule fee_pct values
+ *    are rates on the GROSS (VAT-inclusive) price, ex fee-VAT (fee VAT is
+ *    reclaimable and is never modelled). Product/output VAT for the net-revenue
+ *    term is PRODUCT_VAT (0.20); see below.
  */
 
 /** POR% band thresholds — mirror app_settings.profit.loss_bands. */
@@ -105,6 +108,19 @@ export interface EffectiveFees {
 export const DEFAULT_FEES: EffectiveFees = { vat: 0.2, feePct: 0.12, fixedFee: 0.36 };
 
 /**
+ * PRODUCT (output) VAT used to turn gross into net revenue in the floor / POR
+ * maths: net = gross / (1 + PRODUCT_VAT). This is the VAT we remit on the SALE.
+ * channel_fee_rules.vat_rate is also product VAT (it grosses net revenue up to the
+ * price the fee is charged on), but it was zeroed on 29 Sep 2026 in the mistaken
+ * belief it was VAT on the fee, which dropped floors ~17-20%; it was restored to
+ * 0.20 on 13 Oct (VAT Phase 1). The repricer no longer reads it: product VAT comes
+ * from here so a fee-rule edit can never move the floor's output-VAT term again.
+ * Default 20% (UK standard); the Amazon cost-floor RPC reads
+ * app_settings.product_vat_rate. Phase 2 makes that setting the single source.
+ */
+export const PRODUCT_VAT = 0.2;
+
+/**
  * Sane bounds for the measured VARIABLE eBay fee rate (referral + promoted),
  * decomposed by the RPC as (Σfvf − Ntxns·fixed) / Σ(item + postage). Outside this
  * band the measurement is noise and we fall back to the modeled channel fee.
@@ -141,11 +157,17 @@ function likeToRegExp(pattern: string): RegExp {
  * Pick the fee rule for a channel: lowest-priority ACTIVE rule whose pattern
  * matches. Falls back to eBay defaults if nothing matches / no rules loaded.
  */
-export function effectiveFeesFor(channel: string, rules: FeeRule[] | null | undefined): EffectiveFees {
+export function effectiveFeesFor(
+  channel: string,
+  rules: FeeRule[] | null | undefined,
+  productVat: number = PRODUCT_VAT,
+): EffectiveFees {
   const active = (rules ?? []).filter((r) => r.active).sort((a, b) => a.priority - b.priority);
   const hit = active.find((r) => likeToRegExp(r.channel_pattern).test(channel));
-  if (!hit) return DEFAULT_FEES;
-  return { vat: hit.vat_rate, feePct: hit.fee_pct, fixedFee: hit.fixed_fee };
+  if (!hit) return { ...DEFAULT_FEES, vat: productVat };
+  // Product VAT comes from productVat, never hit.vat_rate, so a fee-rule edit can't
+  // drop the floor's output-VAT term (what happened 29 Sep–13 Oct 2026).
+  return { vat: productVat, feePct: hit.fee_pct, fixedFee: hit.fixed_fee };
 }
 
 /**
