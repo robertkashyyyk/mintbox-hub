@@ -9,7 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { Bot, Info, Upload, Loader2, Flame } from "lucide-react";
+import { Bot, Info, Upload, Loader2, Flame, AlertTriangle, RefreshCw } from "lucide-react";
 import { type Tier, TIER_OPTIONS, TIER_TARGET_POR_PCT, classifyPorBand } from "@/lib/reprice";
 
 // Amazon reprices via eSagu. This panel is a live worklist AND an action surface:
@@ -38,22 +38,30 @@ export default function AmazonReprice() {
 
   const targetPorFrac = TIER_TARGET_POR_PCT[tier] / 100;
 
-  const { data: summary, isLoading: sumLoading } = useQuery({
+  // Failures must show as errors, never as zeros / "nothing needs attention".
+  const { data: summary, isLoading: sumLoading, error: sumError, refetch: refetchSummary } = useQuery({
     queryKey: ["amazon-reprice-summary"],
     queryFn: async () => {
       const { data, error } = await (supabase as any).rpc("get_amazon_reprice_summary");
       if (error) throw error;
-      return (data ?? {}) as Record<string, number>;
+      if (!data || typeof data.total !== "number") throw new Error("Summary returned no data");
+      return data as {
+        total: number; we_hold_box: number; below_floor: number; losing_box: number;
+        stuck_fba: number; margin_headroom: number; as_of?: string;
+      };
     },
+    retry: 1,
   });
 
-  const { data: rows, isLoading: rowsLoading } = useQuery({
+  const { data: rows, isLoading: rowsLoading, error: rowsError, refetch: refetchRows } = useQuery({
     queryKey: ["amazon-reprice-overview", tier],
     queryFn: async () => {
       const { data, error } = await (supabase as any).rpc("get_amazon_reprice_overview", { p_limit: 400, p_target_por: targetPorFrac });
       if (error) throw error;
-      return (data ?? []) as any[];
+      if (!Array.isArray(data)) throw new Error("Worklist returned no data");
+      return data as any[];
     },
+    retry: 1,
   });
 
   const filtered = useMemo(
@@ -114,6 +122,19 @@ export default function AmazonReprice() {
 
   const toggleFilter = (k: StatusKey) => { setStatusFilter((cur) => (cur === k ? "all" : k)); setSelected({}); };
 
+  const loadError = (what: string, err: unknown, retry: () => void) => (
+    <div role="alert" className="rounded-lg border border-destructive/50 bg-destructive/10 px-3 py-3 text-sm text-destructive flex items-start gap-2">
+      <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+      <div className="flex-1">
+        <div className="font-medium">Couldn't load the {what} — this is NOT an all-clear.</div>
+        <div className="text-xs text-destructive/80 mt-0.5">{(err as any)?.message ?? String(err)}</div>
+      </div>
+      <Button size="sm" variant="outline" className="h-7 text-xs" onClick={retry}>
+        <RefreshCw className="h-3 w-3 mr-1" /> Retry
+      </Button>
+    </div>
+  );
+
   // Clickable summary card. A statusKey makes it a filter toggle.
   const chip = (label: string, value: string | number, sub: string, tone: string, statusKey?: StatusKey) => (
     <button
@@ -139,6 +160,7 @@ export default function AmazonReprice() {
       </div>
 
       {/* Clickable summary cards (double as the filter) */}
+      {sumError ? loadError("summary", sumError, () => refetchSummary()) : (
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         {sumLoading ? (
           Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-16" />)
@@ -153,6 +175,12 @@ export default function AmazonReprice() {
           </>
         )}
       </div>
+      )}
+      {summary?.as_of && (
+        <p className="text-[10px] text-muted-foreground/70 -mt-2">
+          eSagu snapshot as of {new Date(summary.as_of).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })} (refreshed hourly)
+        </p>
+      )}
 
       <Card>
         <CardHeader className="pb-3 flex flex-row items-center justify-between gap-3 flex-wrap">
@@ -183,6 +211,8 @@ export default function AmazonReprice() {
         <CardContent>
           {rowsLoading ? (
             <Skeleton className="h-64" />
+          ) : rowsError ? (
+            loadError("worklist", rowsError, () => refetchRows())
           ) : filtered.length === 0 ? (
             <div className="text-sm text-muted-foreground flex items-center gap-2 py-8 justify-center">
               <Info className="h-4 w-4" /> Nothing needs attention in this view — eSagu has it covered.
