@@ -111,3 +111,6 @@ verify_jwt = true
 
 [functions.backfill-product-dims]
 verify_jwt = true
+
+[functions.job-health-alert]
+verify_jwt = true

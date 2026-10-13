@@ -3,7 +3,8 @@
 // eSagu can't sell below that tier and optimises up from there. Where the floor is at
 // or above maxPrice, lifts max just above (eSagu requires min<max). RAISE-only on min
 // by default (won't drop a floor) unless allowLower:true. Dry-run default.
-// Body: { items:[{itemId,floor}], live?, allowLower? }. eSagu: Bearer ESAGU_KEY.
+// Body: { items:[{itemId,floor}], live?, allowLower?, reason? }. eSagu: Bearer ESAGU_KEY.
+// Every live push is logged (old/new floor, caller) in public.esagu_floor_push_log.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type" };
@@ -40,20 +41,22 @@ function bearerRole(jwt: string): string | null {
     return JSON.parse(atob(b64 + "=".repeat((4 - (b64.length % 4)) % 4)))?.role ?? null;
   } catch { return null; }
 }
-async function rejectUnlessInternal(req: Request): Promise<Response | null> {
+// Who made the call — recorded against every live push in public.esagu_floor_push_log.
+type Caller = { kind: "service_key" | "service_jwt" | "user"; userId: string | null };
+async function rejectUnlessInternal(req: Request): Promise<Response | Caller> {
   const authHeader = req.headers.get("Authorization") ?? "";
   const bearer = authHeader.replace(/^Bearer\s+/i, "").trim();
   let role: string | null = null;
   if (bearer) {
-    if (serviceKeys().some((k) => ctEqual(bearer, k))) return null;
+    if (serviceKeys().some((k) => ctEqual(bearer, k))) return { kind: "service_key", userId: null };
     role = bearerRole(bearer); // signature already verified by the gateway (verify_jwt)
-    if (role === "service_role") return null;
+    if (role === "service_role") return { kind: "service_jwt", userId: null };
     if (role === "authenticated") {
       const uc = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, {
         global: { headers: { Authorization: authHeader } }, auth: { persistSession: false },
       });
       const { data } = await uc.auth.getUser();
-      if (data?.user?.id) return null;
+      if (data?.user?.id) return { kind: "user", userId: data.user.id };
     }
   }
   const reason = !bearer ? "no bearer" : role ? `role ${role}` : "unrecognised token";
@@ -73,21 +76,30 @@ async function rejectUnlessInternal(req: Request): Promise<Response | null> {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
-  const denied = await rejectUnlessInternal(req);
-  if (denied) return denied;
+  const caller = await rejectUnlessInternal(req);
+  if (caller instanceof Response) return caller;
   const token = Deno.env.get("ESAGU_KEY") ?? Deno.env.get("ESAGU_JWT");
   if (!token) return json({ ok: false, error: "ESAGU_KEY not set." }, 500);
   const auth = { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/json" };
 
   let items: Array<{ itemId: number; floor: number }> = [];
-  let live = false, allowLower = false;
-  try { const b = await req.json(); items = Array.isArray(b.items) ? b.items : []; live = b.live === true; allowLower = b.allowLower === true; }
-  catch { return json({ ok: false, error: "Body must be { items:[{itemId,floor}], live? }" }, 400); }
+  let live = false, allowLower = false, reason: string | null = null;
+  try {
+    const b = await req.json();
+    items = Array.isArray(b.items) ? b.items : []; live = b.live === true; allowLower = b.allowLower === true;
+    reason = typeof b.reason === "string" ? b.reason.slice(0, 200) : null;
+  }
+  catch { return json({ ok: false, error: "Body must be { items:[{itemId,floor}], live?, reason? }" }, 400); }
   if (items.length === 0) return json({ ok: false, error: "No items supplied." }, 400);
   if (items.length > 300) return json({ ok: false, error: "Refusing >300 items in one call (safety)." }, 400);
 
+  // Every live push is logged write-ahead: the row (old/new floor, caller) goes in before
+  // the PUT and the outcome is filled in after. No log row, no push — the run stops.
+  const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
+  const userAgent = (req.headers.get("user-agent") ?? "").slice(0, 300);
+
   const results: any[] = [];
-  let changed = 0;
+  let changed = 0, aborted = false;
   for (const it of items) {
     const id = Number(it.itemId);
     const newMin = Math.round(Number(it.floor) * 100);
@@ -108,12 +120,28 @@ Deno.serve(async (req) => {
 
     if (!live) { results.push({ id, dryRun: true, fromMin: liveMin, toMin: newMin, maxBumped: newMax !== liveMax ? newMax : undefined }); continue; }
 
+    const { data: logRow, error: logErr } = await admin.from("esagu_floor_push_log").insert({
+      esagu_item_id: id,
+      old_min_pence: Number.isFinite(liveMin) ? liveMin : null, new_min_pence: newMin,
+      old_max_pence: Number.isFinite(liveMax) ? liveMax : null, new_max_pence: newMax,
+      ok: null, caller_kind: caller.kind, caller_user_id: caller.userId, reason, user_agent: userAgent,
+    }).select("id").single();
+    if (logErr || !logRow) {
+      console.error(`[push-log] insert failed for item ${id}: ${logErr?.message ?? "no row"} — stopping run`);
+      results.push({ id, ok: false, stage: "log", err: "push log write failed; not pushed (run stopped)" });
+      aborted = true;
+      break;
+    }
+
     const pres = await fetch(`${ESAGU_BASE}/item/${id}/strategy`, { method: "PUT", headers: auth, body: JSON.stringify(modified) });
     const ok = pres.ok;
     const errTxt = ok ? undefined : (await pres.text().catch(() => "")).slice(0, 200);
     if (ok) changed++;
+    const { error: updErr } = await admin.from("esagu_floor_push_log")
+      .update({ ok, http_status: pres.status, error: errTxt ?? null }).eq("id", logRow.id);
+    if (updErr) console.error(`[push-log] outcome update failed for log row ${logRow.id}: ${updErr.message}`);
     results.push({ id, ok, status: pres.status, fromMin: liveMin, toMin: newMin, maxBumped: newMax !== liveMax ? newMax : undefined, err: errTxt });
     await new Promise((r) => setTimeout(r, 150));
   }
-  return json({ ok: true, live, count: items.length, changed, succeeded: results.filter((r) => r.ok).length, results });
+  return json({ ok: !aborted, live, aborted, count: items.length, changed, succeeded: results.filter((r) => r.ok).length, results });
 });
