@@ -1,0 +1,30 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+const json = (b: unknown, s=200) => new Response(JSON.stringify(b,null,2), { status:s, headers:{"Content-Type":"application/json","Access-Control-Allow-Origin":"*"} });
+const rid = (a:any)=> a?.ID??a?.Id??a?.ASNId??a?.AsnId??null;
+Deno.serve(async () => {
+  const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+  const apiKey = Deno.env.get("MINTSOFT_API_KEY")!;
+  const { data: settings } = await supabase.from("mintsoft_settings").select("base_url").maybeSingle();
+  const base = settings?.base_url || "https://api.mintsoft.co.uk";
+  const H = { "ms-apikey": apiKey };
+  const g = async (u:string) => { try { const r=await fetch(base+u,{headers:H}); let j:any=null; try{j=await r.json();}catch{} return {status:r.status,j}; } catch(e){return {error:String(e)};} };
+
+  // 1. ASN 1009 detail -> which warehouse + status
+  const d1009 = await g("/api/ASN/1009");
+  const wh1009 = d1009.j ? (d1009.j.WarehouseId ?? d1009.j.warehouseId ?? d1009.j.Warehouse?.ID ?? null) : null;
+
+  // 2. enumerate warehouses
+  const whList = await g("/api/Warehouse/List");
+  const warehouses = Array.isArray(whList.j) ? whList.j.map((w:any)=>({id:w.ID??w.Id, name:w.Name})) : whList.j;
+
+  // 3. list counts per warehouse id 1..8 and no-filter (page1 only, id range)
+  const perWh:any[] = [];
+  for (const wid of ["","1","2","3","4","5","6","7","8"]) {
+    const q = wid ? `?WarehouseId=${wid}&PageNo=1` : `?PageNo=1`;
+    const r = await g("/api/ASN/List"+q);
+    const list = Array.isArray(r.j)?r.j:[];
+    const ids = list.map(rid).filter((x:any)=>x!=null);
+    perWh.push({ warehouse: wid||"(none)", status:r.status, count:list.length, minId: ids.length?Math.min(...ids):null, maxId: ids.length?Math.max(...ids):null });
+  }
+  return json({ asn1009: { status:d1009.status, warehouseId: wh1009, asnStatus: d1009.j?.ASNStatus ?? d1009.j?.Status, keys: d1009.j?Object.keys(d1009.j).slice(0,40):null }, warehouses, perWarehousePage1: perWh });
+});
