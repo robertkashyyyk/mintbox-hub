@@ -19,13 +19,13 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.mintsoft-test-order-count]
-verify_jwt = false
+verify_jwt = true
 
 [functions.mintsoft-order-snapshot]
 verify_jwt = false
 
 [functions.mintsoft-statuses]
-verify_jwt = false
+verify_jwt = true
 
 [functions.mintsoft-backorder-age-snapshot]
 verify_jwt = false
@@ -49,18 +49,15 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.backfill-order-economics]
-verify_jwt = false
+verify_jwt = true
 
 [functions.pull-mintsoft-stock-ftp]
 verify_jwt = false
 [functions.sftp-pull-stock]
 verify_jwt = false
 
-[functions.debug-secret]
-verify_jwt = false
-
 [functions.verify-mintsoft-costs]
-verify_jwt = false
+verify_jwt = true
 
 [functions.sftp-pull-lowstock]
 verify_jwt = false
@@ -78,20 +75,14 @@ verify_jwt = false
 [functions.image-scout-process]
 verify_jwt = false
 
-[functions.threeds-probe]
-verify_jwt = false
-
-[functions.threeds-mcp-probe]
-verify_jwt = false
-
 [functions.mintsoft-fetch-todays-asns]
 verify_jwt = false
 
 [functions.ingest-3ds-orders]
-verify_jwt = false
+verify_jwt = true # was false: in-function check trusted an UNVERIFIED role claim (forgeable). Cron 37 sends a service_role JWT.
 
 [functions.threeds-reprice-reconcile]
-verify_jwt = false
+verify_jwt = true # was false: same forgeable role check; writes 3DS reprice files. Cron 45 sends a service_role JWT.
 
 [functions.debug-threeds-sftp]
 verify_jwt = false
@@ -100,7 +91,23 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.threeds-sftp-touch]
-verify_jwt = false
+verify_jwt = true # was false: same forgeable role check; overwrites 3DS reprice files. No cron caller.
 
 [functions.reprice-payoff]
 verify_jwt = false
+
+# Retired 2026-10-13 (security/prompt0-fixes): 410 stubs, gateway JWT check on.
+[functions.mintsoft-asn-delete-test]
+verify_jwt = true
+
+[functions.klok-diag]
+verify_jwt = true
+
+[functions.mintsoft-asn-page-probe]
+verify_jwt = true
+
+[functions.esagu-gap-probe]
+verify_jwt = true
+
+[functions.backfill-product-dims]
+verify_jwt = true

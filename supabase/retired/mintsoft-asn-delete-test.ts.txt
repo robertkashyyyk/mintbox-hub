@@ -1,0 +1,38 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+const json = (b: unknown, s=200) => new Response(JSON.stringify(b,null,2), { status:s, headers:{"Content-Type":"application/json","Access-Control-Allow-Origin":"*"} });
+Deno.serve(async (req) => {
+  const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+  const apiKey = Deno.env.get("MINTSOFT_API_KEY")!;
+  const { data: settings } = await supabase.from("mintsoft_settings").select("base_url").maybeSingle();
+  const base = settings?.base_url || "https://api.mintsoft.co.uk";
+  const H = { "ms-apikey": apiKey, "Content-Type":"application/json" };
+  const u = new URL(req.url);
+  const asn = u.searchParams.get("asn") || "1009";
+  const item = u.searchParams.get("item") || "158";
+
+  const before = await (await fetch(`${base}/api/ASN/${asn}`, { headers: H })).json();
+  const beforeCount = (before?.Items||[]).length;
+
+  const routes = [
+    `/api/ASN/${asn}/Item/${item}`,
+    `/api/ASN/Item/${item}`,
+    `/api/ASN/DeleteItem/${item}`,
+    `/api/ASNItem/${item}`,
+    `/api/ASN/${asn}/DeleteItem/${item}`,
+    `/api/ASN/RemoveItem/${item}`,
+    `/api/ASN/${asn}/Items/${item}`,
+  ];
+  const attempts:any[]=[];
+  let winner=null;
+  for (const path of routes) {
+    try {
+      const r = await fetch(base+path, { method:"DELETE", headers:H });
+      let t=""; try{t=await r.text();}catch{}
+      attempts.push({ path, method:"DELETE", status:r.status, body:(t||"").slice(0,140) });
+      if (r.status>=200 && r.status<300) { winner=path; break; }
+    } catch(e){ attempts.push({ path, error:String(e) }); }
+  }
+  const after = await (await fetch(`${base}/api/ASN/${asn}`, { headers: H })).json();
+  const afterCount = (after?.Items||[]).length;
+  return json({ asn, item, beforeCount, afterCount, deleted: beforeCount-afterCount, winner, attempts });
+});

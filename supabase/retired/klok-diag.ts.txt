@@ -1,0 +1,103 @@
+// klok-diag — READ-ONLY diagnostic for the Klokkerholm feed. Writes NOTHING.
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import * as XLSX from "npm:xlsx@0.18.5";
+
+const SUP = "KKH";
+const EXACT_QUERY = 'from:noreply@klokkerholm.com subject:"Stock availability report" in:anywhere newer_than:40d';
+const env = (k: string) => Deno.env.get(k);
+
+async function gmailToken(): Promise<string> {
+  const r = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: env("GMAIL_OAUTH_CLIENT_ID")!, client_secret: env("GMAIL_OAUTH_CLIENT_SECRET")!,
+      refresh_token: env("GMAIL_OAUTH_REFRESH_TOKEN")!, grant_type: "refresh_token",
+    }),
+  });
+  const b = await r.json();
+  if (!r.ok || !b.access_token) throw new Error(`OAuth: ${b.error ?? r.status} ${b.error_description ?? ""}`);
+  return b.access_token as string;
+}
+const gapi = (tok: string, path: string) =>
+  fetch(`https://gmail.googleapis.com/gmail/v1/users/me/${path}`, { headers: { Authorization: `Bearer ${tok}` } })
+    .then(async (r) => { const j = await r.json(); if (!r.ok) throw new Error(`Gmail ${path}: ${j.error?.message ?? r.status}`); return j; });
+
+function findXlsxPart(payload: any): { attachmentId: string; filename: string } | null {
+  const walk = (p: any): any => {
+    if (!p) return null;
+    const fn = (p.filename ?? "") as string;
+    if (/\.xlsx$/i.test(fn) && p.body?.attachmentId) return { attachmentId: p.body.attachmentId, filename: fn };
+    for (const c of (p.parts ?? [])) { const hit = walk(c); if (hit) return hit; }
+    return null;
+  };
+  return walk(payload);
+}
+function b64urlToBytes(s: string): Uint8Array {
+  const b64 = s.replace(/-/g, "+").replace(/_/g, "/");
+  const bin = atob(b64 + "===".slice((b64.length + 3) % 4));
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+function targetForState(state: string): number | null {
+  const s = state.trim().toUpperCase();
+  if (s === "IN STOCK") return 999;
+  if (s === "OUT OF STOCK") return 0;
+  if (s === "CRITICAL") return 1;
+  return null;
+}
+function parseXlsx(bytes: Uint8Array) {
+  const wb = XLSX.read(bytes, { type: "array" });
+  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(wb.Sheets[wb.SheetNames[0]], { defval: "" });
+  const keyOf = (row: Record<string, unknown>, want: string) => Object.keys(row).find((k) => k.trim().toLowerCase() === want);
+  const out: { part: string; target: number }[] = []; const stateCounts: Record<string, number> = {};
+  for (const row of rows) {
+    const pk = keyOf(row, "partnumber"); const sk = keyOf(row, "stock availability");
+    if (!pk || !sk) continue;
+    const part = String(row[pk] ?? "").trim(); if (!part) continue;
+    const rawState = String(row[sk] ?? "").trim().toUpperCase();
+    stateCounts[rawState] = (stateCounts[rawState] ?? 0) + 1;
+    const t = targetForState(rawState); if (t === null) continue;
+    out.push({ part, target: t });
+  }
+  const headerKeys = Object.keys(rows[0] ?? {});
+  const firstRows = rows.slice(0, 3);
+  return { rows: out, sheetName: wb.SheetNames[0], sheetNames: wb.SheetNames, totalRows: rows.length, stateCounts, headerKeys, firstRows };
+}
+const resolveSku = (part: string) => `KKH-${part.replace(/-/g, "")}`;
+
+Deno.serve(async () => {
+  try {
+    const supabase = createClient(env("SUPABASE_URL")!, env("SUPABASE_SERVICE_ROLE_KEY")!);
+    const tok = await gmailToken();
+    const exact = await gapi(tok, `messages?q=${encodeURIComponent(EXACT_QUERY)}&maxResults=20`);
+    const exactMsgs: any[] = [];
+    for (const m of (exact.messages ?? [])) {
+      const full = await gapi(tok, `messages/${m.id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date`);
+      const hdr: Record<string, string> = {};
+      for (const h of (full.payload?.headers ?? [])) hdr[h.name] = h.value;
+      exactMsgs.push({ id: m.id, subject: hdr.Subject, date: hdr.Date });
+    }
+    const klokMsg = exactMsgs[0];
+    let fileReport: any = { note: "no stock-report email matched" };
+    if (klokMsg) {
+      const msg = await gapi(tok, `messages/${klokMsg.id}?format=full`);
+      const part = findXlsxPart(msg.payload);
+      if (part) {
+        const att = await gapi(tok, `messages/${klokMsg.id}/attachments/${part.attachmentId}`);
+        const parsed = parseXlsx(b64urlToBytes(att.data));
+        fileReport = {
+          message: { date: klokMsg.date, filename: part.filename },
+          sheet_names: parsed.sheetNames, sheet: parsed.sheetName, total_sheet_rows: parsed.totalRows,
+          parsed_feed_rows: parsed.rows.length, state_counts: parsed.stateCounts,
+          header_keys: parsed.headerKeys, first_rows: parsed.firstRows,
+        };
+      }
+    }
+    return new Response(JSON.stringify({ exact_query_matches: exactMsgs.length, stock_report_emails: exactMsgs, file_report: fileReport }, null, 2),
+      { headers: { "Content-Type": "application/json" } });
+  } catch (e) {
+    return new Response(JSON.stringify({ error: String((e as Error)?.message ?? e), stack: (e as Error)?.stack?.slice(0, 600) }, null, 2),
+      { status: 500, headers: { "Content-Type": "application/json" } });
+  }
+});

@@ -198,6 +198,9 @@ Deno.serve(async (req) => {
     : new Date(end.getTime() - 7 * dayMs);
   const budgetSeconds = Math.min(Number(input?.budgetSeconds) > 0 ? Number(input.budgetSeconds) : 120, 140);
   const deadline = Date.now() + budgetSeconds * 1000;
+  // Optional: stage pages for a backfill window instead of writing live rows
+  // (amazon-refinance-backfill swaps the window in once its pull completes).
+  const stageId = typeof input?.stageId === "string" && /^[0-9a-f-]{36}$/i.test(input.stageId) ? input.stageId : null;
 
   try {
     const token = await getLwaToken(clientId, clientSecret, refreshToken);
@@ -236,7 +239,8 @@ Deno.serve(async (req) => {
       totalSeen += events.length;
       roll(events);
 
-      const { data: ing, error: ingErr } = await supa.rpc("amazon_ingest_financial_events", {
+      const { data: ing, error: ingErr } = await supa.rpc(stageId ? "amazon_ingest_financial_events_stage" : "amazon_ingest_financial_events", {
+        ...(stageId ? { p_stage_id: stageId } : {}),
         p_marketplace_id: marketplaceId,
         p_window_start: start.toISOString(),
         p_window_end: end.toISOString(),

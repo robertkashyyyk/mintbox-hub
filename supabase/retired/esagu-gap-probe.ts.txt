@@ -1,0 +1,15 @@
+const ESAGU_BASE = "https://api.esagu.de/amzn/repricing/v1";
+Deno.serve(async () => {
+  const token = Deno.env.get("ESAGU_KEY") ?? Deno.env.get("ESAGU_JWT");
+  const h = { Authorization: `Bearer ${token}`, Accept: "application/json" };
+  try {
+    const r = await fetch(`${ESAGU_BASE}/item/90975989`, { headers: h });
+    const j = await r.json();
+    return new Response(JSON.stringify({
+      amazonPrice: j.amazonPrice,
+      optimizationResult: j.optimizationResult,
+      listingItemSubmission: j.listingItemSubmission,
+      priceSettingsUpdated: j.strategy?.priceSettings?.updated
+    }, null, 2), { headers: { "Content-Type": "application/json" } });
+  } catch (e) { return new Response(JSON.stringify({ error: String(e) }), { status: 200 }); }
+});
