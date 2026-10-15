@@ -26,8 +26,8 @@ export const USER_SCOPES: readonly string[] = [
   `${S}/commerce.identity.readonly`,   // getUser: proves which eBay account consented
 ];
 
-/** Flip to true only after Robert signs off USER_SCOPES (2026-10-15 gate). */
-export const SCOPES_SIGNED_OFF = false;
+/** Robert signed off the eight USER_SCOPES above on 2026-10-15. */
+export const SCOPES_SIGNED_OFF = true;
 
 /** Application (client-credentials) scope: Key Management, Notification public keys, Browse later. */
 export const APP_SCOPES: readonly string[] = [S];

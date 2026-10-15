@@ -47,5 +47,7 @@ Deno.serve(async (req) => {
   u.searchParams.set("scope", USER_SCOPES.join(" "));
   u.searchParams.set("state", state);
   u.searchParams.set("prompt", "login");
-  return json({ account, consentUrl: u.toString(), expiresAt: new Date(expiresAt * 1000).toISOString() });
+  // URLSearchParams joins the scopes with "+"; eBay's docs and SDKs use %20.
+  const consentUrl = u.toString().replace(/\+/g, "%20");
+  return json({ account, consentUrl, expiresAt: new Date(expiresAt * 1000).toISOString() });
 });
