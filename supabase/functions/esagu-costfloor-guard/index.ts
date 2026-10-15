@@ -2,7 +2,8 @@
 // and RAISES minPrice to the break-even floor so eSagu can never sell below cost.
 // Where the floor exceeds maxPrice (whole range below cost), lifts max just above
 // the floor (eSagu requires min < max) so the item pins ~break-even. RAISE-only on
-// min; ring-fenced from clearance in the RPC.
+// min; ring-fenced from clearance in the RPC. Every live push is logged in
+// public.esagu_floor_push_log (old/new floor, caller).
 // Body: { live?: boolean (default false), max?: number (default 15), worstFirst?: boolean (default true) }
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
@@ -40,20 +41,22 @@ function bearerRole(jwt: string): string | null {
     return JSON.parse(atob(b64 + "=".repeat((4 - (b64.length % 4)) % 4)))?.role ?? null;
   } catch { return null; }
 }
-async function rejectUnlessInternal(req: Request): Promise<Response | null> {
+// Who made the call — recorded against every live push in public.esagu_floor_push_log.
+type Caller = { kind: "service_key" | "service_jwt" | "user"; userId: string | null };
+async function rejectUnlessInternal(req: Request): Promise<Response | Caller> {
   const authHeader = req.headers.get("Authorization") ?? "";
   const bearer = authHeader.replace(/^Bearer\s+/i, "").trim();
   let role: string | null = null;
   if (bearer) {
-    if (serviceKeys().some((k) => ctEqual(bearer, k))) return null;
+    if (serviceKeys().some((k) => ctEqual(bearer, k))) return { kind: "service_key", userId: null };
     role = bearerRole(bearer); // signature already verified by the gateway (verify_jwt)
-    if (role === "service_role") return null;
+    if (role === "service_role") return { kind: "service_jwt", userId: null };
     if (role === "authenticated") {
       const uc = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, {
         global: { headers: { Authorization: authHeader } }, auth: { persistSession: false },
       });
       const { data } = await uc.auth.getUser();
-      if (data?.user?.id) return null;
+      if (data?.user?.id) return { kind: "user", userId: data.user.id };
     }
   }
   const reason = !bearer ? "no bearer" : role ? `role ${role}` : "unrecognised token";
@@ -73,8 +76,8 @@ async function rejectUnlessInternal(req: Request): Promise<Response | null> {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
-  const denied = await rejectUnlessInternal(req);
-  if (denied) return denied;
+  const caller = await rejectUnlessInternal(req);
+  if (caller instanceof Response) return caller;
   const token = Deno.env.get("ESAGU_KEY") ?? Deno.env.get("ESAGU_JWT");
   if (!token) return json({ ok: false, error: "ESAGU_KEY not set." }, 500);
   const eauth = { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/json" };
@@ -89,8 +92,11 @@ Deno.serve(async (req) => {
   if (worstFirst) list = list.slice().sort((a, b) => (Number(b.floor_gbp) - Number(b.amazon_price ?? b.floor_gbp)) - (Number(a.floor_gbp) - Number(a.amazon_price ?? a.floor_gbp)));
   list = list.slice(0, max);
 
+  // Every live push is logged write-ahead in public.esagu_floor_push_log (old/new floor,
+  // caller) before the PUT, outcome filled in after. No log row, no push — the run stops.
+  const userAgent = (req.headers.get("user-agent") ?? "").slice(0, 300);
   const results: any[] = [];
-  let changed = 0;
+  let changed = 0, aborted = false;
   for (const t of list) {
     const id = Number(t.item_id);
     const newMin = Math.round(Number(t.floor_gbp) * 100);
@@ -113,14 +119,30 @@ Deno.serve(async (req) => {
 
     if (!live) { results.push({ id, dryRun: true, fromMin: liveMin, toMin: newMin, maxBumped: newMax !== liveMax ? newMax : undefined, ext_market: t.ext_market, amazon_price: t.amazon_price }); continue; }
 
+    const { data: logRow, error: logErr } = await supabase.from("esagu_floor_push_log").insert({
+      esagu_item_id: id, source_fn: CALLER_FN,
+      old_min_pence: Number.isFinite(liveMin) ? liveMin : null, new_min_pence: newMin,
+      old_max_pence: Number.isFinite(liveMax) ? liveMax : null, new_max_pence: newMax,
+      ok: null, caller_kind: caller.kind, caller_user_id: caller.userId, reason: "cost floor (break-even)", user_agent: userAgent,
+    }).select("id").single();
+    if (logErr || !logRow) {
+      console.error(`[push-log] insert failed for item ${id}: ${logErr?.message ?? "no row"} — stopping run`);
+      results.push({ id, ok: false, stage: "log", err: "push log write failed; not pushed (run stopped)" });
+      aborted = true;
+      break;
+    }
+
     const pres = await fetch(`${ESAGU_BASE}/item/${id}/strategy`, { method: "PUT", headers: eauth, body: JSON.stringify(modified) });
     const ok = pres.ok;
     const bodyTxt = ok ? undefined : (await pres.text().catch(() => "")).slice(0, 200);
     if (ok) changed++;
+    const { error: updErr } = await supabase.from("esagu_floor_push_log")
+      .update({ ok, http_status: pres.status, error: bodyTxt ?? null }).eq("id", logRow.id);
+    if (updErr) console.error(`[push-log] outcome update failed for log row ${logRow.id}: ${updErr.message}`);
     results.push({ id, ok, status: pres.status, fromMin: liveMin, toMin: newMin, maxBumped: newMax !== liveMax ? newMax : undefined, err: bodyTxt });
     await new Promise((r) => setTimeout(r, 150));
   }
 
-  if (live) await supabase.rpc("amazon_esagu_costfloor_log", { p_changed: changed, p_detail: { results } });
-  return json({ ok: true, live, candidates: list.length, changed, results });
+  if (live) await supabase.rpc("amazon_esagu_costfloor_log", { p_changed: changed, p_detail: { results, aborted } });
+  return json({ ok: !aborted, live, aborted, candidates: list.length, changed, results });
 });
