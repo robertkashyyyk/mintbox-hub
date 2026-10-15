@@ -79,7 +79,10 @@ const PublicFooter = () => (
     <div className="border-t border-foreground/10 py-5">
       <div className="container mx-auto px-4 flex flex-col sm:flex-row justify-between items-center text-xs text-foreground/50">
         <span>© {new Date().getFullYear()} PartsDoc. All rights reserved.</span>
-        <span className="mt-1 sm:mt-0">Coleraine, Northern Ireland</span>
+        <div className="mt-1 sm:mt-0 flex items-center gap-4">
+          <Link to="/privacy" className="text-foreground/50 hover:text-pd-accent transition-colors">Privacy</Link>
+          <span>Coleraine, Northern Ireland</span>
+        </div>
       </div>
     </div>
   </footer>

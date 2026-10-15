@@ -8,6 +8,7 @@ import Auth from "./pages/Auth";
 import ResetPassword from "./pages/ResetPassword";
 import PublicLayout from "./components/public/PublicLayout";
 import PublicHome from "./pages/PublicHome";
+import PublicPrivacy from "./pages/PublicPrivacy";
 import PublicAbout from "./pages/PublicAbout";
 import PublicProducts from "./pages/PublicProducts";
 import PublicTrade from "./pages/PublicTrade";
@@ -194,6 +195,7 @@ const App = () => (
             <Route path="/trade" element={<PublicTrade />} />
             <Route path="/contact" element={<PublicContact />} />
             <Route path="/faq" element={<PublicFAQ />} />
+            <Route path="/privacy" element={<PublicPrivacy />} />
           </Route>
           <Route path="/auth" element={<Auth />} />
           <Route path="/reset-password" element={<ResetPassword />} />
