@@ -1,5 +1,8 @@
 project_id = "vcfbegjpkvxkqpptyxni"
 
+[functions.klokkerholm-ingest]
+verify_jwt = false
+
 [functions.auto-update-lsa-cron]
 verify_jwt = false
 
