@@ -128,6 +128,28 @@ BEGIN
 END;
 $function$;
 
+-- Real "already sent this period" check for report jobs — keyed on the actual sent record
+-- (ai_reports for orin-*, ops_report_log for weekly-ops), NOT an ok cron call, so a run
+-- that emailed and then errored still counts as sent and is not re-fired.
+CREATE OR REPLACE FUNCTION public.job_doctor_report_sent(p_jobname text)
+ RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO 'public'
+AS $function$
+  SELECT CASE p_jobname
+    WHEN 'orin-daily' THEN EXISTS (SELECT 1 FROM public.ai_reports
+      WHERE cadence='daily' AND status='complete'
+        AND (generated_at AT TIME ZONE 'Europe/London')::date = (now() AT TIME ZONE 'Europe/London')::date)
+    WHEN 'orin-weekly' THEN EXISTS (SELECT 1 FROM public.ai_reports
+      WHERE cadence='weekly' AND status='complete'
+        AND date_trunc('week',(generated_at AT TIME ZONE 'Europe/London')) = date_trunc('week',(now() AT TIME ZONE 'Europe/London')))
+    WHEN 'orin-monthly' THEN EXISTS (SELECT 1 FROM public.ai_reports
+      WHERE cadence='monthly' AND status='complete'
+        AND date_trunc('month',(generated_at AT TIME ZONE 'Europe/London')) = date_trunc('month',(now() AT TIME ZONE 'Europe/London')))
+    WHEN 'weekly-ops-report' THEN EXISTS (SELECT 1 FROM public.ops_report_log
+      WHERE status='sent' AND week_ending >= (date_trunc('week',(now() AT TIME ZONE 'Europe/London'))::date))
+    ELSE false
+  END;
+$function$;
+
 -- 5. Override seed: retry_safe (reports/polls/snapshots/health only), report_period,
 --    and the kkh-trueup standing job (retry_safe=false — it writes stock). --------------
 INSERT INTO public.job_health_overrides (jobname, max_gap, ignore, retry_safe, report_period, note) VALUES
@@ -143,13 +165,13 @@ INSERT INTO public.job_health_overrides (jobname, max_gap, ignore, retry_safe, r
  ('amazon-nightly-inbound-shipments', NULL, false, true, NULL, 'retry_safe: SP-API snapshot'),
  ('amazon-nightly-finances', NULL, false, true, NULL, 'retry_safe: SP-API snapshot'),
  ('amazon-weekly-st-gap-heal', interval '8 days', false, true, NULL, 'retry_safe: snapshot gap-heal (idempotent by date)'),
- ('late-skus-weekly-email-wed', NULL, false, true, 'week', 'retry_safe: report email'),
- ('weekly-missing-cost-list-monday', NULL, false, true, 'week', 'retry_safe: report email'),
- ('weekly-ops-report', NULL, false, true, 'week', 'retry_safe: report email'),
- ('orin-daily', NULL, false, true, 'day', 'retry_safe: report email'),
- ('orin-weekly', NULL, false, true, 'week', 'retry_safe: report email'),
- ('orin-monthly', NULL, false, true, 'month', 'retry_safe: report email'),
- ('dirt-run-health-weekly', NULL, false, true, 'week', 'retry_safe: health report'),
+ ('late-skus-weekly-email-wed', NULL, false, false, NULL, 'retry_safe=false: no sent record + not idempotent (would double-send)'),
+ ('weekly-missing-cost-list-monday', NULL, false, true, 'week', 'retry_safe: self-idempotent (only emails when generate returns is_new)'),
+ ('weekly-ops-report', NULL, false, true, 'week', 'retry_safe: report email (dedup via ops_report_log)'),
+ ('orin-daily', NULL, false, true, 'day', 'retry_safe: report email (dedup via ai_reports)'),
+ ('orin-weekly', NULL, false, true, 'week', 'retry_safe: report email (dedup via ai_reports)'),
+ ('orin-monthly', NULL, false, true, 'month', 'retry_safe: report email (dedup via ai_reports)'),
+ ('dirt-run-health-weekly', NULL, false, false, NULL, 'retry_safe=false: health email, no sent record (would double-send)'),
  ('supplier-feed-watchdog-daily', NULL, false, true, NULL, 'retry_safe: health check'),
  ('amazon-cron-health-check', NULL, false, true, NULL, 'retry_safe: health check'),
  ('job-health-alert-daily', NULL, false, true, NULL, 'retry_safe: health check'),

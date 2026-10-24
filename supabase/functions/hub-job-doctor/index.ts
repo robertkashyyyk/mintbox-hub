@@ -24,17 +24,6 @@ const CLIVE = "clive@partsdoc.co.uk";
 const h = (s: unknown) => String(s ?? "").replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]!));
 const isFeedJob = (j: string) => /klok|supplier|stock|ngk|feed/i.test(j);
 
-// Start of the current reporting period (Europe/London date basis) for the dedup check.
-function periodStartISO(period: string, d: Date): string {
-  const y = d.getUTCFullYear(), m = d.getUTCMonth(), day = d.getUTCDate();
-  if (period === "month") return new Date(Date.UTC(y, m, 1)).toISOString();
-  if (period === "week") {
-    const dow = (d.getUTCDay() + 6) % 7; // 0 = Monday
-    return new Date(Date.UTC(y, m, day - dow)).toISOString();
-  }
-  return new Date(Date.UTC(y, m, day)).toISOString(); // day
-}
-
 const SUGGESTED: Record<string, string> = {
   structural: "Query exceeds its statement timeout — optimise it or raise the function-local statement_timeout; do not retry.",
   config: "Upstream/endpoint rejected the request (4xx) — check the endpoint, params or supplier data.",
@@ -75,18 +64,16 @@ Deno.serve(async (req) => {
         const { data: already } = await supabase.from("job_doctor_retries")
           .select("id").eq("run_date", todayStr).eq("jobname", f.jobname).maybeSingle();
         if (already) { continue; }
-        // Report dedup: if this is a periodic report that already SENT (an ok cron call)
-        // in the current period, don't re-fire it — we'd double-send the report.
-        const { data: ov } = await supabase.from("job_health_overrides").select("report_period").eq("jobname", f.jobname).maybeSingle();
-        const period = ov?.report_period as string | undefined;
-        if (period) {
-          const ps = periodStartISO(period, today);
-          const { data: sent } = await supabase.from("cron_http_calls").select("id").eq("jobname", f.jobname).eq("outcome", "ok").gte("called_at", ps).limit(1).maybeSingle();
-          if (sent) {
-            skippedAlreadySent.push(f.jobname);
-            if (!dryRun) await supabase.from("job_doctor_retries").insert({ run_date: todayStr, jobname: f.jobname, classified_as: f.class, original_error: f.last_error, retry_fired: false, retry_result: `skipped: already sent this ${period}` }).then(() => {}, () => {});
-            continue;
-          }
+        // Report dedup: skip the retry if a real SENT record already exists for this
+        // period (ai_reports for orin-*, ops_report_log for weekly-ops). This catches the
+        // case that matters — a run that emailed and THEN errored (no ok cron call, but the
+        // report did go out). Jobs with no sent record are retry_safe=false, so never reach
+        // here; weekly-missing-cost-list self-guards on is_new.
+        const { data: sentAlready } = await supabase.rpc("job_doctor_report_sent", { p_jobname: f.jobname });
+        if (sentAlready === true) {
+          skippedAlreadySent.push(f.jobname);
+          if (!dryRun) await supabase.from("job_doctor_retries").insert({ run_date: todayStr, jobname: f.jobname, classified_as: f.class, original_error: f.last_error, retry_fired: false, retry_result: "skipped: sent record already exists for this period" }).then(() => {}, () => {});
+          continue;
         }
         let result = "skipped (dry-run)";
         if (!dryRun) {
