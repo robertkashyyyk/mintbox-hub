@@ -29,8 +29,14 @@ interface MintsoftProductDetails {
   Discontinued?: boolean;
 }
 
-const BATCH_SIZE = 500;
+const BATCH_SIZE = 250;
 const STALE_DAYS = 7;
+// Each product costs ~2 sequential Mintsoft calls + a 100ms delay, so a large batch
+// blows past the 150s edge wall-clock (504 IDLE_TIMEOUT) and jams pg_net's single
+// worker at the top of the hour. Stop cleanly before that and let the next run (every
+// 30 min) continue — the query is ordered by staleness and each row is stamped, so
+// the backlog drains across runs without redoing fresh products.
+const RUN_BUDGET_MS = 120_000;
 
 interface Brand {
   id: string;
@@ -139,10 +145,18 @@ Deno.serve(async (req) => {
 
     let enrichedCount = 0;
     let errorCount = 0;
+    let stoppedEarly = false;
     const errors: string[] = [];
+    const deadline = Date.now() + RUN_BUDGET_MS;
 
     // Process each product
     for (const product of products as ProductToEnrich[]) {
+      // Stop before the edge wall-clock; the remaining stale rows are picked up next run.
+      if (Date.now() > deadline) {
+        stoppedEarly = true;
+        console.log(`Time budget reached; stopping after ${enrichedCount} enriched, leaving the rest for the next run`);
+        break;
+      }
       try {
         // Fetch product details from Mintsoft
         const productUrl = `${settings.base_url}/api/Product/${product.mintsoft_product_id}`;
@@ -318,9 +332,9 @@ Deno.serve(async (req) => {
     }
 
     // Update ingest state
-    const status = errorCount === 0 
-      ? `ok - enriched ${enrichedCount} products`
-      : `partial - enriched ${enrichedCount}, errors: ${errorCount}`;
+    const status = errorCount === 0
+      ? `ok - enriched ${enrichedCount} products${stoppedEarly ? " (time budget; more next run)" : ""}`
+      : `partial - enriched ${enrichedCount}, errors: ${errorCount}${stoppedEarly ? " (time budget; more next run)" : ""}`;
 
     await supabase
       .from("ingest_run_state")
@@ -339,6 +353,7 @@ Deno.serve(async (req) => {
         message: "Enrichment batch complete",
         enriched: enrichedCount,
         errors: errorCount,
+        stopped_early: stoppedEarly,
         errorDetails: errors.slice(0, 10), // Return first 10 errors
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
