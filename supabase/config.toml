@@ -111,3 +111,20 @@ verify_jwt = true
 
 [functions.backfill-product-dims]
 verify_jwt = true
+
+# eBay Sell APIs (Prompt 2). The two public ones are called by eBay itself (no Supabase
+# credentials): the deletion endpoint verifies eBay's signature, the callback a signed state.
+[functions.ebay-account-deletion]
+verify_jwt = false
+
+[functions.ebay-oauth-callback]
+verify_jwt = false
+
+[functions.ebay-oauth-start]
+verify_jwt = true
+
+[functions.ebay-admin]
+verify_jwt = true
+
+[functions.ebay-token-health]
+verify_jwt = true
