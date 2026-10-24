@@ -117,3 +117,9 @@ verify_jwt = true
 
 [functions.kkh-trueup]
 verify_jwt = true
+
+[functions.klokkerholm-ingest]
+verify_jwt = true
+
+[functions.supplier-feed-watchdog]
+verify_jwt = true

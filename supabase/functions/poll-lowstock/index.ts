@@ -66,16 +66,20 @@ serve(async (req) => {
     // Call Mintsoft Low Stock API
     const url = `https://api.mintsoft.co.uk/api/Product/LowStock?WarehouseId=5`;
     
+    // NB: no Content-Type on a GET (some gateways 400 a bodyless GET that declares a
+    // JSON body); match the working enrich calls with Accept + a browser User-Agent.
     const response = await fetch(url, {
       method: 'GET',
       headers: {
         'ms-apikey': mintsoftApiKey,
-        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'User-Agent': 'Mozilla/5.0',
       },
     });
-    
+
     if (!response.ok) {
-      throw new Error(`Mintsoft API error: ${response.status} ${response.statusText}`);
+      const errBody = await response.text().catch(() => '');
+      throw new Error(`Mintsoft API error: ${response.status} ${response.statusText} :: ${errBody.slice(0, 300)}`);
     }
     
     const products: MintsoftLowStockProduct[] = await response.json();
