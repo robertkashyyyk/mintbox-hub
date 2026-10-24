@@ -111,3 +111,9 @@ verify_jwt = true
 
 [functions.backfill-product-dims]
 verify_jwt = true
+
+[functions.hub-job-doctor]
+verify_jwt = true
+
+[functions.kkh-trueup]
+verify_jwt = true
