@@ -90,7 +90,22 @@ Deno.serve(async (req) => {
     if (acct >= UK_ACCOUNTS.length) { phase = "done"; break; }
     const a = UK_ACCOUNTS[acct];
 
-    const res = await fetch(`${BASE}/v1/products/listings?sellerId=${a.sellerId}&status=Active&page=${page}&limit=${LIMIT}`, { headers: tds });
+    // 3D Sellers rate-limits the listings API (HTTP 429) and occasionally throws a transient 5xx.
+    // These are not real failures: retry in-call with backoff (honouring Retry-After) before giving
+    // up, so a throttle no longer aborts the whole pass and marks the kickoff "failed". A page that
+    // STILL fails after retries falls through to the save+return below, and the 10-min continue tick
+    // resumes from the saved cursor — unchanged self-healing, just with the transient smoothed over.
+    const listingsUrl = `${BASE}/v1/products/listings?sellerId=${a.sellerId}&status=Active&page=${page}&limit=${LIMIT}`;
+    const TRANSIENT = new Set([429, 502, 503, 504]);
+    let res = await fetch(listingsUrl, { headers: tds });
+    for (let attempt = 1; attempt <= 3 && TRANSIENT.has(res.status); attempt++) {
+      const retryAfter = Number(res.headers.get("retry-after"));
+      const waitMs = Number.isFinite(retryAfter) && retryAfter > 0
+        ? Math.min(retryAfter * 1000, 15_000)
+        : Math.min(2000 * attempt, 10_000); // 2s, 4s, 6s
+      await new Promise((r) => setTimeout(r, waitMs));
+      res = await fetch(listingsUrl, { headers: tds });
+    }
     if (!res.ok) { await save(); return json({ ok: false, error: `listings ${a.sellerId} p${page} -> ${res.status}`, phase, acct, page }); }
     const j = await res.json();
     const rows = (j.data ?? []) as any[];
