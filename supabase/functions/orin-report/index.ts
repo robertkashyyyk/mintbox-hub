@@ -127,29 +127,28 @@ const CADENCE_BRIEF: Record<string, string> = {
 // Daily is a different beast: not the weekly scorecard, just yesterday's headline figures
 // plus a prompt to set today's focus. Kept deliberately tiny.
 const DAILY_SYSTEM_PROMPT =
-  `You are Orin, the internal analyst for PartsDocHub. You are given YESTERDAY's headline trading
-figures AND how they landed against the daily TARGETS (Primary/Stretch/Ultimate), already calculated —
-never recompute or invent a number. Write a VERY short daily note:
-- LEAD with yesterday's CONTRIBUTION vs the Primary contribution target (contribution matters more than revenue) — e.g.
-  "Yesterday's contribution beat Primary by 12%" or "contribution came in 8% short of Primary". A single day is not
-  "tiered" — say ahead/behind Primary and by how much.
-- WHETHER IT CLEARED STRETCH/ULTIMATE IS DECIDED BY THE DATA, NOT BY THE % OVER PRIMARY. Use the gross row's
-  nearest_line field — the HIGHEST line the actual reached ('primary' | 'stretch' | 'ultimate'). Only say it cleared
-  Stretch if nearest_line is 'stretch' or 'ultimate'; only Ultimate if nearest_line is 'ultimate'. If nearest_line is
-  'primary', DO NOT mention Stretch or Ultimate at all — beating Primary by a few percent does NOT clear them (those
-  lines can be 30%+ / 100%+ above Primary).
+  `You are Orin, the internal analyst for PartsDocHub. You are given a FIGURES block in which every number,
+percentage, direction and cleared-line is ALREADY computed. Write words ONLY around them: never do arithmetic,
+never recompute or re-derive a % or a comparison, never quote a number that is not in the block, and never
+compare against anything not given. Write a VERY short daily note:
+- LEAD with yesterday's CONTRIBUTION vs Primary, using contribution.direction and contribution.vs_primary_pct
+  verbatim (e.g. "contribution beat Primary by 12%" / "came in 8% short of Primary"). A single day is not "tiered".
+- WHETHER IT CLEARED STRETCH/ULTIMATE IS GIVEN, NOT INFERRED FROM THE %. Use contribution.cleared_line — the
+  HIGHEST line reached ('primary' | 'stretch' | 'ultimate'). Only say it cleared Stretch if cleared_line is
+  'stretch' or 'ultimate'; only Ultimate if 'ultimate'. If it is 'primary', DO NOT mention Stretch or Ultimate at
+  all — beating Primary by a few percent does NOT clear them (those lines can be 30%+ / 100%+ above Primary).
 - Then state revenue and orders as supporting context (a tight line or two), positive and encouraging in tone.
 - Include ONE line on AOV (average order value): the figure and whether it is ahead/behind the day's target. AOV
   is a priority lever — every +£1 is ~£0.68 incremental contribution per order — so it's always worth a mention, but
   keep it to a single line and don't over-read a single day.
-- State the day's margin as BOTH figures, supplied and levels-only: POR% (profit-on-return) and GM% (gross margin =
-  contribution ÷ ex-VAT revenue) — e.g. "POR 26.0%, GM 31.2%". You are NOT given any margin target or baseline, so
-  NEVER say margin/POR/GM is "above"/"below"/"well above" an expected level, and never invent a baseline figure.
-  Beating the contribution £ target does NOT imply margin is high; do not claim margin "drove" the day.
+- State the day's margin as BOTH supplied figures, levels-only: "POR {por_pct}%, Contribution % {contribution_pct}%"
+  (Contribution % = contribution ÷ revenue). You are NOT given any margin target or baseline, so NEVER say
+  margin/POR/Contribution % is "above"/"below"/"well above" an expected level, and never invent a baseline. Beating
+  the contribution £ target does NOT imply margin is high; do not claim margin "drove" the day.
 - Then ask ONE short, specific question to get the team thinking about today's focus.
-IF THE TARGETS ARRAY IS EMPTY OR UNAVAILABLE: do NOT refuse and do NOT ask for targets. Still write the note from the
-headline figures you DO have (contribution, revenue, orders, AOV, POR, GM), simply omitting the vs-Primary/Stretch/
-Ultimate comparison, and add a brief note that targets were unavailable for the day. NEVER reply that you cannot write it.
+IF A METRIC'S direction IS null (target unavailable): do NOT refuse and do NOT ask for targets. Still write the note
+from the figures you DO have (contribution, revenue, orders, AOV, POR, Contribution %), simply omitting the
+vs-Primary/Stretch/Ultimate comparison for that metric. NEVER reply that you cannot write it.
 No preamble, no headers, no other metrics beyond those figures. Never invent or compare against any target/baseline
 not present in the data.`
 
@@ -189,6 +188,9 @@ Deno.serve(async (req) => {
     const { data: modelRow } = await read.from('app_settings').select('value').eq('key', 'scorecard.orin_models').maybeSingle()
     const model = (modelRow?.value as any)?.[cadence] ?? DEFAULT_MODELS[cadence]
 
+    // "as at HH:MM" stamp for the email header — when this report read the data (Europe/London).
+    const generatedAt = new Date().toLocaleString('en-GB', { timeZone: 'Europe/London', hour: '2-digit', minute: '2-digit' })
+
     // Build the data + prompt. Daily = yesterday's headline figures; weekly/monthly = scorecard.
     let periodKey: string
     let systemPrompt: string
@@ -201,63 +203,121 @@ Deno.serve(async (req) => {
     // ranked by 4-week £-at-risk. Appended DETERMINISTICALLY to the email (never LLM-narrated,
     // so the numbers can't drift). Empty for weekly/monthly.
     let shortlist: any[] = []
+    // Staleness guard (daily): set when the order data is frozen/incomplete, so Orin flags it
+    // loudly instead of reporting a false collapse (a refresh outage once sent Clive a "−73% day").
+    let dataWarning = ''
     const gbp = (n: any) => '£' + Number(n).toLocaleString('en-GB', { maximumFractionDigits: 0 })
 
     if (cadence === 'daily') {
       // Fetch the two HEAVY daily inputs concurrently (independent); p_date pins the same day.
       const yday = new Date(Date.now() - 86400000).toISOString().slice(0, 10)
-      const [dayRes, slRes] = await Promise.all([
+      const [dayRes, slRes, healthRes] = await Promise.all([
         rpcRetry(read, 'get_profit_day', { p_date: yday }),
         rpcRetry(read, 'get_reorder_shortlist', { p_limit: 6, p_horizon_weeks: 4 }),
+        rpcRetry(read, 'get_order_data_health', { p_date: yday }),
       ])
       if (dayRes.error) return json({ error: `get_profit_day: ${dayRes.error.message}` }, 500)
       const d: any = Array.isArray(dayRes.data) ? dayRes.data[0] : dayRes.data
       if (!d) return json({ error: 'no daily data' }, 500)
-      // Pace AFTER the heavy queries (DB warm) so it doesn't lose a cold 3-way race — that race was
-      // returning empty targets and making Orin refuse to write the note. Extra retries (fast RPC).
+      // Pace AFTER the heavy queries (DB warm) so it doesn't lose a cold 3-way race. Its ONLY use here
+      // is the target LINES (exp_primary/stretch/ultimate) — the ACTUAL is always the card source (d).
       const { data: pace } = await rpcRetry(read, 'get_target_pace', { p_grain: 'day', p_asof: yday }, 5)
-      inputSnapshot = { day: d, targets: pace ?? [] }
       shortlist = Array.isArray(slRes.data) ? slRes.data : []
       periodKey = String(d.day)
       systemPrompt = DAILY_SYSTEM_PROMPT
       maxTokens = 450
-      const por = d.por_pct != null ? ` (POR ${(Number(d.por_pct) * 100).toFixed(1)}%)` : ''
-      // GM% = gross margin = contribution / ex-VAT revenue (POR divides by GMV incl VAT — a lower figure).
-      const gm = Number(d.revenue) > 0 ? Number(d.profit) / Number(d.revenue) : null
-      // KPI cards: yesterday's figures + how each landed vs the Primary daily target.
-      const pRow = (mk: string) => (pace as any[] ?? []).find((x) => x.metric === mk)
-      const vsP = (mk: string) => {
-        const v = pRow(mk)?.variance_vs_primary_pct
-        return v == null ? '' : `${v >= 0 ? '+' : ''}${(v * 100).toFixed(0)}% vs Primary`
+
+      // ── ONE PAYLOAD ─────────────────────────────────────────────────────────────────────────────
+      // Cards AND narrative are built from the SAME numbers. The actual is d (get_profit_day, the
+      // postage-inclusive figure the cards show); pace supplies ONLY the Primary/Stretch/Ultimate target
+      // lines. Every variance / direction / cleared-line is computed HERE, in code — the LLM never does
+      // arithmetic or comparisons and never sees a second, conflicting actual (that split was the bug:
+      // cards read get_profit_day incl-postage £3,810, narrative quoted get_target_pace product-only £3,661).
+      const asAt = generatedAt
+      const rnd = (n: any, dp = 0) => (n == null || Number.isNaN(Number(n))) ? null : Number(Number(n).toFixed(dp))
+      const P = (mk: string): any => (pace as any[] ?? []).find((x) => x.metric === mk) ?? {}
+      const vsTarget = (actual: number | null, mk: string, dp: number) => {
+        const t = P(mk)
+        const p = t.exp_primary != null ? Number(t.exp_primary) : null
+        const s = t.exp_stretch != null ? Number(t.exp_stretch) : null
+        const u = t.exp_ultimate != null ? Number(t.exp_ultimate) : null
+        if (actual == null || p == null || p === 0) {
+          return { actual: rnd(actual, dp), target_primary: rnd(p, dp), vs_primary_pct: null, direction: null, cleared_line: null }
+        }
+        const varP = (actual - p) / p
+        const cleared = (u != null && actual >= u) ? 'ultimate' : (s != null && actual >= s) ? 'stretch' : 'primary'
+        return {
+          actual: rnd(actual, dp), target_primary: rnd(p, dp), target_stretch: rnd(s, dp), target_ultimate: rnd(u, dp),
+          vs_primary_pct: rnd(varP * 100, 1),
+          direction: varP > 0.0005 ? 'ahead of Primary' : varP < -0.0005 ? 'behind Primary' : 'on Primary',
+          cleared_line: cleared,
+        }
       }
-      const accP = (mk: string) => {
-        const v = pRow(mk)?.variance_vs_primary_pct
-        return v == null ? '#64748b' : (v >= 0 ? '#2A9D8F' : '#d97706')
-      }
-      // AOV = revenue / orders. Target AOV = the day's implied Primary (revenue target / orders target).
-      // AOV is a PRIORITY lever: each +£1 drops through at high incremental margin (~£0.68/order).
       const aov = Number(d.orders) > 0 ? Number(d.revenue) / Number(d.orders) : null
-      const revP = pRow('revenue')?.exp_primary, ordP = pRow('orders')?.exp_primary
+      const revP = P('revenue').exp_primary, ordP = P('orders').exp_primary
       const aovTarget = (revP && ordP) ? Number(revP) / Number(ordP) : null
+      // Contribution % = contribution ÷ revenue (renamed from the misleading "GM"). POR divides by GMV incl VAT.
+      const contribPct = Number(d.revenue) > 0 ? Number(d.profit) / Number(d.revenue) : null
+      const figures = {
+        as_at: `${asAt} London`, day: d.day, basis: 'postage-inclusive; channel fees ex-VAT',
+        revenue: vsTarget(Number(d.revenue), 'revenue', 0),
+        contribution: vsTarget(Number(d.profit), 'gross', 0),
+        orders: vsTarget(Number(d.orders), 'orders', 0),
+        aov: { actual: rnd(aov, 2), target_primary: rnd(aovTarget, 2),
+               direction: (aov != null && aovTarget != null) ? (aov >= aovTarget ? 'ahead of target' : 'behind target') : null },
+        por_pct: rnd(d.por_pct != null ? Number(d.por_pct) * 100 : null, 1),
+        contribution_pct: rnd(contribPct != null ? contribPct * 100 : null, 1),
+        data_health: healthRes.data ?? null,
+      }
+      // Staleness guard: if the order data is frozen/incomplete, flag loudly and NAME the cause —
+      // the figures are provisional and understated, not a real trading result. Three independent
+      // layers (economics refresh lag, whole-day collapse, single store-feed stall) each give a
+      // specific reason so the warning is actionable rather than a generic "incomplete".
+      const health: any = healthRes.data ?? null
+      if (health?.incomplete) {
+        const reasons: string[] = []
+        if (health.economics_stale) {
+          reasons.push(`the economics data was last refreshed before the day ended, so only ${health.day_orders} of ~${health.trailing7_avg_orders} typical orders are reflected (a refresh lag, not a real shortfall)`)
+        }
+        if (health.day_undercount) {
+          reasons.push(`the whole day shows only ${health.day_orders} orders against a typical ~${health.trailing7_avg_orders} — the day looks truncated`)
+        }
+        const stalled = Array.isArray(health.stalled_channels) ? health.stalled_channels : []
+        if (stalled.length) {
+          const list = stalled.map((c: any) => `${c.channel} (${c.day_orders} vs typically ~${Math.round(Number(c.baseline_daily))})`).join(', ')
+          reasons.push(`${stalled.length === 1 ? 'a store feed appears' : 'store feeds appear'} to have stopped syncing: ${list} — the other stores look normal, so this is a per-store sync stall, not a quiet day`)
+        }
+        const detail = reasons.length ? reasons.join('; ') : `only ${health.day_orders} of ~${health.trailing7_avg_orders} typical orders have come through`
+        dataWarning = `⚠ DATA INCOMPLETE — ${detail}. The figures below are PROVISIONAL and understated — do NOT read this as a real trading result.`
+      }
+      inputSnapshot = { day: d, targets: pace ?? [], figures }
+
+      const acc = (dir: string | null) => dir == null ? '#64748b' : (dir.startsWith('ahead') || dir === 'on Primary') ? '#2A9D8F' : '#d97706'
+      const vsSub = (f: any) => f.vs_primary_pct == null ? '' : `${f.vs_primary_pct >= 0 ? '+' : ''}${f.vs_primary_pct}% vs Primary`
       cards = [
-        { label: 'Revenue', value: gbp(d.revenue), sub: vsP('revenue'), accent: accP('revenue') },
-        { label: 'Orders', value: Number(d.orders).toLocaleString('en-GB'), sub: vsP('orders'), accent: accP('orders') },
+        { label: 'Revenue', value: gbp(d.revenue), sub: vsSub(figures.revenue), accent: acc(figures.revenue.direction) },
+        { label: 'Orders', value: Number(d.orders).toLocaleString('en-GB'), sub: vsSub(figures.orders), accent: acc(figures.orders.direction) },
         { label: 'AOV', value: aov != null ? '£' + aov.toFixed(2) : '—',
           sub: (aov != null && aovTarget) ? `${aov >= aovTarget ? '+' : ''}£${(aov - aovTarget).toFixed(2)} vs £${aovTarget.toFixed(2)} target` : '',
           accent: (aov != null && aovTarget) ? (aov >= aovTarget ? '#2A9D8F' : '#d97706') : '#64748b' },
         { label: 'Contribution', value: gbp(d.profit),
-          sub: [d.por_pct != null ? `POR ${(Number(d.por_pct) * 100).toFixed(1)}%` : '', gm != null ? `GM ${(gm * 100).toFixed(1)}%` : ''].filter(Boolean).join(' · '),
-          accent: '#64748b' },
+          sub: [figures.por_pct != null ? `POR ${figures.por_pct}%` : '', figures.contribution_pct != null ? `Contribution % ${figures.contribution_pct}%` : ''].filter(Boolean).join(' · '),
+          accent: acc(figures.contribution.direction) },
       ]
       userContent =
-        `Yesterday (${d.day}): Revenue ${gbp(d.revenue)}, Orders ${d.orders}, Contribution ${gbp(d.profit)}${por}` +
-        `${gm != null ? `, GM ${(gm * 100).toFixed(1)}%` : ''}.\n` +
-        (aov != null ? `AOV (average order value) = £${aov.toFixed(2)}${aovTarget ? ` vs £${aovTarget.toFixed(2)} target (${aov >= aovTarget ? 'ahead' : 'behind'})` : ''}. ` +
-          `AOV is a priority lever — every +£1 of AOV is ~£0.68 incremental contribution per order.\n` : '\n') +
-        `\nDaily targets vs actual (Primary/Stretch/Ultimate; variance_vs_primary_pct is the fraction ` +
-        `above/below the Primary target — positive = ahead):\n${JSON.stringify(pace ?? [], null, 2)}\n\n` +
-        `Write the short daily note now — LEAD with how yesterday landed vs the Primary daily target, and ` +
-        `include one line on AOV (the figure and whether it is ahead/behind target).`
+        `Write the daily note now. EVERY number and comparison below is FINAL and computed in code — write words ` +
+        `ONLY around them. Do NOT recompute, re-derive a % or direction, or compare against anything not given. Do ` +
+        `NOT quote any number that is not in this block. Data as at ${asAt} London.\n\n` +
+        `Figures (yesterday, ${d.day}):\n${JSON.stringify(figures, null, 2)}\n\n` +
+        `How to use it: LEAD with contribution vs Primary using contribution.direction + contribution.vs_primary_pct. ` +
+        `Mention Stretch/Ultimate ONLY if contribution.cleared_line is 'stretch' or 'ultimate'. Then revenue and ` +
+        `orders as colour (their direction + vs_primary_pct). One line on AOV using aov.direction. State margin as ` +
+        `"POR {por_pct}%, Contribution % {contribution_pct}%". If a metric's direction is null (target missing), omit ` +
+        `its vs-Primary comparison — do NOT refuse. ` +
+        `IF figures.data_health.incomplete is true: the order data is STALE/INCOMPLETE (an ingest/refresh lag, not ` +
+        `a real day). OPEN with a one-line warning that the figures are PROVISIONAL and understated, do NOT interpret ` +
+        `the shortfall as real or diagnose causes, and caveat every figure as provisional. ` +
+        `Close with one short focus question.`
     } else {
       // Fetch all report inputs CONCURRENTLY. Run sequentially they stacked to ~37s of RPC time
       // (scorecard ~16s + pace ~11s + work ~7s + aov ~4s) which, with the ~38s model call, pushed
@@ -458,16 +518,18 @@ Deno.serve(async (req) => {
       const fromAddr: string = (typeof fromRow?.value === 'string' && fromRow.value)
         ? (fromRow.value as string) : 'PartsDoc Orin <orin@partsdochub.com>'
       if (RESEND_API_KEY && recipients.length > 0 && (testTo || cadences.includes(cadence))) {
-        // Prepend the note as a blockquote banner (styled via .orin-body blockquote) for the email only.
-        const emailBody = note ? `> ${note}\n\n${narrative}` : narrative
-        const html = renderEmailHtml(emailBody, cadence, periodKey, cards, shortlist)
+        // Prepend the staleness warning (if any) + the one-off note as blockquote banner(s) above the
+        // report — a loud, deterministic flag independent of what the model wrote.
+        const bannerLines = [dataWarning, note].filter(Boolean)
+        const emailBody = bannerLines.length ? bannerLines.map((s) => `> ${s}`).join('\n>\n') + `\n\n${narrative}` : narrative
+        const html = renderEmailHtml(emailBody, cadence, periodKey, cards, shortlist, generatedAt)
         const r = await fetch('https://api.resend.com/emails', {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({
             from: fromAddr,
             to: recipients,
-            subject: `Orin ${cadence} report — ${periodKey}`,
+            subject: `${dataWarning ? '⚠ ' : ''}Orin ${cadence} report — ${periodKey}`,
             html, text: emailBody,
           }),
         })
@@ -528,7 +590,7 @@ function renderReorderHtml(rows: any[], sans: string): string {
 function renderEmailHtml(
   narrative: string, cadence: string, periodKey: string,
   cards: Array<{ label: string; value: string; sub: string; accent: string }> = [],
-  shortlist: any[] = [],
+  shortlist: any[] = [], asAt: string = '',
 ): string {
   const bodyHtml = marked.parse(narrative, { async: false }) as string
   const title = cadence === 'daily' ? 'Daily Brief' : cadence === 'weekly' ? 'Weekly Report' : 'Monthly Review'
@@ -568,7 +630,7 @@ function renderEmailHtml(
     <div style="background:${BRAND.charcoal};padding:22px 28px">
       <img src="${LOGO_URL}" alt="PartsDoc" height="26" style="height:26px;display:block;border:0;outline:none">
       <div style="color:${BRAND.slate};font-size:12px;margin-top:10px;font-family:${sans};letter-spacing:.02em">
-        <span style="color:${BRAND.teal};font-weight:600">Orin</span> &middot; ${title} &middot; ${periodKey}
+        <span style="color:${BRAND.teal};font-weight:600">Orin</span> &middot; ${title} &middot; ${periodKey}${asAt ? ` &middot; as at ${asAt}` : ''}
       </div>
     </div>
     ${cardsHtml ? `<div style="padding:18px 19px 4px">${cardsHtml}</div>` : ''}
