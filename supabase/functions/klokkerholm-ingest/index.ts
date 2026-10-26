@@ -114,6 +114,9 @@ Deno.serve(async (req) => {
     if (req.method === "OPTIONS") return new Response("ok");
     const supabase = createClient(env("SUPABASE_URL")!, env("SUPABASE_SERVICE_ROLE_KEY")!);
     const body = await req.json().catch(() => ({}));
+    // Optional override: process a SPECIFIC message id (used to re-apply a known-good feed). Bypasses
+    // the newest-selection and the already-processed skip below.
+    const forceMsgId = typeof body?.msgId === "string" && body.msgId.trim() ? body.msgId.trim() : null;
     const live = ((await (async () => { const { data } = await supabase.from("app_settings").select("value").eq("key", "ordering.klokkerholm_live").maybeSingle(); return data?.value; })()) === true) && body?.dryRun !== true;
     const maxWrites = Number(await (async () => { const { data } = await supabase.from("app_settings").select("value").eq("key", "ordering.klokkerholm_max_writes_per_run").maybeSingle(); return data?.value; })()) || 600;
     const { data: feed } = await supabase.from("supplier_feeds").select("location_id").eq("supplier", SUP).maybeSingle();
@@ -122,11 +125,16 @@ Deno.serve(async (req) => {
     const tok = await gmailToken();
     const list = await gapi(tok, `messages?q=${encodeURIComponent(GMAIL_QUERY)}&maxResults=10`);
     const ids: string[] = (list.messages ?? []).map((m: any) => m.id);
-    if (!ids.length) { const out = { ok: true, note: "no Klokkerholm report found (incl spam)", live }; await log(supabase, "ok", "no-mail", out); return new Response(JSON.stringify(out, null, 2), { headers: { "Content-Type": "application/json" } }); }
-    const { data: done } = await supabase.from("supplier_feed_processed_messages").select("message_id").eq("supplier", SUP).in("message_id", ids);
-    const doneSet = new Set((done ?? []).map((d) => d.message_id));
-    const msgId = ids.find((id) => !doneSet.has(id));
-    if (!msgId) { const out = { ok: true, note: "latest report already processed", live, newest: ids[0] }; await log(supabase, "ok", "already-processed", out); return new Response(JSON.stringify(out, null, 2), { headers: { "Content-Type": "application/json" } }); }
+    if (!ids.length && !forceMsgId) { const out = { ok: true, note: "no Klokkerholm report found (incl spam)", live }; await log(supabase, "ok", "no-mail", out); return new Response(JSON.stringify(out, null, 2), { headers: { "Content-Type": "application/json" } }); }
+    // SELECTION — only ever consider the SINGLE NEWEST matching email (Gmail lists newest-first). If it
+    // is already processed, write nothing — never walk BACKWARDS onto an older, still-unprocessed feed
+    // (same clone flaw as elta-ingest; fixed 26 Oct). forceMsgId re-applies a specific message.
+    const newest = ids[0];
+    const msgId = forceMsgId ?? newest;
+    if (!forceMsgId) {
+      const { data: done } = await supabase.from("supplier_feed_processed_messages").select("message_id").eq("supplier", SUP).eq("message_id", newest);
+      if ((done ?? []).length) { const out = { ok: true, skipped: "already processed", live, newest }; await log(supabase, "ok", "already-processed", out); return new Response(JSON.stringify(out, null, 2), { headers: { "Content-Type": "application/json" } }); }
+    }
 
     const msg = await gapi(tok, `messages/${msgId}?format=full`);
     const part = findXlsxPart(msg.payload);
