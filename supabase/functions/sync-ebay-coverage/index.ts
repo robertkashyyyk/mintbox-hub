@@ -98,6 +98,8 @@ Deno.serve(async (req) => {
     const listingsUrl = `${BASE}/v1/products/listings?sellerId=${a.sellerId}&status=Active&page=${page}&limit=${LIMIT}`;
     const TRANSIENT = new Set([429, 502, 503, 504]);
     let res = await fetch(listingsUrl, { headers: tds });
+    const firstStatus = res.status;
+    let retriesUsed = 0;
     for (let attempt = 1; attempt <= 3 && TRANSIENT.has(res.status); attempt++) {
       const retryAfter = Number(res.headers.get("retry-after"));
       const waitMs = Number.isFinite(retryAfter) && retryAfter > 0
@@ -105,6 +107,14 @@ Deno.serve(async (req) => {
         : Math.min(2000 * attempt, 10_000); // 2s, 4s, 6s
       await new Promise((r) => setTimeout(r, waitMs));
       res = await fetch(listingsUrl, { headers: tds });
+      retriesUsed++;
+    }
+    // Log every throttled page (best-effort; never block the sync) so we can report absorbed-vs-resumed.
+    if (TRANSIENT.has(firstStatus)) {
+      await db.from("coverage_throttle_log").insert({
+        run_token: runToken, seller_id: a.sellerId, page, http_status: firstStatus,
+        retries_used: retriesUsed, resolved: res.ok ? "absorbed" : "resumed",
+      }).then(() => {}, () => {});
     }
     if (!res.ok) { await save(); return json({ ok: false, error: `listings ${a.sellerId} p${page} -> ${res.status}`, phase, acct, page }); }
     const j = await res.json();
