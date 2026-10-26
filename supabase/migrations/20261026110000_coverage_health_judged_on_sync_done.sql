@@ -32,7 +32,11 @@ AS $function$
   );
 $function$;
 
-GRANT EXECUTE ON FUNCTION public.coverage_sync_healthy() TO authenticated, service_role;
+-- Only the SECURITY DEFINER monitors (get_job_health / job_doctor_collect) call this, as owner —
+-- no API role needs it. Revoke the PostgREST surface (anon/authenticated) to avoid a SECURITY
+-- DEFINER function being callable via /rest/v1/rpc; keep service_role only.
+REVOKE EXECUTE ON FUNCTION public.coverage_sync_healthy() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.coverage_sync_healthy() TO service_role;
 
 -- 429 = transient (two match modes: in-body text, and a true HTTP 429 status).
 -- text_ilike is the edge fn's exact "...-> 429" throttle string (NOT a bare '%429%', which would

@@ -16,3 +16,8 @@ CREATE TABLE IF NOT EXISTS public.coverage_throttle_log (
 CREATE INDEX IF NOT EXISTS coverage_throttle_log_run_idx ON public.coverage_throttle_log (run_token, logged_at);
 
 GRANT SELECT, INSERT ON public.coverage_throttle_log TO service_role;
+
+-- Lock down: a public table with RLS off is reachable via PostgREST with the anon key. The edge fn
+-- writes with the service role (BYPASSRLS), so no policy is needed — enable RLS and revoke API roles.
+ALTER TABLE public.coverage_throttle_log ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.coverage_throttle_log FROM anon, authenticated;
